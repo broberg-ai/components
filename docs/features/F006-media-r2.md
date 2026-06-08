@@ -1,7 +1,7 @@
 # F006 — Media / R2 — Cloudflare R2 object-storage core
 
 > L0 Rails · runtime-package · effort **M** · impact **high** · owner `cardmem`. Status: Backlog.
-> LEAP-candidate: no — stays in `components`.
+> Graduate-candidate: no — stays in `components`.
 
 ## Motivation
 A thin, framework-agnostic package wrapping Cloudflare R2 (S3-compatible) for all object-storage needs: server-side streaming upload, presigned GET/PUT URL generation, byte-proxy serving with immutable caching, multi-tenant key conventions, MIME/extension allowlist validation, and a ships-dark isConfigured() guard. Targets Bun (Bun.S3Client) natively with an @aws-sdk/client-s3 fallback for Node/Next.js. Does NOT own DB rows, React components, or routing — those are adapter concerns.
@@ -24,7 +24,7 @@ A thin, framework-agnostic package wrapping Cloudflare R2 (S3-compatible) for al
 ### Best source (reference implementation)
 `broberg/cardmem` — `apps/server/src/storage/r2.ts` (all six primitives + ships-dark guard + MIME/ext allowlist + validateUpload + multi-tenant key builder + immutable-cache proxy + public-URL helper; comment documents EU jurisdiction, server-upload-vs-presign-CORS, getObjectBytes-vs-302 caching) + `apps/server/src/api/attachments.ts` (cleanest Hono binding: upload/list/raw/delete/config).
 
-### Other implementations seen
+### Other implementations seen (contract cross-check)
 - `broberg/xrt81` `apps/server/src/lib/storage.ts` — origin of STORAGE_BACKEND=local|r2 + putObjectStream (stream into R2 without buffering large video).
 - `webhouse/sanneandersen` `site/src/lib/storage/r2.ts` + `.../presigned-upload/route.ts` — browser presigned-PUT + generateStorageKey + isStorageConfigured guard; @aws-sdk (Node/Next adapter).
 - `webhouse/dns-mcp` `src/clients/r2.ts` — CF REST bucket mgmt + scoped-token provisioning; EU jurisdiction header (cf-r2-jurisdiction: eu); endpoint formula <account>.eu.r2.cloudflarestorage.com.
@@ -48,7 +48,7 @@ export { DEFAULT_IMAGE_MIMES, DEFAULT_ALLOWED_EXTENSIONS, DEFAULT_MAX_BYTES };
 - **F006.1** — Core: Bun.S3Client wrapper, all six primitives — _AC:_ exports the full core; unit tests cover validateUpload (allowed/blocked/over-size/empty), generateKey (slugify/truncate), isR2Configured (missing env=false); ships dark (no throw at import).
 - **F006.2** — Hono attachments-router adapter — _AC:_ createAttachmentsRouter(db,auth) mounts upload/list/raw/delete/config; /raw sets Cache-Control immutable; integration test uploads a PNG, retrieves via /raw, asserts Content-Type + Cache-Control.
 - **F006.3** — Pilot: cardmem adopts the package in-monorepo — _AC:_ cardmem storage/r2.ts deleted, replaced by the package; attachments.ts imports the router factory; pnpm build passes; upload+serve unchanged (Lens baseline diff).
-- **F006.4** — Stack A adapter: Next.js handler + useUpload hook — _AC:_ createPresignedUploadHandler (sanneandersen pattern, validated against allowlist); useUpload exposes {upload,progress,error,url}; UploadButton wires loading+error; works on Next 16 App Router; no bun imports.
+- **F006.4** — Stack A adapter: Next.js handler + useUpload hook — _AC:_ createPresignedUploadHandler (sanneandersen pattern, validated against allowlist); useUpload exposes {upload,progress,error,url}; UploadButton wires loading+error; works on Next 16 App Router (runtime nodejs); no bun imports.
 - **F006.5** — Management subpath: bucket provisioning from dns-mcp — _AC:_ R2ManagementClient (create/delete/list bucket, createScopedToken, provision); EU jurisdiction header on every call; endpoint formula <account>.eu.r2.cloudflarestorage.com only.
 - **F006.6** — Spread to xrt81 + notesmem — _AC:_ both storage files replaced by package imports; STORAGE_BACKEND=local retained via LocalBackend adapter; both repos build + tests pass with no logic change.
 
@@ -64,7 +64,7 @@ export { DEFAULT_IMAGE_MIMES, DEFAULT_ALLOWED_EXTENSIONS, DEFAULT_MAX_BYTES };
 ## Rollout
 Strangler: 1) extract cardmem r2.ts into the package in-monorepo + Hono adapter, verify cardmem itself no-change; 2) publish to components; 3) adopt back in xrt81 (source of streaming); 4) adopt in notesmem (2 files); 5) add Stack A adapter from sanneandersen, test on Next 16; 6) adopt in sanneandersen; 7) new repos import from start.
 
-LEAP-candidate: no — stays in `components`.
+Graduate-candidate: no — stays in `components`.
 
 ## Open Questions
 - Ship a LocalBackend (Fly-volume) so STORAGE_BACKEND=local keeps working, or each repo owns it?
