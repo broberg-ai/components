@@ -1,7 +1,7 @@
 # F010 — API-key + rate-limit helper
 
 > L1 Identity · runtime-package · effort **M** · impact **high** · owner `trail`. Status: Backlog.
-> LEAP-candidate: no — stays in `components`.
+> Graduate-candidate: no — stays in `components`.
 
 ## Motivation
 A framework-agnostic package providing (1) API-key lifecycle: prefixed token generation ({prefix}_{32-randomBytes-hex}), SHA-256 hash before storage, timing-safe verification, soft-revoke, optional lastUsedAt stamping; (2) scope checking against a caller-supplied set; (3) a sliding-window in-memory rate limiter keyed by an arbitrary string (IP, key id, tenant). Thin Hono (Stack B) + Next.js (Stack A) middleware adapters so the core never imports either framework. The pattern is implemented in 8+ repos with enough variation to make manual drift genuinely painful — and dangerous.
@@ -25,7 +25,7 @@ A framework-agnostic package providing (1) API-key lifecycle: prefixed token gen
 ### Best source (reference implementation)
 `broberg/trail` — `apps/server/src/routes/api-keys.ts` + `middleware/auth.ts` + `lib/key-index.ts`. Full lifecycle (generate/hash-store/list/soft-revoke), timing-safe verify with the correct length-check guard, fire-and-forget lastUsedAt, key-index dual-write for multi-tenant bearer resolution. Shows both prefixed-key (trail_<64hex>) + env static-token legacy paths in one middleware.
 
-### Other implementations seen
+### Other implementations seen (contract cross-check)
 - `webhouse/dns-api` `src/{auth,rate-limit}.ts` — cleanest standalone sliding-window limiter (per-IP, 5-min prune via setInterval().unref(), 35 lines, zero deps).
 - `webhouse/cms` `packages/cms-mcp-server/src/auth.ts` (timing-safe multi-key scan) + `cms-admin/src/lib/access-tokens.ts` (Cloudflare-style permission+resource-filter+CIDR+TTL evaluateToken — informs AuthDecision shape).
 - `webhouse/cronjobs` `src/lib/auth/api-key.ts` — canonical Next/Drizzle: cj_ prefix, enabled toggle, lastUsedAt, generateApiKey()→{key,hash,preview}; clearest copy-once preview UX.
@@ -51,7 +51,7 @@ export class SlidingWindowRateLimiter { constructor(o:{windowMs:number;max:numbe
 - **F010.1** — Core: generate/hash/verify/preview — _AC:_ generateKey('trail')→'trail_'+64hex; hashKey→sha256 hex; verifyKey provably timing-safe (same result for wrong-length + wrong-byte, unit-tested with distinct-length strings, no throw); makeKeyPreview→first 14; 100% branch coverage; no framework import.
 - **F010.2** — SlidingWindowRateLimiter with auto-prune — _AC:_ check returns {allowed,remaining,resetAt}; prune clears entries older than windowMs; destroy() clears the interval (.unref() pattern); tested with injected Date.now.
 - **F010.3** — Hono adapter middleware — _AC:_ honoApiKeyMiddleware resolves Bearer/x-api-key, sets apiKeyRecord, 401 missing / 403 invalid-or-revoked; honoRateLimitMiddleware extracts IP, 429 + Retry-After; both via Hono testClient.
-- **F010.4** — Next.js adapter middleware — _AC:_ withApiKeyAuth injects x-resolved-key-id on valid, 401/403 JSON on fail; nextRateLimit returns 429 or null; no next/navigation import; tested with MockNextRequest.
+- **F010.4** — Next.js adapter middleware — _AC:_ withApiKeyAuth injects x-resolved-key-id on valid, 401/403 JSON on fail; nextRateLimit returns 429 or null; no next/navigation import (only next/server); tested with MockNextRequest.
 - **F010.5** — Pilot: dns-api adopts the package — _AC:_ dns-api auth.ts + rate-limit.ts deleted, replaced by package imports; all dns-api tests pass; same 401/403/429 shapes.
 - **F010.6** — Pilot: trail adopts the package — _AC:_ trail api-keys.ts + auth.ts gen/verify replaced by package imports; trail integration tests pass; key-index dual-write stays in trail (tenant-specific).
 
@@ -68,7 +68,7 @@ export class SlidingWindowRateLimiter { constructor(o:{windowMs:number;max:numbe
 ## Rollout
 Strangler: 1) extract core from trail api-keys/auth + dns-api rate-limit; 2) Hono adapter first, pilot dns-api (smallest); 3) adopt back in trail; 4) Next adapter, pilot cronjobs; 5) spread to upmetrics/cardmem/cms-mcp-server/pitch/codepromptmaker. Never big-bang.
 
-LEAP-candidate: no — stays in `components`.
+Graduate-candidate: no — stays in `components`.
 
 ## Open Questions
 - Pluggable rate-limiter backend (Redis) for multi-instance, or in-memory sufficient (Fly single-machine today)?
