@@ -1,7 +1,7 @@
 # F011 — Event Log (GDPR + Activity Log)
 
 > L1 Identity · hybrid · effort **M** · impact **high** · owner `cms`. Status: Backlog.
-> LEAP-candidate: no — stays in `components`.
+> Graduate-candidate: no — stays in `components`.
 
 ## Motivation
 A headless, append-only event log with three functional layers — audit (GDPR-grade who-did-what-when), activity (operational events, agent/pipeline actors), and server (errors, deploys, schedulers). All writes are fire-and-forget and never throw; the log must never block the caller. The core provides typed LogEntry/LogActor/LogTarget, retention metadata, GDPR export (structured JSON) + anonymisation primitives (Art. 17 stk. 3 lit. b), and IP hashing for pseudonymisation. Adapters wire the core to JSONL / SQLite-Drizzle / Supabase; a separate UI package delivers a filterable admin table.
@@ -24,7 +24,7 @@ A headless, append-only event log with three functional layers — audit (GDPR-g
 ### Best source (reference implementation)
 `webhouse/cms` — `packages/cms-admin/src/lib/event-log.ts`: all three layers, typed LogEntry/Actor/Target, fire-and-forget logEvent(), convenience helpers (logLogin/logDocumentCreated/logRoleChanged/logExport), paginated readLog() with all filters, logStats(), rotateLog(), hashIp(). Covers ~90% of the core.
 
-### Other implementations seen
+### Other implementations seen (contract cross-check)
 - `broberg/trail` `packages/core/src/activity.ts` + `packages/db/src/schema.ts` — best multi-actor model (llm/pipeline actor kinds), tenantId + knowledgeBaseId scope, open-text kind (cheap migrations).
 - `webhouse/sanneandersen` `site/src/lib/eir/audit.ts` + `lib/auth/gdpr.ts` — fail-soft logAuditEvent, 40+ typed closed AuditEventKind, full Art. 17 delete (anonymise + hard-delete PII, transactional) + structured export payload.
 - `webhouse/senti-object-store` `src/lib/activity/core.ts` + `components/activity-logs/ActivityLogsTable.tsx` — best admin UI (sortable, tab-filter, paginator, search-spinner) + logBatchActivity().
@@ -47,7 +47,7 @@ export { logLogin, logLogout, logLoginFailed, logDocumentCreated, logDocumentUpd
 ```
 
 ## Stories
-- **F011.1** — Extract headless core package — _AC:_ exports types + LogStore + makeLogEntry + hashIp + anonymizeContact + filterEntries + buildExportPayload + convenience helpers; zero framework/DB imports; tests: makeLogEntry fills id+timestamp, hashIp 8-char hex, filterEntries by layer/userId/since/action-prefix; cms compiles with the package replacing inline types.
+- **F011.1** — Extract headless core package — _AC:_ exports types + LogStore + makeLogEntry + hashIp + anonymizeContact + filterEntries + buildExportPayload + convenience helpers; zero framework/DB imports; tests: makeLogEntry fills id+timestamp, hashIp 8-char hex, filterEntries by layer/userId/since/action-prefix; cms compiles replacing inline types.
 - **F011.2** — SQLite/Drizzle adapter (Stack B) — _AC:_ SqliteLogStore over bun:sqlite; schema exported; rotateLog prunes by MAX_AGE_DAYS; Hono logRequestActivity auto-fills actor from ctx.var.user; trail logActivity replaced; trail tests pass; activity feed unregressed.
 - **F011.3** — JSONL adapter (cms use case) — _AC:_ append-only JSONL per layer; readLog newest-first with all filters; rotateLog renames to .YYYY-MM.jsonl at threshold; cms event-log.ts replaced; admin event-log page renders identically; logStats correct against a fixture.
 - **F011.4** — Supabase adapter + dual client/server (Stack A) — _AC:_ createClientLogStore (auth.uid RLS) + createServerLogStore (service role); fysiodk audit.ts + audit-server.ts replaced without changing call sites; RLS policy still enforced; useEventLog returns {log,isLoading}.
@@ -67,7 +67,7 @@ export { logLogin, logLogout, logLoginFailed, logDocumentCreated, logDocumentUpd
 ## Rollout
 Strangler: 1) extract core from cms event-log.ts; 2) add LogStore + makeLogEntry; 3) sqlite adapter pilot in trail; 4) publish; 5) sanneandersen (keep its closed union as a domain extension); 6) supabase adapter + UI for fysiodk + senti; 7) spread to cardmem.
 
-LEAP-candidate: no — stays in `components`.
+Graduate-candidate: no — stays in `components`.
 
 ## Open Questions
 - Open AuditEventKind with generic LogEntry<TKind>, or each repo defines its own layer on a base union?
