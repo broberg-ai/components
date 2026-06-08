@@ -2,11 +2,11 @@
 
 > Generated from a code-grounded estate sweep (80 repos under `~/Apps`, 52-agent workflow, 2026-06-08). Each component below is a cardmem **epic** with a full plan-doc + stories on the [components board](https://www.cardmem.com/board). This file is the scored reference; the board is the live index.
 >
-> **Reuse models:** 📦 runtime-package · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid. **LEAP** = graduates to its own repo+project later.
+> **Reuse models:** 📦 runtime-package · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid. **Graduate** = should get its own repo + cardmem project.
 
 ## L0 Rails
 
-| F | Component | Model | Effort | Impact | LEAP | Best source | Owner |
+| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
 |---|---|---|---|---|---|---|---|
 | F001 | Design tokens + theme preset | hybrid | M | critical | — | `webhouse/cms` | `cms` |
 | F002 | @broberg/stack-b-base — Stack B base scaffold | scaffold | M | high | — | `broberg/cardmem` | `cardmem` |
@@ -18,7 +18,7 @@
 
 ## L1 Identity
 
-| F | Component | Model | Effort | Impact | LEAP | Best source | Owner |
+| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
 |---|---|---|---|---|---|---|---|
 | F008 | OAuth Login Providers (Google / Apple / GitHub + identity linking) | runtime-package | M | high | — | `broberg/xrt81` | `xrt81` |
 | F009 | User Management + Invitation | hybrid | M | high | — | `webhouse/cms` | `cms` |
@@ -30,7 +30,7 @@
 
 ## L2 Shell
 
-| F | Component | Model | Effort | Impact | LEAP | Best source | Owner |
+| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
 |---|---|---|---|---|---|---|---|
 | F015 | Mode-switch (dark / light / system) | hybrid | S | high | — | `webhouse/fysiodk-aalborg-sport` | `fysiodk-aalborg-sport` |
 | F016 | Toasts / Modals + Custom Controls (CustomSelect, DatePicker, ConfirmModal) | copy-owned | M | high | — | `webhouse/cms` | `cms` |
@@ -43,7 +43,7 @@
 
 ## L3 Domain
 
-| F | Component | Model | Effort | Impact | LEAP | Best source | Owner |
+| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
 |---|---|---|---|---|---|---|---|
 | F023 | Mail Templates | copy-owned | M | high | — | `webhouse/sanneandersen` | `sanneandersen` |
 | F024 | Forms + Turnstile — spam-protected form pipeline | hybrid | M | high | — | `webhouse/cms` | `cms` |
@@ -54,7 +54,7 @@
 
 ## L4 Capstone
 
-| F | Component | Model | Effort | Impact | LEAP | Best source | Owner |
+| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
 |---|---|---|---|---|---|---|---|
 | F029 | Multi-Tenant Management | hybrid | L | high | yes | `webhouse/cms` | `cms` |
 | F030 | Native Mobile Boilerplate (Capacitor) | hybrid | L | high | yes | `webhouse/cms` | `cms` |
@@ -66,6 +66,6 @@
 - **Ruthless share/copy line:** runtime-package only when genuinely identical across ≥3 repos, stable, and painful to sync; otherwise copy-owned. Over-sharing is the bigger risk.
 - **Headless core + thin adapters:** Stack A (Next.js) and Stack B (Bun/Hono) share framework-agnostic core TS; a package importing `next/*` is dead weight in Stack B.
 - **Foundation first:** F001 design-tokens underpins every UI layer.
-- **Strangler, never big-bang;** owner-session per package; `components` stays a multi-package monorepo, big epics LEAP out.
+- **Strangler, never big-bang;** owner-session per package; `components` stays a multi-package monorepo, big epics graduate out into their own repos.
 
 _Full per-component specs (architecture, file refs, headless/adapter split, public API, stories, AC) live in each F-doc and on the board._

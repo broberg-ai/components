@@ -26,8 +26,8 @@ const ORDER = [
 ]
 
 // ---- synthesis overrides (Opus judgment over the Sonnet specs) ----
-// LEAP recommendation: big/standalone items that should graduate to their own repo+project later.
-const LEAP_TRUE = new Set(['podcast', 'multi-tenant', 'mobile-boilerplate', 'create-app-cli', 'deployment-mgmt'])
+// Graduate recommendation: big/standalone specs that should get their own repo+project.
+const GRADUATE = new Set(['podcast', 'multi-tenant', 'mobile-boilerplate', 'create-app-cli', 'deployment-mgmt'])
 // priority comes from spec.impact: critical→critical, high→high, medium→medium, low→low
 const prio = s => s.impact
 const ROLE = {
@@ -65,9 +65,9 @@ const EDGES = [
 const fnum = key => 'F' + String(ORDER.indexOf(key) + 1).padStart(3, '0')
 const slug = key => key
 const rel = p => (p || '').replace('/Users/cb/Apps/', '')
-const leapLine = key => LEAP_TRUE.has(key)
-  ? 'LEAP-candidate: YES — graduates to its own repo+cardmem project later (recommendation, confirm with Christian).'
-  : 'LEAP-candidate: no — small core npm that stays in `components`.'
+const graduateLine = key => GRADUATE.has(key)
+  ? 'Graduate-candidate: YES — should get its own repo + cardmem project (recommendation, confirm with Christian).'
+  : 'Graduate-candidate: no — small core npm that stays in `components`.'
 
 function planDoc(s) {
   const F = fnum(s.key)
@@ -90,7 +90,7 @@ function planDoc(s) {
   return `# ${F} — ${s.title}
 
 > ${s.layer} · ${s.reuseModel} · effort **${s.effort}** · impact **${s.impact}** · owner \`${rel(s.ownerSession)}\`. Status: Backlog.
-> ${leapLine(s.key)}
+> ${graduateLine(s.key)}
 
 ## Motivation
 ${s.what}
@@ -145,7 +145,7 @@ ${depLines.length ? depLines.join('\n') : '- None'}
 ## Rollout
 Strangler, never big-bang: ${s.migrationOrder}
 
-${leapLine(s.key)}
+${graduateLine(s.key)}
 
 ## Open Questions
 ${oq}
@@ -171,7 +171,7 @@ for (const key of ORDER) {
   manifest.push({
     fnum: F, key, slug: slug(key), title: s.title, layer: s.layer,
     reuseModel: s.reuseModel, effort: s.effort, impact: s.impact, priority: prio(s),
-    leap: LEAP_TRUE.has(key), role: ROLE[key] || 'infra', ownerSession: rel(s.ownerSession),
+    graduate: GRADUATE.has(key), role: ROLE[key] || 'infra', ownerSession: rel(s.ownerSession),
     file_path, storyPoints: SP[s.effort] || 3,
     task: `${s.what.split('. ')[0]}. Reuse model: ${s.reuseModel}.`,
     context: `Best source: ${rel(s.bestSource.repo)}. ${s.reuseRationale}`,
@@ -218,15 +218,15 @@ let md = `# @broberg/components — Inventory & Vision
 
 > Generated from a code-grounded estate sweep (80 repos under \`~/Apps\`, 52-agent workflow, 2026-06-08). Each component below is a cardmem **epic** with a full plan-doc + stories on the [components board](https://www.cardmem.com/board). This file is the scored reference; the board is the live index.
 >
-> **Reuse models:** 📦 runtime-package · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid. **LEAP** = graduates to its own repo+project later.
+> **Reuse models:** 📦 runtime-package · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid. **Graduate** = should get its own repo + cardmem project.
 
 `
 for (const L of layers) {
   const rows = manifest.filter(m => m.layer === L)
   if (!rows.length) continue
-  md += `## ${L}\n\n| F | Component | Model | Effort | Impact | LEAP | Best source | Owner |\n|---|---|---|---|---|---|---|---|\n`
+  md += `## ${L}\n\n| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |\n|---|---|---|---|---|---|---|---|\n`
   for (const m of rows) {
-    md += `| ${m.fnum} | ${m.title} | ${m.reuseModel} | ${m.effort} | ${m.impact} | ${m.leap ? 'yes' : '—'} | \`${byKey[m.key].bestSource.repo.replace('/Users/cb/Apps/', '')}\` | \`${m.ownerSession}\` |\n`
+    md += `| ${m.fnum} | ${m.title} | ${m.reuseModel} | ${m.effort} | ${m.impact} | ${m.graduate ? 'yes' : '—'} | \`${byKey[m.key].bestSource.repo.replace('/Users/cb/Apps/', '')}\` | \`${m.ownerSession}\` |\n`
   }
   md += `\n`
 }
@@ -235,7 +235,7 @@ md += `## Method & guardrails
 - **Ruthless share/copy line:** runtime-package only when genuinely identical across ≥3 repos, stable, and painful to sync; otherwise copy-owned. Over-sharing is the bigger risk.
 - **Headless core + thin adapters:** Stack A (Next.js) and Stack B (Bun/Hono) share framework-agnostic core TS; a package importing \`next/*\` is dead weight in Stack B.
 - **Foundation first:** F001 design-tokens underpins every UI layer.
-- **Strangler, never big-bang;** owner-session per package; \`components\` stays a multi-package monorepo, big epics LEAP out.
+- **Strangler, never big-bang;** owner-session per package; \`components\` stays a multi-package monorepo, big epics graduate out into their own repos.
 
 _Full per-component specs (architecture, file refs, headless/adapter split, public API, stories, AC) live in each F-doc and on the board._
 `
@@ -243,4 +243,4 @@ writeFileSync('docs/INVENTORY.md', md)
 
 console.log(`Generated ${manifest.length} plan-docs + manifest + INVENTORY.md`)
 console.log('Layers:', layers.map(L => `${L}=${manifest.filter(m => m.layer === L).length}`).join(' '))
-console.log('LEAP:', manifest.filter(m => m.leap).map(m => m.fnum + ' ' + m.key).join(', '))
+console.log('Graduate:', manifest.filter(m => m.graduate).map(m => m.fnum + ' ' + m.key).join(', '))
