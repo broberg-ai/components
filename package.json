@@ -1,0 +1,15 @@
+{
+  "name": "broberg-components",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo home for the small core @broberg/* packages (see docs/INVENTORY.md).",
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  }
+}

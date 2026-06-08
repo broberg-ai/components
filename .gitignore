@@ -148,3 +148,7 @@ vite.config.ts.timestamp-*
 .env.*
 !.env.example
 .claude/settings.local.json
+
+# npm auth (never commit)
+.npmrc
+packages/*/.npmrc
