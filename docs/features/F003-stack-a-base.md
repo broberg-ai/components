@@ -1,12 +1,10 @@
 # F003 — Stack A base-scaffold (@broberg/stack-a-base)
 
 > L0 Rails · scaffold · effort **M** · impact **high** · owner `boilerplates-cms`. Status: Backlog.
-> LEAP-candidate: no — stays in `components`.
+> Graduate-candidate: no — stays in `components`.
 
 ## Motivation
-A copy-owned scaffold that stamps a full Next.js 16 / React 19 / Tailwind v4 / shadcn new-york baseline in one shot: App Router layout.tsx with dark-mode flash prevention, a Tailwind v4 CSS-first @theme token file, Navbar + Footer driven by a content/global.json singleton, a lib/content.ts headless reader (getCollection / getDocument / readGlobal over flat JSON), dynamic [slug] routes with generateStaticParams, blog listing + post, BlockRenderer (hero/features/cta), sitemap.ts and robots.ts wired to NEXT_PUBLIC_SITE_URL, standalone output, and a cms.config.ts declaring collections + blocks for the @webhouse/cms admin. The github-variant adds a LiveRefresh component (SSE) for dev hot-reload. Not a runtime library — every project owns its copy.
-
-`nextjs-shadcn-base` is already duplicated across coverletter-generator + senti-website-redesign — this scaffold is what they hand-copy.
+A copy-owned scaffold that stamps a full Next.js 16 / React 19 / Tailwind v4 / shadcn new-york baseline in one shot: App Router layout.tsx with dark-mode flash prevention, a Tailwind v4 CSS-first @theme token file, Navbar + Footer driven by a content/global.json singleton, a lib/content.ts headless reader (getCollection / getDocument / readGlobal over flat JSON), dynamic [slug] routes with generateStaticParams, blog listing + post, BlockRenderer (hero/features/cta), sitemap.ts and robots.ts wired to NEXT_PUBLIC_SITE_URL, standalone output, and a cms.config.ts declaring collections + blocks for the @webhouse/cms admin. The github-variant adds a LiveRefresh component (SSE) for dev hot-reload. Not a runtime library — every project owns its copy. `nextjs-shadcn-base` is already duplicated across coverletter-generator + senti-website-redesign — this scaffold is what they hand-copy.
 
 ## Solution
 **scaffold.** Whole-app skeleton; no two sites share an evolution path after stamping. Ruthless rule: whole-app skeletons = scaffold. @webhouse/cms is a runtime dep consumed by the generated project (not copied); the scaffold wrapper is copy-owned. Not labelled hybrid because lib/content.ts is ~100 lines of pure Node fs — trivial to copy, not worth a package boundary.
@@ -27,11 +25,11 @@ A copy-owned scaffold that stamps a full Next.js 16 / React 19 / Tailwind v4 / s
 ### Best source (reference implementation)
 `webhouse/boilerplates-cms` — the maintained scaffold: two live variants (plain filesystem + GitHub-backed), complete App Router skeleton with dark-mode, Tailwind v4 @theme tokens, headless content reader, block renderer, nav/footer, dynamic routes, sitemap/robots, standalone output, SSE live-refresh.
 
-### Other implementations seen
+### Other implementations seen (contract cross-check)
 - `webhouse/cms` `packages/create-cms/src/index.ts` — simpler skeleton generator (lib/content.ts + cms.config.ts only); reference for the minimal variant + the CLI pattern.
 
 ### Headless core vs. adapters
-- **Core (no React, no next/*):** `lib/content.ts` — pure Node fs/path: getCollection<T>(name), getDocument<T>(collection,slug), readGlobal(); interfaces Document<T>, GlobalData, PageData, PostData, SeoData, Block. cms.config.ts schema (defineConfig/defineCollection/defineBlock) is also framework-agnostic.
+- **Core (no React, no `next/*`):** `lib/content.ts` — pure Node fs/path: getCollection<T>(name), getDocument<T>(collection,slug), readGlobal(); interfaces Document<T>, GlobalData, PageData, PostData, SeoData, Block. cms.config.ts schema (defineConfig/defineCollection/defineBlock) is also framework-agnostic.
 - **Stack A:** the full scaffold — layout.tsx, globals.css @theme, Navbar/Footer/BlockRenderer client components, generateStaticParams, sitemap/robots, next.config.ts (standalone + iframe headers), LiveRefresh.
 - **Stack B:** only lib/content.ts + cms.config.ts translate; page files/next-specific APIs have no equivalent. No Stack B variant exists yet — a separate future effort.
 
@@ -63,7 +61,7 @@ Stamps the scaffold, detects pnpm/yarn/npm, installs, writes CLAUDE.md, .mcp.jso
 ## Rollout
 Strangler: 1) audit both boilerplate variants build clean on current stack; 2) extract into packages/stack-a-base with a create-stack-a CLI (modeled on cms create-cms); 3) publish; 4) scaffold the next 1-2 new Stack A sites with it; 5) retire ad-hoc copy-paste, point setup docs at the CLI. Never big-bang running sites.
 
-LEAP-candidate: no — stays in `components`.
+Graduate-candidate: no — stays in `components`.
 
 ## Open Questions
 - Ship shadcn/ui stubs (Button, Card) out of the box, or stay vanilla Tailwind?
