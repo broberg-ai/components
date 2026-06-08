@@ -9,14 +9,17 @@ cardmem Settings) to complete setup.
 
 ## Project layout
 
-> **Fill this in for THIS repo.** Every cardmem-compatible repo MUST have a `## Project layout` section with the columns `Area | Path | Notes`. The cardmem Init flow (or the `feature` skill) populates it from the repo's actual structure — replace the example rows below.
+> **Phase 0 = the plan IS the product.** This repo is the incubator + home for the small core `@broberg/*` npm packages, and the home of the inventory/vision. Most components are ultimately built in their own owner-repos and LEAP'd out (see the mission docs). The layout below reflects what exists today plus the intended monorepo shape.
 
 | Area | Path | Notes |
 |---|---|---|
-| _(example — replace)_ App | `src/` | Main application code |
-| _(example — replace)_ Tests | `tests/` | Test suites |
+| Plan docs | `docs/` | The inventory + vision. `MISSION-BRIEF.md` + `MISSION-inventory-source.md` (authoritative, Christian's `CB:` edits) + `INVENTORY.md` (scored component inventory). |
+| Feature plans | `docs/features/` | `F<n>-<slug>.md` plan-docs — one per component/epic, written in the same step as the card. The cardmem board is the live index. |
+| Packages | `packages/` | _(intended)_ reusable packages published as `@broberg/<name>` — one folder per core component (e.g. `packages/tokens` → `@broberg/tokens`). Created as each Layer-0 package is piloted/extracted. |
+| Monorepo config | `turbo.json`, `pnpm-workspace.yaml` | _(intended)_ pnpm workspaces + Turbo orchestration, added with the first package. |
+| cardmem wiring | `.claude/`, `.mcp.json` | Skills, hooks, settings + cardmem/lens MCP declarations (scaffolded by the daemon). |
 
-Replace the example rows above with this repo's real layout before relying on cardmem skills to scope changes.
+Bigger components (the 🏗️ scaffolds, multi-tenant, podcast, mobile boilerplate) do **not** live here — they LEAP out into their own repo + cardmem project. `components` stays a multi-package monorepo for the small, genuinely-shared core npms.
 
 
 ## Working with cardmem
