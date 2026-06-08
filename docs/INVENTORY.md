@@ -71,7 +71,7 @@
 - **Data** → `@broberg/db-sdk`
 - **LLM** → `@broberg/ai-sdk`
 - **Telemetry / cost / errors** → `@upmetrics/sdk`
-- **Fleet comms** (intercom dispatch, terminal provision, notify-mobile, board digest, submit-idea) → `@broberg/fleet-client` + `@broberg/fleet-contracts` (buddy epic **F072**; `-contracts` built + tested at commit `667bc80`, not yet on npm — F072.7 trusted-publisher)
+- **Fleet comms** (intercom dispatch, terminal provision, notify-mobile, board digest, submit-idea) → **`@broberg/fleet-client`** + **`@broberg/fleet-contracts`** — **published v0.1.0** (repo `broberg-ai/fleet`, buddy epic **F072**). `fleet-contracts` = zod schemas + `FLEET_ENDPOINTS` (single source of truth); `fleet-client` = typed client — `createFleetClient({buddyBaseUrl,buddyKey}).dispatchIntercom(…)`, validates against contracts before send. Replaces hand-rolled fetch+bearer fleet calls.
 
 This keeps the share/copy discipline honest: `components` owns UI; each cross-cutting concern has one canonical SDK owned where the domain lives.
 
