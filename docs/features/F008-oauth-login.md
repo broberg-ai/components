@@ -1,18 +1,18 @@
 # F008 — OAuth Login Providers (Google / Apple / GitHub + identity linking)
 
 > L1 Identity · runtime-package · effort **M** · impact **high** · owner `xrt81`. Status: Backlog.
-> LEAP-candidate: no — stays in `components`.
+> Graduate-candidate: no — stays in `components`.
 
 ## Motivation
 A headless package implementing the server-side OAuth 2.0 authorization-code flow for Google (OIDC), Apple (form_post + ES256 client-secret JWT), and GitHub (code exchange + /user/emails fallback), plus a shared identity-linking contract mapping any (provider, stable-sub) pair to a local user. It handles CSRF state-cookie generation/verification, code exchange, profile normalisation to a common OAuthProfile, and idempotent link/find helpers. Framework route bindings (Hono / Next Route Handlers) are thin adapters that call the headless core and set the app's own session cookie.
 
 ## Solution
-**runtime-package.** The four-step pattern (authorize URL + CSRF state cookie → redirect → exchange code → normalise profile → link identity) is repeated verbatim in xrt81 (oauth-google/apple), trail (OAuthProvider abstraction), sanneandersen (jose JWKS), cms (GitHub route). Every repo re-implements the Apple ES256 client-secret JWT from node:crypto and duplicates the state-cookie CSRF guard. The Apple form_post SameSite=None quirk + Apple sub-only-on-repeat edge case are subtle correctness details solved in xrt81 that will be re-broken elsewhere. Drift is already live (trail/server uses userinfo fetch without JWKS verify; sanneandersen uses jose jwtVerify — two security postures for the same Google flow).
+**runtime-package.** The four-step pattern (authorize URL + CSRF state cookie → redirect → exchange code → normalise profile → link identity) is repeated verbatim in xrt81 (oauth-google/apple), trail (OAuthProvider abstraction), sanneandersen (jose JWKS), cms (GitHub route). Every repo re-implements the Apple ES256 client-secret JWT from node:crypto + duplicates the state-cookie CSRF guard. The Apple form_post SameSite=None quirk + Apple sub-only-on-repeat edge case are subtle correctness details solved in xrt81 that WILL be re-broken elsewhere. Drift is already live (trail/server uses userinfo without JWKS verify; sanneandersen uses jose jwtVerify — two security postures for the same Google flow).
 
 ## Scope
 
 ### In scope
-- Extract from `broberg/xrt81`: `apps/server/src/lib/oauth-google.ts`, `oauth-apple.ts`, `lib/auth.ts`, `routes/auth.ts`.
+- Extract from `broberg/xrt81`: `apps/server/src/lib/{oauth-google,oauth-apple,auth}.ts` + `routes/auth.ts`.
 - Headless core (providers, buildAuthorizeUrl, exchangeCode, state, Apple JWT, Google JWKS verify, config guards) + Hono/Next route adapters + a DB-agnostic ProviderIdentityStore contract.
 
 ### Out of scope
@@ -22,9 +22,9 @@ A headless package implementing the server-side OAuth 2.0 authorization-code flo
 ## Architecture
 
 ### Best source (reference implementation)
-`broberg/xrt81` — `apps/server/src/lib/{oauth-google,oauth-apple,auth}.ts` + `routes/auth.ts`. Only repo with both Google AND Apple; most-correct Apple (ES256 client-secret via node:crypto, response_mode=form_post + SameSite=None state cookie, sub-only fallback via findMemberByAuthIdentity, magic-token handoff for Safari). authIdentities table contract (linkAuthIdentity/findMemberByAuthIdentity/memberHasProvider) generalises to any provider.
+`broberg/xrt81` — `apps/server/src/lib/{oauth-google,oauth-apple,auth}.ts` + `routes/auth.ts`. Only repo with both Google AND Apple; most-correct Apple (ES256 client-secret via node:crypto, response_mode=form_post + SameSite=None state cookie, sub-only fallback via findMemberByAuthIdentity, magic-token handoff for Safari). authIdentities table contract generalises to any provider.
 
-### Other implementations seen
+### Other implementations seen (contract cross-check)
 - `broberg/trail` `apps/admin-server/src/oauth.ts` — best OAuthProvider registry (name/authorizeUrl/tokenUrl/profileUrl/scope/parseProfile); GitHub /user/emails fallback; link-vs-login detection + conflict guard + unlink.
 - `webhouse/sanneandersen` `site/src/lib/auth/oauth-google.ts` — strictest Google verify: jose createRemoteJWKSet + jwtVerify with issuer/audience asserts (the verification path to adopt).
 - `webhouse/cms` `packages/cms-admin/src/app/api/auth/github/{route,callback/route}.ts` — Next.js Route Handler shape; base64url state dual-flow (login vs connect); GitHub token storage.
@@ -67,7 +67,7 @@ export function googleConfigured(env): boolean; export function appleConfigured(
 ## Rollout
 Strangler: 1) extract core from xrt81 oauth-google/apple + trail registry + sanneandersen JWKS; 2) Hono adapter, pilot xrt81 (verify Google+Apple+connect); 3) Next adapter, pilot cms; 4) publish; 5) adopt trail + sanneandersen, then remaining.
 
-LEAP-candidate: no — stays in `components`.
+Graduate-candidate: no — stays in `components`.
 
 ## Open Questions
 - verifyGoogleIdToken: injected JWKS fetcher (testable) or module-level createRemoteJWKSet singleton (simpler)?
