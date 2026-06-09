@@ -1,14 +1,17 @@
 {
   "name": "@broberg/theme",
-  "version": "0.1.0",
-  "description": "Headless design-token theme store + neutral CSS baseline (Tailwind v4) for the broberg.ai estate. Framework-agnostic core + thin React/Preact adapters.",
+  "version": "0.2.0",
+  "description": "Headless design-token theme store + neutral CSS baseline (Tailwind v4) for the broberg.ai estate. Framework-agnostic core + thin React/Preact adapters + a DESIGN.md → Tailwind v4 generator.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "css", "README.md"],
+  "files": ["dist", "css", "bin", "DESIGN.md", "README.md"],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "theme-design-md": "bin/theme-design-md.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -25,8 +28,14 @@
       "import": "./dist/preact.js",
       "require": "./dist/preact.cjs"
     },
+    "./design-md": {
+      "types": "./dist/design-md.d.ts",
+      "import": "./dist/design-md.js",
+      "require": "./dist/design-md.cjs"
+    },
     "./css": "./css/neutral-preset.css",
-    "./css/neutral-preset.css": "./css/neutral-preset.css"
+    "./css/neutral-preset.css": "./css/neutral-preset.css",
+    "./DESIGN.md": "./DESIGN.md"
   },
   "scripts": {
     "build": "tsup",
@@ -41,7 +50,13 @@
     "preact": { "optional": true },
     "react": { "optional": true }
   },
+  "dependencies": {
+    "culori": "^4.0.1",
+    "yaml": "^2.5.1"
+  },
   "devDependencies": {
+    "@types/culori": "^2.1.1",
+    "@types/node": "^22.7.0",
     "@types/react": "^19.0.0",
     "jsdom": "^25.0.1",
     "preact": "^10.24.0",
