@@ -1,0 +1,83 @@
+name: publish
+
+# Publishes @broberg/theme to npm via OIDC Trusted Publishing — NO token/secret.
+# Triggers:
+#   • push a tag matching theme-v*  (e.g. theme-v0.3.0)  → publishes packages/theme at that commit
+#   • manual run (Actions → publish → Run workflow)
+#
+# PREREQUISITE (one-time, done): @broberg/theme exists on npm AND a Trusted Publisher
+# is configured at npmjs.com → @broberg/theme → Trusted Publisher =
+#   repository: broberg-ai/components · workflow: publish.yml · environment: (empty)
+# npm has no "pending publisher", so v0.1.0/0.2.0 were bootstrapped by hand; every
+# publish after that runs here with zero secrets (OIDC + provenance).
+#
+# Monorepo note: this workflow publishes packages/theme. For a future @broberg/* package
+# in this repo, add its own Trusted Publisher entry + tag pattern (e.g. config-v*) and a
+# parallel job — npm matches on repo + workflow filename, so keep them in this file.
+on:
+  push:
+    tags: ["theme-v*"]
+  workflow_dispatch:
+
+jobs:
+  publish-theme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # resolves to >=22.14, required by OIDC publishing
+          registry-url: https://registry.npmjs.org
+
+      # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Install (workspace)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: packages/theme
+        run: pnpm typecheck
+
+      - name: Build
+        working-directory: packages/theme
+        run: pnpm build
+
+      - name: Test
+        working-directory: packages/theme
+        run: pnpm test
+
+      - name: Guard — tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/theme-v')
+        working-directory: packages/theme
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#theme-v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag theme-v$TAG does not match packages/theme version $PKG"
+            exit 1
+          fi
+
+      - name: Guard — version not already on npm
+        working-directory: packages/theme
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if npm view "@broberg/theme@$PKG" version >/dev/null 2>&1; then
+            echo "::error::@broberg/theme@$PKG already published — bump the version first."
+            exit 1
+          fi
+          echo "Publishing @broberg/theme@$PKG"
+
+      # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
+      - name: Publish (OIDC)
+        working-directory: packages/theme
+        run: npm publish --access public --provenance
