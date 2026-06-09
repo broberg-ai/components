@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@broberg — Component Universe</title>
+<style>
+  /* Token baseline — the real @broberg/theme neutral preset (6 data-theme variants). This page
+     is a live demo of the package it documents. */
+  :root, [data-theme="dark"]{
+    --bg:oklch(0.211 0 0);--panel:oklch(0.239 0 0);--card:oklch(0.262 0 0);
+    --fg:oklch(0.985 0 0);--muted:oklch(0.66 0 0);--faint:oklch(0.52 0 0);
+    --border:oklch(0.32 0 0);--primary:oklch(0.922 0 0);--primary-fg:oklch(0.205 0 0);
+    --green:oklch(0.74 0.15 152);--amber:oklch(0.80 0.13 80);
+  }
+  [data-theme="dark-cool"]{--bg:oklch(0.175 0.015 255);--panel:oklch(0.22 0.015 255);--card:oklch(0.25 0.015 255);--fg:oklch(0.93 0.008 255);--muted:oklch(0.66 0.015 255);--faint:oklch(0.5 0.015 255);--border:oklch(0.33 0.012 255);--primary:oklch(0.922 0 0);--primary-fg:oklch(0.205 0 0);--green:oklch(0.74 0.15 152);--amber:oklch(0.80 0.13 80);}
+  [data-theme="dark-warm"]{--bg:oklch(0.175 0.008 55);--panel:oklch(0.22 0.012 60);--card:oklch(0.25 0.012 60);--fg:oklch(0.90 0.012 75);--muted:oklch(0.64 0.015 60);--faint:oklch(0.5 0.015 60);--border:oklch(0.33 0.015 60);--primary:oklch(0.922 0 0);--primary-fg:oklch(0.205 0 0);--green:oklch(0.74 0.15 152);--amber:oklch(0.80 0.13 80);}
+  [data-theme="light"]{--bg:oklch(0.985 0 0);--panel:oklch(0.97 0 0);--card:oklch(1 0 0);--fg:oklch(0.205 0 0);--muted:oklch(0.5 0 0);--faint:oklch(0.62 0 0);--border:oklch(0.9 0 0);--primary:oklch(0.25 0 0);--primary-fg:oklch(0.985 0 0);--green:oklch(0.52 0.15 152);--amber:oklch(0.58 0.13 70);}
+  [data-theme="light-cool"]{--bg:oklch(0.98 0.004 255);--panel:oklch(0.96 0.008 255);--card:oklch(1 0 0);--fg:oklch(0.22 0.025 255);--muted:oklch(0.5 0.015 255);--faint:oklch(0.62 0.012 255);--border:oklch(0.88 0.01 255);--primary:oklch(0.25 0.02 255);--primary-fg:oklch(0.985 0 0);--green:oklch(0.52 0.15 152);--amber:oklch(0.58 0.13 70);}
+  [data-theme="light-warm"]{--bg:oklch(0.98 0.01 85);--panel:oklch(0.96 0.012 80);--card:oklch(1 0 0);--fg:oklch(0.22 0.025 65);--muted:oklch(0.5 0.02 65);--faint:oklch(0.62 0.015 70);--border:oklch(0.86 0.02 75);--primary:oklch(0.25 0.02 65);--primary-fg:oklch(0.985 0 0);--green:oklch(0.52 0.15 152);--amber:oklch(0.58 0.13 60);}
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--fg);font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+  a{color:inherit}
+
+  /* top bar */
+  .top{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);background:color-mix(in oklab,var(--bg) 80%,transparent);border-bottom:1px solid var(--border)}
+  .top .wrap{display:flex;align-items:center;gap:16px;height:60px}
+  .brand{font-weight:650;letter-spacing:-.01em;font-size:16px}
+  .brand .at{color:var(--faint);font-weight:400}
+  .spacer{flex:1}
+  .seg{display:inline-flex;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px}
+  .seg button{font:inherit;font-size:12px;font-weight:600;color:var(--muted);background:none;border:0;border-radius:6px;padding:5px 11px;cursor:pointer;transition:.15s}
+  .seg button:hover{color:var(--fg)}
+  .seg button[aria-pressed="true"]{background:var(--card);color:var(--fg);box-shadow:0 1px 2px oklch(0 0 0 / .18)}
+
+  /* hero */
+  .hero{padding:54px 0 30px}
+  .hero h1{font-size:40px;line-height:1.05;font-weight:680;letter-spacing:-.025em;max-width:760px}
+  .hero h1 .at{color:var(--faint);font-weight:400}
+  .hero p{color:var(--muted);font-size:16px;margin-top:14px;max-width:620px}
+  .hero code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--green);background:var(--panel);padding:2px 6px;border-radius:5px}
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:13px 18px;min-width:96px}
+  .stat b{display:block;font-size:24px;font-weight:680;line-height:1}
+  .stat span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:5px;display:block}
+  .stat.ship b{color:var(--green)}
+
+  /* featured shipped */
+  .featured{margin:30px 0 8px;background:linear-gradient(180deg,color-mix(in oklab,var(--green) 9%,var(--panel)),var(--panel));border:1px solid color-mix(in oklab,var(--green) 40%,var(--border));border-radius:16px;padding:22px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:20px}
+  .featured .ttl{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--green)}
+  .featured h2{font-size:20px;font-weight:650;margin-top:4px}
+  .featured .pkg{font:13px ui-monospace,monospace;color:var(--muted);margin-top:3px}
+  .featured .cmd{margin-left:auto;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:11px 15px;font:13px ui-monospace,monospace;color:var(--fg)}
+  .featured .cmd .p{color:var(--faint)}
+
+  /* controls */
+  .controls{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin:34px 0 6px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+  .fil{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .fil .lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:2px}
+  .chip{font:inherit;font-size:12.5px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:5px 11px;cursor:pointer;transition:.15s}
+  .chip:hover{color:var(--fg);border-color:var(--faint)}
+  .chip[aria-pressed="true"]{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+  .legend{margin-left:auto;font-size:12px;color:var(--faint);display:flex;gap:13px;flex-wrap:wrap}
+
+  /* layers + cards */
+  .layer{margin-top:30px}
+  .layer-h{display:flex;align-items:baseline;gap:11px;margin-bottom:13px}
+  .layer-h .n{font:700 12px ui-monospace,monospace;letter-spacing:.1em;color:var(--green);background:color-mix(in oklab,var(--green) 14%,transparent);padding:2px 8px;border-radius:6px}
+  .layer-h .t{font-size:17px;font-weight:650}
+  .layer-h .d{font-size:13px;color:var(--faint)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:12px}
+  .c{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:14px 15px;display:flex;flex-direction:column;gap:9px;min-height:104px;transition:transform .14s,border-color .14s,box-shadow .14s}
+  .c:hover{transform:translateY(-2px);border-color:var(--faint);box-shadow:0 8px 24px oklch(0 0 0 / .22)}
+  .c.shipped{border-color:color-mix(in oklab,var(--green) 55%,var(--border));box-shadow:0 0 0 1px color-mix(in oklab,var(--green) 26%,transparent) inset}
+  .c.moved{opacity:.6;border-style:dashed}
+  .c.hide{display:none}
+  .c-top{display:flex;align-items:flex-start;gap:9px}
+  .fnum{font:600 11px ui-monospace,monospace;color:var(--faint);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2px 7px;white-space:nowrap}
+  .nm{font-weight:600;font-size:14px;line-height:1.3}
+  .pkg{font:11.5px ui-monospace,monospace;color:var(--muted)}
+  .pkg.has{color:var(--green)}
+  .pkg.none{color:var(--faint);opacity:.7}
+  .c-bot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto;font-size:11.5px;color:var(--muted)}
+  .model{font-size:14px}
+  .ei{color:var(--faint)}
+  .grad{color:var(--amber);font-weight:700;cursor:default}
+  .badge{border-radius:6px;padding:2.5px 8px;font-size:10.5px;font-weight:700;letter-spacing:.02em;margin-left:auto}
+  .b-ship{background:color-mix(in oklab,var(--green) 20%,transparent);color:var(--green)}
+  .b-back{background:var(--panel);color:var(--faint);border:1px solid var(--border)}
+  .b-moved{background:color-mix(in oklab,var(--amber) 18%,transparent);color:var(--amber)}
+
+  /* footer */
+  footer{margin:48px 0 64px;border-top:1px solid var(--border);padding-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:30px}
+  footer h3{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--faint);text-transform:uppercase;margin-bottom:12px}
+  .spoke{font-size:13px;color:var(--muted);margin:5px 0}
+  .spoke b{color:var(--fg)}
+  .spoke .me{color:var(--green);font-weight:600}
+  .cp p{font-size:13px;color:var(--muted);line-height:1.6}
+  .cp code{font:12px ui-monospace,monospace;color:var(--fg);background:var(--panel);padding:1.5px 6px;border-radius:5px}
+  @media(max-width:680px){footer{grid-template-columns:1fr}.hero h1{font-size:32px}.featured .cmd{margin-left:0}}
+</style>
+</head>
+<body>
+  <div class="top"><div class="wrap">
+    <span class="brand"><span class="at">@broberg/</span>components</span>
+    <span class="spacer"></span>
+    <div class="seg" id="mode"><button data-m="dark" aria-pressed="true">Dark</button><button data-m="light">Light</button></div>
+    <div class="seg" id="temp"><button data-t="" aria-pressed="true">Neutral</button><button data-t="-cool">Cool</button><button data-t="-warm">Warm</button></div>
+  </div></div>
+
+  <div class="wrap">
+    <section class="hero">
+      <h1><span class="at">The </span>Component Universe</h1>
+      <p>The curated shared-component library across the broberg.ai estate — 5 layers, best-implementation-per-pattern, extracted into <code>@broberg/*</code> packages. Idea → running platform in days. <em>This page renders with the very tokens it documents.</em></p>
+      <div class="stats">
+        <div class="stat"><b id="s-total">–</b><span>components</span></div>
+        <div class="stat ship"><b id="s-ship">–</b><span>shipped</span></div>
+        <div class="stat"><b>5</b><span>layers</span></div>
+        <div class="stat"><b id="s-grad">–</b><span>graduate</span></div>
+      </div>
+    </section>
+
+    <section class="featured">
+      <div>
+        <div class="ttl">✅ Shipped</div>
+        <h2>Design tokens + theme preset</h2>
+        <div class="pkg">@broberg/theme · v0.2.0 · Tailwind v4 · headless core + React/Preact + DESIGN.md→v4 generator</div>
+      </div>
+      <div class="cmd"><span class="p">$</span> npm i @broberg/theme</div>
+    </section>
+
+    <div class="controls">
+      <div class="fil" id="f-layer"><span class="lbl">Layer</span></div>
+      <div class="fil" id="f-status"><span class="lbl">Status</span>
+        <button class="chip" data-s="all" aria-pressed="true">All</button>
+        <button class="chip" data-s="shipped">Shipped</button>
+        <button class="chip" data-s="backlog">Backlog</button>
+      </div>
+      <div class="legend">📦 runtime · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid · <span class="grad">⬆</span> graduate</div>
+    </div>
+
+    <div id="layers"></div>
+
+    <footer>
+      <div>
+        <h3>Fleet shared-library wheel</h3>
+        <div class="spoke">UI / app-shell → <span class="me">components (this)</span></div>
+        <div class="spoke">Data → <b>@broberg/db-sdk</b></div>
+        <div class="spoke">LLM → <b>@broberg/ai-sdk</b></div>
+        <div class="spoke">Telemetry → <b>@upmetrics/sdk</b></div>
+        <div class="spoke">Fleet comms → <b>@broberg/fleet-client</b></div>
+      </div>
+      <div class="cp">
+        <h3>Critical path</h3>
+        <p><code>F001 @broberg/theme</code> (shipped) is the keystone — it unblocks 8 downstream UI components, and everything visual inherits its tokens. It was the first card built; the rest of L0 (config, mail, R2, MCP-toolkit) follows.</p>
+      </div>
+    </footer>
+  </div>
+
+<script>
+const M={runtime:"📦",copy:"📋",scaffold:"🏗️",hybrid:"🔀"};
+const DATA=[
+ {n:"L0",t:"Rails",d:"foundation every app stands on",items:[
+   {f:"F001",nm:"Design tokens + theme preset",pkg:"@broberg/theme",m:"hybrid",e:"M",i:"critical",s:"shipped"},
+   {f:"F002",nm:"Stack B base scaffold",pkg:"@broberg/stack-b-base",m:"scaffold",e:"M",i:"high"},
+   {f:"F003",nm:"Stack A base scaffold",pkg:"@broberg/stack-a-base",m:"scaffold",e:"M",i:"high"},
+   {f:"F004",nm:"Config single-source helper",pkg:"@broberg/config",m:"runtime",e:"S",i:"high"},
+   {f:"F005",nm:"Mail sending (Resend)",pkg:"@broberg/mail",m:"runtime",e:"S",i:"high"},
+   {f:"F006",nm:"Media / Cloudflare R2",pkg:"@broberg/media-r2",m:"runtime",e:"M",i:"high"},
+   {f:"F007",nm:"MCP Server Toolkit",pkg:"@broberg/mcp",m:"hybrid",e:"M",i:"high"},
+ ]},
+ {n:"L1",t:"Identity",d:"who the user is",items:[
+   {f:"F008",nm:"OAuth login providers",pkg:"@broberg/oauth",m:"runtime",e:"M",i:"high"},
+   {f:"F009",nm:"User management + invitation",m:"hybrid",e:"M",i:"high"},
+   {f:"F010",nm:"API-key + rate-limit",pkg:"@broberg/apikey",m:"runtime",e:"M",i:"high"},
+   {f:"F011",nm:"Event / activity log (GDPR)",m:"hybrid",e:"M",i:"high"},
+   {f:"F012",nm:"Profile + image upload",m:"hybrid",e:"M",i:"medium"},
+   {f:"F013",nm:"Gravatar connector",pkg:"@broberg/gravatar",m:"runtime",e:"S",i:"medium"},
+   {f:"F014",nm:"Consent / cookie banner",m:"copy",e:"M",i:"medium"},
+ ]},
+ {n:"L2",t:"Shell",d:"the app frame & controls",items:[
+   {f:"F015",nm:"Mode-switch (dark/light/system)",m:"hybrid",e:"S",i:"high"},
+   {f:"F016",nm:"Toasts / Modals / Custom controls",m:"copy",e:"M",i:"high"},
+   {f:"F017",nm:"Settings — tabbed config shell",m:"hybrid",e:"M",i:"high"},
+   {f:"F018",nm:"⌘K command palette",m:"copy",e:"M",i:"high"},
+   {f:"F019",nm:"i18n / language switch",m:"hybrid",e:"M",i:"medium"},
+   {f:"F020",nm:"SEO / metadata helpers",pkg:"@broberg/seo",m:"runtime",e:"M",i:"high"},
+   {f:"F021",nm:"PWA setup",m:"hybrid",e:"M",i:"medium"},
+   {f:"F022",nm:"PWA update banner",m:"copy",e:"M",i:"medium"},
+   {f:"F034",nm:"User menu (account dropdown)",m:"copy",e:"M",i:"high"},
+ ]},
+ {n:"L3",t:"Domain",d:"feature surfaces",items:[
+   {f:"F023",nm:"Mail templates",m:"copy",e:"M",i:"high"},
+   {f:"F024",nm:"Forms + Turnstile",m:"hybrid",e:"M",i:"high"},
+   {f:"F025",nm:"Chat / chatbot UI",m:"hybrid",e:"L",i:"high"},
+   {f:"F026",nm:"SoundKit (browser audio)",pkg:"@broberg/soundkit",m:"runtime",e:"M",i:"medium"},
+   {f:"F033",nm:"Deploy provider core + trigger UI",pkg:"@broberg/deploy-core",m:"hybrid",e:"L",i:"high"},
+   {f:"F027",nm:"Deployment Mgmt (observe)",m:"hybrid",s:"moved",note:"→ Upmetrics F019"},
+   {f:"F028",nm:"Podcast manager / maker",m:"scaffold",e:"L",i:"medium",grad:1},
+ ]},
+ {n:"L4",t:"Capstone",d:"whole-product builders",items:[
+   {f:"F029",nm:"Multi-tenant management",m:"hybrid",e:"L",i:"high",grad:1},
+   {f:"F030",nm:"Native mobile boilerplate",m:"hybrid",e:"L",i:"high",grad:1},
+   {f:"F031",nm:"Greenfield scaffolder",m:"scaffold",e:"M",i:"high"},
+   {f:"F032",nm:"create-app CLI + manifest",m:"scaffold",e:"L",i:"high",grad:1},
+ ]},
+];
+
+// stats + render
+let total=0,ship=0,grad=0;
+const root=document.getElementById('layers');
+const flayer=document.getElementById('f-layer');
+flayer.insertAdjacentHTML('beforeend','<button class="chip" data-l="all" aria-pressed="true">All</button>');
+for(const L of DATA){
+  flayer.insertAdjacentHTML('beforeend',`<button class="chip" data-l="${L.n}">${L.n}</button>`);
+  const sec=document.createElement('div');sec.className='layer';sec.dataset.layer=L.n;
+  sec.innerHTML=`<div class="layer-h"><span class="n">${L.n}</span><span class="t">${L.t}</span><span class="d">— ${L.d}</span></div>`;
+  const g=document.createElement('div');g.className='grid';
+  for(const it of L.items){
+    total++; if(it.s==='shipped')ship++; if(it.grad)grad++;
+    const moved=it.s==='moved';
+    const st=it.s==='shipped'?'shipped':moved?'moved':'backlog';
+    const badge=st==='shipped'?'<span class="badge b-ship">shipped v0.2.0</span>':moved?'<span class="badge b-moved">moved</span>':'<span class="badge b-back">backlog</span>';
+    const pkg=it.pkg?`<div class="pkg has">${it.pkg}</div>`:(moved?`<div class="pkg">${it.note}</div>`:`<div class="pkg none">copy-owned scaffold</div>`);
+    const ei=moved?'':`<span class="ei">${it.e} · ${it.i}</span>`;
+    const gr=it.grad?'<span class="grad" title="graduate-candidate">⬆</span>':'';
+    const card=document.createElement('div');
+    card.className='c'+(st==='shipped'?' shipped':'')+(moved?' moved':'');
+    card.dataset.status=st;card.dataset.layer=L.n;
+    card.innerHTML=`<div class="c-top"><span class="fnum">${it.f}</span><span class="nm">${it.nm}</span></div>${pkg}<div class="c-bot"><span class="model" title="${it.m}">${M[it.m]||''}</span>${ei}${gr}${badge}</div>`;
+    g.appendChild(card);
+  }
+  sec.appendChild(g);root.appendChild(sec);
+}
+document.getElementById('s-total').textContent=total;
+document.getElementById('s-ship').textContent=ship;
+document.getElementById('s-grad').textContent=grad;
+
+// theme toggle (dogfood: data-theme = mode + temperature)
+let mode='dark',temp='';
+function applyTheme(){document.documentElement.setAttribute('data-theme',mode+temp);}
+document.getElementById('mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));applyTheme();});
+document.getElementById('temp').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;temp=b.dataset.t;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));applyTheme();});
+
+// filters
+let fl='all',fs='all';
+function applyFilters(){
+  document.querySelectorAll('.c').forEach(c=>{
+    const ok=(fl==='all'||c.dataset.layer===fl)&&(fs==='all'||c.dataset.status===fs);
+    c.classList.toggle('hide',!ok);
+  });
+  document.querySelectorAll('.layer').forEach(sec=>{
+    const any=[...sec.querySelectorAll('.c')].some(c=>!c.classList.contains('hide'));
+    sec.style.display=any?'':'none';
+  });
+}
+function wire(id,attr,set){document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;set(b.dataset[attr]);[...e.currentTarget.querySelectorAll('.chip')].forEach(x=>x.setAttribute('aria-pressed',x===b));applyFilters();});}
+wire('f-layer','l',v=>fl=v);
+wire('f-status','s',v=>fs=v);
+</script>
+</body>
+</html>
