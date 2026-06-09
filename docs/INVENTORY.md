@@ -8,7 +8,7 @@
 
 | F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
 |---|---|---|---|---|---|---|---|
-| F001 | Design tokens + theme preset — **`@broberg/theme` ✅ shipped v0.1.0** (npm; Tailwind v4) | hybrid | M | critical | — | `webhouse/cms` | `cms` |
+| F001 | Design tokens + theme preset — **`@broberg/theme` ✅ shipped v0.2.0** (npm; Tailwind v4; + DESIGN.md→v4 generator) | hybrid | M | critical | — | `webhouse/cms` | `cms` |
 | F002 | @broberg/stack-b-base — Stack B base scaffold | scaffold | M | high | — | `broberg/cardmem` | `cardmem` |
 | F003 | Stack A base-scaffold (@broberg/stack-a-base) | scaffold | M | high | — | `webhouse/boilerplates-cms` | `boilerplates-cms — the cc session in webhouse/boilerplates-cms already maintains the canonical variants. Extraction into @broberg/components and publication as a create-* CLI should be piloted there.` |
 | F004 | Config single-source helper | runtime-package | S | high | — | `broberg/xrt81` | `xrt81` |
