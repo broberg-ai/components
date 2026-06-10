@@ -309,7 +309,7 @@ const HTML = `<!doctype html>
         <div class="spoke">LLM → <b>@broberg/ai-sdk</b></div>
         <div class="spoke">Telemetry → <b>@upmetrics/sdk</b></div>
         <div class="spoke">Fleet comms → <b>@broberg/fleet-client</b></div>
-        <div class="spoke">Security → <span class="me">@broberg/secret-scan</span> <small>✅ v0.1.0 · components-owned</small></div>
+        <div class="spoke">Security → <span class="me">@broberg/secret-scan</span> <small>✅ shipped · components-owned</small></div>
       </div>
       <div class="cp">
         <h3>Critical path</h3>
