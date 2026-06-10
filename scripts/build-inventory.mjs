@@ -77,13 +77,13 @@ function card(it, layer){
   const gr = it.grad ? '<span class="grad" title="graduate-candidate">⬆</span>' : "";
   const cls = "c" + (st==="shipped"?" shipped":"") + (moved?" moved":"");
   const tid = "inv-card-" + it.f.toLowerCase();
-  return `<div class="${cls}" data-status="${st}" data-layer="${layer}" data-f="${it.f}" data-testid="${tid}" role="button" tabindex="0" aria-haspopup="dialog"><div class="c-top"><span class="fnum">${it.f}</span><span class="nm">${it.nm}</span></div>${pkg}<div class="c-bot"><span class="model" title="${it.m}">${M[it.m]||""}</span>${ei}${gr}${badge}</div></div>`;
+  return `<div class="${cls}" data-status="${st}" data-layer="${layer}" data-model="${it.m}" data-grad="${it.grad?1:0}" data-f="${it.f}" data-testid="${tid}" role="button" tabindex="0" aria-haspopup="dialog"><div class="c-top"><span class="fnum">${it.f}</span><span class="nm">${it.nm}</span></div>${pkg}<div class="c-bot"><span class="model" title="${it.m}">${M[it.m]||""}</span>${ei}${gr}${badge}</div></div>`;
 }
 const layersHtml = DATA.map(L =>
   `<div class="layer" data-layer="${L.n}"><div class="layer-h"><span class="n">${L.n}</span><span class="t">${L.t}</span><span class="d">— ${L.d}</span></div><div class="grid">${L.items.map(it=>card(it,L.n)).join("")}</div></div>`
 ).join("\n");
-const layerChips = `<button class="chip" data-l="all" aria-pressed="true">All</button>` +
-  DATA.map(L=>`<button class="chip" data-l="${L.n}">${L.n}</button>`).join("");
+const layerChips = `<button class="chip" data-testid="inv-filter-layer-all" data-l="all" aria-pressed="true">All</button>` +
+  DATA.map(L=>`<button class="chip" data-testid="inv-filter-layer-${L.n.toLowerCase()}" data-l="${L.n}">${L.n}</button>`).join("");
 const wip = total - ship - mv;
 
 // Detail-drawer body HTML per component (built here so the browser JS stays tiny).
@@ -235,10 +235,10 @@ const JS = [
 "function applyTheme(){document.documentElement.setAttribute('data-theme',mode+temp);}",
 "if(modeEl)modeEl.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;mode=b.getAttribute('data-m');Array.prototype.forEach.call(modeEl.children,function(x){x.setAttribute('aria-pressed',x===b);});applyTheme();});",
 "if(tempEl)tempEl.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;temp=b.getAttribute('data-t');Array.prototype.forEach.call(tempEl.children,function(x){x.setAttribute('aria-pressed',x===b);});applyTheme();});",
-"var fl='all',fs='all';",
+"var fl='all',fs='all',fmod='all',fg='all';",
 "function applyFilters(){",
 "  Array.prototype.forEach.call(document.querySelectorAll('.c'),function(c){",
-"    var ok=(fl==='all'||c.getAttribute('data-layer')===fl)&&(fs==='all'||c.getAttribute('data-status')===fs);",
+"    var ok=(fl==='all'||c.getAttribute('data-layer')===fl)&&(fs==='all'||c.getAttribute('data-status')===fs)&&(fmod==='all'||c.getAttribute('data-model')===fmod)&&(fg==='all'||c.getAttribute('data-grad')===fg);",
 "    c.classList.toggle('hide',!ok);});",
 "  Array.prototype.forEach.call(document.querySelectorAll('.layer'),function(sec){",
 "    var any=Array.prototype.some.call(sec.querySelectorAll('.c'),function(c){return !c.classList.contains('hide');});",
@@ -246,6 +246,8 @@ const JS = [
 "function wire(id,attr,setter){var el=document.getElementById(id);if(!el)return;el.addEventListener('click',function(e){var b=e.target.closest('.chip');if(!b)return;setter(b.getAttribute(attr));Array.prototype.forEach.call(el.querySelectorAll('.chip'),function(x){x.setAttribute('aria-pressed',x===b);});applyFilters();});}",
 "wire('f-layer','data-l',function(v){fl=v;});",
 "wire('f-status','data-s',function(v){fs=v;});",
+"wire('f-model','data-mod',function(v){fmod=v;});",
+"wire('f-grad','data-g',function(v){fg=v;});",
 "var drawer=document.getElementById('drawer'),dback=document.getElementById('dback'),dbody=document.getElementById('dbody'),dclose=document.getElementById('dclose');",
 "var lastFocus=null;",
 "function openDrawer(el){var h=DETAIL[el.getAttribute('data-f')];if(!h)return;lastFocus=el;dbody.innerHTML=h;drawer.classList.add('open');dback.classList.add('open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';if(dclose)dclose.focus();}",
@@ -293,9 +295,11 @@ const HTML = `<!doctype html>
     </section>
     <div class="controls">
       <div class="fil" id="f-layer"><span class="lbl">Layer</span>${layerChips}</div>
-      <div class="fil" id="f-status"><span class="lbl">Status</span><button class="chip" data-s="all" aria-pressed="true">All</button><button class="chip" data-s="shipped">Shipped</button><button class="chip" data-s="backlog">Under construction</button></div>
-      <div class="legend">✅ shipped · 🚧 under construction · 📦 runtime · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid · <span class="grad">⬆</span> graduate</div>
+      <div class="fil" id="f-status"><span class="lbl">Status</span><button class="chip" data-testid="inv-filter-status-all" data-s="all" aria-pressed="true">All</button><button class="chip" data-testid="inv-filter-status-shipped" data-s="shipped">✅ Shipped</button><button class="chip" data-testid="inv-filter-status-backlog" data-s="backlog">🚧 Under construction</button></div>
+      <div class="fil" id="f-model"><span class="lbl">Model</span><button class="chip" data-testid="inv-filter-model-all" data-mod="all" aria-pressed="true">All</button><button class="chip" data-testid="inv-filter-model-runtime" data-mod="runtime">📦 Runtime</button><button class="chip" data-testid="inv-filter-model-copy" data-mod="copy">📋 Copy-owned</button><button class="chip" data-testid="inv-filter-model-scaffold" data-mod="scaffold">🏗️ Scaffold</button><button class="chip" data-testid="inv-filter-model-hybrid" data-mod="hybrid">🔀 Hybrid</button></div>
+      <div class="fil" id="f-grad"><span class="lbl">Show</span><button class="chip" data-testid="inv-filter-grad-all" data-g="all" aria-pressed="true">All</button><button class="chip" data-testid="inv-filter-grad-only" data-g="1"><span class="grad">⬆</span> Graduate only</button></div>
     </div>
+    <div class="legend"><span class="b-moved" style="border-radius:6px;padding:1px 7px">↗ moved</span> = re-homed to another repo · everything else is filterable above</div>
     ${layersHtml}
     <footer>
       <div>
