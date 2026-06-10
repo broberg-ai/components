@@ -72,8 +72,9 @@
 - **LLM** → `@broberg/ai-sdk`
 - **Telemetry / cost / errors** → `@upmetrics/sdk`
 - **Fleet comms** (intercom dispatch, terminal provision, notify-mobile, board digest, submit-idea) → **`@broberg/fleet-client`** + **`@broberg/fleet-contracts`** — **published v0.1.0** (repo `broberg-ai/fleet`, buddy epic **F072**). `fleet-contracts` = zod schemas + `FLEET_ENDPOINTS` (single source of truth); `fleet-client` = typed client — `createFleetClient({buddyBaseUrl,buddyKey}).dispatchIntercom(…)`, validates against contracts before send. Replaces hand-rolled fetch+bearer fleet calls.
+- **Security / secret-redaction** → **`@broberg/secret-scan`** — *components-owned*, lifted from `broberg/trail` (F197): `redactSecrets(text)→{redacted,findings[]}` / `hasSecret(text)` / a curated `SECRET_PATTERNS[]` + a retro-scan tool. Redacts secrets at comms in/out boundaries (ingest-gate + egress-scrub) and scans DBs/KBs for already-leaked keys; pure, deterministic, dependency-free. **🆕 Incoming** — F-epic to be scoped in `components` once trail's brief lands; trail's `@trail/shared` then consumes the npm. (No F-number yet — plan-doc lands with the epic.)
 
-This keeps the share/copy discipline honest: `components` owns UI; each cross-cutting concern has one canonical SDK owned where the domain lives.
+This keeps the share/copy discipline honest: `components` owns UI; each cross-cutting concern has one canonical SDK owned where the domain lives. **`@broberg/secret-scan` is the deliberate exception** — a cross-cutting *security* primitive that `components` itself owns + publishes (alongside the UI spoke), because a secret-redaction standard belongs in one neutral, audited place rather than inside any single domain repo.
 
 ## Method & guardrails
 - **Evidence-based:** every "best source" is a file path read by a deep-read agent, not memory.

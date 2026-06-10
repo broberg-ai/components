@@ -204,6 +204,7 @@ const CSS = `
   .spoke{font-size:13px;color:var(--muted);margin:5px 0}
   .spoke b{color:var(--fg)}
   .spoke .me{color:var(--green);font-weight:600}
+  .spoke small{color:var(--faint);font-size:11px;margin-left:5px}
   .cp p{font-size:13px;color:var(--muted);line-height:1.6}
   .cp code{font:12px ui-monospace,monospace;color:var(--fg);background:var(--panel);padding:1.5px 6px;border-radius:5px}
   @media(max-width:760px){
@@ -304,6 +305,7 @@ const HTML = `<!doctype html>
         <div class="spoke">LLM → <b>@broberg/ai-sdk</b></div>
         <div class="spoke">Telemetry → <b>@upmetrics/sdk</b></div>
         <div class="spoke">Fleet comms → <b>@broberg/fleet-client</b></div>
+        <div class="spoke">Security → <span class="me">@broberg/secret-scan</span> <small>🆕 incoming · components-owned</small></div>
       </div>
       <div class="cp">
         <h3>Critical path</h3>
