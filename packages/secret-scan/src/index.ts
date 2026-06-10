@@ -172,6 +172,15 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\bwh_[0-9a-f]{64}/g,
   },
   {
+    // Cloudflare API token (R2 / DNS management) — 40 base64url chars, NO prefix.
+    // A bare {40} would false-positive broadly, so this is CONTEXT-ONLY: it only
+    // fires next to a cf/cloudflare-api-token-named field. Runs before
+    // labeled-hex-secret so a hex-valued CF token is attributed correctly.
+    label: 'cloudflare-api-token',
+    description: 'Cloudflare API token (cf/cloudflare-api-token field + 40 base64url)',
+    regex: /\b(?:cf|cloudflare)_?api_?token\b\s*[:=]\s*["'`]?[A-Za-z0-9_-]{40}(?![A-Za-z0-9_-])/gi,
+  },
+  {
     // Context-based catch for prefix-less high-entropy service secrets
     // (CMS_JWT_SECRET, revalidateSecret, fleet openssl-rand-hex secrets): a 40+
     // hex value assigned to a field whose name contains
@@ -192,6 +201,15 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     label: 'discord-mfa-token',
     description: 'Discord MFA token (mfa. + 84 chars)',
     regex: /\bmfa\.[A-Za-z0-9_-]{84}\b/g,
+  },
+  {
+    // Cloudflare Turnstile PROD secret (sanne, verified 2/2) — 0x4 + 6×A prefix,
+    // then 26 base64url (35 total). The 24-char SITE key + 1x/2x/3x TEST keys are
+    // intentionally NOT matched (the {26} length gate misses them) so a public
+    // key is never redacted.
+    label: 'cloudflare-turnstile-secret',
+    description: 'Cloudflare Turnstile secret key (0x4AAAAAA + 26 base64url, 35 total)',
+    regex: /0x4AAAAAA[A-Za-z0-9_-]{26}(?![A-Za-z0-9_-])/g,
   },
   {
     label: 'cloudflare-global-key',

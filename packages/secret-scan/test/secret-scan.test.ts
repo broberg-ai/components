@@ -161,3 +161,37 @@ describe("extraPatterns option (consumer / per-tenant patterns)", () => {
     expect(r.findings.map((f) => f.label)).not.toContain("greedy");
   });
 });
+
+describe("v0.1.1 — Cloudflare Turnstile + API token", () => {
+  it("redacts a Turnstile PROD secret (35 chars)", () => {
+    const secret = "0x4AAAAAA" + "Ab3Df_Gh1Jk2Lm-Np4Qr5St6Uv"; // 9 + 26 = 35
+    const r = redactSecrets("turnstile " + secret + " ok");
+    expect(r.redacted).toContain("[REDACTED:cloudflare-turnstile-secret]");
+    expect(r.redacted).not.toContain(secret);
+  });
+  it("does NOT redact a Turnstile SITE key (24 chars, public)", () => {
+    const site = "0x4AAAAAA" + "Ab3Df_Gh1Jk2Lm-"; // 9 + 15 = 24
+    const r = redactSecrets("site " + site + " ok");
+    expect(r.redacted).toBe("site " + site + " ok");
+    expect(r.findings).toHaveLength(0);
+  });
+  it("does NOT redact a Turnstile TEST key", () => {
+    const r = redactSecrets("1x" + "0".repeat(22));
+    expect(r.findings.map((f) => f.label)).not.toContain("cloudflare-turnstile-secret");
+  });
+  it("redacts a Cloudflare API token via CF_API_TOKEN field context", () => {
+    const tok = "AbCdEfGhIj0123456789KlMnOpQrSt_-UvWxYz12"; // 40 base64url, mixed-case
+    const r = redactSecrets("CF_API_TOKEN=" + tok);
+    expect(r.redacted).toContain("[REDACTED:cloudflare-api-token]");
+    expect(r.redacted).not.toContain(tok);
+  });
+  it("redacts a CLOUDFLARE_API_TOKEN field too", () => {
+    const tok = "AbCdEfGhIj0123456789KlMnOpQrSt_-UvWxYz12";
+    expect(redactSecrets("CLOUDFLARE_API_TOKEN=" + tok).findings.map((f) => f.label)).toContain("cloudflare-api-token");
+  });
+  it("does NOT redact a bare 40-char token with no CF field", () => {
+    const tok = "AbCdEfGhIj0123456789KlMnOpQrSt_-UvWxYz12";
+    const r = redactSecrets("value is " + tok + " here");
+    expect(r.findings.map((f) => f.label)).not.toContain("cloudflare-api-token");
+  });
+});

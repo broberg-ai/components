@@ -60,7 +60,8 @@ regexes — most-specific first so attribution is correct:
   OpenRouter (`sk-or-v1-`), ElevenLabs, fal.ai, Google/Gemini (`AIza…`),
   Google OAuth (`GOCSPX-`).
 - **Cloud / infra:** AWS (`AKIA…`), GitHub, GitLab, Slack, Stripe live, Resend,
-  Fly.io, Cloudflare global key, Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`).
+  Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),
+  Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`).
 - **Fleet:** upmetrics (`uk_`), cardmem (`pa_/pi_/pk_`, `piw_`), cms (`wh_`),
   trail (`trail_`).
 - **Generic:** JWT (`eyJ…` — also Turso + Supabase service_role tokens), PEM
