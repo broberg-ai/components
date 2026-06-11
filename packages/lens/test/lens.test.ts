@@ -229,6 +229,28 @@ describe("createLensMintHandler — rate limit", () => {
   });
 });
 
+describe("createLensMintHandler — minter failure", () => {
+  it("returns a clean 500 (not an uncaught throw) when createSession rejects", async () => {
+    const h = createLensMintHandler(
+      baseOpts({
+        createSession: () => {
+          throw new Error("db down — signing failed");
+        },
+      }),
+    );
+    const res = await h(req(`Bearer ${SECRET}`));
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: "lens-session mint failed" });
+  });
+  it("does not leak the underlying error to the caller", async () => {
+    const h = createLensMintHandler(
+      baseOpts({ createSession: async () => Promise.reject(new Error("SECRET-LEAK-xyz")) }),
+    );
+    const res = await h(req(`Bearer ${SECRET}`));
+    expect(JSON.stringify(res.body)).not.toContain("SECRET-LEAK-xyz");
+  });
+});
+
 describe("@broberg/lens/next adapter", () => {
   const { POST } = createLensRoute(baseOpts());
   it("200 storageState on the right bearer", async () => {

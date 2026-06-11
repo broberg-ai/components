@@ -191,7 +191,18 @@ export function createLensMintHandler(
       expiresAt,
     };
 
-    const minted = await opts.createSession(ctx);
+    // The app-supplied minter can fail (DB down, signing error, …). Keep the
+    // {status, body} contract intact: a 500 JSON instead of an uncaught throw
+    // bubbling up as a framework 500 with a stack. Log server-side for debugging;
+    // never leak the underlying error to the caller (the daemon).
+    let minted: LensCookie | LensCookie[];
+    try {
+      minted = await opts.createSession(ctx);
+    } catch (err) {
+      console.error("[@broberg/lens] createSession threw while minting a lens session:", err);
+      return { status: 500, body: { error: "lens-session mint failed" } };
+    }
+
     const cookies = Array.isArray(minted) ? minted : [minted];
     const fallbackDomain = opts.cookieDomain ?? process.env.LENS_COOKIE_DOMAIN ?? req.host;
     const expiresSec = Math.floor(expiresAt / 1000);
