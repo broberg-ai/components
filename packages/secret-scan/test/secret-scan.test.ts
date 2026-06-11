@@ -195,3 +195,31 @@ describe("v0.1.1 — Cloudflare Turnstile + API token", () => {
     expect(r.findings.map((f) => f.label)).not.toContain("cloudflare-api-token");
   });
 });
+
+describe("v0.1.2 — Mistral + Vimeo (context-only, field-anchored)", () => {
+  const mistral = "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv"; // 32 base62, no prefix
+  const vimeoHex = "0123456789abcdef0123456789abcdef"; // 32 hex
+
+  it("redacts a MISTRAL_API_KEY value", () => {
+    const r = redactSecrets("MISTRAL_API_KEY=" + mistral);
+    expect(r.redacted).toContain("[REDACTED:mistral-api-key]");
+    expect(r.redacted).not.toContain(mistral);
+  });
+  it("redacts a MISTRAL_TOKEN field too", () => {
+    expect(redactSecrets("MISTRAL_TOKEN=" + mistral).findings.map((f) => f.label)).toContain("mistral-api-key");
+  });
+  it("does NOT redact a bare 32-char base62 with no Mistral field", () => {
+    const r = redactSecrets("the id is " + mistral + " ok");
+    expect(r.redacted).toBe("the id is " + mistral + " ok");
+    expect(r.findings.map((f) => f.label)).not.toContain("mistral-api-key");
+  });
+  it("redacts a VIMEO_ACCESS_TOKEN value", () => {
+    const r = redactSecrets("VIMEO_ACCESS_TOKEN=" + vimeoHex);
+    expect(r.redacted).toContain("[REDACTED:vimeo-access-token]");
+    expect(r.redacted).not.toContain(vimeoHex);
+  });
+  it("does NOT redact a bare 32-hex with no Vimeo field (MD5/UUID safe)", () => {
+    const r = redactSecrets("the md5 is " + vimeoHex + " here");
+    expect(r.findings.map((f) => f.label)).not.toContain("vimeo-access-token");
+  });
+});

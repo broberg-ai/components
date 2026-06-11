@@ -58,7 +58,7 @@ regexes — most-specific first so attribution is correct:
 
 - **LLM:** Anthropic (`sk-ant-…`, incl. `oat01-`), OpenAI (`sk-`/`sk-proj-`),
   OpenRouter (`sk-or-v1-`), ElevenLabs, fal.ai, Google/Gemini (`AIza…`),
-  Google OAuth (`GOCSPX-`).
+  Google OAuth (`GOCSPX-`), Mistral (field-anchored).
 - **Cloud / infra:** AWS (`AKIA…`), GitHub, GitLab, Slack, Stripe live, Resend,
   Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),
   Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`).
@@ -67,6 +67,8 @@ regexes — most-specific first so attribution is correct:
 - **Generic:** JWT (`eyJ…` — also Turso + Supabase service_role tokens), PEM
   private-key blocks, Discord bot/MFA tokens, and `labeled-hex-secret` (a 40+ hex
   value assigned to a `secret`/`token`/`password`/`api-key`-named field).
+- **Field-anchored (context-only, to avoid FP on bare tokens):** Cloudflare API
+  token, Mistral, Vimeo — matched only next to their env-var name.
 
 ### Design notes
 

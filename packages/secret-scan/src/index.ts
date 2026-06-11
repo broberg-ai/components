@@ -181,6 +181,22 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\b(?:cf|cloudflare)_?api_?token\b\s*[:=]\s*["'`]?[A-Za-z0-9_-]{40}(?![A-Za-z0-9_-])/gi,
   },
   {
+    // Mistral API key — prefix-less ~32 base62 (Christian-confirmed sample). A bare
+    // [A-Za-z0-9]{32} would FP on every ID/hash, so CONTEXT-ONLY: anchored on a
+    // mistral-(api-)key/token-named field. Runs before labeled-hex for attribution.
+    label: 'mistral-api-key',
+    description: 'Mistral API key (mistral-(api-)key/token field + 24+ base62)',
+    regex: /\bmistral(?:[_-]?api)?[_-]?(?:key|token)\b\s*[:=]\s*["'`]?[A-Za-z0-9]{24,}(?![A-Za-z0-9])/gi,
+  },
+  {
+    // Vimeo personal access token — ~32 lowercase hex, no prefix (sanne). A bare
+    // hex32 would FP massively (MD5/UUID), so CONTEXT-ONLY: anchored on a
+    // vimeo-(access-)token-named field.
+    label: 'vimeo-access-token',
+    description: 'Vimeo access token (vimeo-(access-)token field + 20+ base62)',
+    regex: /\bvimeo(?:[_-]?access)?[_-]?token\b\s*[:=]\s*["'`]?[A-Za-z0-9]{20,}(?![A-Za-z0-9])/gi,
+  },
+  {
     // Context-based catch for prefix-less high-entropy service secrets
     // (CMS_JWT_SECRET, revalidateSecret, fleet openssl-rand-hex secrets): a 40+
     // hex value assigned to a field whose name contains

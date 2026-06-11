@@ -1,6 +1,6 @@
 {
   "name": "@broberg/secret-scan",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Pure, dependency-free secret/credential redaction for the broberg.ai fleet — redactSecrets / hasSecret over a curated, ordered SECRET_PATTERNS set. Redact at write + egress boundaries so keys never land in a DB, chat, or KB. Lifted from broberg/trail F197.",
   "type": "module",
   "license": "MIT",
