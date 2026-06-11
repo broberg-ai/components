@@ -17,13 +17,15 @@ const EFFORT = { S: "S (small)", M: "M (medium)", L: "L (large)" };
 
 const DATA = [
  { n:"L0", t:"Rails", d:"foundation every app stands on", items:[
-   {f:"F001",nm:"Design tokens + theme preset",pkg:"@broberg/theme",m:"hybrid",e:"M",i:"critical",s:"shipped",src:"webhouse/cms",own:"cms",desc:"The design-token foundation every surface inherits — light/dark across neutral/cool/warm theme variants as oklch CSS variables, a headless theme store with React and Preact adapters (no next-themes), plus a DESIGN.md to Tailwind-v4 generator with WCAG-AA contrast checking. Shipped to npm as @broberg/theme v0.2.0 — the keystone that unblocks every visual component below."},
+   {f:"F001",nm:"Design tokens + theme preset",pkg:"@broberg/theme",m:"hybrid",e:"M",i:"critical",s:"shipped",ver:"0.2.0",src:"webhouse/cms",own:"cms",desc:"The design-token foundation every surface inherits — light/dark across neutral/cool/warm theme variants as oklch CSS variables, a headless theme store with React and Preact adapters (no next-themes), plus a DESIGN.md to Tailwind-v4 generator with WCAG-AA contrast checking. Shipped to npm as @broberg/theme v0.2.0 — the keystone that unblocks every visual component below."},
    {f:"F002",nm:"Stack B base scaffold",pkg:"@broberg/stack-b-base",m:"scaffold",e:"M",i:"high",src:"broberg/cardmem",own:"cardmem",desc:"A ready-to-run base scaffold for Stack B apps (Bun · Hono · Preact · Tailwind v4) so a new lightweight service boots with the house wiring already in place."},
    {f:"F003",nm:"Stack A base scaffold",pkg:"@broberg/stack-a-base",m:"scaffold",e:"M",i:"high",src:"webhouse/boilerplates-cms",own:"boilerplates-cms",desc:"The Stack A counterpart — a Next.js 16 / React 19 / Tailwind v4 / shadcn base scaffold. The canonical variants are already maintained in boilerplates-cms; extraction into a create-* CLI is piloted there."},
    {f:"F004",nm:"Config single-source helper",pkg:"@broberg/config",m:"runtime",e:"S",i:"high",src:"broberg/xrt81",own:"xrt81",desc:"A single-source config helper — one typed place to read URLs, env and feature flags so values trickle down instead of being hardcoded in five files."},
    {f:"F005",nm:"Mail sending (Resend)",pkg:"@broberg/mail",m:"runtime",e:"S",i:"high",src:"webhouse/sanneandersen",own:"sanneandersen",desc:"Transactional mail sending over Resend — a thin runtime helper so any app can send a templated email with one call."},
    {f:"F006",nm:"Media / Cloudflare R2",pkg:"@broberg/media-r2",m:"runtime",e:"M",i:"high",src:"broberg/cardmem",own:"cardmem",desc:"Object storage on Cloudflare R2 — upload, signed-URL and delete primitives for media, as a framework-agnostic runtime core."},
    {f:"F007",nm:"MCP Server Toolkit",pkg:"@broberg/mcp",m:"hybrid",e:"M",i:"high",src:"webhouse/cms",own:"cms",desc:"A toolkit for building MCP servers (the protocol every fleet tool speaks) — shared scaffolding and helpers so a new MCP server is mostly glue."},
+   {f:"F035",nm:"Secret / credential redaction",pkg:"@broberg/secret-scan",m:"runtime",e:"S",i:"high",s:"shipped",ver:"0.1.3",src:"broberg/trail",own:"cms",desc:"Pure, dependency-free secret/credential redaction — redactSecrets / hasSecret over a curated, ordered pattern set so an API key never lands in a database, a chat answer, or a shared knowledge base. Components-owned, lifted from trail F197; the canonical fleet pattern list. Shipped to npm as @broberg/secret-scan v0.1.3."},
+   {f:"F036",nm:"Lens-mint compliance",pkg:"@broberg/lens",m:"hybrid",e:"M",i:"high",s:"shipped",ver:"0.1.1",src:"broberg/cardmem",own:"cms",desc:"A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem Lens can log past the auth wall and screenshot the real authed surface — incl. production. Components-owned; implements cardmem's F098.1 standard. Shipped as @broberg/lens v0.1.1 and proven in cardmem's live prod."},
  ]},
  { n:"L1", t:"Identity", d:"who the user is", items:[
    {f:"F008",nm:"OAuth login providers",pkg:"@broberg/oauth",m:"runtime",e:"M",i:"high",src:"broberg/xrt81",own:"xrt81",desc:"OAuth login providers — Google, Apple and GitHub sign-in plus identity-linking, as a runtime package."},
@@ -60,6 +62,13 @@ const DATA = [
    {f:"F031",nm:"Greenfield scaffolder",m:"scaffold",e:"M",i:"high",src:"broberg/cardmem",own:"cardmem",desc:"The greenfield scaffolder — chooses plain-npm versus a pnpm+Turbo monorepo and stamps out a new project."},
    {f:"F032",nm:"create-app CLI + manifest",m:"scaffold",e:"L",i:"high",grad:1,src:"webhouse/cms",own:"cms",desc:"create-app CLI plus a machine-readable manifest — the AI product-builder that turns a spec into a running app skeleton."},
  ]},
+ { n:"SDK", t:"Fleet SDKs", d:"sibling @broberg packages — installed here, owned + shipped in their own repos", items:[
+   {f:"db-sdk",nm:"Data SDK",pkg:"@broberg/db-sdk",m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"own repo",own:"db-sdk repo",desc:"The fleet Data SDK — typed database-access primitives shared across apps. Owned in its own repo and installed here, not built in components. Live on npm as @broberg/db-sdk v0.1.0."},
+   {f:"ai-sdk",nm:"AI / LLM SDK",pkg:"@broberg/ai-sdk",m:"runtime",s:"shipped",ver:"0.10.5",ext:1,src:"@webhouse/ai",own:"ai-sdk repo",desc:"The fleet LLM SDK — a thin, config-driven wrapper over the Vercel AI SDK so every app talks to models the same way. Owned by @webhouse/ai. Live as @broberg/ai-sdk v0.10.5."},
+   {f:"upmetrics-sdk",nm:"Telemetry SDK",pkg:"@upmetrics/sdk",m:"runtime",s:"shipped",ver:"0.2.0",ext:1,src:"broberg/upmetrics",own:"upmetrics",desc:"The fleet telemetry SDK — cost, error and metric reporting from any app. Owned by the upmetrics repo. Live as @upmetrics/sdk v0.2.0."},
+   {f:"fleet-client",nm:"Fleet client",pkg:"@broberg/fleet-client",m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"broberg-ai/fleet",own:"fleet (buddy F072)",desc:"The typed fleet-comms client — intercom dispatch, terminal provision, notify-mobile, board digest — validated against fleet-contracts before send. Owned by broberg-ai/fleet. Live as @broberg/fleet-client v0.1.0."},
+   {f:"fleet-contracts",nm:"Fleet contracts",pkg:"@broberg/fleet-contracts",m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"broberg-ai/fleet",own:"fleet (buddy F072)",desc:"The fleet-comms contracts — zod schemas + FLEET_ENDPOINTS (the single source of truth) that fleet-client validates against. Owned by broberg-ai/fleet. Live as @broberg/fleet-contracts v0.1.0."},
+ ]},
 ];
 
 let total=0, ship=0, grad=0, mv=0;
@@ -67,17 +76,18 @@ function card(it, layer){
   total++; if(it.s==="shipped")ship++; if(it.grad)grad++;
   const moved = it.s==="moved"; if(moved)mv++;
   const st = it.s==="shipped" ? "shipped" : moved ? "moved" : "backlog";
-  const badge = st==="shipped" ? '<span class="badge b-ship">✅ shipped v0.2.0</span>'
+  const badge = st==="shipped" ? `<span class="badge b-ship">✅ v${it.ver||""}</span>`
     : moved ? '<span class="badge b-moved">↗ moved</span>'
     : '<span class="badge b-back">🚧 under construction</span>';
   const pkg = it.pkg ? `<div class="pkg has">${it.pkg}</div>`
     : moved ? `<div class="pkg">${it.note}</div>`
     : `<div class="pkg none">copy-owned scaffold</div>`;
-  const ei = moved ? "" : `<span class="ei">${it.e} · ${it.i}</span>`;
+  const ei = (moved||it.ext) ? "" : `<span class="ei">${it.e} · ${it.i}</span>`;
+  const own = it.ext ? `<span class="own">own: ${it.own}</span>` : "";
   const gr = it.grad ? '<span class="grad" title="graduate-candidate">⬆</span>' : "";
   const cls = "c" + (st==="shipped"?" shipped":"") + (moved?" moved":"");
   const tid = "inv-card-" + it.f.toLowerCase();
-  return `<div class="${cls}" data-status="${st}" data-layer="${layer}" data-model="${it.m}" data-grad="${it.grad?1:0}" data-f="${it.f}" data-testid="${tid}" role="button" tabindex="0" aria-haspopup="dialog"><div class="c-top"><span class="fnum">${it.f}</span><span class="nm">${it.nm}</span></div>${pkg}<div class="c-bot"><span class="model" title="${it.m}">${M[it.m]||""}</span>${ei}${gr}${badge}</div></div>`;
+  return `<div class="${cls}" data-status="${st}" data-layer="${layer}" data-model="${it.m}" data-grad="${it.grad?1:0}" data-f="${it.f}" data-testid="${tid}" role="button" tabindex="0" aria-haspopup="dialog"><div class="c-top"><span class="fnum">${it.f}</span><span class="nm">${it.nm}</span></div>${pkg}<div class="c-bot"><span class="model" title="${it.m}">${M[it.m]||""}</span>${ei}${own}${gr}${badge}</div></div>`;
 }
 const layersHtml = DATA.map(L =>
   `<div class="layer" data-layer="${L.n}"><div class="layer-h"><span class="n">${L.n}</span><span class="t">${L.t}</span><span class="d">— ${L.d}</span></div><div class="grid">${L.items.map(it=>card(it,L.n)).join("")}</div></div>`
@@ -89,7 +99,7 @@ const wip = total - ship - mv;
 // Detail-drawer body HTML per component (built here so the browser JS stays tiny).
 function detailHtml(it, layerN, layerT){
   const moved = it.s==="moved";
-  const badge = it.s==="shipped" ? '<span class="badge b-ship">✅ shipped v0.2.0</span>'
+  const badge = it.s==="shipped" ? `<span class="badge b-ship">✅ v${it.ver||""}</span>`
     : moved ? '<span class="badge b-moved">↗ moved</span>'
     : '<span class="badge b-back">🚧 under construction</span>';
   const pkg = it.pkg ? `<div class="d-pkg">${it.pkg}</div>`
@@ -98,7 +108,8 @@ function detailHtml(it, layerN, layerT){
   let facts = '<dl class="d-facts">';
   facts += `<dt>Layer</dt><dd>${layerN} · ${layerT}</dd>`;
   facts += `<dt>Reuse</dt><dd>${M[it.m]} ${it.m}<div class="d-model">${MODEL[it.m]}</div></dd>`;
-  if(!moved) facts += `<dt>Effort</dt><dd>${EFFORT[it.e]||it.e}</dd><dt>Impact</dt><dd>${it.i}</dd>`;
+  if(it.s==="shipped" && it.ver) facts += `<dt>Version</dt><dd>v${it.ver} · live on npm</dd>`;
+  if(!moved && !it.ext) facts += `<dt>Effort</dt><dd>${EFFORT[it.e]||it.e}</dd><dt>Impact</dt><dd>${it.i}</dd>`;
   if(it.grad) facts += `<dt>Graduate</dt><dd>⬆ gets its own repo + cardmem project</dd>`;
   facts += `<dt>Best source</dt><dd><code>${it.src}</code></dd>`;
   facts += `<dt>Owner</dt><dd>${it.own}</dd>`;
@@ -175,6 +186,7 @@ const CSS = `
   .c-bot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto;font-size:11.5px;color:var(--muted)}
   .model{font-size:14px}
   .ei{color:var(--faint)}
+  .own{color:var(--faint);font-size:10.5px;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
   .grad{color:var(--amber);font-weight:700;cursor:default}
   .badge{border-radius:6px;padding:2.5px 8px;font-size:10.5px;font-weight:700;letter-spacing:.02em;margin-left:auto;white-space:nowrap}
   .b-ship{background:color-mix(in oklab,var(--green) 20%,transparent);color:var(--green)}
@@ -277,7 +289,7 @@ const HTML = `<!doctype html>
   <div class="wrap">
     <section class="hero">
       <h1><span class="at">The </span>Component Universe</h1>
-      <p>The curated shared-component library across the broberg.ai estate — ${total} components in 5 layers, best-implementation-per-pattern, extracted into <code>@broberg/*</code> packages. Idea → running platform in days. <em>This page renders with the very tokens it documents — click any card to read more.</em></p>
+      <p>The curated shared-component library across the broberg.ai estate — ${total} components across ${DATA.length} layers, best-implementation-per-pattern, extracted into <code>@broberg/*</code> packages. <b>${ship} are live on npm</b> (3 components-owned + sibling SDKs from other repos). Idea → running platform in days. <em>This page renders with the very tokens it documents — click any card to read more.</em></p>
       <div class="stats">
         <div class="stat"><b>${total}</b><span>components</span></div>
         <div class="stat ship"><b>${ship}</b><span>shipped</span></div>
