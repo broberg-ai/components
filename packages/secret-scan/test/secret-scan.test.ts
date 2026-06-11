@@ -223,3 +223,19 @@ describe("v0.1.2 — Mistral + Vimeo (context-only, field-anchored)", () => {
     expect(r.findings.map((f) => f.label)).not.toContain("vimeo-access-token");
   });
 });
+
+describe("v0.1.3 — Cronjobs API key (cj_ + 43 base64url)", () => {
+  const full = "cj_0123456789012345678901234567890123456789abc"; // cj_ + 43
+
+  it("redacts a full cj_ key in a Bearer header", () => {
+    const r = redactSecrets("Authorization: Bearer " + full + " done");
+    expect(r.redacted).toContain("[REDACTED:cronjobs-api-key]");
+    expect(r.redacted).not.toContain(full);
+  });
+  it("does NOT redact the truncated UI preview (cj_ + 8 chars)", () => {
+    const preview = "cj_aB3dEf9h"; // 8 chars after prefix — shorter than {43}
+    const r = redactSecrets("preview " + preview + " shown");
+    expect(r.redacted).toBe("preview " + preview + " shown");
+    expect(r.findings.map((f) => f.label)).not.toContain("cronjobs-api-key");
+  });
+});

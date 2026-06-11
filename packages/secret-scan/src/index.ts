@@ -166,6 +166,15 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\btrail_[A-Za-z0-9]{20,}/g,
   },
   {
+    // Cronjobs API key (cronjobs.webhouse.net) — cj_ + randomBytes(32).base64url =
+    // exactly 43 base64url chars (46 total). Prefix + fixed length = very low FP.
+    // The UI's truncated cj_<8 chars>… preview is shorter than {43} → not matched.
+    // Negative lookahead (not \b) because base64url's `-` breaks a trailing \b.
+    label: 'cronjobs-api-key',
+    description: 'Cronjobs API key (cj_ + 43 base64url)',
+    regex: /\bcj_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
+  },
+  {
     // randomBytes(32).hex → wh_ + 64 lowercase hex (67 chars total).
     label: 'cms-access-token',
     description: 'webhouse.app CMS access token (wh_ + 64 hex)',

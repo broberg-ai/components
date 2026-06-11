@@ -63,7 +63,7 @@ regexes — most-specific first so attribution is correct:
   Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),
   Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`).
 - **Fleet:** upmetrics (`uk_`), cardmem (`pa_/pi_/pk_`, `piw_`), cms (`wh_`),
-  trail (`trail_`).
+  trail (`trail_`), cronjobs (`cj_` + 43 base64url).
 - **Generic:** JWT (`eyJ…` — also Turso + Supabase service_role tokens), PEM
   private-key blocks, Discord bot/MFA tokens, and `labeled-hex-secret` (a 40+ hex
   value assigned to a `secret`/`token`/`password`/`api-key`-named field).
