@@ -10,6 +10,12 @@
 # cardmem MCP endpoint, so the ~75KB payload never passes through a cc session's
 # context (≈0 tokens on the body, and zero hand-transcription risk).
 #
+# Alternative: cardmem_save_mockup also accepts `html_url` now (the server fetches
+# a public raw URL itself, SSRF-guarded) — cleaner for syncing COMMITTED main in
+# one MCP call. This script deliberately uses the local FILE -> jq -> curl path so
+# it can sync your WORKING COPY right after a regen, with NO commit-push-first step.
+# Both are token-free; use html_url for a committed-main one-off, this for the loop.
+#
 # Usage:  bash scripts/sync-mockup.sh ["changelog message"]
 set -euo pipefail
 
