@@ -4,6 +4,7 @@ name: publish
 # One tag prefix per package:
 #   • theme-v*        → packages/theme        → @broberg/theme
 #   • secret-scan-v*  → packages/secret-scan  → @broberg/secret-scan
+#   • lens-v*         → packages/lens         → @broberg/lens
 #
 # Each package has its own Trusted Publisher entry at npmjs.com → <pkg> → Trusted Publisher =
 #   repository: broberg-ai/components · workflow: publish.yml · environment: (empty)
@@ -16,6 +17,7 @@ on:
     tags:
       - "theme-v*"
       - "secret-scan-v*"
+      - "lens-v*"
   workflow_dispatch:
 
 jobs:
@@ -139,4 +141,65 @@ jobs:
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/secret-scan
+        run: npm publish --access public --provenance
+
+  publish-lens:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/lens-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # resolves to >=22.14, required by OIDC publishing
+          registry-url: https://registry.npmjs.org
+
+      # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Install (workspace)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: packages/lens
+        run: pnpm typecheck
+
+      - name: Build
+        working-directory: packages/lens
+        run: pnpm build
+
+      - name: Test
+        working-directory: packages/lens
+        run: pnpm test
+
+      - name: Guard — tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/lens-v')
+        working-directory: packages/lens
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#lens-v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag lens-v$TAG does not match packages/lens version $PKG"
+            exit 1
+          fi
+
+      - name: Guard — version not already on npm
+        working-directory: packages/lens
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if npm view "@broberg/lens@$PKG" version >/dev/null 2>&1; then
+            echo "::error::@broberg/lens@$PKG already published — bump the version first."
+            exit 1
+          fi
+          echo "Publishing @broberg/lens@$PKG"
+
+      # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
+      - name: Publish (OIDC)
+        working-directory: packages/lens
         run: npm publish --access public --provenance

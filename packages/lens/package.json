@@ -1,0 +1,64 @@
+{
+  "name": "@broberg/lens",
+  "version": "0.1.0",
+  "description": "Make any app Cardmem-Lens-compliant: a headless POST /api/lens-session mint endpoint (narrow Bearer → short-lived, read-only Playwright storageState) so Lens can log past the auth wall and screenshot the real authed surface, incl. prod. Framework-agnostic core + thin Next.js / Hono adapters. Implements the fleet F098.1 mint standard.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js",
+      "require": "./dist/next.cjs"
+    },
+    "./hono": {
+      "types": "./dist/hono.d.ts",
+      "import": "./dist/hono.js",
+      "require": "./dist/hono.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "hono": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "hono": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "hono": "^4.6.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "lens",
+    "cardmem",
+    "visual-regression",
+    "playwright",
+    "storagestate",
+    "auth",
+    "session",
+    "screenshot",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/lens"
+  },
+  "publishConfig": { "access": "public" }
+}
