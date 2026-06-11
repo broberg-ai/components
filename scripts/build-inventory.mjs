@@ -1,6 +1,8 @@
 // Generator for docs/inventory.html — the hi-fi Component Universe showcase.
 // Single source of truth: the DATA array below (mirrors docs/INVENTORY.md). Re-run with:
 //   node scripts/build-inventory.mjs
+// To regenerate AND push the hosted cardmem mockup in one step:
+//   bash scripts/sync-mockup.sh   (keeps cardmem.com/mockups/… from going stale)
 // Each card is clickable → a custom detail drawer (no native dialog) shows the
 // component's facts + a "what it is" blurb. The page dogfoods @broberg/theme tokens.
 
