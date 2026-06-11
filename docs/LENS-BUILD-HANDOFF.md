@@ -19,8 +19,33 @@ Needed by ≫3 repos (every authed fleet service + every customer site we build)
 - **cardmem owns the canonical SPEC** (`docs/LENS-MINT-ENDPOINT.md`, F098.1/F074.13) + has a reference impl shipped on cardmem's `/roadmap`. **LIFT from it** (like trail's F197 → secret-scan).
 - Fleet services + customer sites **consume**.
 
-## cardmem coordination (intercom SENT this turn — check for the reply first)
-Asked cardmem for: (1) the `/roadmap` mint-endpoint **reference impl** (exact files, gh-readable on `broberg-ai/cardmem` or local `/Users/cb/Apps/broberg/cardmem`); (2) `docs/LENS-MINT-ENDPOINT.md` path; (3) **the exact contract Lens expects** the endpoint to RETURN (storageState JSON? Set-Cookie? bearer? which field/format) — the one thing not guessable, it's the core of the adapter; (4) ownership confirm. **Wait for their reply before locking the adapter's return shape.**
+## cardmem coordination — RESOLVED (cardmem reply #4434)
+Ownership CONFIRMED: components owns + publishes `@broberg/lens` (OIDC/Trusted Publisher); cardmem owns the spec + reference impl. Exact parallel to secret-scan.
+
+**Reference files to LIFT from** (`broberg-ai/cardmem` main, public — or local `/Users/cb/Apps/broberg/cardmem`):
+- `apps/server/src/api/lens-session.ts` — **THE endpoint** (find-or-create dedicated lens-principal, session-create, 10-min TTL clamp, cookie-signing, return). Verbatim-lift the core logic from here.
+- `apps/server/src/auth-mcp-key.ts` — `LENS_PRINCIPAL_EMAIL` + readOnly resolution (write-guard basis).
+- `apps/agent/src/lens/auth/index.ts` — the daemon CONSUMER (mintEndpoint + storageState adapter) = the OTHER end of the contract; shows exactly what the daemon sends + expects back.
+- Spec: `docs/LENS-MINT-ENDPOINT.md` (F098.1/F074.13).
+
+### THE CONTRACT (the core — the adapter depends ONLY on this return shape)
+`POST /api/lens-session`, header `Authorization: Bearer <LENS_MINT_SECRET>` → **200 with JSON body = a Playwright storageState** (NOT Set-Cookie, NOT a bearer):
+```json
+{ "cookies": [ { "name": "<app-session-cookie-name>", "value": "<signed token>",
+    "domain": "<LENS_COOKIE_DOMAIN ?? host; leading-dot for cross-subdomain>",
+    "path": "/", "httpOnly": true, "secure": true, "sameSite": "Lax",
+    "expires": <UNIX SECONDS> } ],
+  "origins": [] }
+```
+The daemon injects these cookies into the browser context before capture. **`expires` = unix SECONDS (not ms).**
+- **UNIVERSAL (lives in the package):** this return shape + status codes + security.
+- **PER-APP (`createLensSession` hook):** how you mint the principal's session + **SIGN the cookie** (auth-specific — better-auth / NextAuth / Supabase / jose; cookie name + signing vary per app). The hook returns `{ name, value, domain?, expires? }` (or similar) and the core assembles the storageState.
+
+### Core MUST also (per cardmem):
+- **503** when `LENS_MINT_SECRET` is unset → endpoint ships DARK (inert until configured).
+- **401** on wrong/missing bearer; **constant-time** compare (`crypto.timingSafeEqual`).
+- dedicated **synthetic lens-principal**, **NEVER cb@**.
+- 10-min TTL clamp; basic rate-limit.
 
 ## Design (headless core + thin adapters — the components pattern)
 Package ships the UNIFORM + SECURE ~80%:
@@ -28,7 +53,7 @@ Package ships the UNIFORM + SECURE ~80%:
   - constant-time Bearer compare vs `LENS_MINT_SECRET` (`crypto.timingSafeEqual`); 401 on mismatch/missing.
   - enforce 10-min TTL, dedicated **read-only lens-principal**, **never cb@/admin** guard.
   - basic rate-limit.
-  - call the app-supplied `createSession(lensPrincipal)` to mint the real session → return whatever Lens needs (shape TBD from cardmem — point 3 above).
+  - 503 if `LENS_MINT_SECRET` unset (ship-dark); else call the app-supplied `createSession(lensPrincipal)` → assemble + return a **Playwright storageState JSON** (the fixed return shape — see "THE CONTRACT" below).
 - **Adapters (thin):** `@broberg/lens/next` (Next.js route handler, `export const POST = …`), `@broberg/lens/hono` (Hono handler), maybe `@broberg/lens/node` (generic `(req,res)`).
 - **App supplies the auth-specific 20%:** a small `createLensSession(principal)` wired to ITS auth (NextAuth encode / Supabase admin-mint / custom JWT sign) + the `LENS_MINT_SECRET` env. Near-zero-config for the common Stack-A/NextAuth case (consider a NextAuth helper); callback escape-hatch for the rest.
 
