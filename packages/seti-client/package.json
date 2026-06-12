@@ -1,11 +1,14 @@
 {
   "name": "@broberg/seti-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed client + frame-merge engine + Preact <SetiChat> component for buddycloud.cc SET/SETI live streaming chat (consumed through a host-app proxy from @broberg/seti-server).",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -30,7 +33,9 @@
     "preact": "^10.0.0"
   },
   "peerDependenciesMeta": {
-    "preact": { "optional": true }
+    "preact": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "preact": "^10.24.3",
@@ -55,5 +60,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/seti-client"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

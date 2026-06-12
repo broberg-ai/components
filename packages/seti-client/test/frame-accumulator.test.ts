@@ -40,6 +40,47 @@ describe("mergeOverlap", () => {
     const hist = ["a", "b", "c"];
     expect(mergeOverlap(hist, ["a", "b", "c"])).toEqual(["a", "b", "c"]);
   });
+
+  // F078 — the duplication bug from Christian's screenshot: cc updates a line
+  // IN PLACE mid-screen (timer counts up), exact-match overlap fails, the
+  // whole block got re-appended.
+  it("merges when a volatile timer line changed in place (and refreshes it)", () => {
+    const hist = ["result line", "✻ Worked for 8s", "more output"];
+    const body = ["result line", "✻ Worked for 9s", "more output", "new line"];
+    expect(mergeOverlap(hist, body)).toEqual([
+      "result line",
+      "✻ Worked for 9s",
+      "more output",
+      "new line",
+    ]);
+  });
+
+  it("treats rotating spinner glyphs as the same line", () => {
+    const hist = ["a", "✶ Thinking… (3s)"];
+    const body = ["✻ Thinking… (4s)", "b"];
+    expect(mergeOverlap(hist, body)).toEqual(["a", "✻ Thinking… (4s)", "b"]);
+  });
+
+  it("does not append a duplicate block when the body is contained in history (redraw/reconnect)", () => {
+    const hist = ["intro", "result A", "result B", "✻ Worked for 8s"];
+    const body = ["result A", "result B", "✻ Worked for 9s"];
+    expect(mergeOverlap(hist, body)).toEqual([
+      "intro",
+      "result A",
+      "result B",
+      "✻ Worked for 9s",
+    ]);
+  });
+
+  it("still appends genuinely new content that shares no overlap", () => {
+    expect(mergeOverlap(["a", "b"], ["x", "y", "z"])).toEqual(["a", "b", "x", "y", "z"]);
+  });
+
+  it("does not dedupe distinct lines that differ beyond digits", () => {
+    const hist = ["count: 3 files changed"];
+    const body = ["count: 7 lines removed"];
+    expect(mergeOverlap(hist, body)).toEqual(["count: 3 files changed", "count: 7 lines removed"]);
+  });
 });
 
 describe("FrameAccumulator", () => {

@@ -33,17 +33,51 @@ export function splitFooter(lines: string[]): { body: string[]; footer: string[]
   return { body: lines.slice(0, start), footer: lines.slice(start) };
 }
 
+/**
+ * Comparison key for overlap matching. cc updates lines IN PLACE while a turn
+ * runs (spinner glyph rotates, "Worked for Xs" counts up, token counters tick)
+ * — exact equality then finds no overlap and the whole frame gets re-appended
+ * as a duplicate block (F078). Normalizing the volatile parts (one spinner
+ * glyph, digit runs masked) makes those lines compare equal, and the merge
+ * then REFRESHES them with the new frame's text.
+ */
+function norm(line: string): string {
+  const t = line.replace(/\s+$/, "");
+  // Only status lines (spinner-prefixed) get digit masking — masking digits in
+  // ordinary output would make e.g. "line 1" equal "line 2" and eat real lines.
+  if (/^[✻✶✳✢✽·•]/.test(t)) return `•${t.slice(1).replace(/\d+/g, "#")}`;
+  return t;
+}
+
 export function mergeOverlap(hist: string[], body: string[]): string[] {
   const max = Math.min(hist.length, body.length);
   for (let k = max; k > 0; k--) {
     let ok = true;
     for (let i = 0; i < k; i++) {
-      if (hist[hist.length - k + i] !== body[i]) {
+      if (norm(hist[hist.length - k + i]) !== norm(body[i])) {
         ok = false;
         break;
       }
     }
-    if (ok) return hist.concat(body.slice(k));
+    // Take the NEW frame's lines for the overlapping segment so in-place
+    // updates (timers, spinners) refresh instead of going stale.
+    if (ok) return hist.slice(0, hist.length - k).concat(body);
+  }
+  // No suffix/prefix overlap. If the body is already CONTAINED in the recent
+  // history (pure redraw or an SSE reconnect replaying the latest frame),
+  // refresh that segment in place instead of appending a duplicate block.
+  if (body.length > 0) {
+    const windowStart = Math.max(0, hist.length - body.length * 2);
+    for (let s = hist.length - body.length; s >= windowStart; s--) {
+      let ok = true;
+      for (let i = 0; i < body.length; i++) {
+        if (norm(hist[s + i]) !== norm(body[i])) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return hist.slice(0, s).concat(body, hist.slice(s + body.length));
+    }
   }
   return hist.concat(body);
 }
