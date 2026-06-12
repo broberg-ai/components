@@ -49,6 +49,13 @@ spacing:
   md: "16px"
   lg: "24px"
   xl: "48px"
+breakpoints:
+  sm: "640px"
+  md: "768px"
+  lg: "1024px"
+  xl: "1280px"
+touch:
+  target-min: "44px"
 ---
 
 ## Overview
@@ -77,6 +84,14 @@ readability), `label-sm` (0.75rem/600, tracked) for eyebrows and chips.
 A 4px base spacing scale (`xs`=4 → `xl`=48). Use the scale; never invent
 in-between values. Cards and panels use `rounded.lg` (0.5rem) and `spacing.lg`
 internal padding.
+
+## Responsive & touch
+
+Standard breakpoints (`sm` 640 · `md` 768 · `lg` 1024 · `xl` 1280) so every app
+switches layouts at the SAME widths — use them as Tailwind variants (`md:flex`) or
+read `BREAKPOINTS` from `@broberg/theme` for `matchMedia`. Every interactive
+control is at least `--touch-target-min` (44px) on touch — never ship a smaller
+tap target.
 
 ## Components
 

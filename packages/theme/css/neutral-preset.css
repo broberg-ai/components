@@ -38,6 +38,7 @@
   --input:                 oklch(0.260 0 0);
   --ring:                  oklch(0.556 0 0);
   --radius:                0.5rem;
+  --touch-target-min:      44px; /* min tap target — Apple/Google ≥44px */
   --sidebar:               oklch(0 0 0);
   --sidebar-foreground:    oklch(0.985 0 0);
   --sidebar-border:        oklch(0.301 0 0);
@@ -73,6 +74,11 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+  /* responsive breakpoints — every app switches layouts at the same widths (sm:/md:/…) */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
 }
 
 /* === LIGHT (neutral) === */

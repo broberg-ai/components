@@ -42,6 +42,28 @@ Override only what makes you *you* — `--primary`, `--ring`, `--radius` — in
 Everything else inherits the neutral baseline, so a new app is on-brand,
 accessible and dark-mode-ready in three lines.
 
+### Responsive & touch tokens
+
+The preset also ships **breakpoint** tokens (`--breakpoint-sm/md/lg/xl` =
+640/768/1024/1280, in the `@theme` block so Tailwind v4's `sm:`/`md:`/… variants
+resolve them) and a **touch-target** token (`--touch-target-min: 44px` in `:root`)
+— one source, so every app switches layouts at the same widths and never ships a
+sub-44px tap target:
+
+```css
+.btn { min-height: var(--touch-target-min); min-width: var(--touch-target-min); }
+```
+
+Read the same values in JS (e.g. for `matchMedia`) from the headless core:
+
+```ts
+import { BREAKPOINTS, TOUCH_TARGET_MIN } from "@broberg/theme";
+if (matchMedia(`(min-width: ${BREAKPOINTS.md}px)`).matches) { /* tablet and up */ }
+```
+
+`BREAKPOINTS` and `--breakpoint-*` are the same numbers; the DESIGN.md generator
+emits both from the `breakpoints:` / `touch:` token blocks.
+
 ## 2. The theme store
 
 ### React / Next.js (Stack A)
@@ -91,6 +113,8 @@ setTheme("dark-warm");
 | `toggleTheme()` | Cycle light ⇄ dark (variants collapse to their base mode). |
 | `onThemeChange(fn)` | Subscribe; returns an unsubscribe. |
 | `THEME_KEYS` | All six `ThemeKey`s. |
+| `BREAKPOINTS` | `{ sm:640, md:768, lg:1024, xl:1280 }` — responsive breakpoints (px) for `matchMedia`. |
+| `TOUCH_TARGET_MIN` | `44` — minimum touch-target size (px). |
 
 `InitThemeOptions`: `{ defaultTheme?, followSystem?, storageKey? }` (default key
 `"broberg-theme"`).

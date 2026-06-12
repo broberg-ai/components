@@ -33,6 +33,16 @@ describe("design-md generator", () => {
     expect(css).toContain("--text-headline-lg: var(--text-headline-lg);");
   });
 
+  it("emits breakpoint tokens in @theme and the touch-target var in :root", () => {
+    const { tokens } = parseDesignMd(DESIGN_MD);
+    expect(tokens.breakpoints?.md).toBe("768px");
+    expect(tokens.touch?.["target-min"]).toBe("44px");
+    const css = designMdToTailwindV4(DESIGN_MD);
+    expect(css).toContain("--breakpoint-sm: 640px;");
+    expect(css).toContain("--breakpoint-xl: 1280px;");
+    expect(css).toContain("--touch-target-min: 44px;");
+  });
+
   it("round-trips the neutral preset's base color tokens", () => {
     const { tokens } = parseDesignMd(DESIGN_MD);
     const css = designMdToTailwindV4(DESIGN_MD);

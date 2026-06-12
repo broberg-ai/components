@@ -120,3 +120,16 @@ export function onThemeChange(listener: (theme: ThemeKey) => void): () => void {
     listeners.delete(listener);
   };
 }
+
+/**
+ * Standard responsive breakpoints in px — a single source so every app switches
+ * layouts at the same widths (mirrors the preset's `--breakpoint-*` and Tailwind
+ * v4's defaults). Use for `matchMedia` / programmatic checks; CSS uses the tokens.
+ *
+ *   if (matchMedia(`(min-width: ${BREAKPOINTS.md}px)`).matches) { … }
+ */
+export const BREAKPOINTS = { sm: 640, md: 768, lg: 1024, xl: 1280 } as const;
+export type Breakpoint = keyof typeof BREAKPOINTS;
+
+/** Minimum touch-target size in px (Apple/Google ≥44). Never ship a smaller tap target. */
+export const TOUCH_TARGET_MIN = 44;

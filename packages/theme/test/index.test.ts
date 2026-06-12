@@ -6,6 +6,8 @@ import {
   toggleTheme,
   onThemeChange,
   THEME_KEYS,
+  BREAKPOINTS,
+  TOUCH_TARGET_MIN,
 } from "../src/index";
 
 beforeEach(() => {
@@ -80,5 +82,10 @@ describe("@broberg/theme core", () => {
   it("exposes all six theme keys", () => {
     expect(THEME_KEYS).toHaveLength(6);
     expect([...THEME_KEYS]).toContain("dark-warm");
+  });
+
+  it("exposes breakpoint + touch-target tokens (single source, matching the preset)", () => {
+    expect(BREAKPOINTS).toEqual({ sm: 640, md: 768, lg: 1024, xl: 1280 });
+    expect(TOUCH_TARGET_MIN).toBe(44);
   });
 });

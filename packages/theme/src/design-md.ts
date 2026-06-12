@@ -30,6 +30,8 @@ export interface DesignTokens {
   typography?: Record<string, TypographyToken>;
   rounded?: Record<string, string>;
   spacing?: Record<string, string | number>;
+  breakpoints?: Record<string, string>;
+  touch?: Record<string, string>;
   components?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -85,6 +87,14 @@ export function designMdToTailwindV4(content: string, options: GenerateV4Options
       root.push(`  --text-${name}: ${token.fontSize};`);
       theme.push(`  --text-${name}: var(--text-${name});`);
     }
+  }
+  // Breakpoints live directly in @theme (Tailwind v4 reads --breakpoint-* there).
+  for (const [name, value] of Object.entries(tokens.breakpoints ?? {})) {
+    theme.push(`  --breakpoint-${name}: ${value};`);
+  }
+  // Touch-target has no Tailwind namespace — a plain custom property in :root.
+  for (const [name, value] of Object.entries(tokens.touch ?? {})) {
+    root.push(`  --touch-${name}: ${value};`);
   }
 
   return [
