@@ -107,9 +107,13 @@ const res = await handle({ authorization, host, secure }); // → { status, body
 - **TTL clamp** to `[60s, 10min]` (default 10min); `expiresAt` is handed to your
   hook so you clamp your session row to the same TTL.
 - **Basic rate-limit** (default 30/min) → `429`.
-- **Cookie domain** = `cookieDomain ?? LENS_COOKIE_DOMAIN ?? request host` — never
-  the bound socket address (which is `0.0.0.0` on Fly/proxy hosts → the browser
-  never sends the cookie → a silent false-green).
+- **Cookie domain** = `cookieDomain ?? LENS_COOKIE_DOMAIN ?? request host` (port
+  stripped, so a `localhost:3000` dev build yields a valid `localhost` domain) —
+  never the bound socket address (`0.0.0.0` on Fly/proxy hosts) and never a
+  port-scoped value. On an **https** request that resolves to a localhost-family
+  host with no explicit override, the core **`console.warn`s loudly** — behind a
+  reverse proxy that's a silent false-green (set `LENS_COOKIE_DOMAIN`). Genuine
+  http localhost dev stays silent, so a Docker dev-build sandbox just works.
 
 ## Read-only is enforced by YOUR app
 

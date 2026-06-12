@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { Hono } from "hono";
 import {
   createLensMintHandler,
@@ -248,6 +248,52 @@ describe("createLensMintHandler — minter failure", () => {
     );
     const res = await h(req(`Bearer ${SECRET}`));
     expect(JSON.stringify(res.body)).not.toContain("SECRET-LEAK-xyz");
+  });
+});
+
+describe("createLensMintHandler — cookie domain (port strip + proxy warn)", () => {
+  const ENV = process.env.LENS_COOKIE_DOMAIN;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    delete process.env.LENS_COOKIE_DOMAIN;
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+    if (ENV === undefined) delete process.env.LENS_COOKIE_DOMAIN;
+    else process.env.LENS_COOKIE_DOMAIN = ENV;
+  });
+
+  function domainOf(res: Awaited<ReturnType<ReturnType<typeof createLensMintHandler>>>): unknown {
+    return (res.body as Extract<typeof res.body, { cookies: unknown }>).cookies[0]!.domain;
+  }
+
+  it("strips the port from a host-derived cookie domain (localhost:3000 → localhost)", async () => {
+    const res = await createLensMintHandler(baseOpts())(req(`Bearer ${SECRET}`, { host: "localhost:3000" }));
+    expect(domainOf(res)).toBe("localhost");
+  });
+
+  it("warns when an https request resolves the cookie domain to localhost with no override", async () => {
+    await createLensMintHandler(baseOpts())(req(`Bearer ${SECRET}`, { host: "localhost:3000", secure: true }));
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0]![0])).toMatch(/localhost/);
+  });
+
+  it("stays SILENT for genuine http localhost dev (secure=false)", async () => {
+    await createLensMintHandler(baseOpts())(req(`Bearer ${SECRET}`, { host: "localhost:3000", secure: false }));
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("stays silent when LENS_COOKIE_DOMAIN is explicitly set (deliberate override)", async () => {
+    process.env.LENS_COOKIE_DOMAIN = "myapp.com";
+    const res = await createLensMintHandler(baseOpts())(req(`Bearer ${SECRET}`, { host: "localhost", secure: true }));
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(domainOf(res)).toBe("myapp.com");
+  });
+
+  it("stays silent for a real public host on https", async () => {
+    await createLensMintHandler(baseOpts())(req(`Bearer ${SECRET}`, { host: "myapp.com", secure: true }));
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 

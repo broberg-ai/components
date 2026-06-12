@@ -127,6 +127,14 @@ function clampTtl(ttlMs: number): number {
   return Math.min(Math.max(ttlMs, MIN_TTL_MS), DEFAULT_TTL_MS);
 }
 
+/** localhost-family hosts a cookie must never be scoped to on a real (https) host. */
+const NON_PUBLIC_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+
+/** Strip a trailing `:port` — cookie domains are never port-scoped (`localhost:3000` → `localhost`). */
+function hostToDomain(host: string): string {
+  return host.replace(/:\d+$/, "");
+}
+
 /**
  * Build the normalized Lens-mint handler. Wrap it with `@broberg/lens/next` or
  * `@broberg/lens/hono`, or call the returned function directly with a
@@ -204,8 +212,25 @@ export function createLensMintHandler(
     }
 
     const cookies = Array.isArray(minted) ? minted : [minted];
-    const fallbackDomain = opts.cookieDomain ?? process.env.LENS_COOKIE_DOMAIN ?? req.host;
+    const explicitDomain = opts.cookieDomain ?? process.env.LENS_COOKIE_DOMAIN;
+    // Derive the cookie domain from the request host with the port stripped — a
+    // localhost dev server is hit at `localhost:3000`, and `localhost:3000` is an
+    // invalid cookie domain. (In prod this never bit: prod hosts carry no port.)
+    const fallbackDomain = explicitDomain ?? hostToDomain(req.host);
     const expiresSec = Math.floor(expiresAt / 1000);
+
+    // Loud-warn the silent false-green: on an https request whose cookie domain
+    // resolved (with NO explicit override) to a localhost-family host, the browser
+    // will never send the cookie to the real prod host — behind a reverse proxy the
+    // Host header can be "localhost"/"0.0.0.0" (fds hit exactly this). Genuine http
+    // localhost dev stays silent (req.secure === false there).
+    if (!explicitDomain && req.secure && NON_PUBLIC_HOSTS.has(fallbackDomain.toLowerCase())) {
+      console.warn(
+        `[@broberg/lens] cookie domain resolved to "${fallbackDomain}" on an https request — ` +
+          "behind a reverse proxy the browser will NOT send this cookie to your real host " +
+          "(a silent false-green). Set LENS_COOKIE_DOMAIN to your public prod host.",
+      );
+    }
 
     const storageState: LensStorageState = {
       cookies: cookies.map((c) => ({

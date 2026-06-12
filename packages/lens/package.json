@@ -1,6 +1,6 @@
 {
   "name": "@broberg/lens",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Make any app Cardmem-Lens-compliant: a headless POST /api/lens-session mint endpoint (narrow Bearer → short-lived, read-only Playwright storageState) so Lens can log past the auth wall and screenshot the real authed surface, incl. prod. Framework-agnostic core + thin Next.js / Hono adapters. Implements the fleet F098.1 mint standard.",
   "type": "module",
   "license": "MIT",
