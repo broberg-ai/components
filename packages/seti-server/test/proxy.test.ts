@@ -134,6 +134,35 @@ describe("createSetiProxy", () => {
     })).status).toBe(200);
   });
 
+  it("forwards GET lsd/notifications with the sinceMs query", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/notifications?sinceMs=1700");
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer t");
+      return new Response(JSON.stringify({ notifications: [] }), { status: 200 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/lsd/notifications?sinceMs=1700");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ notifications: [] });
+  });
+
+  it("forwards POST lsd/rules/:id/action with the id in the path + body verbatim", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/rules/9/action");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({ edge: "e1", session: "cc", action: "nudge" });
+      return new Response(JSON.stringify({ ok: true, detail: "re-nudged" }), { status: 200 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/lsd/rules/9/action", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ edge: "e1", session: "cc", action: "nudge" }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, detail: "re-nudged" });
+  });
+
   it("pipes the lsd/stream SSE through with the query forwarded + abort signal", async () => {
     const f = mockFetch((url, init) => {
       expect(url).toBe("https://cloud.test/api/seti/v1/lsd/stream?view=v1");
