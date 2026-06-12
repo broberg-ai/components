@@ -1,6 +1,6 @@
 {
   "name": "@broberg/theme",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Headless design-token theme store + neutral CSS baseline (Tailwind v4) for the broberg.ai estate. Framework-agnostic core + thin React/Preact adapters + a DESIGN.md → Tailwind v4 generator.",
   "type": "module",
   "license": "MIT",
@@ -64,6 +64,11 @@
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/theme"
   },
   "publishConfig": { "access": "public" }
 }
