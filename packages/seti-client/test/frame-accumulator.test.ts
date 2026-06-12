@@ -81,6 +81,34 @@ describe("mergeOverlap", () => {
     const body = ["count: 7 lines removed"];
     expect(mergeOverlap(hist, body)).toEqual(["count: 3 files changed", "count: 7 lines removed"]);
   });
+
+  // F079/0.1.2 — Christian's 18× re-append: trailing volatile lines (spinner
+  // gerund rotates word-for-word, "⎿ Tip:" text changes) break BOTH the suffix
+  // overlap and the strict containment, so the whole window re-appended. The
+  // anchor fallback aligns on the stable top line and refreshes in place.
+  it("anchor-merges when trailing volatile lines break the overlap seam", () => {
+    const hist = ["⏺ Bash(ls)", "result", "✢ Skedaddling… (1m 24s)", "⎿ Tip: alpha"];
+    const body = ["⏺ Bash(ls)", "result", "✢ Noodling… (1m 26s)", "⎿ Tip: beta"];
+    expect(mergeOverlap(hist, body)).toEqual([
+      "⏺ Bash(ls)",
+      "result",
+      "✢ Noodling… (1m 26s)",
+      "⎿ Tip: beta",
+    ]);
+  });
+
+  it("anchor fallback retains earlier history and appends genuinely new lines", () => {
+    const hist = ["old A", "old B", "⏺ Bash(ls)", "r1", "✢ Spin… (1s)"];
+    const body = ["⏺ Bash(ls)", "r1", "r2", "✢ Spin… (2s)"]; // r2 is new
+    expect(mergeOverlap(hist, body)).toEqual([
+      "old A",
+      "old B",
+      "⏺ Bash(ls)",
+      "r1",
+      "r2",
+      "✢ Spin… (2s)",
+    ]);
+  });
 });
 
 describe("FrameAccumulator", () => {

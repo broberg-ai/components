@@ -25,6 +25,13 @@ export interface SetiChatProps {
   class?: string;
   /** Placeholder for the text input. Default: "Skriv til sessionen…" */
   placeholder?: string;
+  /**
+   * Hide the built-in compose form (text input + Send) while keeping the
+   * nav-keys bar. For hosts that supply their own single compose field and
+   * only want the screen + nav-keys (e.g. cardmem Chat v2). Cleaner than
+   * CSS-hiding `.seti-chat__form` from the outside.
+   */
+  hideInput?: boolean;
 }
 
 const NAV_KEYS: Array<{ key: SetiKey; label: string; title: string }> = [
@@ -94,12 +101,16 @@ export function SetiChat(props: SetiChatProps) {
       const s = screenRef.current;
       return !s || s.scrollHeight - s.scrollTop - s.clientHeight < 40;
     };
+    let first = true;
     const handle = client.openStream(props.edge, props.session, {
       onHello: (h) => setEdgeOn(h.edgeConnected),
       onPing: (p) => setEdgeOn(p.edgeConnected),
       onStateChange: setStreamState,
       onFrame: (content) => {
-        const stick = atBottom();
+        // First frame lands you at the LATEST line (cc's now), not the top of a
+        // tall scrollback — then the existing stick-to-bottom takes over.
+        const stick = first || atBottom();
+        first = false;
         acc.feed(content);
         setScreenText(acc.text);
         if (stick) {
@@ -170,14 +181,23 @@ export function SetiChat(props: SetiChatProps) {
           </button>
         ))}
       </div>
+      {!props.hideInput && (
       <form class="seti-chat__form" data-testid="seti-chat-form" onSubmit={submit}>
-        <input
+        <textarea
           class="seti-chat__input"
           data-testid="seti-chat-input"
+          rows={2}
           value={text}
           placeholder={props.placeholder ?? "Skriv til sessionen…"}
           autocomplete="off"
-          onInput={(e) => setText((e.target as HTMLInputElement).value)}
+          onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
+          onKeyDown={(e) => {
+            // Enter sends, Shift+Enter inserts a newline.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void submit(e);
+            }
+          }}
         />
         <button
           type="submit"
@@ -188,6 +208,7 @@ export function SetiChat(props: SetiChatProps) {
           {sending ? "…" : "Send"}
         </button>
       </form>
+      )}
     </div>
   );
 }

@@ -15,7 +15,22 @@ export interface FrameView {
 }
 
 const RULE = /^[─━-]{10,}\s*$/;
-const SPIN = /^[✻✶✳·•*]\s/;
+const SPIN = /^[✻✶✳✢✽·•*]\s/;
+// Pure box-drawing / whitespace — never a reliable merge anchor.
+const BOX = /^[\s─━│┌┐└┘├┤┬┴┼╭╮╯╰╠╣╦╩╬═╳]+$/;
+
+/**
+ * A line stable enough to align two frames on. Excludes blanks, short
+ * fragments, horizontal rules / box-drawing, and the volatile spinner line —
+ * i.e. the things that get redrawn between snapshots.
+ */
+function substantial(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 4) return false;
+  if (SPIN.test(line)) return false;
+  if (BOX.test(t)) return false;
+  return true;
+}
 
 export function splitFooter(lines: string[]): { body: string[]; footer: string[] } {
   let inp = -1;
@@ -77,6 +92,24 @@ export function mergeOverlap(hist: string[], body: string[]): string[] {
         }
       }
       if (ok) return hist.slice(0, s).concat(body, hist.slice(s + body.length));
+    }
+  }
+  // Still no seam. The body's first SUBSTANTIAL line is the top of cc's visible
+  // window — a stable dialogue line, because the volatile parts (spinner gerund
+  // that rotates "Skedaddling…"→"Noodling…", the "⎿ Tip:" line, "esc to
+  // interrupt") sit at the BOTTOM. When those trailing lines differ word-for-word
+  // between frames, neither the suffix-overlap nor the strict containment above
+  // can fire and the whole window re-appends (F078 redux: "⏺ Bash(…)" seen 18×
+  // on Christian's screen). Anchor on that stable line; if it recurs in recent
+  // history, replace from there so the volatile tail refreshes in place.
+  const anchor = body.findIndex(substantial);
+  if (anchor !== -1) {
+    const key = norm(body[anchor]);
+    const floor = Math.max(0, hist.length - 400);
+    for (let p = hist.length - 1; p >= floor; p--) {
+      if (norm(hist[p]) !== key) continue;
+      const start = p - anchor;
+      if (start >= 0) return hist.slice(0, start).concat(body);
     }
   }
   return hist.concat(body);
