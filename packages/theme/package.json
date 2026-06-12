@@ -1,6 +1,6 @@
 {
   "name": "@broberg/theme",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Headless design-token theme store + neutral CSS baseline (Tailwind v4) for the broberg.ai estate. Framework-agnostic core + thin React/Preact adapters + a DESIGN.md → Tailwind v4 generator.",
   "type": "module",
   "license": "MIT",
