@@ -73,4 +73,80 @@ describe("createSetiProxy", () => {
     const res = await app.request("/sessions");
     expect(res.status).toBe(502);
   });
+
+  it("forwards a GET lsd passthrough with query + bearer and returns the upstream body", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/view?edge=e1&session=cc");
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer t");
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/lsd/view?edge=e1&session=cc");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it("passes upstream status codes through untouched on lsd routes (404 = edge offline)", async () => {
+    const f = mockFetch(() => new Response(JSON.stringify({ error: "edge_offline" }), { status: 404 }));
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    expect((await app.request("/lsd/info?edge=e1")).status).toBe(404);
+  });
+
+  it("forwards a POST lsd/rules body verbatim", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/rules");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({ pattern: "x", severity: "warn" });
+      return new Response(JSON.stringify({ id: 7 }), { status: 201 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/lsd/rules", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pattern: "x", severity: "warn" }),
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: 7 });
+  });
+
+  it("forwards DELETE lsd/rules/:id with the id in the upstream path (null-body 204)", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/rules/42");
+      expect(init?.method).toBe("DELETE");
+      return new Response(null, { status: 204 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    expect((await app.request("/lsd/rules/42", { method: "DELETE" })).status).toBe(204);
+  });
+
+  it("forwards PATCH lsd/turn body verbatim", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/turn");
+      expect(init?.method).toBe("PATCH");
+      expect(JSON.parse(String(init?.body))).toEqual({ index: 3, pinned: true });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    expect((await app.request("/lsd/turn", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ index: 3, pinned: true }),
+    })).status).toBe(200);
+  });
+
+  it("pipes the lsd/stream SSE through with the query forwarded + abort signal", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/stream?view=v1");
+      expect(init?.signal).toBeDefined();
+      return new Response("event: reset\ndata: {}\n\n", {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/lsd/stream?view=v1");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    expect(await res.text()).toContain("event: reset");
+  });
 });

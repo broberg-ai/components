@@ -34,6 +34,19 @@ describe("SetiClient", () => {
     expect(res).toEqual({ ok: true, edgeConnected: true, error: undefined });
   });
 
+  it("sendText includes origin in the body when given, omits it otherwise", async () => {
+    const bodies: unknown[] = [];
+    const f = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ ok: true, edgeConnected: true }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const c = new SetiClient({ baseUrl: "/api/seti", fetch: f });
+    await c.sendText("e1", "cc", "hej", { origin: "lsd-rule" });
+    await c.sendText("e1", "cc", "no-origin");
+    expect(bodies[0]).toEqual({ edge: "e1", session: "cc", text: "hej", origin: "lsd-rule" });
+    expect(bodies[1]).toEqual({ edge: "e1", session: "cc", text: "no-origin" });
+  });
+
   it("sendKey posts {edge, session, key}", async () => {
     const f = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       expect(JSON.parse(String(init?.body))).toEqual({ edge: "e1", session: "cc", key: "Escape" });

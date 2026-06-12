@@ -42,8 +42,13 @@ export class SetiClient {
     return (await res.json()) as SetiRoster;
   }
 
-  async sendText(edge: string, session: string, text: string): Promise<SetiInputResult> {
-    return this.input({ edge, session, text });
+  async sendText(
+    edge: string,
+    session: string,
+    text: string,
+    options?: { origin?: string },
+  ): Promise<SetiInputResult> {
+    return this.input({ edge, session, text, origin: options?.origin });
   }
 
   async sendKey(edge: string, session: string, key: SetiKey): Promise<SetiInputResult> {
@@ -55,6 +60,7 @@ export class SetiClient {
     session: string;
     text?: string;
     key?: SetiKey;
+    origin?: string;
   }): Promise<SetiInputResult> {
     try {
       const res = await this.doFetch(`${this.base}/input`, {
