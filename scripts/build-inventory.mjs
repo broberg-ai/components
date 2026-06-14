@@ -223,8 +223,24 @@ const CSS = `
   .spoke small{color:var(--faint);font-size:11px;margin-left:5px}
   .cp p{font-size:13px;color:var(--muted);line-height:1.6}
   .cp code{font:12px ui-monospace,monospace;color:var(--fg);background:var(--panel);padding:1.5px 6px;border-radius:5px}
+  .fleet{margin-top:42px}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:14px}
+  .fc{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:13px 15px;display:flex;flex-direction:column;gap:7px}
+  .fc.isnew{border-color:color-mix(in oklab,var(--green) 55%,var(--border));box-shadow:0 0 0 1px color-mix(in oklab,var(--green) 26%,transparent) inset}
+  .fc-h{display:flex;align-items:center;gap:8px}
+  .fs{font-weight:650;font-size:14.5px}
+  .fnew{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.07em;color:var(--green);background:color-mix(in oklab,var(--green) 18%,transparent);border-radius:5px;padding:2px 7px}
+  .fr{font-size:12px;color:var(--faint);line-height:1.4}
+  .fpills{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px}
+  .fp{font:10.5px ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:5px;padding:2px 7px;border:1px solid var(--border)}
+  .fp.pub{color:var(--green);background:color-mix(in oklab,var(--green) 12%,transparent);border-color:color-mix(in oklab,var(--green) 35%,var(--border))}
+  .fp.src{color:var(--amber);background:color-mix(in oklab,var(--amber) 10%,transparent);border-color:color-mix(in oklab,var(--amber) 30%,var(--border))}
+  .fp.use{color:var(--muted);background:var(--panel)}
+  .fnote{font-size:11px;color:var(--faint);font-style:italic}
+  .flegend{margin-top:13px;font-size:11.5px;color:var(--faint);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
   @media(max-width:760px){
     .wrap{padding:0 16px}
+    .fgrid{grid-template-columns:1fr}
     .top .wrap{height:auto;min-height:60px;flex-wrap:wrap;padding:10px 16px;gap:8px}
     .brand{flex:1 0 100%}
     .spacer{display:none}
@@ -275,6 +291,33 @@ const JS = [
 "})();",
 ].join("\n");
 
+const FLEET = [
+  { s:"components", r:"the shared-library home — this repo", pub:["theme","secret-scan","lens","seti-client","seti-server","mail"] },
+  { s:"buddy", r:"fleet daemon — cron, intercom, SETI cloud", pub:["fleet-client","fleet-contracts"] },
+  { s:"ai-sdk", r:"the fleet LLM SDK", pub:["ai-sdk"] },
+  { s:"upmetrics", r:"telemetry, errors & deploy timeline", pub:["@upmetrics/sdk"] },
+  { s:"cardmem", r:"PM board + Lens visual-verification daemon", src:["lens"], uses:["lens","seti-client","seti-server"] },
+  { s:"trail", r:"trailmem — fleet second-brain", src:["secret-scan"], uses:["lens","secret-scan","mail"] },
+  { s:"sanne", r:"sanneandersen.dk — booking + shop", src:["mail"], uses:["lens","mail"] },
+  { s:"cms", r:"AI-native CMS", src:["theme"] },
+  { s:"xrt81", r:"X RT 81 — club platform", src:["config"], uses:["lens"] },
+  { s:"fds", r:"sport.fdaalborg.dk", uses:["lens"], note:"mail via AWS SES (not @broberg/mail)" },
+  { s:"fdaa", r:"fdaalborg.dk — fysio platform", uses:["mail"], isNew:true },
+];
+const fleetPill = (x, cls, pre) => `<span class="fp ${cls}">${pre||""}${x}</span>`;
+const fleetCard = (m) => {
+  const pubs = (m.pub||[]).map(x=>fleetPill(x,"pub")).join("");
+  const srcs = (m.src||[]).map(x=>fleetPill(x,"src","✦ ")).join("");
+  const uses = (m.uses||[]).map(x=>fleetPill(x,"use","→ ")).join("");
+  const pills = pubs+srcs+uses;
+  return `<div class="fc${m.isNew?" isnew":""}"><div class="fc-h"><span class="fs">${m.s}</span>${m.isNew?'<span class="fnew">NEW</span>':""}</div><div class="fr">${m.r}</div>${pills?`<div class="fpills">${pills}</div>`:""}${m.note?`<div class="fnote">${m.note}</div>`:""}</div>`;
+};
+const fleetHtml = `<section class="fleet">
+      <div class="layer-h"><span class="n">FLEET</span><span class="t">Who builds &amp; consumes</span><span class="d">the broberg.ai sessions behind the shared library — supply &amp; demand</span></div>
+      <div class="fgrid">${FLEET.map(fleetCard).join("")}</div>
+      <div class="flegend"><span class="fp pub">pkg</span> publishes · <span class="fp src">✦ pkg</span> originated the pattern · <span class="fp use">→ pkg</span> consumes</div>
+    </section>`;
+
 const HTML = `<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -293,7 +336,7 @@ const HTML = `<!doctype html>
   <div class="wrap">
     <section class="hero">
       <h1><span class="at">The </span>Component Universe</h1>
-      <p>The curated shared-component library across the broberg.ai estate — ${total} components across ${DATA.length} layers, best-implementation-per-pattern, extracted into <code>@broberg/*</code> packages. <b>${ship} are live on npm</b> (3 components-owned + sibling SDKs from other repos). Idea → running platform in days. <em>This page renders with the very tokens it documents — click any card to read more.</em></p>
+      <p>The curated shared-component library across the broberg.ai estate — ${total} components across ${DATA.length} layers, best-implementation-per-pattern, extracted into <code>@broberg/*</code> packages. <b>${ship} are live on npm</b> (6 components-owned + sibling SDKs from other repos). Idea → running platform in days. <em>This page renders with the very tokens it documents — click any card to read more.</em></p>
       <div class="stats">
         <div class="stat"><b>${total}</b><span>components</span></div>
         <div class="stat ship"><b>${ship}</b><span>shipped</span></div>
@@ -317,6 +360,7 @@ const HTML = `<!doctype html>
     </div>
     <div class="legend"><span class="b-moved" style="border-radius:6px;padding:1px 7px">↗ moved</span> = re-homed to another repo · everything else is filterable above</div>
     ${layersHtml}
+    ${fleetHtml}
     <footer>
       <div>
         <h3>Fleet shared-library wheel</h3>
