@@ -1,7 +1,10 @@
 # F038 — Discovery API (`discovery.broberg.ai`)
 
-> L0-adjacent · **new: components' first hosted service** · owner `components`. Status: in progress.
+> L0-adjacent · **new: components' first hosted service** · owner `components`.
+> **Status: LIVE (2026-06-15) at https://discovery.broberg.ai** — core delivered + prod-verified (Fly region arn; Cloudflare CNAME DNS-only; Let's Encrypt cert Issued). Self-describing `/api` root + components/packages/fleet/layers/stats/search + an **Infra** section (6 platforms, ~50 crowd-sourced tips) live. cardmem points the scaffolded "Reuse first" paragraph at `/api` (backfilling all repos). Ongoing: infra-tips + inventory-suggestion sweeps grow it.
 > Human-flipped by Christian (2026-06-15) — "et API ALLE repos skal kende hvor de kan query efter alle vores komponenter ... for at spare tid og opfordre til genbrug, fællesskab og fælles forbedring."
+
+> **Delivered beyond the original sketch (Christian's live expansion):** an **Infra best-practices section** (`/api/infra` + `/api/infra/:id` for fly/cloudflare/resend/supabase/turso/npm, crowd-sourced tips + long-form notes on card-click); a **self-describing root** (`/api` and `/` with `Accept: application/json` return every endpoint + searchable vocabularies, so a caller discovers the whole surface from one call); and **dist-aware `/api/packages`** (npm vs SwiftPM install strings, e.g. upmetrics-swift).
 
 ## Motivation
 Every shareable component + dev guideline across broberg.ai ends up in the components inventory. Today it's discoverable only by a human (the dashboard) or by asking the components session over intercom. To truly enforce **reuse > re-roll**, every repo's cc-session needs a FAST, programmatic way to answer "do we already have X?" *before* building — and cardmem needs the same surface to recommend scaffolding for new projects. So: a read-only Discovery API at `discovery.broberg.ai` that any repo (human or agent) can query for all shared components, npm packages, and fleet tech.
