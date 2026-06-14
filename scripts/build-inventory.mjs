@@ -47,7 +47,7 @@ function detailHtml(it, layerN, layerT){
   let facts = '<dl class="d-facts">';
   facts += `<dt>Layer</dt><dd>${layerN} · ${layerT}</dd>`;
   facts += `<dt>Reuse</dt><dd>${M[it.m]} ${it.m}<div class="d-model">${MODEL[it.m]}</div></dd>`;
-  if(it.s==="shipped" && it.ver) facts += `<dt>Version</dt><dd>v${it.ver} · live on npm</dd>`;
+  if(it.s==="shipped" && it.ver) facts += `<dt>Version</dt><dd>v${it.ver} · ${it.dist==="spm"?"live via SwiftPM":"live on npm"}</dd>`;
   if(!moved && !it.ext) facts += `<dt>Effort</dt><dd>${EFFORT[it.e]||it.e}</dd><dt>Impact</dt><dd>${it.i}</dd>`;
   if(it.grad) facts += `<dt>Graduate</dt><dd>⬆ gets its own repo + cardmem project</dd>`;
   facts += `<dt>Best source</dt><dd><code>${it.src}</code></dd>`;

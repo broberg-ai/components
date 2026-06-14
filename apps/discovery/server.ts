@@ -14,7 +14,7 @@ const VERSION = "0.1.0";
 // a shape here so TS knows the optional fields.
 type RawItem = {
   f: string; nm: string; m: string; desc?: string; pkg?: string; e?: string; i?: string;
-  s?: string; ver?: string; src?: string; own?: string; grad?: number; ext?: number; note?: string;
+  s?: string; ver?: string; src?: string; own?: string; grad?: number; ext?: number; note?: string; dist?: string;
 };
 type RawLayer = { n: string; t: string; d: string; items: RawItem[] };
 const LAYERS = DATA as RawLayer[];
@@ -34,6 +34,7 @@ const components = LAYERS.flatMap((L) =>
     impact: it.i ?? null,
     status: it.s === "shipped" ? "shipped" : it.s === "moved" ? "moved" : "backlog",
     version: it.ver ?? null,
+    dist: it.dist ?? (it.pkg ? "npm" : null),
     source: it.src ?? null,
     owner: it.own ?? null,
     graduate: !!it.grad,
@@ -49,6 +50,11 @@ const packages = components
   .map((c) => ({
     name: c.package,
     version: c.version,
+    dist: c.dist ?? "npm",
+    install:
+      c.dist === "spm"
+        ? `.package(url: "https://github.com/${c.source}", from: "${c.version}")`
+        : `npm i ${c.package}`,
     owner: c.owner,
     component: c.id,
     layer: c.layer,
