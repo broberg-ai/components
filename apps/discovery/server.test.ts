@@ -68,10 +68,51 @@ describe("Discovery API", () => {
     expect(body.shipped).toBeGreaterThanOrEqual(11);
   });
 
-  it("GET / → serves the dashboard landing page", async () => {
+  it("GET / → serves the dashboard landing page (HTML)", async () => {
     const res = await app.request("/");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     expect(await res.text()).toContain("Component Universe");
+  });
+
+  it("GET / with Accept: application/json → the self-describing manifest", async () => {
+    const res = await app.request("/", { headers: { accept: "application/json" } });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.service).toBe("discovery.broberg.ai");
+    expect(Array.isArray(body.endpoints)).toBe(true);
+    // the root must hand the caller the searchable vocabulary
+    expect(body.vocabularies.statuses).toContain("shipped");
+    expect(body.vocabularies.infra.some((i: { id: string }) => i.id === "fly")).toBe(true);
+    expect(body.vocabularies.layers.length).toBeGreaterThan(0);
+  });
+
+  it("GET /api → manifest lists every endpoint + vocabularies", async () => {
+    const body = await (await app.request("/api")).json();
+    const paths = body.endpoints.map((e: { path: string }) => e.path);
+    expect(paths).toContain("/api/infra");
+    expect(paths).toContain("/api/search");
+    expect(body.stats.infraPlatforms).toBe(5);
+  });
+
+  it("GET /api/infra → platforms incl. fly with tipCount", async () => {
+    const body = await (await app.request("/api/infra")).json();
+    const fly = body.infra.find((p: { id: string }) => p.id === "fly");
+    expect(fly).toBeTruthy();
+    expect(fly.tipCount).toBeGreaterThan(0);
+    expect(fly.tips).toBeUndefined(); // summary list omits the long tips
+  });
+
+  it("GET /api/infra/:id → full tips + notes, 404 otherwise", async () => {
+    const fly = await (await app.request("/api/infra/fly")).json();
+    expect(fly.region).toContain("arn");
+    expect(fly.tips.length).toBeGreaterThan(0);
+    expect(fly.notes).toBeTruthy();
+    expect((await app.request("/api/infra/nope")).status).toBe(404);
+  });
+
+  it("GET /api/search?q=deploy → spans infra too", async () => {
+    const body = await (await app.request("/api/search?q=deploy")).json();
+    expect(body.infra.some((p: { id: string }) => p.id === "fly")).toBe(true);
   });
 });

@@ -87,3 +87,68 @@ export const FLEET = [
   { s:"fds", r:"sport.fdaalborg.dk", uses:["lens"], note:"mail via AWS SES (not @broberg/mail)" },
   { s:"fdaa", r:"fdaalborg.dk — fysio platform", uses:["mail"], isNew:true },
 ];
+
+// Infra best-practices — the platforms we primarily run on, with live, crowd-sourced
+// tips & gotchas from across the fleet (F038). Seed tips are grounded in the fleet
+// rules + hard-won lessons; `by` credits the contributing session. New tips fold in
+// as sessions reply to the infra sweep. Each platform's `notes` is the long-form
+// text shown when its card is clicked. (tip: { t, by, tag? })
+export const INFRA = [
+  {
+    id: "fly", name: "Fly.io", role: "App hosting + deploy — most fleet services run here",
+    region: "Always arn (Stockholm) — never US/Amsterdam",
+    notes: "Fly.io is where most broberg.ai services run. The fleet rule is region arn (Stockholm) for every app — latency + data-residency consistency. Keep small services idle-cheap with autostop/autostart and min_machines_running=0; they cold-start in ~1s on the next request. Deploy with --remote-only so you don't need local Docker. Secrets live in flyctl secrets set (never in the image, never committed). Custom domains: fly certs add <domain>, then point DNS at the app (CNAME to <app>.fly.dev) — the Let's Encrypt cert validates automatically once DNS resolves.",
+    tips: [
+      { t: "Region is ALWAYS arn (Stockholm). Set primary_region = \"arn\" — never US/Amsterdam.", by: "components", tag: "region" },
+      { t: "Idle-cheap services: auto_stop_machines = \"stop\" + auto_start_machines = true + min_machines_running = 0. Cold-start ~1s.", by: "components", tag: "cost" },
+      { t: "fly deploy --remote-only builds on Fly's builder — no local Docker daemon needed.", by: "components", tag: "deploy" },
+      { t: "Secrets via flyctl secrets set KEY=val (encrypted, injected at runtime). Never bake into the image or commit.", by: "components", tag: "secrets" },
+      { t: "Custom domain: fly certs add <domain> first; the cert validates by itself once the DNS record resolves.", by: "components", tag: "tls" },
+      { t: "Debug live: fly logs -a <app>, fly ssh console -a <app>, fly status. Health check on /health in [[http_service.checks]].", by: "components", tag: "ops" },
+    ],
+  },
+  {
+    id: "cloudflare", name: "Cloudflare", role: "DNS, CDN, Turnstile, R2 — the rest of the stack",
+    region: "Global edge",
+    notes: "Cloudflare hosts DNS for several fleet zones (e.g. broberg.ai), plus Turnstile (bot protection on forms), R2 (object storage — see @broberg/media-r2) and CDN. The single biggest gotcha: when a subdomain CNAMEs to a Fly app, keep the record DNS-only (grey cloud) — an orange/proxied record makes Cloudflare's proxy fight Fly's Let's Encrypt validation and HTTPS breaks. For Turnstile, serve the site-key from a runtime endpoint so keys rotate without a rebuild; keys are domain-scoped (one Turnstile site per project).",
+    tips: [
+      { t: "CNAME → a Fly app MUST be DNS-only (grey cloud), not proxied (orange) — else Fly's TLS cert validation fails.", by: "components", tag: "dns" },
+      { t: "Turnstile site-key from a runtime config endpoint (not a build-time env) → rotate keys without rebuild/redeploy.", by: "xrt81", tag: "turnstile" },
+      { t: "Turnstile sites are domain-scoped — each project needs its own site (keys aren't reusable across domains).", by: "xrt81", tag: "turnstile" },
+      { t: "Object storage = R2; consume via @broberg/media-r2 rather than rolling raw S3 calls.", by: "components", tag: "storage" },
+    ],
+  },
+  {
+    id: "resend", name: "Resend", role: "Transactional email (booking, magic-links, notifications)",
+    region: "—",
+    notes: "Resend is the fleet's transactional-email provider. Don't roll your own client — consume @broberg/mail (the shared send primitive: ship-dark without a key, recipient allowlist so test/preview mail never hits real users, typed {ok,id,error} that never throws). Only send From a verified domain (check the Resend dashboard → Domains). Templates stay per-brand (F023); the package owns delivery only. Raw REST works on edge (no SDK needed).",
+    tips: [
+      { t: "Use @broberg/mail — don't hand-roll a Resend client. createMailer({apiKey, from, allowlist}) keeps your own env-var names.", by: "components", tag: "reuse" },
+      { t: "Send only From a VERIFIED domain (Resend → Domains). An unverified From fails or tanks deliverability.", by: "components", tag: "domains" },
+      { t: "Dev/preview: keep MAIL_LIVE off + an allowlist so test mail never reaches real users (fleet admins always pass).", by: "components", tag: "safety" },
+      { t: "resend.batch.send strips attachments — send per-recipient when you embed inline cid: images.", by: "sanne", tag: "gotcha" },
+      { t: "Wire the Resend webhook (Svix-signed) for delivered/opened/bounced/complained events.", by: "sanne", tag: "webhooks" },
+    ],
+  },
+  {
+    id: "supabase", name: "Supabase", role: "Postgres + auth (sanne, xrt81, fds, fdaa)",
+    region: "Always arn (Stockholm)",
+    notes: "Supabase (Postgres + auth) backs several consumer apps. Provision in region arn. For Cardmem Lens to screenshot authed surfaces, mint a short-lived read-only session via @broberg/lens (keep ONLY your Supabase-specific signInWithPassword in createSession; the package owns bearer/ship-dark/TTL/cookie-domain). Watch the cookie-domain-behind-proxy trap: deriving cookie domain from the Host header yields 'localhost' behind Apache/Fly proxies, so the browser never sends the cookie to the real domain — pin LENS_COOKIE_DOMAIN. Keep the service-role key server-side only.",
+    tips: [
+      { t: "Provision in region arn (Stockholm) — same as Fly.", by: "components", tag: "region" },
+      { t: "Authed Lens capture → @broberg/lens; keep only your signInWithPassword in createSession, package owns the rest.", by: "components", tag: "lens" },
+      { t: "Cookie-domain trap: behind a proxy the Host header is 'localhost' → cookie never reaches the real domain. Pin LENS_COOKIE_DOMAIN.", by: "fds", tag: "gotcha" },
+      { t: "service_role key is server-side ONLY — never ship it to the browser. Use a read-only/anon key client-side.", by: "components", tag: "security" },
+    ],
+  },
+  {
+    id: "turso", name: "Turso / libSQL", role: "Edge SQLite — the @broberg/db-sdk backend",
+    region: "Primary arn + embedded replicas",
+    notes: "Turso (libSQL) is the fleet's edge-SQLite option, consumed through @broberg/db-sdk (the thin libSQL transport — don't bespoke a connector). Primary in arn; use embedded replicas for low-latency multi-region reads. Good fit for state that outgrows a per-machine Fly volume but doesn't need full Postgres.",
+    tips: [
+      { t: "Consume via @broberg/db-sdk (libSQL transport) rather than a bespoke client.", by: "components", tag: "reuse" },
+      { t: "Primary DB in arn; add embedded replicas for fast multi-region reads.", by: "components", tag: "region" },
+      { t: "Right tool when state outgrows a per-machine Fly volume but doesn't need full Postgres.", by: "components", tag: "fit" },
+    ],
+  },
+];

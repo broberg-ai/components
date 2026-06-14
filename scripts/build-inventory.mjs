@@ -7,7 +7,7 @@
 // component's facts + a "what it is" blurb. The page dogfoods @broberg/theme tokens.
 
 import { writeFileSync } from "node:fs";
-import { M, MODEL, EFFORT, DATA, FLEET } from "./inventory-data.mjs";
+import { M, MODEL, EFFORT, DATA, FLEET, INFRA } from "./inventory-data.mjs";
 
 
 let total=0, ship=0, grad=0, mv=0;
@@ -59,6 +59,16 @@ function detailHtml(it, layerN, layerT){
 }
 const DETAIL = {};
 DATA.forEach(L => L.items.forEach(it => { DETAIL[it.f] = detailHtml(it, L.n, L.t); }));
+function infraDetailHtml(p){
+  const n = (p.tips||[]).length;
+  const tips = (p.tips||[]).map(t=>`<li><span class="tip-t">${t.t}</span><span class="tip-by">— ${t.by||"fleet"}${t.tag?` · ${t.tag}`:""}</span></li>`).join("");
+  return `<div class="d-head"><span class="fnum">INFRA</span><span class="badge b-ship">${n} tips</span></div>`
+    + `<h2 class="d-name" id="d-name">${p.name}</h2><div class="d-pkg">${p.role}</div>`
+    + `<dl class="d-facts"><dt>Region</dt><dd>${p.region||"—"}</dd><dt>Tips</dt><dd>${n} best-practices</dd></dl>`
+    + `<div class="d-desc-h">Overview</div><div class="d-desc">${p.notes||""}</div>`
+    + (tips?`<div class="d-desc-h" style="margin-top:18px">Tips &amp; gotchas</div><ul class="tips">${tips}</ul>`:"");
+}
+INFRA.forEach(p => { DETAIL["infra-"+p.id] = infraDetailHtml(p); });
 
 const CSS = `
   :root, [data-theme="dark"]{--bg:oklch(0.211 0 0);--panel:oklch(0.239 0 0);--card:oklch(0.262 0 0);--fg:oklch(0.985 0 0);--muted:oklch(0.66 0 0);--faint:oklch(0.52 0 0);--border:oklch(0.32 0 0);--primary:oklch(0.922 0 0);--primary-fg:oklch(0.205 0 0);--green:oklch(0.74 0.15 152);--amber:oklch(0.80 0.13 80);}
@@ -173,9 +183,24 @@ const CSS = `
   .fp.use{color:var(--muted);background:var(--panel)}
   .fnote{font-size:11px;color:var(--faint);font-style:italic}
   .flegend{margin-top:13px;font-size:11.5px;color:var(--faint);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .infra{margin-top:42px}
+  .igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:14px}
+  .ic{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:14px 15px;display:flex;flex-direction:column;gap:7px;cursor:pointer;transition:transform .14s,border-color .14s,box-shadow .14s}
+  .ic:hover{transform:translateY(-2px);border-color:var(--faint);box-shadow:0 8px 24px oklch(0 0 0 / .22)}
+  .ic:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .ic:active{transform:translateY(0) scale(.997)}
+  .ic-h{display:flex;align-items:center;gap:8px}
+  .icn{font-weight:650;font-size:15px}
+  .ictip{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--amber);background:color-mix(in oklab,var(--amber) 16%,transparent);border-radius:5px;padding:2px 7px}
+  .icr{font-size:12.5px;color:var(--muted);line-height:1.4}
+  .icreg{font-size:11px;color:var(--faint)}
+  .tips{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+  .tips li{font-size:13px;line-height:1.5;color:var(--fg);padding-left:12px;border-left:2px solid color-mix(in oklab,var(--green) 40%,var(--border))}
+  .tip-t{display:block}
+  .tip-by{font-size:11px;color:var(--faint)}
   @media(max-width:760px){
     .wrap{padding:0 16px}
-    .fgrid{grid-template-columns:1fr}
+    .fgrid,.igrid{grid-template-columns:1fr}
     .top .wrap{height:auto;min-height:60px;flex-wrap:wrap;padding:10px 16px;gap:8px}
     .brand{flex:1 0 100%}
     .spacer{display:none}
@@ -219,7 +244,7 @@ const JS = [
 "var lastFocus=null;",
 "function openDrawer(el){var h=DETAIL[el.getAttribute('data-f')];if(!h)return;lastFocus=el;dbody.innerHTML=h;drawer.classList.add('open');dback.classList.add('open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';if(dclose)dclose.focus();}",
 "function closeDrawer(){drawer.classList.remove('open');dback.classList.remove('open');drawer.setAttribute('aria-hidden','true');document.body.style.overflow='';if(lastFocus)lastFocus.focus();}",
-"Array.prototype.forEach.call(document.querySelectorAll('.c'),function(c){c.addEventListener('click',function(){openDrawer(c);});c.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openDrawer(c);}});});",
+"Array.prototype.forEach.call(document.querySelectorAll('.c,.ic'),function(c){c.addEventListener('click',function(){openDrawer(c);});c.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openDrawer(c);}});});",
 "if(dclose)dclose.addEventListener('click',closeDrawer);",
 "if(dback)dback.addEventListener('click',closeDrawer);",
 "document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});",
@@ -238,6 +263,16 @@ const fleetHtml = `<section class="fleet">
       <div class="layer-h"><span class="n">FLEET</span><span class="t">Who builds &amp; consumes</span><span class="d">the broberg.ai sessions behind the shared library — supply &amp; demand</span></div>
       <div class="fgrid">${FLEET.map(fleetCard).join("")}</div>
       <div class="flegend"><span class="fp pub">pkg</span> publishes · <span class="fp src">✦ pkg</span> originated the pattern · <span class="fp use">→ pkg</span> consumes</div>
+    </section>`;
+
+const infraCard = (p) => {
+  const n = (p.tips||[]).length;
+  const reg = p.region && p.region!=="—" ? `<div class="icreg">📍 ${p.region}</div>` : "";
+  return `<div class="ic" data-f="infra-${p.id}" data-testid="inv-infra-${p.id}" role="button" tabindex="0" aria-haspopup="dialog"><div class="ic-h"><span class="icn">${p.name}</span><span class="ictip">${n} tips</span></div><div class="icr">${p.role}</div>${reg}</div>`;
+};
+const infraHtml = `<section class="infra">
+      <div class="layer-h"><span class="n">INFRA</span><span class="t">Best practices</span><span class="d">— the platforms we run on · live tips from the fleet · click a card</span></div>
+      <div class="igrid">${INFRA.map(infraCard).join("")}</div>
     </section>`;
 
 const HTML = `<!doctype html>
@@ -283,6 +318,7 @@ const HTML = `<!doctype html>
     <div class="legend"><span class="b-moved" style="border-radius:6px;padding:1px 7px">↗ moved</span> = re-homed to another repo · everything else is filterable above</div>
     ${layersHtml}
     ${fleetHtml}
+    ${infraHtml}
     <footer>
       <div>
         <h3>Fleet shared-library wheel</h3>
