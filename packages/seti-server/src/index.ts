@@ -175,6 +175,7 @@ export function createSetiProxy(opts: SetiProxyOptions): Hono {
   app.get("/lsd/artifact", (c) => forward(c, "GET", "lsd/artifact"));
   app.patch("/lsd/turn", (c) => forward(c, "PATCH", "lsd/turn", true));
   app.post("/lsd/command", (c) => forward(c, "POST", "lsd/command", true));
+  app.post("/lsd/decision/answer", (c) => forward(c, "POST", "lsd/decision/answer", true));
 
   return app;
 }

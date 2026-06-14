@@ -163,6 +163,29 @@ describe("createSetiProxy", () => {
     expect(await res.json()).toEqual({ ok: true, detail: "re-nudged" });
   });
 
+  it("forwards POST lsd/decision/answer body verbatim + passes upstream status (400 = bad choice)", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/decision/answer");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        edge: "e1",
+        session: "cc",
+        decisionId: "d7",
+        choiceIndices: [0, 2],
+        comment: "go",
+      });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/lsd/decision/answer", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ edge: "e1", session: "cc", decisionId: "d7", choiceIndices: [0, 2], comment: "go" }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
   it("pipes the lsd/stream SSE through with the query forwarded + abort signal", async () => {
     const f = mockFetch((url, init) => {
       expect(url).toBe("https://cloud.test/api/seti/v1/lsd/stream?view=v1");
