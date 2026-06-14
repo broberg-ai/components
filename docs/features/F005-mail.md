@@ -1,7 +1,13 @@
 # F005 — Mail sending (Resend)
 
-> L0 Rails · runtime-package · effort **S** · impact **high** · owner `sanneandersen`. Status: Backlog.
+> L0 Rails · runtime-package · effort **S** · impact **high** · owner `components` (publishes the npm; reference impl lifted from `sanneandersen`).
+> **Status:** in progress — `@broberg/mail` **v0.1.0** built + bootstrap-published this turn (2026-06-14). Done is gated on a pilot consumer migrating back with no regression + a second adopter (see Acceptance criteria), and on Christian adding the npm **Trusted Publisher** for `@broberg/mail` so 0.1.1+ publish token-free.
 > Graduate-candidate: no — small core npm that stays in `components`.
+
+> **Build decisions (v0.1.0, deviating from the original sketch below — recorded per the surgical-change rule):**
+> - **One package, not three.** The `mail-next` / `mail-hono` adapter split was collapsed into a single `@broberg/mail` with `createMailerFromEnv()` built in — it only reads `process.env`, which works in Node, Bun *and* edge, so a per-stack package added ceremony without value. A Hono context-attach is a 3-line app-side `app.use`, not worth a subpath.
+> - **Raw fetch to Resend's REST API, no SDK.** Zero runtime deps (matches the `@broberg/secret-scan` ethos), runs on edge, and resolves the open questions below (no SDK version-floor; the whole thing IS the fetch escape hatch). `broberg/xrt81` proves raw-fetch-to-REST in prod.
+> - **Allowlist gate + `ALWAYS_ALLOWED`** (`cb@webhouse.dk`, `christian@broberg.ai/.dk`) is the mail mirror of lens's never-cb guard: test/preview sends only reach allowlisted recipients, but a developer can always receive their own.
 
 ## Motivation
 A thin, framework-agnostic package that wraps the Resend SDK into a single, consistent send primitive: lazy-initialised client (avoid crash-on-import when RESEND_API_KEY is absent), a dev/disabled kill-switch (MAIL_DISABLED or no-key-console-log), a typed { ok, error? } return, and an allowlist guard. It does NOT own transactional template logic (each app supplies its own typed send-function wrappers) — it provides the stable chokepoint (mailAllowed guard, from resolver, attachment passthrough) every repo currently duplicates.
@@ -70,11 +76,15 @@ Strangler: 1) extract core from sanneandersen email.ts; 2) publish + update sann
 
 Graduate-candidate: no — small core npm that stays in `components`.
 
-## Open Questions
-- Support per-send apiKey override (xrt81 multi-tenant) or enforce single-config-at-creation?
-- Include emailShell()/emailButton() HTML helpers or keep purely about delivery (CSS-token lock-in risk)?
-- Resend SDK major floor for the peer dep?
-- Expose a beforeSend hook to replicate sanneandersen's auto logo-CID without baking site logic into core?
+## Open Questions (resolved in v0.1.0)
+- ~~Support per-send apiKey override (xrt81 multi-tenant) or enforce single-config-at-creation?~~ → Single config at creation for v0.1.0. Multi-tenant per-send key is a named follow-up if a second tenant-keyed consumer appears (YAGNI now).
+- ~~Include emailShell()/emailButton() HTML helpers or keep purely about delivery?~~ → **Delivery only.** Templates stay per-app/per-brand (F023) to avoid CSS-token lock-in. Confirmed.
+- ~~Resend SDK major floor for the peer dep?~~ → **No SDK dependency.** Raw fetch to the stable REST endpoint; no peer dep, no floor.
+- ~~beforeSend hook for sanneandersen's auto logo-CID?~~ → Not in v0.1.0. The `attachments` passthrough (with `contentId` → `content_id`) carries inline CID; the app's send-wrapper injects its own logo attachment. A `beforeSend` hook can be added later if ≥2 apps want the same pre-send mutation.
+
+## Follow-ups (post-0.1.0)
+- Pilot migration (F005.4) + second adopter (F005.5) — fdaa (fysio-dk-aalborg) is the first waiting consumer (#5107); sanne/xrt81/cms keep their template wrappers and swap only the delivery chokepoint.
+- Optional `sendMany(messages, { intervalMs })` throttled helper — sanne (6s/100) + xrt81 (250ms) both hand-roll batch pacing; fold it in only when a consumer needs it from the package.
 
 ## Effort estimate
 **S** — owner session: `sanneandersen`. Reuse model: runtime-package.
