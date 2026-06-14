@@ -94,7 +94,7 @@ Who consumes `@broberg/mail`, updated as the fleet migrates (Christian: "du hold
 | Repo | Resend usage today | Status | Notes |
 |---|---|---|---|
 | **sanne** (sanneandersen) | 3× `new Resend()` + 1 REST (auth/booking/newsletter) | 🟢 go given — migrating | Keeps `SA_RESEND_API_KEY` (explicit config) + cid-logo wrapper; Lens-smoke gate. |
-| **trail** | 1 send-site (F172 magic-link, `apps/admin-server/src/email.ts`) | 🟢 go given — queued | Allowlist-gate is the win; keeps `RESEND_FROM` via explicit config. |
+| **trail** | 1 send-site (F172 magic-link, `apps/admin-server/src/email.ts`) | ✅ ENROLLED — live + prod-verified | Swapped to `createMailer` (explicit `RESEND_API_KEY`/`RESEND_FROM`, no rename); dropped `resend` dep; `live` keyed to NODE_ENV; ALWAYS_ALLOWED covers cb@/christian@. Prod magic-link for cb@ → `{ok:true,sent:true}`. Commit f776213. |
 | **fdaa** (fysio-dk-aalborg) | none yet (new platform) | ⏳ pending apps/web | Will adopt `createMailerFromEnv()` directly behind one `sendMail()` seam. |
 | **cms** | `cms-admin` email.ts + forms/notify.ts | 📣 notified — no reply | Multi-tenant from-address (DB-driven). |
 | **xrt81** | `apps/server/src/lib/mail.ts` (raw fetch + allowlist) | 📣 notified — no reply | Already has its own allowlist; clean swap. |
