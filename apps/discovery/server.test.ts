@@ -92,7 +92,7 @@ describe("Discovery API", () => {
     const paths = body.endpoints.map((e: { path: string }) => e.path);
     expect(paths).toContain("/api/infra");
     expect(paths).toContain("/api/search");
-    expect(body.stats.infraPlatforms).toBe(5);
+    expect(body.stats.infraPlatforms).toBe(6);
   });
 
   it("GET /api/infra → platforms incl. fly with tipCount", async () => {
