@@ -79,10 +79,32 @@ const stats = {
   layers: layers.length,
 };
 
-const matches = (c: (typeof components)[number], q: string) => {
-  const hay = `${c.id} ${c.name} ${c.package ?? ""} ${c.owner ?? ""} ${c.description ?? ""}`.toLowerCase();
-  return hay.includes(q.toLowerCase());
-};
+// Relevance scoring — an exact name/package/id match must beat a mere description
+// hit (so q=lens tops @broberg/lens, not @broberg/mail whose blurb mentions lens).
+function scoreComponent(c: (typeof components)[number], ql: string): number {
+  const name = c.name.toLowerCase();
+  const pkg = (c.package ?? "").toLowerCase();
+  const id = c.id.toLowerCase();
+  let s = 0;
+  if (pkg === ql || pkg === `@broberg/${ql}` || name === ql || id === ql) s += 100;
+  else if (pkg.startsWith(ql) || name.startsWith(ql) || id.startsWith(ql)) s += 50;
+  else if (pkg.includes(ql) || name.includes(ql) || id.includes(ql)) s += 25;
+  if ((c.owner ?? "").toLowerCase().includes(ql)) s += 4;
+  if ((c.description ?? "").toLowerCase().includes(ql)) s += 2;
+  return s;
+}
+const rankComponents = (list: typeof components, ql: string) =>
+  list.map((c) => ({ c, s: scoreComponent(c, ql) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.c);
+function scorePackage(p: (typeof packages)[number], ql: string): number {
+  const name = (p.name ?? "").toLowerCase();
+  let s = 0;
+  if (name === ql || name === `@broberg/${ql}`) s += 100;
+  else if (name.includes(ql)) s += 40;
+  if ((p.description ?? "").toLowerCase().includes(ql)) s += 2;
+  return s;
+}
+const rankPackages = (ql: string) =>
+  packages.map((p) => ({ p, s: scorePackage(p, ql) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.p);
 
 // Landing page = the live dashboard (same single source). node:fs so it works
 // under both Bun (prod) and node (vitest).
@@ -148,7 +170,7 @@ app.get("/api/components", (c) => {
   if (layer) out = out.filter((x) => x.layer.toLowerCase() === layer.toLowerCase());
   if (status) out = out.filter((x) => x.status === status.toLowerCase());
   if (model) out = out.filter((x) => x.model === model.toLowerCase());
-  if (q) out = out.filter((x) => matches(x, q));
+  if (q) out = rankComponents(out, q.toLowerCase());
   return c.json({ count: out.length, components: out });
 });
 
@@ -161,7 +183,7 @@ app.get("/api/components/:id", (c) => {
 
 app.get("/api/packages", (c) => {
   const q = c.req.query("q");
-  const out = q ? packages.filter((p) => `${p.name} ${p.description ?? ""}`.toLowerCase().includes(q.toLowerCase())) : packages;
+  const out = q ? rankPackages(q.toLowerCase()) : packages;
   return c.json({ count: out.length, packages: out });
 });
 
@@ -191,8 +213,8 @@ app.get("/api/search", (c) => {
   const ql = q.toLowerCase();
   return c.json({
     query: q,
-    components: components.filter((x) => matches(x, q)),
-    packages: packages.filter((p) => `${p.name} ${p.description ?? ""}`.toLowerCase().includes(ql)),
+    components: rankComponents(components, ql),
+    packages: rankPackages(ql),
     fleet: FLEET.filter((f) => `${f.s} ${f.r}`.toLowerCase().includes(ql)),
     infra: infra.filter((p) =>
       `${p.name} ${p.role} ${p.notes ?? ""} ${(p.tips ?? []).map((t) => t.t).join(" ")}`.toLowerCase().includes(ql),

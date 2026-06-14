@@ -19,6 +19,20 @@ describe("Discovery API", () => {
     expect(mail.id).toBe("F005");
   });
 
+  it("ranks an exact name/package match above a description-only hit (q=lens → lens first, not mail)", async () => {
+    const pkgs = (await (await app.request("/api/packages?q=lens")).json()).packages;
+    expect(pkgs[0].name).toBe("@broberg/lens");
+    const comps = (await (await app.request("/api/components?q=lens")).json()).components;
+    expect(comps[0].package).toBe("@broberg/lens");
+  });
+
+  it("Trail is a searchable capability (q=memory/rag/second-brain surfaces it)", async () => {
+    for (const q of ["memory", "rag", "second-brain"]) {
+      const comps = (await (await app.request(`/api/search?q=${q}`)).json()).components;
+      expect(comps.some((c: { id: string }) => c.id === "trail")).toBe(true);
+    }
+  });
+
   it("GET /api/components?status=shipped&layer=L0 filters", async () => {
     const res = await app.request("/api/components?status=shipped&layer=L0");
     const body = await res.json();

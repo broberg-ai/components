@@ -19,6 +19,7 @@ function card(it, layer){
     : moved ? '<span class="badge b-moved">↗ moved</span>'
     : '<span class="badge b-back">🚧 under construction</span>';
   const pkg = it.pkg ? `<div class="pkg has">${it.pkg}</div>`
+    : it.via ? `<div class="pkg has">${it.via}</div>`
     : moved ? `<div class="pkg">${it.note}</div>`
     : `<div class="pkg none">copy-owned scaffold</div>`;
   const ei = (moved||it.ext) ? "" : `<span class="ei">${it.e} · ${it.i}</span>`;
@@ -42,6 +43,7 @@ function detailHtml(it, layerN, layerT){
     : moved ? '<span class="badge b-moved">↗ moved</span>'
     : '<span class="badge b-back">🚧 under construction</span>';
   const pkg = it.pkg ? `<div class="d-pkg">${it.pkg}</div>`
+    : it.via ? `<div class="d-pkg">${it.via}</div>`
     : moved ? `<div class="d-pkg none">${it.note}</div>`
     : `<div class="d-pkg none">copy-owned scaffold — no npm package</div>`;
   let facts = '<dl class="d-facts">';
