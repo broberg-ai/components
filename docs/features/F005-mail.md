@@ -85,6 +85,24 @@ Graduate-candidate: no — small core npm that stays in `components`.
 ## Follow-ups (post-0.1.0)
 - Pilot migration (F005.4) + second adopter (F005.5) — fdaa (fysio-dk-aalborg) is the first waiting consumer (#5107); sanne/xrt81/cms keep their template wrappers and swap only the delivery chokepoint.
 - Optional `sendMany(messages, { intervalMs })` throttled helper — sanne (6s/100) + xrt81 (250ms) both hand-roll batch pacing; fold it in only when a consumer needs it from the package.
+- Transport-agnostic mailer (Resend + SMTP/SES behind the same `send()`) — fds runs AWS SES via SMTP, so it has no Resend chokepoint. Idea captured (cardmem `019ec821`); build only when a 2nd SES consumer appears.
+
+## Adoption tracker (live — components keeps this current)
+
+Who consumes `@broberg/mail`, updated as the fleet migrates (Christian: "du holder styr på hvem der er enrolled"). The npm + dashboard are the source of truth for *versions*; this table is the source of truth for *who*.
+
+| Repo | Resend usage today | Status | Notes |
+|---|---|---|---|
+| **sanne** (sanneandersen) | 3× `new Resend()` + 1 REST (auth/booking/newsletter) | 🟢 go given — migrating | Keeps `SA_RESEND_API_KEY` (explicit config) + cid-logo wrapper; Lens-smoke gate. |
+| **trail** | 1 send-site (F172 magic-link, `apps/admin-server/src/email.ts`) | 🟢 go given — queued | Allowlist-gate is the win; keeps `RESEND_FROM` via explicit config. |
+| **fdaa** (fysio-dk-aalborg) | none yet (new platform) | ⏳ pending apps/web | Will adopt `createMailerFromEnv()` directly behind one `sendMail()` seam. |
+| **cms** | `cms-admin` email.ts + forms/notify.ts | 📣 notified — no reply | Multi-tenant from-address (DB-driven). |
+| **xrt81** | `apps/server/src/lib/mail.ts` (raw fetch + allowlist) | 📣 notified — no reply | Already has its own allowlist; clean swap. |
+| **upmetrics** | `auth/email.ts` (magic-link) | 📣 notified — no reply | Lazy init, throws on error today. |
+| **contract-manager** | `lib/email/send.ts` | 📣 broadcast — unconfirmed | console-log fallback. |
+| **fds** (fysiodk-aalborg-sport) | — | ➖ N/A | Uses AWS SES/SMTP (nodemailer), not Resend. |
+
+Legend: 🟢 go/migrating · ⏳ waiting on own prerequisite · 📣 notified, awaiting reply · ➖ not applicable. **Done (F005)** = ≥1 pilot migrated back with no regression + a 2nd adopter green.
 
 ## Effort estimate
 **S** — owner session: `sanneandersen`. Reuse model: runtime-package.
