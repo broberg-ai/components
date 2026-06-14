@@ -47,6 +47,38 @@ describe("SetiClient", () => {
     expect(bodies[1]).toEqual({ edge: "e1", session: "cc", text: "no-origin" });
   });
 
+  it("aborts /input on the configured timeout (false-not-sent guard is configurable)", async () => {
+    // fetch that never resolves on its own — only the AbortSignal ends it.
+    const f = vi.fn(
+      (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          (init?.signal as AbortSignal | undefined)?.addEventListener("abort", () =>
+            reject(new DOMException("The operation timed out.", "TimeoutError")),
+          );
+        }),
+    ) as unknown as typeof fetch;
+    const c = new SetiClient({ baseUrl: "/api/seti", fetch: f, inputTimeoutMs: 10 });
+    const res = await c.sendText("e1", "cc", "slow edge");
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/timed out/i);
+  });
+
+  it("a per-call timeoutMs overrides the client default", async () => {
+    const f = vi.fn(
+      (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          (init?.signal as AbortSignal | undefined)?.addEventListener("abort", () =>
+            reject(new DOMException("The operation timed out.", "TimeoutError")),
+          );
+        }),
+    ) as unknown as typeof fetch;
+    // Generous client default, but this call pins a tiny budget → aborts fast.
+    const c = new SetiClient({ baseUrl: "/api/seti", fetch: f, inputTimeoutMs: 30_000 });
+    const res = await c.sendText("e1", "cc", "slow", { timeoutMs: 10 });
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/timed out/i);
+  });
+
   it("sendKey posts {edge, session, key}", async () => {
     const f = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       expect(JSON.parse(String(init?.body))).toEqual({ edge: "e1", session: "cc", key: "Escape" });

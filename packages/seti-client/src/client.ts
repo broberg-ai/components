@@ -18,6 +18,15 @@ export interface SetiClientOptions {
   token?: string;
   /** Override fetch (tests / custom runtimes). */
   fetch?: typeof fetch;
+  /**
+   * Timeout (ms) for POST /input (sendText / sendKey) before the client aborts
+   * the wait. Default 30000. A busy or slow edge daemon can take well over 8s to
+   * ACK an injected line; too short a budget surfaces a false "not sent" and
+   * provokes user retries — which risk duplicates, since an abort only ends the
+   * CLIENT's wait while the edge may still inject the message. Override a single
+   * call via sendText's `timeoutMs`.
+   */
+  inputTimeoutMs?: number;
 }
 
 /**
@@ -29,11 +38,13 @@ export class SetiClient {
   private readonly base: string;
   private readonly headers: Record<string, string>;
   private readonly doFetch: typeof fetch;
+  private readonly inputTimeoutMs: number;
 
   constructor(opts: SetiClientOptions) {
     this.base = opts.baseUrl.replace(/\/$/, "");
     this.headers = opts.token ? { Authorization: `Bearer ${opts.token}` } : {};
     this.doFetch = opts.fetch ?? globalThis.fetch.bind(globalThis);
+    this.inputTimeoutMs = opts.inputTimeoutMs ?? 30_000;
   }
 
   async listSessions(): Promise<SetiRoster> {
@@ -46,28 +57,31 @@ export class SetiClient {
     edge: string,
     session: string,
     text: string,
-    options?: { origin?: string },
+    options?: { origin?: string; timeoutMs?: number },
   ): Promise<SetiInputResult> {
-    return this.input({ edge, session, text, origin: options?.origin });
+    return this.input({ edge, session, text, origin: options?.origin }, options?.timeoutMs);
   }
 
   async sendKey(edge: string, session: string, key: SetiKey): Promise<SetiInputResult> {
     return this.input({ edge, session, key });
   }
 
-  private async input(body: {
-    edge: string;
-    session: string;
-    text?: string;
-    key?: SetiKey;
-    origin?: string;
-  }): Promise<SetiInputResult> {
+  private async input(
+    body: {
+      edge: string;
+      session: string;
+      text?: string;
+      key?: SetiKey;
+      origin?: string;
+    },
+    timeoutMs?: number,
+  ): Promise<SetiInputResult> {
     try {
       const res = await this.doFetch(`${this.base}/input`, {
         method: "POST",
         headers: { ...this.headers, "content-type": "application/json" },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(timeoutMs ?? this.inputTimeoutMs),
       });
       const json = (await res.json().catch(() => ({}))) as Partial<SetiInputResult>;
       return { ok: !!json.ok, edgeConnected: !!json.edgeConnected, error: json.error };
