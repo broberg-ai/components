@@ -277,11 +277,17 @@ const infraHtml = `<section class="infra">
       <div class="igrid">${INFRA.map(infraCard).join("")}</div>
     </section>`;
 
+// Favicon — a "Component Universe" atom (green orbits + nucleus on the brand-dark
+// tile), inlined as a data-URI so the page stays fully self-contained (F122).
+const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#191919"/><g fill="none" stroke="#34d399" stroke-width="1.5" opacity="0.9"><ellipse cx="16" cy="16" rx="11" ry="4.6" transform="rotate(-32 16 16)"/><ellipse cx="16" cy="16" rx="11" ry="4.6" transform="rotate(32 16 16)"/></g><circle cx="16" cy="16" r="3.6" fill="#34d399"/><circle cx="6.2" cy="11.4" r="1.5" fill="#6ee7b7"/><circle cx="25.8" cy="20.6" r="1.5" fill="#6ee7b7"/></svg>`;
+const FAVICON = "data:image/svg+xml;base64," + Buffer.from(FAVICON_SVG).toString("base64");
+
 const HTML = `<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="${FAVICON}">
 <title>@broberg — Component Universe</title>
 <style>${CSS}</style>
 </head>
