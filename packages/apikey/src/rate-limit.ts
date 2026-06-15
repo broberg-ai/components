@@ -78,12 +78,23 @@ export class SlidingWindowRateLimiter {
     this.ownsStore = !opts.store;
   }
 
-  /** Record a hit for `key` and decide. `now` is injectable for tests. */
-  async check(key: string, now: number = Date.now()): Promise<RateLimitResult> {
+  /**
+   * Record a hit for `key` and decide. The second argument is either a `now`
+   * timestamp (back-compat) or `{ now?, max? }` — a per-check `max` override lets
+   * ONE limiter serve keys with different caps (e.g. cardmem's per-key
+   * rateLimitPerHour), so a consumer needn't keep one limiter instance per cap.
+   */
+  async check(
+    key: string,
+    opts: number | { now?: number; max?: number } = {},
+  ): Promise<RateLimitResult> {
+    const o = typeof opts === "number" ? { now: opts } : opts;
+    const now = o.now ?? Date.now();
+    const max = o.max ?? this.max;
     const { count, oldest } = await this.store.hit(key, now, this.windowMs);
     return {
-      allowed: count <= this.max,
-      remaining: Math.max(0, this.max - count),
+      allowed: count <= max,
+      remaining: Math.max(0, max - count),
       resetAt: (oldest ?? now) + this.windowMs,
     };
   }

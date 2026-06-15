@@ -1,6 +1,6 @@
 {
   "name": "@broberg/apikey",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Framework-agnostic inbound API-key primitives for the broberg.ai fleet: mint prefixed keys, timing-safe verify (hashed or plaintext), sliding-window rate-limit over a pluggable store, a Cloudflare-style authorization cascade (permission × resource-filter × CIDR × TTL), and a membership-validated tenant selector. Owns the primitives, never the storage/policy. Thin Hono + Next adapters; bring your own lookup.",
   "type": "module",
   "license": "MIT",

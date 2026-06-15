@@ -44,6 +44,21 @@ describe("SlidingWindowRateLimiter (in-memory default)", () => {
     expect(() => new SlidingWindowRateLimiter({ windowMs: 0, max: 1 })).toThrow();
     expect(() => new SlidingWindowRateLimiter({ windowMs: 1, max: 0 })).toThrow();
   });
+
+  it("per-check max override — one limiter serves keys with different caps (cardmem #5338)", async () => {
+    const rl = new SlidingWindowRateLimiter({ windowMs: 1000, max: 1 }); // constructed default = 1
+    const t = 7_000_000;
+    // key "a" uses the override max=2 → first two allowed, third denied
+    expect((await rl.check("a", { now: t, max: 2 })).allowed).toBe(true);
+    expect((await rl.check("a", { now: t + 1, max: 2 })).allowed).toBe(true);
+    expect((await rl.check("a", { now: t + 2, max: 2 })).allowed).toBe(false);
+    // key "b" falls back to the constructed default (1)
+    expect((await rl.check("b", { now: t })).allowed).toBe(true);
+    expect((await rl.check("b", { now: t + 1 })).allowed).toBe(false);
+    // back-compat: a bare number second arg is still `now`
+    expect((await rl.check("c", t)).allowed).toBe(true);
+    rl.destroy();
+  });
 });
 
 describe("pluggable store", () => {

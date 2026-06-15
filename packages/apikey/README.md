@@ -36,6 +36,9 @@ import { SlidingWindowRateLimiter, type RateLimitStore } from "@broberg/apikey";
 const limiter = new SlidingWindowRateLimiter({ windowMs: 60_000, max: 100 });
 const { allowed, remaining, resetAt } = await limiter.check(clientKey);
 
+// One limiter, per-key caps — pass a per-check `max` override (v0.1.1):
+await limiter.check(clientKey, { max: keyRecord.rateLimitPerHour });
+
 // Shared backend (Turso/Redis): implement one method.
 const turso: RateLimitStore = {
   async hit(key, now, windowMs) { /* … */ return { count, oldest }; },
