@@ -146,6 +146,18 @@ describe("createSetiProxy", () => {
     expect(await res.json()).toEqual({ notifications: [] });
   });
 
+  it("forwards GET lsd/decisions (the fleet-decisions badge feed)", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/lsd/decisions");
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer t");
+      return new Response(JSON.stringify({ count: 2, decisions: [] }), { status: 200 });
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/lsd/decisions");
+    expect(res.status).toBe(200);
+    expect((await res.json()).count).toBe(2);
+  });
+
   it("forwards POST lsd/rules/:id/action with the id in the path + body verbatim", async () => {
     const f = mockFetch((url, init) => {
       expect(url).toBe("https://cloud.test/api/seti/v1/lsd/rules/9/action");
