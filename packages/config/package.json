@@ -1,6 +1,6 @@
 {
   "name": "@broberg/config",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The fleet's single-source config helper — a Zod-based env parser that validates + types process.env at boot (fail-fast, listing every offending key), a defineConfig factory for typed business-constant objects, and coerceInt/coerceBool/productionGuard escape hatches. Enforces 'one source, trickle down' so no value is hardcoded across many files. Runs in Node, Bun and edge; zod is a peer dependency.",
   "type": "module",
   "license": "MIT",

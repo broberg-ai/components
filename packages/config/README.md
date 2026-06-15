@@ -87,6 +87,16 @@ from the server runtime's `process.env`. Do **not** route them through
 `parseEnv` server-side — reference `process.env.NEXT_PUBLIC_X` directly in
 client code, and keep `parseEnv` for true server env (secrets, URLs, flags).
 
+## Apps, not libraries
+
+`parseEnv`'s fail-fast belongs in a **consuming app's startup** — not inside a
+library or SDK. A library should read keys lazily and stay able to "ship-dark"
+with partial/absent keys (e.g. `@broberg/ai-sdk` reads `FAL_KEY ?? FAL_API_KEY`
+at call-time and instantiates with stub providers so it works in test/partial-key
+environments). Wrapping a library's internal env reads in `parseEnv` would kill
+that optional-key / ship-dark behaviour. **Rule:** wrap your *app's* env at boot;
+never a dependency's internal reads.
+
 ---
 
 Part of the [broberg.ai shared inventory](https://discovery.broberg.ai). Search

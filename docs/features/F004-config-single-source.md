@@ -85,3 +85,5 @@ Graduate-candidate: no — small core npm that stays in `components`.
 
 ## Risks
 Next.js NEXT_PUBLIC_* vars must NOT pass through parseEnv server-side (inlined by bundler, absent from runtime process.env) — README must call this out. Zod major conflicts mitigated by peer-dep (>=3) + sticking to ZodObject.safeParse (stable across 3.x). coerceInt/coerceBool are the no-Zod escape hatch.
+
+**Apps-not-libraries boundary (ai-sdk #5226, folded into README v0.1.1):** `parseEnv` fail-fast belongs in a consuming *app's* startup, never inside a library/SDK — a library must read keys lazily + ship-dark on partial/absent keys (ai-sdk reads `FAL_KEY ?? FAL_API_KEY` at call-time with stub providers). Wrapping a dependency's internal env reads in `parseEnv` kills its optional-key behaviour. README now has an "Apps, not libraries" section.
