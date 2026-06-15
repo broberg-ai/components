@@ -201,4 +201,19 @@ export const INFRA = [
       { t: "If a package's ROOT entry transitively imports a runtime builtin (bun:sqlite, node:zlib), a BROWSER build hard-fails. Ship a browser-clean subpath export (separate tsup entry + exports['./x']) and PROVE it with bun build --target=browser.", by: "ai-sdk", tag: "native-dep-isolation" },
     ],
   },
+  {
+    id: "pitch", name: "Pitch Vault", role: "Customer pitches — create, publish & share branded pitch pages",
+    kw: ["pitch","pitches","customer pitch","sales pitch","presentation","proposal","pitch vault","deck","slides","pitch.broberg.dk"],
+    region: "Fly arn (pitch.broberg.dk)",
+    notes: "Pitch Vault (pitch.broberg.dk) is the fleet's service for creating + sharing customer pitches — a Next.js app on Fly (region arn) that hosts self-contained HTML/PDF pitch pages behind secure share links and tracks view analytics. DON'T build your own pitch tooling: push a self-contained HTML pitch via POST /api/cli/push (multipart, header x-api-key), generate one via POST /api/generate (Claude Haiku → a complete inline-styled HTML pitch, optionally styled from a template pitch), or use the `pitch push <dir>` CLI (config in ~/.pitchvaultrc). Read/search the existing vault via GET /api/v1/pitches?q=. The slug is the idempotent update key; isPublished=true to go live; share at /view/{token}.",
+    tips: [
+      { t: "Need a customer pitch? Use Pitch Vault, don't roll your own. POST /api/cli/push (multipart, x-api-key) with a self-contained HTML pitch → get a shareUrl back. Search existing pitches first: GET /api/v1/pitches?q=<term> (also ?folderId=).", by: "components", tag: "reuse" },
+      { t: "Slug = the idempotent UPDATE key. Send the SAME slug to /api/cli/push to overwrite a pitch in-place (there's no separate edit endpoint); omit slug → a new pitch each time. Version via naming (e.g. -v2), not the API.", by: "components", tag: "idempotency" },
+      { t: "isPublished defaults to FALSE — pass isPublished=true in the push to publish immediately, else the pitch exists but viewer/share links 404.", by: "components", tag: "publish" },
+      { t: "Organize via folderId: GET /api/v1/folders first for the tree, then pass folderId in the push (null/omit = root). Folders are created in the web UI, not the API.", by: "components", tag: "folders" },
+      { t: "Pitch HTML MUST be self-contained — inline <style>, base64 data-URIs for images, NO external CDN/API calls (they fail in the sandboxed viewer). Same F122 rule as our inventory mockups.", by: "components", tag: "self-contained" },
+      { t: "Don't write from scratch: POST /api/generate (Claude Haiku) turns a brief into a complete self-contained HTML pitch, optionally styled from a template pitch. Real examples live in the repo's pitches/ dir.", by: "components", tag: "generate" },
+      { t: "No delete API (web-UI only). To delete programmatically, ask the pitch session via intercom — it has the Fly-volume access. The x-api-key is a Fly secret; never commit it.", by: "components", tag: "delete-and-auth" },
+    ],
+  },
 ];
