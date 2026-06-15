@@ -1,7 +1,9 @@
 # F039 — Auto-enrollment service (Discovery write-layer)
 
 > Service · runtime (Discovery API) · effort **M** · impact **high** · owner `components`.
-> **Status:** in progress (2026-06-15) — API + Turso store built; live deploy gated on the Fly auth re-login + a Turso DB provision.
+> **Status:** LIVE (2026-06-15) — deployed to discovery.broberg.ai; Turso DB `broberg-discovery-enroll` (EU-West, GDPR-safe) provisioned; verified bind/mismatch/match.
+>
+> **⚠️ Auth model changed (2026-06-15, Christian-directive) — this SUPERSEDES every shared-`ENROLL_KEY` reference below.** There is **no shared fleet key and no human courier**. Auth is **per-session trust-on-first-use**: each session self-generates `openssl rand -hex 32` into its own gitignored `.env` as `DISCOVERY_ENROLL_KEY` (sent as `x-enroll-key`); the FIRST `POST /api/enroll` binds `sha256(key)` to that session (`session_keys` table), later enrolls must match (else 401 `session_key_mismatch`). Key ≥32 chars. A leaked session key only writes that one session — strictly safer than a shared key. Reset via `DELETE FROM session_keys WHERE session='…'` (turso CLI). Pilots self-enroll; cardmem propagates the convention to all repos via F149.4.
 > Depends on: F038 (Discovery API).
 
 ## Motivation
