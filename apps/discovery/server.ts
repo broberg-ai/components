@@ -297,9 +297,14 @@ app.get("/api/sessions/:session", async (c) => {
   const store = await getEnrollStore();
   const enrolled = store ? await store.bySession(session) : [];
   const have = new Set(enrolled.map((e) => e.pkg));
+  // A session never "needs to adopt" a package it OWNS — exclude its own
+  // published packages (per the FLEET roster's pub list) from the gap, else a
+  // package-owner is told it's missing itself (ai-sdk #5335).
+  const owns = (FLEET.find((f) => f.s === session)?.pub ?? []).map((n: string) => `@broberg/${n}`);
+  const owned = new Set(owns);
   const available = packages.map((p) => ({ package: p.name, version: p.version, layer: p.layer }));
-  const gap = available.filter((a) => !have.has(a.package as string));
-  return c.json({ session, enrolled, available, gap });
+  const gap = available.filter((a) => !have.has(a.package as string) && !owned.has(a.package as string));
+  return c.json({ session, owns, enrolled, available, gap });
 });
 
 // Self-report an enrollment (authed). Validates pkg against the known package

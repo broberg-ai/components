@@ -220,4 +220,14 @@ describe("auto-enrollment (F039)", () => {
     expect(paths).toContain("/api/enrollments");
     expect(paths).toContain("/api/sessions/:session");
   });
+
+  it("a session's own published packages are excluded from its gap (ai-sdk #5335)", async () => {
+    const owner = await (await app.request("/api/sessions/ai-sdk")).json();
+    expect(owner.owns).toContain("@broberg/ai-sdk");
+    expect(owner.gap.some((g: { package: string }) => g.package === "@broberg/ai-sdk")).toBe(false);
+    // a non-owning session still sees that package in its gap
+    const other = await (await app.request("/api/sessions/nobody-owns-this")).json();
+    expect(other.owns).toEqual([]);
+    expect(other.gap.some((g: { package: string }) => g.package === "@broberg/ai-sdk")).toBe(true);
+  });
 });
