@@ -1,0 +1,50 @@
+{
+  "name": "@broberg/config",
+  "version": "0.1.0",
+  "description": "The fleet's single-source config helper — a Zod-based env parser that validates + types process.env at boot (fail-fast, listing every offending key), a defineConfig factory for typed business-constant objects, and coerceInt/coerceBool/productionGuard escape hatches. Enforces 'one source, trickle down' so no value is hardcoded across many files. Runs in Node, Bun and edge; zod is a peer dependency.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "zod": ">=3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "zod": "^3.24.1"
+  },
+  "keywords": [
+    "config",
+    "env",
+    "environment",
+    "dotenv",
+    "zod",
+    "validation",
+    "feature-flags",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/config"
+  },
+  "publishConfig": { "access": "public" }
+}

@@ -1,7 +1,7 @@
 # F005 — Mail sending (Resend)
 
 > L0 Rails · runtime-package · effort **S** · impact **high** · owner `components` (publishes the npm; reference impl lifted from `sanneandersen`).
-> **Status:** in progress — `@broberg/mail` **v0.1.0** built + bootstrap-published this turn (2026-06-14). Done is gated on a pilot consumer migrating back with no regression + a second adopter (see Acceptance criteria), and on Christian adding the npm **Trusted Publisher** for `@broberg/mail` so 0.1.1+ publish token-free.
+> **Status:** AC met (2026-06-15) — `@broberg/mail` **v0.1.0** is live with **three prod consumers**: trail (f776213), sanne (8421d3c), cms (9490f2e7), all boot-/prod-verified. AC #3 (pilot migrated back, no regression) + #4 (2nd adopter) are satisfied. Remaining for a clean close: Christian adding the npm **Trusted Publisher** for `@broberg/mail` so 0.1.1+ publish token-free (0.1.0 was bootstrap-published).
 > Graduate-candidate: no — small core npm that stays in `components`.
 
 > **Build decisions (v0.1.0, deviating from the original sketch below — recorded per the surgical-change rule):**
@@ -93,16 +93,18 @@ Who consumes `@broberg/mail`, updated as the fleet migrates (Christian: "du hold
 
 | Repo | Resend usage today | Status | Notes |
 |---|---|---|---|
-| **sanne** (sanneandersen) | 3× `new Resend()` + 1 REST (auth/booking/newsletter) | 🟢 go given — migrating | Keeps `SA_RESEND_API_KEY` (explicit config) + cid-logo wrapper; Lens-smoke gate. |
+| **sanne** (sanneandersen) | 3× `new Resend()` + 1 REST (auth/booking/newsletter) | ✅ ENROLLED — shipped + prod-verified | 4 sites → one `getMailer()` on `@broberg/mail@0.1.0` (exact-pin); `SA_RESEND_API_KEY` kept via explicit `createMailer` config; dead `resend` dep removed (−4 pkgs, −59 lines). 10/10 runtime payload-capture (from-composition, reply_to camel→snake, List-Unsubscribe + cid logo + .ics passthrough). Prod `/api/auth/me` → 200; upmetrics self-report fired. Commit 8421d3c. |
 | **trail** | 1 send-site (F172 magic-link, `apps/admin-server/src/email.ts`) | ✅ ENROLLED — live + prod-verified | Swapped to `createMailer` (explicit `RESEND_API_KEY`/`RESEND_FROM`, no rename); dropped `resend` dep; `live` keyed to NODE_ENV; ALWAYS_ALLOWED covers cb@/christian@. Prod magic-link for cb@ → `{ok:true,sent:true}`. Commit f776213. |
+| **cms** | `cms-admin` email.ts + forms/notify.ts | ✅ ENROLLED — shipped + prod-verified | 3 send-sites → one `lib/mailer.ts` chokepoint; multi-tenant `getMailer(apiKey)` (per-tenant key for auth-mail, env for form-mail); `live` = `NODE_ENV==='production' \|\| MAIL_LIVE=1`. Dead `resend` dep removed (−7 pkgs). Typecheck clean, 895 tests green, gate proven via injected fetch, prod email-test → `{ok:true}`. Commit 9490f2e7. |
 | **fdaa** (fysio-dk-aalborg) | none yet (new platform) | ⏳ pending apps/web | Will adopt `createMailerFromEnv()` directly behind one `sendMail()` seam. |
-| **cms** | `cms-admin` email.ts + forms/notify.ts | 📣 notified — no reply | Multi-tenant from-address (DB-driven). |
 | **xrt81** | `apps/server/src/lib/mail.ts` (raw fetch + allowlist) | 📣 notified — no reply | Already has its own allowlist; clean swap. |
 | **upmetrics** | `auth/email.ts` (magic-link) | 📣 notified — no reply | Lazy init, throws on error today. |
 | **contract-manager** | `lib/email/send.ts` | 📣 broadcast — unconfirmed | console-log fallback. |
 | **fds** (fysiodk-aalborg-sport) | — | ➖ N/A | Uses AWS SES/SMTP (nodemailer), not Resend. |
 
-Legend: 🟢 go/migrating · ⏳ waiting on own prerequisite · 📣 notified, awaiting reply · ➖ not applicable. **Done (F005)** = ≥1 pilot migrated back with no regression + a 2nd adopter green.
+Legend: 🟢 go/migrating · ⏳ waiting on own prerequisite · 📣 notified, awaiting reply · ➖ not applicable. **Done (F005)** = ≥1 pilot migrated back with no regression + a 2nd adopter green. → **MET** (trail + sanne + cms all prod-verified, 2026-06-15).
+
+> **Consumer note (from sanne #5210, for xrt81/cms/upmetrics):** keep your dev-mode magic-link console-print as an app-side short-circuit BEFORE `mailer.send` — do NOT delegate dev login to the package's `disabled`/no-key path, which silently no-ops (`{ok:true,skipped:true}`) and would kill dev login by never surfacing the link. The package's dark-ship is for *test/preview sends*, not a dev-login link printer.
 
 ## Effort estimate
 **S** — owner session: `sanneandersen`. Reuse model: runtime-package.

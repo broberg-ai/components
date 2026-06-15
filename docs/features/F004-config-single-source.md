@@ -1,7 +1,10 @@
 # F004 — Config single-source helper
 
-> L0 Rails · runtime-package · effort **S** · impact **high** · owner `xrt81`. Status: Backlog.
+> L0 Rails · runtime-package · effort **S** · impact **high** · owner `components` (publishes the npm; reference impl lifted from `xrt81` + `upmetrics`).
+> **Status:** shipped — `@broberg/config` **v0.1.0** built + bootstrap-published (2026-06-15). The 5-fn headless core (F004.1–.3) is live; pilot adoptions (F004.4 upmetrics, F004.5 sanne, F004.6 docs) are the fleet-migration follow-ups. Clean close also needs Christian adding the npm **Trusted Publisher** for `@broberg/config` so 0.1.1+ publish token-free.
 > Graduate-candidate: no — small core npm that stays in `components`.
+>
+> **Build decision (v0.1.0):** one headless package, no separate Stack-A/Stack-B adapter sub-packages — `parseEnv`/`coerceInt`/`coerceBool`/`productionGuard`/`defineConfig` only touch `process.env` + a caller-supplied Zod schema, which behave identically in Node, Bun and edge, so per-stack packages would add ceremony with no value (same call as `@broberg/mail`). `zod` is a peer dep and is **never imported at runtime** (type-only import → 0 zod bytes in dist); each app keeps its own schema content.
 
 ## Motivation
 A framework-agnostic TypeScript utility that enforces the "one source, trickle down" rule across the fleet. Two primitives: a Zod-based env-var parser that validates and types `process.env` at boot (fail-fast with a clear list of offending keys), and a `defineConfig` factory for typed business-constant objects (fee tiers, shop settings, magic numbers) that prevents values being re-declared across files. Thin wrappers — type-safety, boot-time validation, a conventional import boundary; not abstraction for its own sake. This is Christian's UFRAVIGELIG "ALDRIG hardcoded values" rule as a reusable mechanism (the sanneandersen.dk URL hardcoded in 9 files is the motivating incident).
