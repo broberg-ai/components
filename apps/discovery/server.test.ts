@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-// F039 enroll store: in-memory libSQL for tests (the lazy store reads these at
-// first use, so setting them at module scope is enough).
+// F039 enroll store: in-memory libSQL for tests (the lazy store reads this at
+// first use, so setting it at module scope is enough). Auth is per-session
+// trust-on-first-use — no central key env.
 process.env.ENROLL_DB_URL = ":memory:";
-process.env.ENROLL_KEY = "test-enroll-key";
 
 import { app } from "./server";
 
@@ -174,8 +174,12 @@ describe("Discovery API", () => {
   });
 });
 
-describe("auto-enrollment (F039)", () => {
-  const KEY = "test-enroll-key";
+describe("auto-enrollment (F039) — trust-on-first-use keys", () => {
+  // Each session brings its OWN ≥32-char key (openssl rand -hex 32). TOFU binds
+  // it on first contact. Distinct session names per test keep the shared
+  // in-memory store from coupling tests.
+  const KEY = "a".repeat(64);
+  const KEY2 = "b".repeat(64);
   const enroll = (body: object, key: string | null = KEY) =>
     app.request("/api/enroll", {
       method: "POST",
@@ -183,35 +187,50 @@ describe("auto-enrollment (F039)", () => {
       body: JSON.stringify(body),
     });
 
-  it("POST /api/enroll without a valid key → 401", async () => {
-    expect((await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.1.0" }, null)).status).toBe(401);
-    expect((await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.1.0" }, "wrong")).status).toBe(401);
+  it("missing or too-short key → 401", async () => {
+    expect((await enroll({ session: "t-nokey", pkg: "@broberg/mail", version: "0.1.0" }, null)).status).toBe(401);
+    expect((await enroll({ session: "t-short", pkg: "@broberg/mail", version: "0.1.0" }, "short")).status).toBe(401);
   });
 
-  it("POST /api/enroll with an unknown package → 400", async () => {
-    expect((await enroll({ session: "trail", pkg: "@broberg/nope", version: "1.0.0" })).status).toBe(400);
+  it("unknown package → 400 (rejected before any key is bound)", async () => {
+    expect((await enroll({ session: "t-unknown", pkg: "@broberg/nope", version: "1.0.0" })).status).toBe(400);
   });
 
-  it("a valid enroll upserts + shows in the roster + session status (and not in the gap)", async () => {
-    const res = await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.1.0", role: "uses", commit: "f776213" });
+  it("first enroll binds the session's key (TOFU) + shows in roster/status, excluded from gap", async () => {
+    const res = await enroll({ session: "trail-test", pkg: "@broberg/mail", version: "0.1.0", role: "uses", commit: "f776213" });
     expect(res.status).toBe(200);
-    expect((await res.json()).enrollment.pkg).toBe("@broberg/mail");
+    const j = await res.json();
+    expect(j.key).toBe("registered");
+    expect(j.enrollment.pkg).toBe("@broberg/mail");
 
     const roster = await (await app.request("/api/enrollments")).json();
-    expect(roster.enrollments.some((e: { session: string; pkg: string }) => e.session === "trail" && e.pkg === "@broberg/mail")).toBe(true);
+    expect(roster.enrollments.some((e: { session: string; pkg: string }) => e.session === "trail-test" && e.pkg === "@broberg/mail")).toBe(true);
 
-    const status = await (await app.request("/api/sessions/trail")).json();
+    const status = await (await app.request("/api/sessions/trail-test")).json();
     expect(status.enrolled.some((e: { pkg: string }) => e.pkg === "@broberg/mail")).toBe(true);
     expect(status.gap.some((g: { package: string }) => g.package === "@broberg/mail")).toBe(false);
-    expect(status.gap.length).toBeGreaterThan(0); // other shipped packages remain in the gap
+    expect(status.gap.length).toBeGreaterThan(0);
   });
 
-  it("re-enrolling the same (session,pkg) updates in place — no duplicate", async () => {
-    await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.2.0" });
+  it("same session + same key → matched, idempotent (no duplicate row)", async () => {
+    const res = await enroll({ session: "trail-test", pkg: "@broberg/mail", version: "0.2.0" });
+    expect(res.status).toBe(200);
+    expect((await res.json()).key).toBe("matched");
     const roster = await (await app.request("/api/enrollments")).json();
-    const rows = roster.enrollments.filter((e: { session: string; pkg: string }) => e.session === "trail" && e.pkg === "@broberg/mail");
+    const rows = roster.enrollments.filter((e: { session: string; pkg: string }) => e.session === "trail-test" && e.pkg === "@broberg/mail");
     expect(rows.length).toBe(1);
     expect(rows[0].version).toBe("0.2.0");
+  });
+
+  it("same session + a DIFFERENT key → 401 mismatch (can't hijack a bound session)", async () => {
+    const res = await enroll({ session: "trail-test", pkg: "@broberg/lens", version: "0.1.2" }, KEY2);
+    expect(res.status).toBe(401);
+  });
+
+  it("a different session binds its own key independently", async () => {
+    const res = await enroll({ session: "other-test", pkg: "@broberg/config", version: "0.1.1" }, KEY2);
+    expect(res.status).toBe(200);
+    expect((await res.json()).key).toBe("registered");
   });
 
   it("the manifest advertises the enroll endpoints", async () => {

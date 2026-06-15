@@ -36,6 +36,17 @@ const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS enrollments (
   PRIMARY KEY (session, pkg)
 )`;
 
+// Trust-on-first-use per-session keys: each session generates its OWN key
+// (openssl rand -hex 32) and places it in its OWN .env — no central key to
+// distribute. The first enroll for a session binds sha256(key) here; later
+// enrolls from that session must present the same key. A leaked session key
+// can only write THAT session's enrollment, never the whole roster.
+const CREATE_KEYS = `CREATE TABLE IF NOT EXISTS session_keys (
+  session TEXT PRIMARY KEY,
+  key_hash TEXT NOT NULL,
+  bound_at INTEGER NOT NULL
+)`;
+
 const rowToEnrollment = (r: Row): Enrollment => ({
   session: String(r.session),
   pkg: String(r.pkg),
@@ -51,6 +62,10 @@ export interface EnrollStore {
   upsert(input: EnrollInput): Promise<Enrollment>;
   list(): Promise<Enrollment[]>;
   bySession(session: string): Promise<Enrollment[]>;
+  /** TOFU: the key hash bound to this session, or null if it hasn't registered one yet. */
+  sessionKeyHash(session: string): Promise<string | null>;
+  /** Bind a key hash to a session on first enroll (no-op if already bound — race-safe). */
+  bindSessionKey(session: string, keyHash: string): Promise<void>;
 }
 
 export function makeEnrollStore(client: Client): EnrollStore {
@@ -79,6 +94,16 @@ export function makeEnrollStore(client: Client): EnrollStore {
       const rs = await client.execute({ sql: "SELECT * FROM enrollments WHERE session = ? ORDER BY pkg", args: [session] });
       return rs.rows.map(rowToEnrollment);
     },
+    async sessionKeyHash(session) {
+      const rs = await client.execute({ sql: "SELECT key_hash FROM session_keys WHERE session = ?", args: [session] });
+      return rs.rows.length ? String(rs.rows[0]!.key_hash) : null;
+    },
+    async bindSessionKey(session, keyHash) {
+      await client.execute({
+        sql: "INSERT INTO session_keys (session, key_hash, bound_at) VALUES (?, ?, ?) ON CONFLICT(session) DO NOTHING",
+        args: [session, keyHash, Date.now()],
+      });
+    },
   };
 }
 
@@ -92,6 +117,7 @@ export function getEnrollStore(): Promise<EnrollStore | null> {
       if (!url) return null;
       const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
       await client.execute(CREATE_TABLE);
+      await client.execute(CREATE_KEYS);
       return makeEnrollStore(client);
     })();
   }

@@ -3,6 +3,7 @@
 // (scripts/inventory-data.mjs — the same data the dashboard renders). Any repo
 // (human or cc-session) queries this BEFORE building, to reuse > re-roll.
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 // Single source of truth — shared with scripts/build-inventory.mjs.
@@ -184,7 +185,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
     { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
-    { method: "POST", path: "/api/enroll", description: "self-report an enrollment (auth header x-enroll-key). Body {session,pkg,version,role?,commit?,notes?} → auto-added to the roster", example: "/api/enroll" },
+    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = trust-on-first-use: generate your OWN key (openssl rand -hex 32) into your repo's .env, send it as header x-enroll-key — the first enroll binds it to your session, later enrolls must match. Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
   ],
   vocabularies: {
     layers: layers.map((l) => ({ id: l.id, name: l.name })),
@@ -307,14 +308,16 @@ app.get("/api/sessions/:session", async (c) => {
   return c.json({ session, owns, enrolled, available, gap });
 });
 
-// Self-report an enrollment (authed). Validates pkg against the known package
-// list so the roster can't be polluted. Idempotent on (session, pkg).
+// Self-report an enrollment. Auth = trust-on-first-use per session: each session
+// generates its OWN key (openssl rand -hex 32) and keeps it in its OWN .env — no
+// central key to distribute, no human in the loop. The first enroll for a session
+// binds sha256(key); later enrolls from that session must present the same key.
+// Validates pkg against the known list so the roster can't be polluted. Idempotent
+// on (session, pkg).
 app.post("/api/enroll", async (c) => {
-  const key = process.env.ENROLL_KEY;
-  if (!key) return c.json({ error: "enrollment_not_configured" }, 503);
-  if (c.req.header("x-enroll-key") !== key) return c.json({ error: "unauthorized" }, 401);
   const store = await getEnrollStore();
   if (!store) return c.json({ error: "enrollment_store_unavailable" }, 503);
+
   let body: Record<string, unknown>;
   try {
     body = (await c.req.json()) as Record<string, unknown>;
@@ -328,6 +331,24 @@ app.post("/api/enroll", async (c) => {
   if (!packageNames.has(pkg)) {
     return c.json({ error: `unknown package "${pkg}" — must be a published @broberg package`, packages: [...packageNames] }, 400);
   }
+
+  // TOFU per-session key. Require a reasonably strong self-generated key.
+  const presented = c.req.header("x-enroll-key") ?? "";
+  if (presented.length < 32) {
+    return c.json({ error: "x-enroll-key required (min 32 chars — generate your own: `openssl rand -hex 32`, keep it in your repo's .env)" }, 401);
+  }
+  const keyHash = createHash("sha256").update(presented).digest("hex");
+  const bound = await store.sessionKeyHash(session);
+  let keyStatus: "registered" | "matched";
+  if (!bound) {
+    await store.bindSessionKey(session, keyHash);
+    keyStatus = "registered"; // first contact for this session — TOFU bind
+  } else if (bound === keyHash) {
+    keyStatus = "matched";
+  } else {
+    return c.json({ error: "session_key_mismatch — this session is already bound to a different key (use the one in your .env, or ask components to reset it)" }, 401);
+  }
+
   const role: Role = body.role === "src" ? "src" : "uses";
   const enrollment = await store.upsert({
     session,
@@ -337,7 +358,7 @@ app.post("/api/enroll", async (c) => {
     commit: typeof body.commit === "string" ? body.commit : null,
     notes: typeof body.notes === "string" ? body.notes : null,
   });
-  return c.json({ ok: true, enrollment });
+  return c.json({ ok: true, key: keyStatus, enrollment });
 });
 
 export default { port: Number(process.env.PORT) || 3000, fetch: app.fetch };
