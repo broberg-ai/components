@@ -1,0 +1,72 @@
+{
+  "name": "@broberg/apikey",
+  "version": "0.1.0",
+  "description": "Framework-agnostic inbound API-key primitives for the broberg.ai fleet: mint prefixed keys, timing-safe verify (hashed or plaintext), sliding-window rate-limit over a pluggable store, a Cloudflare-style authorization cascade (permission × resource-filter × CIDR × TTL), and a membership-validated tenant selector. Owns the primitives, never the storage/policy. Thin Hono + Next adapters; bring your own lookup.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./authorize": {
+      "types": "./dist/authorize.d.ts",
+      "import": "./dist/authorize.js",
+      "require": "./dist/authorize.cjs"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js",
+      "require": "./dist/next.cjs"
+    },
+    "./hono": {
+      "types": "./dist/hono.d.ts",
+      "import": "./dist/hono.js",
+      "require": "./dist/hono.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "hono": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "hono": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "hono": "^4.6.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "api-key",
+    "apikey",
+    "rate-limit",
+    "rate-limiting",
+    "authorization",
+    "rbac",
+    "cidr",
+    "timing-safe",
+    "multi-tenant",
+    "hono",
+    "next",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/apikey"
+  },
+  "publishConfig": { "access": "public" }
+}
