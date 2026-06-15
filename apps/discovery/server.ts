@@ -8,13 +8,14 @@ import { cors } from "hono/cors";
 // Single source of truth — shared with scripts/build-inventory.mjs.
 import { DATA, FLEET, MODEL, INFRA } from "../../scripts/inventory-data.mjs";
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 // The shared data is plain JS (one source for the dashboard + this API); give it
 // a shape here so TS knows the optional fields.
 type RawItem = {
   f: string; nm: string; m: string; desc?: string; pkg?: string; e?: string; i?: string;
   s?: string; ver?: string; src?: string; own?: string; grad?: number; ext?: number; note?: string; dist?: string;
+  kw?: string[];
 };
 type RawLayer = { n: string; t: string; d: string; items: RawItem[] };
 const LAYERS = DATA as RawLayer[];
@@ -41,6 +42,7 @@ const components = LAYERS.flatMap((L) =>
     external: !!it.ext,
     note: it.note ?? null,
     description: it.desc ?? null,
+    keywords: it.kw ?? [], // search aliases — natural-language / synonym terms a session might type
   })),
 );
 
@@ -59,13 +61,14 @@ const packages = components
     component: c.id,
     layer: c.layer,
     description: c.description,
+    keywords: c.keywords,
   }));
 
 const layers = LAYERS.map((L) => ({ id: L.n, name: L.t, description: L.d, count: L.items.length }));
 
 type InfraTip = { t: string; by?: string; tag?: string };
-type InfraPlatform = { id: string; name: string; role: string; region?: string; notes?: string; tips?: InfraTip[] };
-const infra = (INFRA as InfraPlatform[]).map((p) => ({ ...p, tipCount: (p.tips ?? []).length }));
+type InfraPlatform = { id: string; name: string; role: string; region?: string; notes?: string; tips?: InfraTip[]; kw?: string[] };
+const infra = (INFRA as InfraPlatform[]).map((p) => ({ ...p, kw: p.kw ?? [], tipCount: (p.tips ?? []).length }));
 
 const stats = {
   components: components.length,
@@ -79,32 +82,70 @@ const stats = {
   layers: layers.length,
 };
 
-// Relevance scoring — an exact name/package/id match must beat a mere description
-// hit (so q=lens tops @broberg/lens, not @broberg/mail whose blurb mentions lens).
+// Split a query into words so a natural phrase ("send email") matches by its
+// parts, not only as one literal substring. Drop 1-char noise.
+const tokenize = (s: string): string[] => s.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
+
+// Relevance scoring. An exact name/package/id match must beat a mere description
+// hit (so q=lens tops @broberg/lens, not @broberg/mail whose blurb mentions lens),
+// and an alias hit (kw) must rank well so synonyms/natural phrases resolve
+// ("send email" → @broberg/mail, "dark mode" → @broberg/theme).
 function scoreComponent(c: (typeof components)[number], ql: string): number {
   const name = c.name.toLowerCase();
   const pkg = (c.package ?? "").toLowerCase();
   const id = c.id.toLowerCase();
+  const kws = (c.keywords ?? []).map((k) => k.toLowerCase());
+  const desc = (c.description ?? "").toLowerCase();
+  const owner = (c.owner ?? "").toLowerCase();
   let s = 0;
+  // whole-query matches (strongest signal)
   if (pkg === ql || pkg === `@broberg/${ql}` || name === ql || id === ql) s += 100;
   else if (pkg.startsWith(ql) || name.startsWith(ql) || id.startsWith(ql)) s += 50;
   else if (pkg.includes(ql) || name.includes(ql) || id.includes(ql)) s += 25;
-  if ((c.owner ?? "").toLowerCase().includes(ql)) s += 4;
-  if ((c.description ?? "").toLowerCase().includes(ql)) s += 2;
+  if (kws.includes(ql)) s += 60; // the whole query IS one of the aliases
+  else if (kws.some((k) => k.includes(ql))) s += 20;
+  // per-token matches (so multi-word / natural-language queries resolve)
+  for (const t of tokenize(ql)) {
+    if (kws.includes(t)) s += 18;
+    else if (kws.some((k) => k.includes(t))) s += 8;
+    if (name.includes(t) || pkg.includes(t) || id.includes(t)) s += 12;
+    if (desc.includes(t)) s += 3;
+    if (owner.includes(t)) s += 2;
+  }
   return s;
 }
 const rankComponents = (list: typeof components, ql: string) =>
   list.map((c) => ({ c, s: scoreComponent(c, ql) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.c);
 function scorePackage(p: (typeof packages)[number], ql: string): number {
   const name = (p.name ?? "").toLowerCase();
+  const kws = (p.keywords ?? []).map((k) => k.toLowerCase());
+  const desc = (p.description ?? "").toLowerCase();
   let s = 0;
   if (name === ql || name === `@broberg/${ql}`) s += 100;
   else if (name.includes(ql)) s += 40;
-  if ((p.description ?? "").toLowerCase().includes(ql)) s += 2;
+  if (kws.includes(ql)) s += 60;
+  else if (kws.some((k) => k.includes(ql))) s += 20;
+  for (const t of tokenize(ql)) {
+    if (kws.includes(t)) s += 18;
+    else if (kws.some((k) => k.includes(t))) s += 8;
+    if (name.includes(t)) s += 12;
+    if (desc.includes(t)) s += 3;
+  }
   return s;
 }
 const rankPackages = (ql: string) =>
   packages.map((p) => ({ p, s: scorePackage(p, ql) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.p);
+
+// Infra + fleet matcher. The whole query may match the FULL text (so a phrase like
+// "cookie domain" still finds the relevant platform via its notes), but a single
+// TOKEN only matches the CURATED fields (name/role/aliases) as a whole word — so a
+// stray word from a phrase ("dark" in "dark mode") can't drag in an unrelated
+// platform by substring-hitting its long-form notes (e.g. "ship-dark").
+const platformMatch = (full: string, curated: string, ql: string): boolean => {
+  if (full.toLowerCase().includes(ql)) return true;
+  const words = new Set(curated.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  return tokenize(ql).some((t) => words.has(t));
+};
 
 // Landing page = the live dashboard (same single source). node:fs so it works
 // under both Bun (prod) and node (vitest).
@@ -123,7 +164,7 @@ const manifest = () => ({
   tagline: "Discover everything reusable across broberg.ai — query this BEFORE you build. Reuse > re-roll.",
   version: VERSION,
   start_here:
-    "You are at the Discovery root. Every endpoint and every value you can filter by is listed below, so you can explore the whole inventory without knowing it in advance. Typical flow: GET /api/search?q=<what-you-need> → if nothing fits, you're clear to build (then tell components so it's added for everyone).",
+    "You are at the Discovery root. Every endpoint and every value you can filter by is listed below, so you can explore the whole inventory without knowing it in advance. Typical flow: GET /api/search?q=<what-you-need> → if nothing fits, you're clear to build (then tell components so it's added for everyone). Search is tokenized and alias-aware: a natural phrase OR a short keyword both work — 'send email' and 'mail' both find @broberg/mail, 'dark mode' finds @broberg/theme, 'postgres' finds Supabase. Each component also carries a `keywords` array of the aliases it answers to.",
   stats,
   endpoints: [
     { method: "GET", path: "/api", description: "this self-describing manifest — all endpoints + searchable vocabularies", example: "/api" },
@@ -189,8 +230,13 @@ app.get("/api/packages", (c) => {
 
 app.get("/api/infra", (c) => {
   const q = c.req.query("q");
-  const list = infra.map(({ notes, tips, ...rest }) => rest); // summary list (no long notes/tips)
-  const out = q ? list.filter((p) => `${p.name} ${p.role}`.toLowerCase().includes(q.toLowerCase())) : list;
+  const list = infra.map(({ notes, tips, ...rest }) => rest); // summary list (no long notes/tips; keeps kw aliases)
+  const out = q
+    ? list.filter((p) => {
+        const cur = `${p.name} ${p.role} ${(p.kw ?? []).join(" ")}`;
+        return platformMatch(cur, cur, q.toLowerCase());
+      })
+    : list;
   return c.json({ count: out.length, infra: out });
 });
 
@@ -215,9 +261,13 @@ app.get("/api/search", (c) => {
     query: q,
     components: rankComponents(components, ql),
     packages: rankPackages(ql),
-    fleet: FLEET.filter((f) => `${f.s} ${f.r}`.toLowerCase().includes(ql)),
+    fleet: FLEET.filter((f) => platformMatch(`${f.s} ${f.r}`, `${f.s} ${f.r}`, ql)),
     infra: infra.filter((p) =>
-      `${p.name} ${p.role} ${p.notes ?? ""} ${(p.tips ?? []).map((t) => t.t).join(" ")}`.toLowerCase().includes(ql),
+      platformMatch(
+        `${p.name} ${p.role} ${p.notes ?? ""} ${(p.tips ?? []).map((t) => t.t).join(" ")} ${(p.kw ?? []).join(" ")}`,
+        `${p.name} ${p.role} ${(p.kw ?? []).join(" ")}`,
+        ql,
+      ),
     ),
   });
 });

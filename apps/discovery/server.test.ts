@@ -129,4 +129,41 @@ describe("Discovery API", () => {
     const body = await (await app.request("/api/search?q=deploy")).json();
     expect(body.infra.some((p: { id: string }) => p.id === "fly")).toBe(true);
   });
+
+  it("tokenizes natural phrases — q='send email' surfaces @broberg/mail (Trail's gap)", async () => {
+    const comps = (await (await app.request("/api/components?q=send%20email")).json()).components;
+    expect(comps.some((c: { package: string }) => c.package === "@broberg/mail")).toBe(true);
+    const search = await (await app.request("/api/search?q=send%20email")).json();
+    expect(search.components.some((c: { package: string }) => c.package === "@broberg/mail")).toBe(true);
+  });
+
+  it("aliases resolve synonyms — 'dark mode' → theme, 'screenshot' → lens, 'authentication' → oauth", async () => {
+    const theme = (await (await app.request("/api/components?q=dark%20mode")).json()).components;
+    expect(theme.some((c: { package: string }) => c.package === "@broberg/theme")).toBe(true);
+    const lens = (await (await app.request("/api/components?q=screenshot")).json()).components;
+    expect(lens.some((c: { package: string }) => c.package === "@broberg/lens")).toBe(true);
+    const oauth = (await (await app.request("/api/components?q=authentication")).json()).components;
+    expect(oauth.some((c: { package: string }) => c.package === "@broberg/oauth")).toBe(true);
+  });
+
+  it("infra aliases — 'postgres' → supabase, 'hosting' → fly", async () => {
+    const s = await (await app.request("/api/search?q=postgres")).json();
+    expect(s.infra.some((p: { id: string }) => p.id === "supabase")).toBe(true);
+    const infra = (await (await app.request("/api/infra?q=hosting")).json()).infra;
+    expect(infra.some((p: { id: string }) => p.id === "fly")).toBe(true);
+  });
+
+  it("infra search is noise-free — a stray token can't substring-hit long-form notes ('dark' ≠ 'ship-dark')", async () => {
+    const body = await (await app.request("/api/search?q=dark%20mode")).json();
+    // theme still wins the component result …
+    expect(body.components.some((c: { package: string }) => c.package === "@broberg/theme")).toBe(true);
+    // … but no infra platform should be dragged in via 'ship-dark'/'sends' substrings
+    expect(body.infra.length).toBe(0);
+  });
+
+  it("exposes keywords/aliases on components for discoverability", async () => {
+    const mail = await (await app.request("/api/components/F005")).json();
+    expect(Array.isArray(mail.keywords)).toBe(true);
+    expect(mail.keywords).toContain("email");
+  });
 });
