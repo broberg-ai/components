@@ -125,7 +125,7 @@ export const INFRA = [
   },
   {
     id: "cloudflare", name: "Cloudflare", role: "DNS, CDN, Turnstile, R2 — the rest of the stack",
-    kw: ["cloudflare","dns","cdn","turnstile","captcha","r2","object storage","tunnel","edge","domain","nameserver","cname"],
+    kw: ["cloudflare","dns","cdn","turnstile","captcha","r2","object storage","tunnel","edge","domain","nameserver","cname","bucket","buckets","cf","r2 provisioning","provision bucket","s3 creds"],
     region: "Global edge",
     notes: "Cloudflare hosts DNS for several fleet zones (e.g. broberg.ai), plus Turnstile (bot protection on forms), R2 (object storage — see @broberg/media-r2) and CDN. The single biggest gotcha: when a subdomain CNAMEs to a Fly app, keep the record DNS-only (grey cloud) — an orange/proxied record makes Cloudflare's proxy fight Fly's Let's Encrypt validation and HTTPS breaks. For Turnstile, serve the site-key from a runtime endpoint so keys rotate without a rebuild; keys are domain-scoped (one Turnstile site per project).",
     tips: [
@@ -139,6 +139,9 @@ export const INFRA = [
       { t: "Incomplete TLS cert chain (wrong/missing intermediate) makes Node/Bun strict TLS fail 'unable to verify the first certificate' while curl/browsers tolerate it. Symptom: works in curl, fails in a server-runtime fetch.", by: "fdaa", tag: "tls" },
       { t: "Custom-domain cert ordering (GitHub Pages et al.): set DNS FIRST, wait ~30s to propagate, THEN attach the custom domain — the platform runs its DNS check at attach-time and queues the cert immediately; reverse order parks the request 25+ min.", by: "cms", tag: "cert-ordering" },
       { t: "A local dig/curl returning NXDOMAIN can be a STALE macOS mDNSResponder negative-cache (shared by every local session), not a real missing record. Verify against a public resolver — dig @1.1.1.1 <host> / curl --resolve — before calling a domain dead. (This nearly stalled a 15-repo rollout on a false alarm.)", by: "cardmem", tag: "dns-verify" },
+      { t: "Need an R2 bucket? Provision it 100% programmatically (NO dashboard) via dns-mcp's R2Client / MCP tools: r2_list_buckets · r2_create_bucket · r2_create_scoped_token. Creates an EU-jurisdiction bucket + scoped S3 creds (access_key_id / secret / endpoint). EU jurisdiction is set AT creation and is IMMUTABLE → endpoint https://<acct>.eu.r2.cloudflarestorage.com. Proven live (bucket vnleker + read_write creds, S3-list 200).", by: "buddy", tag: "r2-provisioning" },
+      { t: "R2 provisioning needs a token scoped Workers R2 Storage + User API Tokens Write (dns-mcp's CF_BOOTSTRAP_TOKEN, separate from CF_API_TOKEN). The ordinary DNS/zone-scoped CF_API_TOKEN CANNOT do R2 — you get an auth error. Don't waste time debugging the wrong token.", by: "buddy", tag: "r2-token" },
+      { t: "Raw S3 creds from a scoped-token mint (access_key_id / secret / endpoint) go straight into the consumer's gitignored .env — NEVER over intercom or any chat surface. Treat them like any other secret.", by: "buddy", tag: "r2-creds-secrecy" },
     ],
   },
   {
