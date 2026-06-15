@@ -7,8 +7,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 // Single source of truth — shared with scripts/build-inventory.mjs.
 import { DATA, FLEET, MODEL, INFRA } from "../../scripts/inventory-data.mjs";
+// F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
+import { getEnrollStore, type Role } from "./enroll";
 
-const VERSION = "0.2.1";
+const VERSION = "0.3.0";
 
 // The shared data is plain JS (one source for the dashboard + this API); give it
 // a shape here so TS knows the optional fields.
@@ -63,6 +65,9 @@ const packages = components
     description: c.description,
     keywords: c.keywords,
   }));
+
+// Known npm names — the enroll endpoint validates against these so the roster can't be polluted.
+const packageNames = new Set(packages.map((p) => p.name).filter(Boolean) as string[]);
 
 const layers = LAYERS.map((L) => ({ id: L.n, name: L.t, description: L.d, count: L.items.length }));
 
@@ -177,6 +182,9 @@ const manifest = () => ({
     { method: "GET", path: "/api/layers", description: "the inventory layers (L0 Rails … L4 Capstone, SDK)", example: "/api/layers" },
     { method: "GET", path: "/api/stats", description: "totals", example: "/api/stats" },
     { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
+    { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
+    { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
+    { method: "POST", path: "/api/enroll", description: "self-report an enrollment (auth header x-enroll-key). Body {session,pkg,version,role?,commit?,notes?} → auto-added to the roster", example: "/api/enroll" },
   ],
   vocabularies: {
     layers: layers.map((l) => ({ id: l.id, name: l.name })),
@@ -270,6 +278,61 @@ app.get("/api/search", (c) => {
       ),
     ),
   });
+});
+
+// ---- F039 auto-enrollment write-layer ----
+// Live roster: who has adopted which package@version. Reads are public; the
+// overlay sits beside the compiled FLEET roster (which stays canonical).
+app.get("/api/enrollments", async (c) => {
+  const store = await getEnrollStore();
+  if (!store) return c.json({ count: 0, enrollments: [], configured: false });
+  const list = await store.list();
+  return c.json({ count: list.length, enrollments: list });
+});
+
+// A session's status: what it's enrolled in, the newest shipped versions, and
+// the GAP (shipped packages it hasn't adopted yet — "what you could reuse").
+app.get("/api/sessions/:session", async (c) => {
+  const session = c.req.param("session");
+  const store = await getEnrollStore();
+  const enrolled = store ? await store.bySession(session) : [];
+  const have = new Set(enrolled.map((e) => e.pkg));
+  const available = packages.map((p) => ({ package: p.name, version: p.version, layer: p.layer }));
+  const gap = available.filter((a) => !have.has(a.package as string));
+  return c.json({ session, enrolled, available, gap });
+});
+
+// Self-report an enrollment (authed). Validates pkg against the known package
+// list so the roster can't be polluted. Idempotent on (session, pkg).
+app.post("/api/enroll", async (c) => {
+  const key = process.env.ENROLL_KEY;
+  if (!key) return c.json({ error: "enrollment_not_configured" }, 503);
+  if (c.req.header("x-enroll-key") !== key) return c.json({ error: "unauthorized" }, 401);
+  const store = await getEnrollStore();
+  if (!store) return c.json({ error: "enrollment_store_unavailable" }, 503);
+  let body: Record<string, unknown>;
+  try {
+    body = (await c.req.json()) as Record<string, unknown>;
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const session = typeof body.session === "string" ? body.session : "";
+  const pkg = typeof body.pkg === "string" ? body.pkg : "";
+  const version = typeof body.version === "string" ? body.version : "";
+  if (!session || !pkg || !version) return c.json({ error: "session, pkg and version are required" }, 400);
+  if (!packageNames.has(pkg)) {
+    return c.json({ error: `unknown package "${pkg}" — must be a published @broberg package`, packages: [...packageNames] }, 400);
+  }
+  const role: Role = body.role === "src" ? "src" : "uses";
+  const enrollment = await store.upsert({
+    session,
+    pkg,
+    version,
+    role,
+    commit: typeof body.commit === "string" ? body.commit : null,
+    notes: typeof body.notes === "string" ? body.notes : null,
+  });
+  return c.json({ ok: true, enrollment });
 });
 
 export default { port: Number(process.env.PORT) || 3000, fetch: app.fetch };

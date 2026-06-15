@@ -1,4 +1,10 @@
 import { describe, expect, it } from "vitest";
+
+// F039 enroll store: in-memory libSQL for tests (the lazy store reads these at
+// first use, so setting them at module scope is enough).
+process.env.ENROLL_DB_URL = ":memory:";
+process.env.ENROLL_KEY = "test-enroll-key";
+
 import { app } from "./server";
 
 describe("Discovery API", () => {
@@ -165,5 +171,53 @@ describe("Discovery API", () => {
     const mail = await (await app.request("/api/components/F005")).json();
     expect(Array.isArray(mail.keywords)).toBe(true);
     expect(mail.keywords).toContain("email");
+  });
+});
+
+describe("auto-enrollment (F039)", () => {
+  const KEY = "test-enroll-key";
+  const enroll = (body: object, key: string | null = KEY) =>
+    app.request("/api/enroll", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(key ? { "x-enroll-key": key } : {}) },
+      body: JSON.stringify(body),
+    });
+
+  it("POST /api/enroll without a valid key → 401", async () => {
+    expect((await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.1.0" }, null)).status).toBe(401);
+    expect((await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.1.0" }, "wrong")).status).toBe(401);
+  });
+
+  it("POST /api/enroll with an unknown package → 400", async () => {
+    expect((await enroll({ session: "trail", pkg: "@broberg/nope", version: "1.0.0" })).status).toBe(400);
+  });
+
+  it("a valid enroll upserts + shows in the roster + session status (and not in the gap)", async () => {
+    const res = await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.1.0", role: "uses", commit: "f776213" });
+    expect(res.status).toBe(200);
+    expect((await res.json()).enrollment.pkg).toBe("@broberg/mail");
+
+    const roster = await (await app.request("/api/enrollments")).json();
+    expect(roster.enrollments.some((e: { session: string; pkg: string }) => e.session === "trail" && e.pkg === "@broberg/mail")).toBe(true);
+
+    const status = await (await app.request("/api/sessions/trail")).json();
+    expect(status.enrolled.some((e: { pkg: string }) => e.pkg === "@broberg/mail")).toBe(true);
+    expect(status.gap.some((g: { package: string }) => g.package === "@broberg/mail")).toBe(false);
+    expect(status.gap.length).toBeGreaterThan(0); // other shipped packages remain in the gap
+  });
+
+  it("re-enrolling the same (session,pkg) updates in place — no duplicate", async () => {
+    await enroll({ session: "trail", pkg: "@broberg/mail", version: "0.2.0" });
+    const roster = await (await app.request("/api/enrollments")).json();
+    const rows = roster.enrollments.filter((e: { session: string; pkg: string }) => e.session === "trail" && e.pkg === "@broberg/mail");
+    expect(rows.length).toBe(1);
+    expect(rows[0].version).toBe("0.2.0");
+  });
+
+  it("the manifest advertises the enroll endpoints", async () => {
+    const paths = (await (await app.request("/api")).json()).endpoints.map((e: { path: string }) => e.path);
+    expect(paths).toContain("/api/enroll");
+    expect(paths).toContain("/api/enrollments");
+    expect(paths).toContain("/api/sessions/:session");
   });
 });
