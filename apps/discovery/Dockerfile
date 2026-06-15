@@ -14,6 +14,7 @@ RUN bun install
 
 # App source.
 COPY apps/discovery/server.ts ./server.ts
+COPY apps/discovery/enroll.ts ./enroll.ts
 
 ENV PORT=8080
 EXPOSE 8080
