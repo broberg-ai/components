@@ -119,6 +119,8 @@ export const INFRA = [
       { t: "CI builder down (depot timeout)? Build arm64 locally then a Dockerfile.prebuilt that COPYs the prebuilt dist (skips vite-under-qemu) + flyctl deploy --local-only. Rescues prod when CD is red.", by: "cardmem", tag: "deploy-resilience" },
       { t: "SPA shell (index.html) MUST be Cache-Control: no-cache, else a stale index serves the old bundle after deploy. Verify on bundle-hash/content-marker, never curl-200.", by: "cardmem", tag: "spa-cache" },
       { t: "Run one-off in-container scripts without leaking secrets: base64-encode a small script and -C 'sh -c ...base64 -d > /tmp/x.js && bun /tmp/x.js; rm /tmp/x.js'. Secrets stay in the container; only the result comes out.", by: "upmetrics", tag: "ssh-secrets" },
+      { t: "Repeated local Docker builds (e.g. fly deploy --local-only during a CI outage) fill the Docker VM's disk via build-cache → 'No space left on device' mid-build. Fix: docker builder prune -f && docker image prune -f (frees only unused; ~12GB back). Better: a prune step BEFORE each bypass-deploy, or bump Docker Desktop's disk allocation.", by: "cardmem", tag: "docker-disk" },
+      { t: "The CI-outage deploy bypass (Dockerfile.prebuilt + a fly.toml dockerfile-override + .dockerignore negation) is TEMPORARY — NEVER commit it, it breaks normal CD. Revert to depot / normal CD the moment the builder is back.", by: "cardmem", tag: "deploy-resilience" },
     ],
   },
   {
@@ -136,6 +138,7 @@ export const INFRA = [
       { t: "An app-scoped CF_API_TOKEN (Pages/DNS/Turnstile) does NOT carry R2 Storage:Edit or User API Tokens:Edit — R2 needs a separately-scoped token.", by: "cms", tag: "tokens" },
       { t: "Incomplete TLS cert chain (wrong/missing intermediate) makes Node/Bun strict TLS fail 'unable to verify the first certificate' while curl/browsers tolerate it. Symptom: works in curl, fails in a server-runtime fetch.", by: "fdaa", tag: "tls" },
       { t: "Custom-domain cert ordering (GitHub Pages et al.): set DNS FIRST, wait ~30s to propagate, THEN attach the custom domain — the platform runs its DNS check at attach-time and queues the cert immediately; reverse order parks the request 25+ min.", by: "cms", tag: "cert-ordering" },
+      { t: "A local dig/curl returning NXDOMAIN can be a STALE macOS mDNSResponder negative-cache (shared by every local session), not a real missing record. Verify against a public resolver — dig @1.1.1.1 <host> / curl --resolve — before calling a domain dead. (This nearly stalled a 15-repo rollout on a false alarm.)", by: "cardmem", tag: "dns-verify" },
     ],
   },
   {
