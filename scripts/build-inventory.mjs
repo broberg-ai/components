@@ -127,7 +127,7 @@ const CSS = `
   .c:active{transform:translateY(0) scale(.997)}
   .c.shipped{border-color:color-mix(in oklab,var(--green) 55%,var(--border));box-shadow:0 0 0 1px color-mix(in oklab,var(--green) 26%,transparent) inset}
   .c.moved{opacity:.6;border-style:dashed}
-  .c.hide{display:none}
+  .c.hide,.ic.hide{display:none}
   .c-top{display:flex;align-items:flex-start;gap:9px}
   .fnum{font:600 11px ui-monospace,monospace;color:var(--faint);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2px 7px;white-space:nowrap}
   .nm{font-weight:600;font-size:14px;line-height:1.3}
@@ -242,6 +242,9 @@ const JS = [
 "wire('f-status','data-s',function(v){fs=v;});",
 "wire('f-model','data-mod',function(v){fmod=v;});",
 "wire('f-grad','data-g',function(v){fg=v;});",
+"var fip='all';",
+"function applyInfraFilter(){Array.prototype.forEach.call(document.querySelectorAll('.ic'),function(c){c.classList.toggle('hide',!(fip==='all'||c.getAttribute('data-pid')===fip));});}",
+"(function(){var el=document.getElementById('f-infra');if(!el)return;el.addEventListener('click',function(e){var b=e.target.closest('.chip');if(!b)return;fip=b.getAttribute('data-ip');Array.prototype.forEach.call(el.querySelectorAll('.chip'),function(x){x.setAttribute('aria-pressed',x===b);});applyInfraFilter();});})();",
 "var drawer=document.getElementById('drawer'),dback=document.getElementById('dback'),dbody=document.getElementById('dbody'),dclose=document.getElementById('dclose');",
 "var lastFocus=null;",
 "function openDrawer(el){var h=DETAIL[el.getAttribute('data-f')];if(!h)return;lastFocus=el;dbody.innerHTML=h;drawer.classList.add('open');dback.classList.add('open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';if(dclose)dclose.focus();}",
@@ -270,10 +273,13 @@ const fleetHtml = `<section class="fleet">
 const infraCard = (p) => {
   const n = (p.tips||[]).length;
   const reg = p.region && p.region!=="—" ? `<div class="icreg">📍 ${p.region}</div>` : "";
-  return `<div class="ic" data-f="infra-${p.id}" data-testid="inv-infra-${p.id}" role="button" tabindex="0" aria-haspopup="dialog"><div class="ic-h"><span class="icn">${p.name}</span><span class="ictip">${n} tips</span></div><div class="icr">${p.role}</div>${reg}</div>`;
+  return `<div class="ic" data-f="infra-${p.id}" data-pid="${p.id}" data-testid="inv-infra-${p.id}" role="button" tabindex="0" aria-haspopup="dialog"><div class="ic-h"><span class="icn">${p.name}</span><span class="ictip">${n} tips</span></div><div class="icr">${p.role}</div>${reg}</div>`;
 };
+const infraChips = `<button class="chip" data-testid="inv-infra-filter-all" data-ip="all" aria-pressed="true">All</button>` +
+  INFRA.map(p=>`<button class="chip" data-testid="inv-infra-filter-${p.id}" data-ip="${p.id}">${p.name}</button>`).join("");
 const infraHtml = `<section class="infra">
       <div class="layer-h"><span class="n">INFRA</span><span class="t">Best practices</span><span class="d">— the platforms we run on · live tips from the fleet · click a card</span></div>
+      <div class="controls"><div class="fil" id="f-infra"><span class="lbl">Platform</span>${infraChips}</div></div>
       <div class="igrid">${INFRA.map(infraCard).join("")}</div>
     </section>`;
 
@@ -340,7 +346,7 @@ const HTML = `<!doctype html>
       </div>
       <div class="cp">
         <h3>Critical path</h3>
-        <p><code>F001 @broberg/theme</code> (shipped) is the keystone — it unblocks 8 downstream UI components, and everything visual inherits its tokens. It was the first card built; the rest of L0 (config, mail, R2, MCP-toolkit) follows.</p>
+        <p><code>F001 @broberg/theme</code> (shipped) is the keystone — it unblocks 8 downstream UI components, and everything visual inherits its tokens. It was the first card built; the rest of L0 (config, mail, media, MCP-toolkit) follows.</p>
       </div>
     </footer>
   </div>

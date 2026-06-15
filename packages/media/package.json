@@ -1,0 +1,50 @@
+{
+  "name": "@broberg/media",
+  "version": "0.1.0",
+  "description": "The fleet's provider-agnostic media-storage facade — one createMedia() API (upload · signedUrl · delete) over swappable storage providers, so a later move between providers never touches a call-site. Ships with a Cloudflare R2 provider (S3-compatible, SigV4 via aws4fetch — Node/Bun/edge), multi-tenant keyPrefix and EU-jurisdiction support. Start on R2, add S3/Supabase later without changing your code.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "aws4fetch": "^1.0.20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "media",
+    "storage",
+    "object-storage",
+    "r2",
+    "cloudflare",
+    "s3",
+    "upload",
+    "signed-url",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/media"
+  },
+  "publishConfig": { "access": "public" }
+}

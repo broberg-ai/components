@@ -14,7 +14,7 @@ const byKey = Object.fromEntries(SPECS.map(s => [s.key, s]))
 // ---- build order (foundation first) → F-number assignment F001.. ----
 const ORDER = [
   // L0 Rails
-  'tokens', 'stack-b-base', 'stack-a-base', 'config-single-source', 'mail', 'media-r2', 'mcp-toolkit',
+  'tokens', 'stack-b-base', 'stack-a-base', 'config-single-source', 'mail', 'media', 'mcp-toolkit',
   // L1 Identity
   'oauth-login', 'user-mgmt', 'apikey-ratelimit', 'event-log', 'profile-upload', 'gravatar', 'consent-cookie',
   // L2 Shell
@@ -32,7 +32,7 @@ const GRADUATE = new Set(['podcast', 'multi-tenant', 'mobile-boilerplate', 'crea
 const prio = s => s.impact
 const ROLE = {
   tokens: 'infra · design', 'stack-a-base': 'scaffold', 'stack-b-base': 'scaffold',
-  'config-single-source': 'infra', mail: 'backend', 'media-r2': 'backend', 'mcp-toolkit': 'infra · mcp',
+  'config-single-source': 'infra', mail: 'backend', 'media': 'backend', 'mcp-toolkit': 'infra · mcp',
   'oauth-login': 'auth', 'user-mgmt': 'auth', 'profile-upload': 'auth · UI', gravatar: 'backend',
   'event-log': 'backend · GDPR', 'apikey-ratelimit': 'backend · security', 'consent-cookie': 'UI · GDPR',
   settings: 'UI', 'mode-switch': 'UI', cmdk: 'UI', i18n: 'UI · infra', pwa: 'infra', 'ui-controls': 'UI',
@@ -52,7 +52,7 @@ const EDGES = [
   ['tokens', 'forms-turnstile', 'blocks'], ['tokens', 'consent-cookie', 'blocks'], ['tokens', 'mail-templates', 'related'],
   ['mode-switch', 'settings', 'related'],
   ['mail', 'mail-templates', 'blocks'], ['mail', 'user-mgmt', 'related'],
-  ['media-r2', 'profile-upload', 'blocks'],
+  ['media', 'profile-upload', 'blocks'],
   ['oauth-login', 'user-mgmt', 'related'], ['user-mgmt', 'multi-tenant', 'blocks'],
   ['user-mgmt', 'profile-upload', 'related'], ['apikey-ratelimit', 'mcp-toolkit', 'related'],
   ['event-log', 'consent-cookie', 'related'],
