@@ -172,6 +172,19 @@ describe("Discovery API", () => {
     expect(Array.isArray(mail.keywords)).toBe(true);
     expect(mail.keywords).toContain("email");
   });
+
+  it("components carry npm + PUBLIC-repo links; a private repo gets npmUrl but no repoUrl", async () => {
+    const apikey = await (await app.request("/api/components/F010")).json();
+    expect(apikey.npmUrl).toBe("https://www.npmjs.com/package/@broberg/apikey");
+    expect(apikey.repoUrl).toBe("https://github.com/broberg-ai/components");
+    // @broberg/complimenta-sdk is published (public on npm) but its repo (broberg-ai/fdaa) is PRIVATE → no repo link (would 404)
+    const comp = await (await app.request("/api/components/complimenta-sdk")).json();
+    expect(comp.npmUrl).toBe("https://www.npmjs.com/package/@broberg/complimenta-sdk");
+    expect(comp.repoUrl).toBeNull();
+    // /api/packages carries the links too
+    const pkgs = (await (await app.request("/api/packages")).json()).packages;
+    expect(pkgs.find((p: { name: string }) => p.name === "@broberg/apikey").npmUrl).toBeTruthy();
+  });
 });
 
 describe("auto-enrollment (F039) — trust-on-first-use keys", () => {

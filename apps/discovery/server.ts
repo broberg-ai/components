@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 // Single source of truth — shared with scripts/build-inventory.mjs.
-import { DATA, FLEET, MODEL, INFRA } from "../../scripts/inventory-data.mjs";
+import { DATA, FLEET, MODEL, INFRA, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
 import { getEnrollStore, type Role } from "./enroll";
 
@@ -46,6 +46,8 @@ const components = LAYERS.flatMap((L) =>
     note: it.note ?? null,
     description: it.desc ?? null,
     keywords: it.kw ?? [], // search aliases — natural-language / synonym terms a session might type
+    npmUrl: npmUrl(it), // npmjs.com page (shipped npm packages)
+    repoUrl: repoUrl(it), // github.com source — only when verified public, else null
   })),
 );
 
@@ -65,6 +67,8 @@ const packages = components
     layer: c.layer,
     description: c.description,
     keywords: c.keywords,
+    npmUrl: c.npmUrl,
+    repoUrl: c.repoUrl,
   }));
 
 // Known npm names — the enroll endpoint validates against these so the roster can't be polluted.

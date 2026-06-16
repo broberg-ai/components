@@ -72,6 +72,7 @@ export const DATA = [
    {f:"upmetrics-swift",nm:"Telemetry SDK (Swift)",pkg:"upmetrics-swift",kw:["swift","ios","macos","crash reporting","crash","error reporting","sentry","spm","swiftpm","mobile telemetry","apple"],m:"runtime",s:"shipped",ver:"0.1.0",ext:1,dist:"spm",src:"broberg-ai/upmetrics-swift",own:"upmetrics",desc:"Native iOS/macOS error + crash reporting — the Swift sibling of @upmetrics/sdk (same Sentry-envelope contract, public DSN only, async-signal-safe crash capture). Distributed via SwiftPM (git URL), NOT npm: .package(url: \"https://github.com/broberg-ai/upmetrics-swift\", from: \"0.1.0\") → product \"Upmetrics\". First consumers: buddy mobile, notesmem. When a new Swift app needs crash reporting → reuse this, don't build new."},
    {f:"fleet-client",nm:"Fleet client",pkg:"@broberg/fleet-client",kw:["fleet","intercom","dispatch","notify mobile","fleet comms","cross session","board digest","session messaging"],m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"broberg-ai/fleet",own:"fleet (buddy F072)",desc:"The typed fleet-comms client — intercom dispatch, terminal provision, notify-mobile, board digest — validated against fleet-contracts before send. Owned by broberg-ai/fleet. Live as @broberg/fleet-client v0.1.0."},
    {f:"fleet-contracts",nm:"Fleet contracts",pkg:"@broberg/fleet-contracts",kw:["fleet","contracts","zod schemas","fleet endpoints","fleet comms","validation","schema"],m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"broberg-ai/fleet",own:"fleet (buddy F072)",desc:"The fleet-comms contracts — zod schemas + FLEET_ENDPOINTS (the single source of truth) that fleet-client validates against. Owned by broberg-ai/fleet. Live as @broberg/fleet-contracts v0.1.0."},
+   {f:"complimenta-sdk",nm:"Complimenta booking SDK",pkg:"@broberg/complimenta-sdk",kw:["complimenta","booking","reservation","appointment","openapi","oauth2","client credentials","booking sdk","integration","fdaa"],m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"broberg-ai/fdaa",own:"fdaa",desc:"Typed client SDK for the Complimenta booking API — all 40 endpoints, types generated from their OpenAPI spec (openapi-typescript → schema.ts), OAuth2 client-credentials auth, zero runtime deps, Node/Bun/Next. Lives in the fdaa monorepo (packages/complimenta) — the FIRST @broberg package published from a monorepo subdir (token-bootstrapped v0.1.0 by components, then token-free OIDC from its own tag complimenta-sdk-v*). Owner: fdaa (broberg-ai/fdaa). Reuse if you integrate Complimenta. Live as @broberg/complimenta-sdk v0.1.0."},
  ]},
 ];
 
@@ -220,3 +221,41 @@ export const INFRA = [
     ],
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Links — npm package pages + PUBLIC source repos. Single source for BOTH the
+// dashboard generator and the Discovery API. Repo links resolve ONLY to repos
+// verified public on GitHub (snapshot 2026-06-16) so a click never 404s; private
+// client repos (cardmem, sanne, fdaa, dns-mcp, buddy, xrt81, vn-leker, …) get an
+// npm link but no repo link.
+export const PUBLIC_REPOS = new Set([
+  "broberg-ai/components", "broberg-ai/ai-sdk", "broberg-ai/fleet", "broberg-ai/trail",
+  "broberg-ai/upmetrics", "broberg-ai/upmetrics-swift", "broberg-ai/notesmem",
+  "webhousecode/cms", "cbroberg/codepromptmaker", "cbroberg/catan-multi-player",
+]);
+
+// The inventory `src` field is a loose label; map it to the canonical GitHub slug.
+export const REPO_ALIASES = {
+  "broberg/trail": "broberg-ai/trail",
+  "broberg/upmetrics": "broberg-ai/upmetrics",
+  "broberg/cardmem": "broberg-ai/cardmem",
+  "broberg/xrt81": "broberg-ai/xrt81",
+  "webhouse/cms": "webhousecode/cms",
+  "webhouse/sanneandersen": "webhousecode/sanneandersen",
+  "webhouse/fysiodk-aalborg-sport": "webhousecode/fysiodk-aalborg-sport",
+  "webhouse/boilerplates-cms": "webhousecode/boilerplates-cms",
+};
+
+/** npmjs.com page for a shipped npm package (null for unshipped or SwiftPM-only). */
+export function npmUrl(c) {
+  if (!c || !c.pkg || c.s !== "shipped" || c.dist === "spm") return null;
+  return `https://www.npmjs.com/package/${c.pkg}`;
+}
+
+/** github.com link to the source repo — ONLY when verified public, else null. */
+export function repoUrl(c) {
+  const raw = c && c.src;
+  if (!raw || raw === "own repo" || raw === "—" || raw.includes("+")) return null;
+  const slug = REPO_ALIASES[raw] ?? raw;
+  return PUBLIC_REPOS.has(slug) ? `https://github.com/${slug}` : null;
+}

@@ -7,7 +7,7 @@
 // component's facts + a "what it is" blurb. The page dogfoods @broberg/theme tokens.
 
 import { writeFileSync } from "node:fs";
-import { M, MODEL, EFFORT, DATA, FLEET, INFRA } from "./inventory-data.mjs";
+import { M, MODEL, EFFORT, DATA, FLEET, INFRA, npmUrl, repoUrl } from "./inventory-data.mjs";
 
 
 let total=0, ship=0, grad=0, mv=0;
@@ -54,6 +54,14 @@ function detailHtml(it, layerN, layerT){
   if(it.grad) facts += `<dt>Graduate</dt><dd>⬆ gets its own repo + cardmem project</dd>`;
   facts += `<dt>Best source</dt><dd><code>${it.src}</code></dd>`;
   facts += `<dt>Owner</dt><dd>${it.own}</dd>`;
+  const nUrl = npmUrl(it), rUrl = repoUrl(it), fid = it.f.toLowerCase();
+  if(nUrl || rUrl){
+    const links = [
+      nUrl ? `<a href="${nUrl}" target="_blank" rel="noopener" data-testid="d-link-npm-${fid}">npm ↗</a>` : "",
+      rUrl ? `<a href="${rUrl}" target="_blank" rel="noopener" data-testid="d-link-repo-${fid}">GitHub ↗</a>` : "",
+    ].filter(Boolean).join('<span class="d-links-sep">·</span>');
+    facts += `<dt>Links</dt><dd class="d-links">${links}</dd>`;
+  }
   facts += '</dl>';
   return `<div class="d-head"><span class="fnum">${it.f}</span>${badge}</div>`
     + `<h2 class="d-name" id="d-name">${it.nm}</h2>${pkg}${facts}`
@@ -159,6 +167,9 @@ const CSS = `
   .d-facts dt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;padding-top:1px}
   .d-facts dd{font-size:13px;color:var(--fg)}
   .d-facts dd code{font:12px ui-monospace,monospace;background:var(--card);padding:1px 6px;border-radius:5px}
+  .d-links a{color:var(--green);text-decoration:none;font-weight:600}
+  .d-links a:hover{text-decoration:underline}
+  .d-links-sep{color:var(--faint);margin:0 7px}
   .d-model{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:3px}
   .d-desc-h{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700;margin:0 0 7px}
   .d-desc{font-size:14px;line-height:1.62;color:var(--fg)}
