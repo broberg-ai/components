@@ -17,6 +17,10 @@ This repo is the **incubator + home for the small core npm packages** and the ho
 3. **Depth:** DEEP. Full scored inventory **+ a mini-spec per component**, materialized as **F-plans/epics/stories on the cardmem board** (you're enrolled → do it now, not as one flat `.md`).
 4. **Role + LEAP:** You develop strategy + inventory here. `components` = incubator + home for the small core npms. Cardmem gets a new **"LEAP"** feature that promotes a big epic *out* into its own repo + cardmem project — moving its specs out of `components`. `components` stays a multi-package monorepo.
 
+## Guiding ethos — do good, do no evil
+
+broberg.ai builds AI features in the **best possible sense**: AI automation used **operationally** to save real people real time — never to deceive or harm. The case we always take is the **consent-based** one. Concretely, for anything touching a person's identity (the photorealistic portrait/face-LoRA capability is the live example): we generate someone's likeness **only with their explicit sign-off**, and only because it serves *them* (e.g. a customer who wants their own headshots auto-produced to save time). **Never** a deepfake, never a face without consent, never likeness used against the person it belongs to. When an AI capability *could* be misused, the broberg.ai default is the responsible, opt-in, person-serving application — that constraint is part of the product, not an afterthought.
+
 ## The framework to apply
 
 ### Three reuse models — choose the right one *per component*
