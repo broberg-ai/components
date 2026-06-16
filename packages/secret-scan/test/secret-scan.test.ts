@@ -30,6 +30,7 @@ const SAMPLES: Array<[label: string, sample: string]> = [
   ["openrouter-api-key", "sk-or-v1-" + "a1b2c3d4".repeat(8)], // sk-or-v1- + 64 hex
   ["elevenlabs-api-key", "sk_" + "a1b2c3d4".repeat(6)], // sk_ + 48 hex
   ["fal-api-key", "01234567-89ab-cdef-0123-456789abcdef:" + "a1b2c3d4".repeat(4)],
+  ["bfl-api-key", "bfl_" + "Qo1aBcDe".repeat(4)], // bfl_ + 32 token chars
   ["cardmem-webhook-key", "piw_" + "a1b2c3d4".repeat(8)], // piw_ + 64 hex
   ["discord-bot-token", "M" + "A".repeat(24) + ".GhIjKl." + "a".repeat(30)],
   ["discord-mfa-token", "mfa." + "a".repeat(84)],

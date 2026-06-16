@@ -74,6 +74,14 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{32}\b/g,
   },
   {
+    // Black Forest Labs (FLUX) API key — bfl_ prefix + a long token (sample
+    // bfl_Qo1…). The distinctive prefix + {20,} length keeps false positives near
+    // zero; image-provider sibling of the fal key above.
+    label: 'bfl-api-key',
+    description: 'Black Forest Labs / FLUX API key (bfl_ + token)',
+    regex: /\bbfl_[A-Za-z0-9_-]{20,}/g,
+  },
+  {
     label: 'google-api-key',
     description: 'Google / Gemini API key (AIza…)',
     regex: /AIza[0-9A-Za-z_-]{35}/g,
