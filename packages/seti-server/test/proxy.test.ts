@@ -158,6 +158,23 @@ describe("createSetiProxy", () => {
     expect((await res.json()).count).toBe(2);
   });
 
+  it("forwards GET /resolve with the session query + bearer (session→edge resolver)", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/resolve?session=broberg-ai-site");
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer t");
+      return new Response(
+        JSON.stringify({ ok: true, edge: "fly-arn-1", ccSessionId: "abc", cwd: "/data", candidates: 1 }),
+        { status: 200 },
+      );
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/resolve?session=broberg-ai-site");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.edge).toBe("fly-arn-1");
+    expect(body.candidates).toBe(1);
+  });
+
   it("forwards POST lsd/rules/:id/action with the id in the path + body verbatim", async () => {
     const f = mockFetch((url, init) => {
       expect(url).toBe("https://cloud.test/api/seti/v1/lsd/rules/9/action");

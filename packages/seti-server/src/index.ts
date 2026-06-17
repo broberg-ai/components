@@ -104,6 +104,13 @@ export function createSetiProxy(opts: SetiProxyOptions): Hono {
     }
   });
 
+  // Session→edge resolver (buddy F090.5): GET /resolve?session=<name> →
+  // { ok, edge, ccSessionId, cwd, candidates }. Lets a consumer follow a moved /
+  // edge-hosted session to the edge that actually hosts it (fixes "No running
+  // Agent" after a session-move). Sibling to /sessions, not an LSD route; uses the
+  // hoisted forward() helper below (clean passthrough, query preserved).
+  app.get("/resolve", (c) => forward(c, "GET", "resolve"));
+
   // === LSD (live-stream dashboard) — passthroughs to ${cloudUrl}/api/seti/v1/lsd/*
   // (buddy F071.11 / cardmem F082+F144). All are clean passthroughs (query + JSON
   // body forwarded, upstream status returned) EXCEPT /lsd/stream, which is an SSE
