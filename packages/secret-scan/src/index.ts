@@ -102,6 +102,14 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\bgh[posru]_[A-Za-z0-9]{36,}\b/g,
   },
   {
+    // GitHub fine-grained PAT — distinct prefix `github_pat_` (not caught by the
+    // classic gh[posru]_ above), then base62 + a `_` separator (~82 chars total).
+    // The prefix is so distinctive that {50,} keeps false positives at zero.
+    label: 'github-fine-grained-pat',
+    description: 'GitHub fine-grained personal access token (github_pat_…)',
+    regex: /\bgithub_pat_[A-Za-z0-9_]{50,}/g,
+  },
+  {
     label: 'gitlab-token',
     description: 'GitLab personal access token (glpat-…)',
     regex: /\bglpat-[A-Za-z0-9_-]{20,}/g,
