@@ -111,6 +111,13 @@ export function createSetiProxy(opts: SetiProxyOptions): Hono {
   // hoisted forward() helper below (clean passthrough, query preserved).
   app.get("/resolve", (c) => forward(c, "GET", "resolve"));
 
+  // Fleet @mention / intercom delivery (buddy F150): POST /intercom with a JSON
+  // body { to, message, from?, severity? } → routed to the edge hosting `to` by
+  // sessionName (authoritative, works for moved/closed sessions). Response:
+  // 200 {routed,edgeId} · 404 {routed:false,error:"no_edge_for_session"} ·
+  // 400 {error:"invalid_body"}. Body forwarded verbatim; upstream status preserved.
+  app.post("/intercom", (c) => forward(c, "POST", "intercom", true));
+
   // === LSD (live-stream dashboard) — passthroughs to ${cloudUrl}/api/seti/v1/lsd/*
   // (buddy F071.11 / cardmem F082+F144). All are clean passthroughs (query + JSON
   // body forwarded, upstream status returned) EXCEPT /lsd/stream, which is an SSE

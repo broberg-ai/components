@@ -1,6 +1,6 @@
 {
   "name": "@broberg/seti-server",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Mountable Hono proxy router for buddycloud.cc's SETI API v1 — embed SET/SETI live streaming chat in a host app while the consumer token stays server-side (no CORS, host-app auth in front).",
   "type": "module",
   "license": "MIT",

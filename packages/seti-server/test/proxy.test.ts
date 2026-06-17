@@ -175,6 +175,27 @@ describe("createSetiProxy", () => {
     expect(body.candidates).toBe(1);
   });
 
+  it("forwards POST /intercom body verbatim + preserves upstream status (404 = no edge)", async () => {
+    const f = mockFetch((url, init) => {
+      expect(url).toBe("https://cloud.test/api/seti/v1/intercom");
+      expect(init?.method).toBe("POST");
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer t");
+      expect(JSON.parse(String(init?.body))).toEqual({ to: "ghost", message: "hi" });
+      return new Response(
+        JSON.stringify({ routed: false, error: "no_edge_for_session", to: "ghost" }),
+        { status: 404 },
+      );
+    });
+    const app = createSetiProxy({ cloudUrl: "https://cloud.test", token: "t", fetch: f });
+    const res = await app.request("/intercom", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ to: "ghost", message: "hi" }),
+    });
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("no_edge_for_session");
+  });
+
   it("forwards POST lsd/rules/:id/action with the id in the path + body verbatim", async () => {
     const f = mockFetch((url, init) => {
       expect(url).toBe("https://cloud.test/api/seti/v1/lsd/rules/9/action");
