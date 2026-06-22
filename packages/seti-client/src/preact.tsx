@@ -189,7 +189,12 @@ export function SetiChat(props: SetiChatProps) {
           rows={2}
           value={text}
           placeholder={props.placeholder ?? "Skriv til sessionen…"}
-          autocomplete="off"
+          // NB: never autocomplete="off" — on iOS Safari it degrades the whole
+          // keyboard (kills autocorrect/auto-capitalize/dictation + shows the
+          // AutoFill strip). Keep password managers out with these instead.
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
           onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
           onKeyDown={(e) => {
             // Enter sends, Shift+Enter inserts a newline.
