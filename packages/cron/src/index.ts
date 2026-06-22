@@ -7,84 +7,72 @@
  * the API does not) or hand-rolling a scheduler. Dependency-free (raw fetch →
  * Node, Bun and edge alike).
  *
+ * Types are generated from the service's published OpenAPI (`pnpm gen` →
+ * `src/schema.ts`), so the client stays byte-aligned with the contract and a
+ * spec change surfaces as a type error.
+ *
  * Pair it with a per-repo SCOPED token: a scoped CRONJOBS_API_TOKEN only ever
  * sees + touches its own repo's jobs (cross-scope → 404). Put any target secret
  * in a per-job `headers` entry — it is stored server-side and forwarded verbatim
  * on each tick, never placed in the URL or a log.
- *
- * SCAFFOLD NOTE (F041): built against the verified, stable /api/jobs routes.
- * Three spots are flagged `SEAM:` because the cronjobs service is shipping
- * changes (a stable error envelope, idempotent externalId upsert, and an
- * OpenAPI export → generated types). They land when cronjobs deploys rollout
- * step 5; until then the hand-written types + tolerant error parsing stand in.
  */
+
+import type { components, paths } from "./schema";
+
+/** A job as returned by the API. */
+export type Job = components["schemas"]["Job"];
+/** A single run record. */
+export type Execution = components["schemas"]["Execution"];
+/** An API key (metadata only; the plaintext `key` is present once, on mint). */
+export type ApiKey = components["schemas"]["ApiKey"];
+type ApiError = components["schemas"]["Error"];
+/** The closed set of service error codes. */
+export type CronErrorCode = ApiError["error"]["code"];
+
+type JobInput = components["schemas"]["JobInput"];
+export type CronProtocol = NonNullable<JobInput["protocol"]>;
+export type CronMethod = NonNullable<JobInput["method"]>;
+/** Query filters for `listJobs` (search / tag / status / protocol / sort / order / …). */
+export type ListFilter = NonNullable<paths["/api/jobs"]["get"]["parameters"]["query"]>;
+
+/**
+ * Ergonomic job spec — only `name`, `schedule` and `url` are required; the
+ * server fills the rest from its defaults. (The generated `JobInput` marks the
+ * default-bearing fields as always-present, which fits a *response*, not what a
+ * caller must supply — hence the explicit Partial here.) `headers` is an object
+ * (serialised to the API's JSON-string field so target secrets stay server-side)
+ * and `protocol` is optional (inferred from the URL scheme).
+ */
+export interface JobSpec
+  extends Partial<Omit<JobInput, "name" | "schedule" | "url" | "headers" | "protocol">> {
+  name: string;
+  schedule: string;
+  url: string;
+  /** Headers forwarded verbatim to the target on each tick — e.g.
+   * `{ Authorization: "Bearer <secret>" }`. Stored server-side; never in the
+   * URL or a log. Pass an object; it's serialised to the API's `headers` field. */
+  headers?: Record<string, string>;
+  /** Defaults to the URL's own scheme, else "https". */
+  protocol?: CronProtocol;
+}
+
+/** Mint response: the key metadata plus the one-time plaintext `key`. */
+export type MintedKey = ApiKey & { key: string };
 
 const DEFAULT_BASE_URL = "https://cronjobs.webhouse.net";
 
-export type CronProtocol = "https" | "http" | "wss" | "ws";
-export type CronMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
-/** SEAM: confirm the full retry-strategy enum against the OpenAPI export. */
-export type RetryStrategy = "fixed" | "exponential";
-
-export interface JobSpec {
-  /** Human label for the job. */
-  name: string;
-  /** Cron expression, e.g. "0 9 * * 1" (every Monday 09:00). */
-  schedule: string;
-  /** Target URL the cron calls on each tick. */
-  url: string;
-  /** Defaults to the URL's own scheme, else "https". */
-  protocol?: CronProtocol;
-  /** HTTP method for the target call. Server default: GET. */
-  method?: CronMethod;
-  /**
-   * Headers forwarded verbatim to the target on every tick — put a target
-   * secret here, e.g. `{ Authorization: "Bearer <secret>" }`. Stored
-   * server-side, never placed in the URL or a log. Pass an object; the client
-   * serialises it to the API's JSON-string `headers` field.
-   */
-  headers?: Record<string, string>;
-  /** IANA timezone. Server default: Europe/Copenhagen. */
-  timezone?: string;
-  /** Per-tick request timeout in ms. Server default: 30000. */
-  timeout?: number;
-  /** Retry attempts on a failed tick. Server default: 0. */
-  retryCount?: number;
-  /** Server default: "fixed". */
-  retryStrategy?: RetryStrategy;
-  /** Whether the job runs. Server default: true. */
-  enabled?: boolean;
-  tags?: string[];
-  /**
-   * Stable client-supplied key for idempotent upsert — re-running a deploy
-   * updates the same job instead of duplicating it.
-   * SEAM: upsert semantics land in the cronjobs service (rollout step 5). Until
-   * then a repeated create with the same externalId still makes a new job.
-   */
-  externalId?: string;
-}
-
-export interface ListFilter {
-  search?: string;
-  tag?: string;
-  status?: string;
-  protocol?: CronProtocol;
-  sort?: string;
-  order?: "asc" | "desc";
-}
-
-/**
- * A job as returned by the API. SEAM: permissive (open index signature) until
- * cronjobs exports its zod / OpenAPI types — swap this for the generated `Job`
- * type then so a contract change surfaces as a type error.
- */
-export interface Job {
-  id: string;
-  name: string;
-  schedule: string;
-  url: string;
-  enabled?: boolean;
-  [key: string]: unknown;
+/** Thrown on any non-2xx response (and on a missing token/fetch). Carries the service error envelope. */
+export class CronError extends Error {
+  readonly status: number;
+  readonly code?: CronErrorCode;
+  readonly details?: unknown;
+  constructor(status: number, message: string, code?: CronErrorCode, details?: unknown) {
+    super(message);
+    this.name = "CronError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
 }
 
 export interface CronClientConfig {
@@ -96,41 +84,39 @@ export interface CronClientConfig {
   fetch?: typeof fetch;
 }
 
-/** Thrown on any non-2xx response (and on missing token/fetch). Carries the service error envelope. */
-export class CronError extends Error {
-  readonly status: number;
-  readonly code?: string;
-  readonly details?: unknown;
-  constructor(status: number, message: string, code?: string, details?: unknown) {
-    super(message);
-    this.name = "CronError";
-    this.status = status;
-    this.code = code;
-    this.details = details;
-  }
-}
-
 export interface CronClient {
-  /** Register a new job. */
+  /**
+   * Register a job. Pass a stable `externalId` to make it idempotent: re-running
+   * a deploy upserts the SAME job (200 updated / 201 created) instead of
+   * duplicating it. This is also the canonical *update* path — re-`createJob`
+   * with the same `externalId` rather than tracking ids.
+   */
   createJob(spec: JobSpec): Promise<Job>;
   getJob(id: string): Promise<Job>;
   listJobs(filter?: ListFilter): Promise<Job[]>;
-  updateJob(id: string, patch: Partial<JobSpec>): Promise<Job>;
   deleteJob(id: string): Promise<void>;
-  /** Disable a job (PUT enabled=false) without deleting it. */
-  pauseJob(id: string): Promise<Job>;
-  /** Re-enable a paused job. */
-  resumeJob(id: string): Promise<Job>;
-  /** Fire the job once, now. */
-  runJob(id: string): Promise<Job>;
-  /** Lightweight run/health status for a job. */
-  getStatus(id: string): Promise<unknown>;
+  /** Idempotently disable a job (no-op if already disabled). */
+  pauseJob(id: string): Promise<boolean>;
+  /** Idempotently enable a job (no-op if already enabled). */
+  resumeJob(id: string): Promise<boolean>;
+  /** Flip enabled; returns the new state. */
+  toggleJob(id: string): Promise<boolean>;
+  /** Fire the job once, now; returns the resulting run. */
+  runJob(id: string): Promise<Execution>;
+  /** Recent run history (newest first). */
+  getExecutions(id: string): Promise<Execution[]>;
+  /**
+   * Mint a new API key. Requires a session/admin token (scoped tokens get 403).
+   * Omit `scope` for a full-access token (session only). The plaintext `key` is
+   * returned ONCE — store it immediately; it is never retrievable again.
+   */
+  mintKey(input: { name: string; scope?: string }): Promise<MintedKey>;
 }
 
 function inferProtocol(url: string, explicit?: CronProtocol): CronProtocol {
   if (explicit) return explicit;
   const m = /^(https?|wss?):/i.exec(url);
-  return (m ? m[1].toLowerCase() : "https") as CronProtocol;
+  return m ? (m[1].toLowerCase() as CronProtocol) : "https";
 }
 
 /** Map the ergonomic JobSpec to the API request body (headers object → JSON string). */
@@ -155,20 +141,12 @@ function safeJson(text: string): unknown {
   }
 }
 
-/**
- * SEAM: tolerant parse of BOTH today's inconsistent shapes ({error:string} or a
- * zod-flatten) AND the coming stable {error:{code,message,details?}}. Tighten to
- * just the stable shape once cronjobs ships the envelope.
- */
 function parseError(status: number, body: unknown): CronError {
-  const b = body as { error?: unknown; message?: string } | undefined;
-  const e = b?.error;
-  if (e && typeof e === "object") {
-    const eo = e as { code?: string; message?: string; details?: unknown };
-    return new CronError(status, eo.message ?? `cron_http_${status}`, eo.code, eo.details);
+  const env = (body as Partial<ApiError> | undefined)?.error;
+  if (env && typeof env === "object") {
+    return new CronError(status, env.message ?? `cron_http_${status}`, env.code, env.details);
   }
-  const message = typeof e === "string" ? e : (b?.message ?? `cron_http_${status}`);
-  return new CronError(status, message);
+  return new CronError(status, `cron_http_${status}`);
 }
 
 export function createCron(config: CronClientConfig = {}): CronClient {
@@ -202,26 +180,35 @@ export function createCron(config: CronClientConfig = {}): CronClient {
     return s ? `?${s}` : "";
   }
 
-  const id = (v: string) => encodeURIComponent(v);
+  const eid = (v: string) => encodeURIComponent(v);
+  const jobPath = (id: string) => `/api/jobs/${eid(id)}`;
+
+  const toggle = (id: string) =>
+    request<{ enabled: boolean }>("POST", `${jobPath(id)}/toggle`).then((r) => r.enabled);
+
+  // Idempotent enable/disable: only flip when the current state differs, so
+  // calling pause twice is a no-op rather than re-enabling.
+  async function setEnabled(id: string, enabled: boolean): Promise<boolean> {
+    const job = await request<Job>("GET", jobPath(id));
+    if (job.enabled === enabled) return enabled;
+    return toggle(id);
+  }
 
   return {
     createJob: (spec) => request<Job>("POST", "/api/jobs", toBody(spec)),
-    getJob: (jobId) => request<Job>("GET", `/api/jobs/${id(jobId)}`),
-    listJobs: async (filter) => {
-      // SEAM: list envelope (bare array vs {jobs}/{data}) — confirm against the OpenAPI.
-      const data = await request<Job[] | { jobs?: Job[]; data?: Job[] }>(
-        "GET",
-        `/api/jobs${qs(filter)}`,
-      );
-      return Array.isArray(data) ? data : (data.jobs ?? data.data ?? []);
+    getJob: (id) => request<Job>("GET", jobPath(id)),
+    listJobs: (filter) => request<Job[]>("GET", `/api/jobs${qs(filter)}`),
+    deleteJob: async (id) => {
+      await request<void>("DELETE", jobPath(id));
     },
-    updateJob: (jobId, patch) => request<Job>("PUT", `/api/jobs/${id(jobId)}`, toBody(patch)),
-    deleteJob: async (jobId) => {
-      await request<void>("DELETE", `/api/jobs/${id(jobId)}`);
-    },
-    pauseJob: (jobId) => request<Job>("PUT", `/api/jobs/${id(jobId)}`, { enabled: false }),
-    resumeJob: (jobId) => request<Job>("PUT", `/api/jobs/${id(jobId)}`, { enabled: true }),
-    runJob: (jobId) => request<Job>("POST", `/api/jobs/${id(jobId)}/run`),
-    getStatus: (jobId) => request<unknown>("GET", `/api/jobs/${id(jobId)}/status`),
+    pauseJob: (id) => setEnabled(id, false),
+    resumeJob: (id) => setEnabled(id, true),
+    toggleJob: (id) => toggle(id),
+    runJob: (id) => request<Execution>("POST", `${jobPath(id)}/run`),
+    getExecutions: (id) =>
+      request<{ executions?: Execution[] }>("GET", `${jobPath(id)}/executions`).then(
+        (r) => r.executions ?? [],
+      ),
+    mintKey: (input) => request<MintedKey>("POST", "/api/keys", input),
   };
 }
