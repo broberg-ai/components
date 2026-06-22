@@ -1,0 +1,45 @@
+{
+  "name": "@broberg/cron",
+  "version": "0.1.0",
+  "description": "Typed self-service client for cronjobs.webhouse.net — register + manage HTTP cron jobs over the Bearer-authed /api/jobs API (create/list/update/delete/pause/run), with a per-repo scoped token and per-job target headers kept server-side (never in the URL or logs). Dependency-free; runs in Node, Bun and edge.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "cron",
+    "scheduler",
+    "scheduled-jobs",
+    "cronjobs",
+    "http-cron",
+    "jobs",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/cron"
+  },
+  "publishConfig": { "access": "public" }
+}
