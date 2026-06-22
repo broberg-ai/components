@@ -164,6 +164,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lightweight job status for external monitoring
+         * @description Curated status (job summary + last execution). Designed for uptime /
+         *     monitoring probes. `ok` is true when the last run succeeded or never ran.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JobStatus"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/{id}/run": {
         parameters: {
             query?: never;
@@ -1028,6 +1071,37 @@ export interface components {
         ExecutionWithJob: components["schemas"]["Execution"] & {
             jobName?: string;
             jobUrl?: string;
+        };
+        JobStatus: {
+            id?: string;
+            name?: string;
+            enabled?: boolean;
+            schedule?: string;
+            timezone?: string;
+            url?: string;
+            /** @description true if last run succeeded or never ran */
+            ok?: boolean;
+            lastRunStatus?: string | null;
+            /** @description Unix ms */
+            lastRunAt?: number | null;
+            /** @description Unix ms */
+            nextRunAt?: number | null;
+            lastExecution?: {
+                id?: string;
+                /** @enum {string} */
+                status?: "success" | "failure" | "timeout" | "running" | "skipped";
+                /** @description Unix ms */
+                startedAt?: number;
+                completedAt?: number | null;
+                /** @description ms */
+                duration?: number | null;
+                statusCode?: number | null;
+                errorMessage?: string | null;
+                responseBody?: string | null;
+                retryAttempt?: number;
+                /** @enum {string} */
+                triggeredBy?: "schedule" | "manual" | "webhook" | "retry";
+            } | null;
         };
         Notification: {
             id?: string;

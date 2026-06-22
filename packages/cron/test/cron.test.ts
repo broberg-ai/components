@@ -89,6 +89,14 @@ describe("createCron — run / executions / delete", () => {
     expect(execs.map((e) => e.id)).toEqual(["e1", "e2"]);
   });
 
+  it("getStatus GETs /{id}/status and returns the health snapshot", async () => {
+    const { f, calls } = mkFetch(() => ({ body: { id: "job_1", ok: true, lastRunStatus: "success" } }));
+    const status = await createCron({ ...base, fetch: f }).getStatus("job_1");
+    expect(calls[0].url).toBe("https://cronjobs.webhouse.net/api/jobs/job_1/status");
+    expect(calls[0].method).toBe("GET");
+    expect(status.ok).toBe(true);
+  });
+
   it("deleteJob issues a DELETE", async () => {
     const { f, calls } = mkFetch(() => ({ status: 204, body: {} }));
     await createCron({ ...base, fetch: f }).deleteJob("job_1");

@@ -71,7 +71,7 @@ privileged path); ordinary repos consume a scoped token they were provisioned.
 - `createCron(config?) → CronClient` — `config: { token?, baseUrl?, fetch? }`.
 - `createJob(spec)` (upsert via `externalId`) · `getJob(id)` · `listJobs(filter?)`
   · `deleteJob(id)` · `pauseJob(id)` · `resumeJob(id)` · `toggleJob(id)` ·
-  `runJob(id)` · `getExecutions(id)` · `mintKey({name, scope?})`.
+  `runJob(id)` · `getExecutions(id)` · `getStatus(id)` · `mintKey({name, scope?})`.
 - `CronError` — thrown on any non-2xx (and on a missing token/fetch).
 
 Owned + published by [`broberg-ai/components`](https://github.com/broberg-ai/components)

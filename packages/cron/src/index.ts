@@ -23,6 +23,8 @@ import type { components, paths } from "./schema";
 export type Job = components["schemas"]["Job"];
 /** A single run record. */
 export type Execution = components["schemas"]["Execution"];
+/** A lightweight health snapshot for a job (ok + last/next run + last execution). */
+export type JobStatus = components["schemas"]["JobStatus"];
 /** An API key (metadata only; the plaintext `key` is present once, on mint). */
 export type ApiKey = components["schemas"]["ApiKey"];
 type ApiError = components["schemas"]["Error"];
@@ -105,6 +107,8 @@ export interface CronClient {
   runJob(id: string): Promise<Execution>;
   /** Recent run history (newest first). */
   getExecutions(id: string): Promise<Execution[]>;
+  /** Lightweight health snapshot: `ok` + last/next run + the last execution. */
+  getStatus(id: string): Promise<JobStatus>;
   /**
    * Mint a new API key. Requires a session/admin token (scoped tokens get 403).
    * Omit `scope` for a full-access token (session only). The plaintext `key` is
@@ -209,6 +213,7 @@ export function createCron(config: CronClientConfig = {}): CronClient {
       request<{ executions?: Execution[] }>("GET", `${jobPath(id)}/executions`).then(
         (r) => r.executions ?? [],
       ),
+    getStatus: (id) => request<JobStatus>("GET", `${jobPath(id)}/status`),
     mintKey: (input) => request<MintedKey>("POST", "/api/keys", input),
   };
 }
