@@ -162,6 +162,21 @@ export const INFRA = [
     ],
   },
   {
+    id: "stripe", name: "Stripe", role: "Payments — Checkout (hosted + embedded), Connect commissions, E2E via Lens",
+    kw: ["stripe","checkout","payment","payments","card","pay","hosted checkout","stripe elements","connect","application_fee","commission","transfer_data","e2e","test mode","sk_test","shop","webshop"],
+    region: "—",
+    notes: "Stripe is the fleet's payments provider (e-shops: sanne, more coming). The hard-won win is 100% hands-off E2E of a real test-mode payment via Cardmem Lens (lens_run_flow). The make-or-break insight: Stripe HOSTED checkout (checkout.stripe.com, redirect flow) renders the card fields in the TOP-FRAME — NOT in the PCI iframes — so you do NOT use @frame there (the @frame-chain is only for EMBEDDED Stripe Elements on your own page). Drive it with Lens step primitives (clickSelector, fillSelector, waitForUrl, inspect — there is no js-eval step); use inspect for CSP-safe selector discovery. Verify the payment + commission afterwards from the sk_test API. Full runnable manuscript + flow live in Trail (sanneandersen, \"Stripe hosted-checkout 100% e2e via Lens\").",
+    tips: [
+      { t: "HOSTED checkout (checkout.stripe.com) renders card fields in the TOP-FRAME, not PCI-iframes — do NOT use @frame. @frame-chain is only for EMBEDDED Stripe Elements on your own page.", by: "sanne", tag: "frames" },
+      { t: "Lens E2E primitives (lens_run_flow): clickSelector, fillSelector (CSS + value + optional frame), waitForUrl (redirect-back assert), inspect (CSP-safe DOM dump for selector discovery). No js-eval step exists.", by: "sanne", tag: "lens" },
+      { t: "Hosted da-locale selector set: pick card via the ROW [data-testid='card-accordion-item'] (NOT -button/-radio, which are 'not visible'); fields input[name='cardNumber'] · input[name='cardExpiry'] (value '12 / 34') · input[name='cardCvc'] · input[name='billingName']; pay [data-testid='hosted-payment-submit-button']; assert waitForUrl '/shop/receipt/'.", by: "sanne", tag: "selectors" },
+      { t: "Physical goods (shipping_address_collection): input[name='shippingName'|'shippingAddressLine1'|'shippingAddressLine2'|'shippingPostalCode'|'shippingLocality'] + select[name='shippingCountry'] (DK default). cardUseShippingAsBilling is usually checked → billingName hidden; fill shipping only.", by: "sanne", tag: "shipping" },
+      { t: "Gotcha — Stripe Link: an email already known to Link shows an OTP 'confirm it's you' instead of the card form. Use fresh plus-addresses (cb+testN@domain) → no Link prompt.", by: "sanne", tag: "link-otp" },
+      { t: "Gotcha — accordion: with multiple methods enabled (Card + Klarna) the card fields stay COLLAPSED until 'Kort'/'Card' is selected. Click the card row first.", by: "sanne", tag: "accordion" },
+      { t: "Verify post-payment via sk_test: GET /v1/checkout/sessions?expand[]=data.payment_intent — application_fee_amount is ONLY present on a PAID session (on an open one payment_intent=null). commission / transfer_data / amount_total / shipping_address_collection all readable.", by: "sanne", tag: "verify" },
+    ],
+  },
+  {
     id: "supabase", name: "Supabase", role: "Postgres + auth (sanne, xrt81, fds, fdaa)",
     kw: ["supabase","postgres","postgresql","database","db","auth","authentication","storage","rls","row level security","sql"],
     region: "Always arn (Stockholm)",
