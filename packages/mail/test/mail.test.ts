@@ -11,6 +11,16 @@ function okFetch(id = "msg_1") {
   return vi.fn(async () => new Response(JSON.stringify({ id }), { status: 200 })) as unknown as typeof fetch;
 }
 
+/** A fetch that records each Resend payload so tests can assert on the body sent. */
+function captureFetch() {
+  const calls: Record<string, any>[] = [];
+  const f = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ id: "msg" }), { status: 200 });
+  }) as unknown as typeof fetch;
+  return { f, calls };
+}
+
 describe("buildFrom", () => {
   it("composes Name <addr> and passes a bare address through", () => {
     expect(buildFrom("Sanne Andersen", "noreply@webhouse.dk")).toBe(
@@ -155,10 +165,111 @@ describe("createMailer.send", () => {
   });
 });
 
+describe("createMailer.send — MailID correlation footer (F040.1)", () => {
+  const base = { apiKey: "re_x", from: "n@webhouse.dk", live: true } as const;
+
+  it("no mailId ⇒ body is sent unchanged (backward compatible)", async () => {
+    const { f, calls } = captureFetch();
+    await createMailer({ ...base, fetch: f }).send({
+      to: "u@example.com",
+      subject: "s",
+      html: "<p>hi</p>",
+      text: "hi",
+    });
+    expect(calls[0].html).toBe("<p>hi</p>");
+    expect(calls[0].text).toBe("hi");
+  });
+
+  it("config.mailId ⇒ a real, faint 'Ref: <token>' footer is appended to html + text", async () => {
+    const { f, calls } = captureFetch();
+    await createMailer({ ...base, mailId: "CM-abc123", fetch: f }).send({
+      to: "u@example.com",
+      subject: "s",
+      html: "<p>hi</p>",
+      text: "hi",
+    });
+    expect(calls[0].html).toContain("Ref: CM-abc123");
+    expect(calls[0].text).toContain("Ref: CM-abc123");
+    // real, visible text — never display:none / white-on-white (stripped on reply + spam-flagged)
+    expect(calls[0].html).not.toMatch(/display\s*:\s*none/i);
+    expect(calls[0].html).toContain("color:#9ca3af");
+    // original content preserved
+    expect(calls[0].html).toContain("<p>hi</p>");
+    expect(calls[0].text.startsWith("hi")).toBe(true);
+  });
+
+  it("message.mailId overrides config.mailId for that send", async () => {
+    const { f, calls } = captureFetch();
+    await createMailer({ ...base, mailId: "CM-config", fetch: f }).send({
+      to: "u@example.com",
+      subject: "s",
+      text: "hi",
+      mailId: "CM-override",
+    });
+    expect(calls[0].text).toContain("Ref: CM-override");
+    expect(calls[0].text).not.toContain("CM-config");
+  });
+
+  it("idempotent ⇒ a body already carrying the token is not double-stamped", async () => {
+    const { f, calls } = captureFetch();
+    await createMailer({ ...base, mailId: "CM-once", fetch: f }).send({
+      to: "u@example.com",
+      subject: "s",
+      html: "<p>hi</p><span>Ref: CM-once</span>",
+    });
+    expect(calls[0].html.match(/CM-once/g)).toHaveLength(1);
+  });
+
+  it("inserts the footer just before </body> in a full html document", async () => {
+    const { f, calls } = captureFetch();
+    await createMailer({ ...base, mailId: "CM-doc", fetch: f }).send({
+      to: "u@example.com",
+      subject: "s",
+      html: "<html><body><p>hi</p></body></html>",
+    });
+    const html = calls[0].html as string;
+    expect(html.indexOf("CM-doc")).toBeLessThan(html.indexOf("</body>"));
+  });
+
+  it("only stamps the body parts that exist (html-only ⇒ no text part invented)", async () => {
+    const { f, calls } = captureFetch();
+    await createMailer({ ...base, mailId: "CM-htmlonly", fetch: f }).send({
+      to: "u@example.com",
+      subject: "s",
+      html: "<p>hi</p>",
+    });
+    expect(calls[0].html).toContain("CM-htmlonly");
+    expect(calls[0].text).toBeUndefined();
+  });
+
+  it("the token survives plain-text in a quoted reply (the routing property)", async () => {
+    const { f, calls } = captureFetch();
+    await createMailer({ ...base, mailId: "CM-reply7", fetch: f }).send({
+      to: "u@example.com",
+      subject: "s",
+      text: "Hello",
+    });
+    const sent = calls[0].text as string;
+    // a typical reply quotes the original beneath the new text
+    const reply = `Thanks!\n\nOn Mon someone wrote:\n> ${sent.split("\n").join("\n> ")}`;
+    expect(reply).toContain("CM-reply7"); // cardmem's body substring-match would find it
+  });
+});
+
 describe("createMailerFromEnv", () => {
   const saved = { ...process.env };
   afterEach(() => {
     process.env = { ...saved };
+  });
+
+  it("reads MAIL_ID into the correlation footer", async () => {
+    process.env.RESEND_API_KEY = "re_env";
+    process.env.MAIL_FROM = "n@webhouse.dk";
+    process.env.MAIL_LIVE = "true";
+    process.env.MAIL_ID = "CM-env9";
+    const { f, calls } = captureFetch();
+    await createMailerFromEnv({ fetch: f }).send({ to: "u@example.com", subject: "s", text: "hi" });
+    expect(calls[0].text).toContain("Ref: CM-env9");
   });
 
   it("reads RESEND_API_KEY / MAIL_FROM / MAIL_ALLOWLIST and gates accordingly", async () => {

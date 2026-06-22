@@ -63,6 +63,29 @@ const mailer = createMailer({
 | `MAIL_DISABLED` | `1`/`true` ⇒ hard kill-switch (every send a no-op). |
 | `MAIL_LIVE` | `1`/`true` ⇒ deliver to anyone. Default: live when a key is set. |
 | `MAIL_ALLOWLIST` | Comma-separated recipients allowed when **not** live. |
+| `MAIL_ID` | Per-project **cardmem MailID** stamped on every send (see below). |
+
+## Project correlation — the cardmem MailID
+
+Pass a per-project `mailId` (on the mailer config, or per `send()`) and a
+discreet `Ref: <mailId>` footer is appended to **every** outbound mail — html
+*and* text. cardmem watches `cb@webhouse.dk` for that code and auto-routes the
+mail (and its quoted replies) into the right project's Inbox, and filters its own
+E2E test mail by it.
+
+```ts
+const mailer = createMailer({ apiKey, from: "noreply@webhouse.dk", mailId: "CM-3k9f…" });
+// every send now carries: <div style="…color:#9ca3af">Ref: CM-3k9f…</div>  (+ "Ref: CM-3k9f…" in text)
+```
+
+- The token is **read verbatim** — cardmem generates + owns it (project config
+  `settings_json.mail_id`, format `CM-`+20 Crockford base32). This package never
+  generates or reformats it.
+- The footer is **real, faint text** — never `display:none`/white-on-white,
+  which gets stripped on reply and hurts spam scoring. That's what lets it
+  survive in a quoted reply.
+- **Idempotent**: a body already carrying the token is not double-stamped.
+- Absent `mailId` ⇒ no footer (backward compatible).
 
 ## API
 

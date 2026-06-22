@@ -1,6 +1,6 @@
 {
   "name": "@broberg/mail",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The fleet's thin Resend send primitive — one dependency-free way to send transactional mail (raw REST, runs in Node/Bun/edge), with a dev kill-switch + recipient allowlist so test sends never reach real users and a typed {ok,id?,error?} return that never throws.",
   "type": "module",
   "license": "MIT",
