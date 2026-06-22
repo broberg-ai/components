@@ -72,6 +72,28 @@ export function coerceInt(
   return n;
 }
 
+/**
+ * Read a floating-point env var, falling back when it's absent/empty. Throws on
+ * a present-but-non-numeric value — a typo should fail loudly, not coerce to
+ * `NaN`. The float sibling of {@link coerceInt}: use it for ratios / multipliers
+ * where a non-integer is valid (e.g. `3.0`). `Infinity`/`NaN` are rejected.
+ *
+ * @param source Defaults to `process.env`; pass any record to test.
+ */
+export function coerceNum(
+  name: string,
+  fallback: number,
+  source: Record<string, string | undefined> = process.env,
+): number {
+  const raw = source[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    throw new Error(`Config error: ${name} must be a number, got ${JSON.stringify(raw)}`);
+  }
+  return n;
+}
+
 const TRUE_VALUES = new Set(["true", "1", "yes", "on"]);
 const FALSE_VALUES = new Set(["false", "0", "no", "off"]);
 

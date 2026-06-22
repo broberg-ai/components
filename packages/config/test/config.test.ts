@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { coerceBool, coerceInt, defineConfig, parseEnv, productionGuard } from "../src/index";
+import { coerceBool, coerceInt, coerceNum, defineConfig, parseEnv, productionGuard } from "../src/index";
 
 describe("parseEnv", () => {
   const schema = z.object({
@@ -52,6 +52,22 @@ describe("coerceInt", () => {
   it("throws on a present non-integer (loud, not NaN)", () => {
     expect(() => coerceInt("X", 42, { X: "abc" })).toThrow(/must be an integer/);
     expect(() => coerceInt("X", 42, { X: "1.5" })).toThrow(/must be an integer/);
+  });
+});
+
+describe("coerceNum", () => {
+  it("uses the fallback when absent or empty", () => {
+    expect(coerceNum("X", 3, {})).toBe(3);
+    expect(coerceNum("X", 3, { X: "" })).toBe(3);
+  });
+  it("parses a present float or integer", () => {
+    expect(coerceNum("X", 1, { X: "3.0" })).toBe(3);
+    expect(coerceNum("X", 1, { X: "2.5" })).toBe(2.5);
+    expect(coerceNum("X", 1, { X: "7" })).toBe(7);
+  });
+  it("throws on a present non-number (loud, not NaN)", () => {
+    expect(() => coerceNum("X", 1, { X: "abc" })).toThrow(/must be a number/);
+    expect(() => coerceNum("X", 1, { X: "Infinity" })).toThrow(/must be a number/);
   });
 });
 

@@ -54,16 +54,17 @@ import { defineConfig } from "@broberg/config";
 export const FEES = defineConfig({ platformPercent: 5, payoutDelayDays: 7 });
 ```
 
-## `coerceInt(name, fallback, source?)` / `coerceBool(name, fallback, source?)`
+## `coerceInt` / `coerceNum` / `coerceBool` `(name, fallback, source?)`
 
 The no-Zod escape hatch for the lightweight plain-object pattern. Read one var
 with a fallback when absent; **throw loudly** on a present-but-malformed value
 (a typo'd number/bool should fail, not silently become `NaN`/`false`).
 
 ```ts
-import { coerceInt, coerceBool } from "@broberg/config";
+import { coerceInt, coerceNum, coerceBool } from "@broberg/config";
 
-const quorum = coerceInt("GF_QUORUM", 3); // throws on "abc" / "1.5"
+const quorum = coerceInt("GF_QUORUM", 3); // integer; throws on "abc" / "1.5"
+const ratio = coerceNum("DEPLOY_REGRESSION_MULTIPLIER", 3.0); // float ok; throws on "abc" / "Infinity"
 const live = coerceBool("MAIL_LIVE", false); // true/false/1/0/yes/no/on/off
 ```
 
