@@ -24,14 +24,14 @@ That is the **#1 blocker**. Secondarily, apps want **WebP + responsive derivativ
                                 for each variant ─────┘──▶ media.upload(key, variant.bytes, {contentType})
 ```
 
-## The contract (consumer-validated — xrt81 #5926)
+## The contract (consumer-validated — xrt81 #5926, locked)
 
 ```ts
 import { transformImage } from "@broberg/media-transform";
 
 const { variants, orientationFixed } = await transformImage(bytes, {
   heicToJpeg: true,                 // decode HEIC/HEIF → JPEG first (the blocker)
-  keepOriginal: true,               // also return the (oriented) original as a variant
+  keepOriginal: true,               // also return the (oriented, EXIF-stripped) original as a variant
   variants: [
     { name: "thumb", maxEdge: 320,  format: "webp", quality: 80 },
     { name: "grid",  maxEdge: 800,  format: "webp", quality: 80 },
@@ -47,8 +47,8 @@ const { variants, orientationFixed } = await transformImage(bytes, {
 **Behaviour:**
 1. **HEIC→JPEG decode** when input is HEIC/HEIF (and `heicToJpeg`). Universal display + vision-ready.
 2. **Responsive derivatives** at configurable **longest-edge** (`maxEdge`) sizes, aspect preserved, `quality` (default ~80), `format` per-variant (`webp`|`jpeg`).
-3. **EXIF orientation** — auto-rotate (iPhone photos carry an orientation tag), and **strip EXIF from derivatives** (the consumer extracts EXIF separately *before* calling, e.g. for reverse-geocode). `orientationFixed` reports whether rotation was applied.
-4. **keep-original** option — return the orientation-normalised original alongside derivatives so the app can store original + derivatives each under its own storage key.
+3. **EXIF orientation + privacy strip** — auto-rotate (iPhone photos carry an orientation tag), then **strip EXIF from _every_ output variant, including keep-original**. Consumers extract EXIF separately *before* calling (e.g. xrt81 reads it into `photos.exif` for reverse-geocode), so provenance lives in their DB; stripping GPS/location from any on-disk file is the privacy-safe default if an original is ever downloaded or shared. `orientationFixed` reports whether rotation was applied.
+4. **keep-original** option — return the orientation-normalised, EXIF-stripped original alongside derivatives so the app can store original + derivatives each under its own storage key.
 
 The function is **storage-agnostic**: it returns buffers + dims; the caller owns keys and calls `@broberg/media`.
 
@@ -72,7 +72,7 @@ The function is **storage-agnostic**: it returns buffers + dims; the caller owns
   - (a) libvips built **with libheif** (control the binary), or
   - (b) `heic-convert` / **libheif-wasm** for the HEIC→raw step only, then hand off to sharp for resize/encode.
   - Lean (b) first if it keeps the install portable and Bun-safe; fall back to (a) if perf/quality demands it.
-- **Bun compatibility (hard gate):** xrt81 runs **Bun + Hono**. `sharp` is a native N-API addon — historically finicky under Bun. The spike must **prove it loads + runs under Bun**, else ship a documented Bun-safe path: wasm-only pipeline, or a **Node sidecar** pattern (transform runs in a tiny Node process the Bun app calls). Document whichever wins.
+- **Bun compatibility (hard gate):** xrt81 runs **Bun + Hono**. `sharp` is a native N-API addon — historically finicky under Bun. The spike must **prove it loads + runs under Bun**, else ship a documented Bun-safe path: wasm-only pipeline, or a **Node sidecar** pattern (transform runs in a tiny Node process the Bun app calls). Document whichever wins. **xrt81 will report real data from their Bun+Hono env** (#5928).
 - **Ship-dark:** package imports cleanly even if the native engine is absent in an environment; a missing engine throws a clear, catchable error at call-time, never at import.
 
 ## Dependencies
@@ -82,12 +82,18 @@ The function is **storage-agnostic**: it returns buffers + dims; the caller owns
 - **Companion:** `@broberg/media` (F006) for storage — not a hard dep, a composition partner.
 - **Reference impl:** xrt81's local `transformImage()` seam (built first to unblock).
 
+## Locked decisions
+
+- **API contract** per xrt81 #5926 — `transformImage(bytes, opts)` shape frozen (above).
+- **EXIF: strip everywhere**, including the keep-original variant (xrt81 #5928). Rationale: provenance preserved in the consumer's DB pre-transform; GPS/location must not survive on any downloadable file.
+- **Separate package** from `@broberg/media` (not an extension) — native-dep / server-only profile.
+
 ## Rollout
 
-1. **Phase 0 — xrt81 unblocks locally (now).** xrt81 builds the impl behind a thin `transformImage()` seam in their storage layer. Unblocks HEIC display + vision immediately; becomes the extraction source.
-2. **Phase 1 — spike (F042.1).** Resolve the two risks: HEIC build path + Bun loading. Output: a proven engine recipe (and Bun strategy) before any package API is frozen.
+1. **Phase 0 — xrt81 unblocks locally (now).** xrt81 builds the impl behind a thin `transformImage()` seam in their storage layer (the existing async `enrichPhoto` path). Unblocks HEIC display + vision immediately; becomes the extraction source.
+2. **Phase 1 — spike (F042.1).** Resolve the two risks: HEIC build path + Bun loading. Output: a proven engine recipe (and Bun strategy) before any package API is frozen. xrt81 feeds back concrete findings from their Bun+Hono env.
 3. **Phase 2 — extract + publish (F042.2).** `@broberg/media-transform` v0.1.0 with the contract above, exact-pinned deps, OIDC publish + Trusted Publisher, README with the Bun + HEIC gotchas. Add to `scripts/inventory-data.mjs` DATA → `node scripts/build-inventory.mjs` → `bash scripts/sync-mockup.sh`; self-report adoption to Discovery.
-3. **Phase 3 — pilot swap (F042.3).** xrt81 swaps local → `@broberg/media-transform`, exact-pinned. Live-verify: an uploaded HEIC renders on desktop **and** `ai.vision` returns text for it. sanne/cardmem adopt as their media surfaces need it.
+4. **Phase 3 — pilot swap (F042.3).** xrt81 swaps local → `@broberg/media-transform`, exact-pinned. Live-verify: an uploaded HEIC renders on desktop **and** `ai.vision` returns text for it. sanne/cardmem adopt as their media surfaces need it.
 
 ## Done-gate (epic)
 
@@ -100,6 +106,5 @@ The function is **storage-agnostic**: it returns buffers + dims; the caller owns
 ## Open questions
 
 1. **HEIC engine** — libvips+libheif vs heic-convert/wasm? (F042.1 spike decides; lean wasm-for-decode for portability.)
-2. **Bun** — does pinned `sharp` load under Bun, or do we ship wasm/sidecar? (F042.1 hard gate.)
-3. **EXIF strip default** — strip on derivatives (privacy) while keeping the oriented original; confirm the original variant is also stripped or left intact (xrt81 extracts EXIF before calling, so stripping everywhere is safe — confirm).
-4. **animated input** (animated WebP/GIF) — out of scope for v0.1.0? (Assume yes — first frame or reject; document.)
+2. **Bun** — does pinned `sharp` load under Bun, or do we ship wasm/sidecar? (F042.1 hard gate; xrt81 reports from their env.)
+3. **Animated input** (animated WebP/GIF) — out of scope for v0.1.0? (Assume yes — first frame or reject; document.)
