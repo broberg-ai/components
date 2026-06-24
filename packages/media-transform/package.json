@@ -1,0 +1,53 @@
+{
+  "name": "@broberg/media-transform",
+  "version": "0.1.0",
+  "description": "The fleet's server-side image-transform primitive — one transformImage() that decodes iPhone HEIC/HEIF → JPEG, auto-orients from EXIF, strips metadata and emits responsive WebP/JPEG derivatives. The companion to @broberg/media (storage): transform returns buffers, you pipe them into media.upload(). EU-safe (local processing, no external service); Node + Bun.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "heic-convert": "^2.1.0",
+    "sharp": "^0.35.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "image",
+    "heic",
+    "heif",
+    "webp",
+    "resize",
+    "thumbnail",
+    "exif",
+    "sharp",
+    "media",
+    "transform",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/media-transform"
+  },
+  "publishConfig": { "access": "public" }
+}
