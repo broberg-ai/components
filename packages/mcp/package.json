@@ -1,0 +1,55 @@
+{
+  "name": "@broberg/mcp",
+  "version": "0.1.0",
+  "description": "Genuinely-reusable MCP-server toolkit for the broberg.ai fleet: composable transports (stdio + Streamable-HTTP + SSE), composable auth (static Bearer, hashed 3-tier, OAuth 2.1 PKCE), and one typed defineTool registry (kind write-guard + per-tool scopes + uniform envelope + audit) that drives both the low-level Server and high-level McpServer paths. Owns the plumbing, never your domain tools.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": ">=1.12",
+    "zod": "^3"
+  },
+  "dependencies": {
+    "zod-to-json-schema": "^3.23.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@types/node": "^22.7.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "zod": "^3.23.8"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "stdio",
+    "sse",
+    "streamable-http",
+    "oauth",
+    "tool-registry",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/mcp"
+  },
+  "publishConfig": { "access": "public" }
+}
