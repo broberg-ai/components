@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/oauth.ts"],
+  entry: ["src/index.ts", "src/oauth.ts", "src/oauth-web.ts"],
   format: ["esm", "cjs"],
   dts: true,
   clean: true,

@@ -125,6 +125,53 @@ The SDK ships the endpoints (`/authorize`, `/token`, `/register`, `/revoke`,
 `/.well-known/*`) and does the PKCE S256 compare; this provider issues stateless
 HS256 tokens (auth-code / access / refresh) so there's no token database.
 
+### claude.ai / ChatGPT remote connector on Stack B — `@broberg/mcp/oauth-web`
+
+A remote MCP a user adds to **claude.ai (incl. iPhone) or ChatGPT** must speak
+**OAuth 2.1 + Dynamic Client Registration** (a static key is rejected). The SDK's
+OAuth router is Express-only; `@broberg/mcp/oauth-web` is the framework-free
+equivalent that mounts in **Hono / Bun / Next** — and the `/authorize` step
+delegates to *your* member login, so the token carries the **member's own id**
+(`sub`), not a shared key. Needs `jose` (peer), no express.
+
+```ts
+import { createOAuthRoutes, createInMemoryClientStore } from "@broberg/mcp/oauth-web";
+import { createHttpMcpHandler } from "@broberg/mcp";
+
+const routes = createOAuthRoutes({
+  secret: process.env.OAUTH_SECRET!,            // openssl rand -hex 32
+  issuer: "https://club.example",               // your origin
+  resource: "https://club.example/mcp",         // the MCP endpoint these tokens are for
+  scopesSupported: ["club:read"],
+  clients: createInMemoryClientStore(),         // DCR — back with your DB so claude.ai's client_id survives a redeploy
+  authorize: (req, params) => {
+    const member = memberFromSession(req);      // YOUR existing login (cookie / magic-link / Apple / Google)
+    if (!member) return { response: Response.redirect(`/login?return=${encodeURIComponent(req.url)}`) };
+    return { sub: member.id, scope: "club:read" };   // token now acts for THIS member
+  },
+});
+
+const mcp = createHttpMcpHandler({
+  name: "club", version: "1.0.0", tools,
+  authenticate: async (req) => {
+    const info = await routes.verifyBearer(req);                    // throws if no/invalid token
+    return { principal: { userId: info.extra?.sub as string, scopes: info.scopes }, ctx: { db } };
+  },
+});
+
+// Hono (Bun): OAuth routes first, then the gated /mcp endpoint.
+app.use("*", async (c, next) => (await routes.handle(c.req.raw)) ?? next());
+app.all("/mcp", async (c) => {
+  try { await routes.verifyBearer(c.req.raw); } catch { return routes.challenge(); } // 401 + WWW-Authenticate bootstraps discovery
+  return mcp(c.req.raw);
+});
+```
+
+`routes.handle()` serves the two `.well-known` metadata docs + `/register` +
+`/authorize` + `/token` + `/revoke`; `challenge()` is the 401 that points
+claude.ai at the protected-resource metadata. The member id rides every token
+(incl. refresh), so your read tools scope to `principal.userId`.
+
 ## Audit
 
 ```ts

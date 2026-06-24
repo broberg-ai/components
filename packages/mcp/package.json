@@ -1,6 +1,6 @@
 {
   "name": "@broberg/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Genuinely-reusable MCP-server toolkit for the broberg.ai fleet: composable transports (stdio + Streamable-HTTP + SSE), composable auth (static Bearer, hashed 3-tier, OAuth 2.1 PKCE), and one typed defineTool registry (kind write-guard + per-tool scopes + uniform envelope + audit) that drives both the low-level Server and high-level McpServer paths. Owns the plumbing, never your domain tools.",
   "type": "module",
   "license": "MIT",
@@ -20,6 +20,11 @@
       "types": "./dist/oauth.d.ts",
       "import": "./dist/oauth.js",
       "require": "./dist/oauth.cjs"
+    },
+    "./oauth-web": {
+      "types": "./dist/oauth-web.d.ts",
+      "import": "./dist/oauth-web.js",
+      "require": "./dist/oauth-web.cjs"
     }
   },
   "scripts": {
