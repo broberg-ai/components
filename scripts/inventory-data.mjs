@@ -125,6 +125,8 @@ export const INFRA = [
       { t: "Run one-off in-container scripts without leaking secrets: base64-encode a small script and -C 'sh -c ...base64 -d > /tmp/x.js && bun /tmp/x.js; rm /tmp/x.js'. Secrets stay in the container; only the result comes out.", by: "upmetrics", tag: "ssh-secrets" },
       { t: "Repeated local Docker builds (e.g. fly deploy --local-only during a CI outage) fill the Docker VM's disk via build-cache → 'No space left on device' mid-build. Fix: docker builder prune -f && docker image prune -f (frees only unused; ~12GB back). Better: a prune step BEFORE each bypass-deploy, or bump Docker Desktop's disk allocation.", by: "cardmem", tag: "docker-disk" },
       { t: "The CI-outage deploy bypass (Dockerfile.prebuilt + a fly.toml dockerfile-override + .dockerignore negation) is TEMPORARY — NEVER commit it, it breaks normal CD. Revert to depot / normal CD the moment the builder is back.", by: "cardmem", tag: "deploy-resilience" },
+      { t: "min_machines_running=1 ALSO for a service the fleet QUERIES or health-probes (e.g. discovery.broberg.ai), not just stateful auth-apps: with min=0 the first request after autostop scales-to-zero eats the cold-start or times out at the edge → a user reads it as DOWN. ~$2/mo keeps one warm. (broberg-discovery hit exactly this.)", by: "components", tag: "warm-for-queried" },
+      { t: "Emergency flag-flip without a rebuild: flyctl secrets set KEY=val applies via a ~30s machine restart (overrides image-baked ENV). Good to unstick prod fast — then fix the durable source (fly.toml [env]) so a later deploy doesn't revert it.", by: "cardmem", tag: "secrets-flip" },
     ],
   },
   {
@@ -249,6 +251,33 @@ export const INFRA = [
       { t: "Privacy: strip EXIF from EVERY output, including the kept original — read any EXIF you need (GPS, capture time) BEFORE transform; never let location survive on a stored/downloadable file. sharp drops metadata by default on encode; .rotate() bakes orientation in and removes the tag.", by: "components", tag: "exif-privacy" },
       { t: "sharp itself loads + runs fine under Bun (verified 0.35 on Bun 1.3) for resize/encode/orient — only the HEVC-HEIC decode needs heic-convert. No wasm/sidecar needed for the rest. Keep sharp/heic-convert as external (native) deps; never bundle them.", by: "components", tag: "bun" },
       { t: "Generate a real HEIC test fixture locally with macOS sips: `sips -s format heic in.jpg --out out.heic` (produces HEVC HEIF). Lets you verify a HEIC decode path with hard runtime proof instead of assuming.", by: "components", tag: "test-fixture" },
+      { t: "In-process transform OOMs a small box (512MB) on large photos — sharp/libvips holds the decoded bitmap in RAM. For a batch/backfill, run ONE fresh process per photo (a shell loop) for memory isolation, or bump the machine RAM. A long-lived server transforming one upload at a time is usually fine.", by: "xrt81", tag: "memory" },
+    ],
+  },
+  {
+    id: "github-actions", name: "GitHub Actions / CI-CD", role: "Push-to-main CD for the fleet — the test-gate + the workflow gotchas + deploy-verification",
+    kw: ["github actions","ci","cd","ci/cd","workflow","gha","pipeline","deploy gate","test gate","pnpm","action-setup","push to main","deploy verify"],
+    notes: "Most fleet repos deploy on push-to-main (no PR gate). The most valuable pattern is a BLOCKING test-gate: a deploy job with needs:[test] so one red test stops the deploy — cheap, deterministic, $0. Tests that exist but nothing runs are theatre; wire them into the gate or they don't count. And verify a deploy actually landed by matching the SERVED artifact (or the flyctl releases timestamp), never a 'deployed' claim or a curl-200.",
+    tips: [
+      { t: "Blocking test-gate: give the deploy job needs:[test], where test runs the suite (turbo → bun test). One red test → deploy blocked. Closes the hole where a regression ships past 'green-but-never-run' tests.", by: "buddy", tag: "test-gate" },
+      { t: "pnpm/action-setup@v4 fails hard ('Multiple versions of pnpm specified') if you set the version in BOTH the action (with: version:) AND package.json (packageManager: pnpm@x). Fix: drop with:version: entirely, let the action read packageManager.", by: "buddy", tag: "pnpm-setup" },
+      { t: "A workflow whose paths: filter does NOT include .github/workflows/** does NOT re-trigger when you edit the workflow file itself — so a CI-fix commit 'does nothing' until the next qualifying push. Test a workflow change in isolation with gh workflow run <wf> --ref main (workflow_dispatch).", by: "buddy", tag: "paths-filter" },
+      { t: "Prove a deploy is really live: match the flyctl releases timestamp against the commit time (release v79 06:13 UTC, 1 min after commit 06:12 = real). A cheap truth-check against a compaction summary that claims 'shipped'.", by: "trail", tag: "deploy-verify" },
+      { t: "Cheap post-deploy signal: an unauthenticated request returning 401 (not 404) proves the route is mounted + auth-gated without a full authed flow. 404 = not deployed yet; 000 = host not up — never raise a real incident on 000 (false alarm).", by: "cardmem", tag: "probe" },
+      { t: "git add → rebase --autostash → commit can DROP your modifications → empty commits → CD rebuilds the OLD code. Verify against the SERVED artifact (bundle hash / content marker), not your working tree.", by: "cardmem", tag: "autostash-trap" },
+    ],
+  },
+  {
+    id: "frontend", name: "Frontend (Preact / PWA / web)", role: "Stack-B UI gotchas — Preact rendering, media viewers, iOS/PWA, GDPR webfonts",
+    kw: ["frontend","preact","react","pwa","ios","safari","webkit","flicker","carousel","lightbox","fonts","webfont","gdpr","overscroll","fullscreen","ui"],
+    notes: "Hard-won Stack-B (Preact/Vite/PWA) UI lessons. Most 'flicker' / 'flash' bugs in media viewers are layout-resize or node-thrash, not the data swap — fix the layout, not the timing. iOS Safari/WebKit needs explicit defences (pull-to-refresh, body-scroll). Lens cannot drive native touch gestures, so layout-stability assertions replace gesture verification.",
+    tips: [
+      { t: "Preact ≠ React: NO setState-under-render bailout. Calling setState during render to 'reset' on a prop change makes Preact PAINT the intermediate state first → a visible blink. DERIVE state from an id (openId === curId), never set it during render.", by: "xrt81", tag: "preact-render" },
+      { t: "The real 'flicker' in a media viewer is the image RESIZE, not the image swap. In a flex-column layout, if anything under the image changes height on swap (e.g. a lazy detail-fetch blanking the bottom bar) the image grows/shrinks → reads as flicker. Fix: fixed-height bottom bar; read title/date from the LIST row already in memory (not the lazy detail call); float foldable panels in an overlay ABOVE the image so they never touch layout height.", by: "xrt81", tag: "media-flicker" },
+      { t: "Carousel swap-flash: key your slides (prev|cur|next) on the media id → Preact MOVES the <img> nodes instead of swapping their src (src-thrash = repaint = flash).", by: "xrt81", tag: "carousel-key" },
+      { t: "Fullscreen media viewer: use a FULLY opaque layer (position:fixed; inset:0; background:#000; height:100svh) — a translucent scrim lets the app-shell bleed through during transitions. Kill iOS pull-to-refresh with overscroll-behavior:none + touch-action:none + a body-scroll-lock.", by: "xrt81", tag: "ios-fullscreen" },
+      { t: "GDPR-clean webfonts: use fonts.bunny.net, not Google Fonts — Paris-hosted, drop-in compatible with Google Fonts' CSS query API, no visitor data to the US. (On cardmem's mockup allow-list too.)", by: "vn-leker", tag: "gdpr-fonts" },
+      { t: "Lens has NO native pinch gesture and synthetic TouchEvents don't reproduce iOS pinch reliably (esp. WebKit) → touch-gesture features (pinch-zoom) CANNOT be auto-verified; say 'device-test required' instead of claiming verified. Prove layout stability instead: assert getBoundingClientRect().height is identical before/after a swipe / panel-open.", by: "xrt81", tag: "lens-touch" },
     ],
   },
 ];
