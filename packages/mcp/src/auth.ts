@@ -40,3 +40,10 @@ export function validateBearerKey(
 export function hasScope(userScopes: string[], required: string[]): boolean {
   return required.every((r) => userScopes.includes(r));
 }
+
+/** Extract the token from a `Bearer <token>` header, or null if absent/malformed. */
+export function parseBearer(authHeader: string | null | undefined): string | null {
+  if (!authHeader) return null;
+  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
+  return match ? match[1] : null;
+}

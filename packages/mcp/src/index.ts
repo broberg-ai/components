@@ -17,8 +17,11 @@ export type {
 export { defineTool, dispatchTool, toToolListEntry, ToolNotFoundError } from "./tools";
 export type { DispatchOptions } from "./tools";
 
-export { validateBearerKey, hasScope } from "./auth";
+export { validateBearerKey, hasScope, parseBearer } from "./auth";
 export type { ApiKeyConfig, AuthResult } from "./auth";
+
+export { resolve3TierAuth } from "./three-tier-auth";
+export type { ThreeTierAuthConfig } from "./three-tier-auth";
 
 export { createJsonlAudit } from "./audit";
 export type { AuditEntry, AuditFn } from "./audit";
@@ -36,3 +39,5 @@ export { SessionRegistry } from "./session-registry";
 export type { SessionRegistryOptions } from "./session-registry";
 export { createSseMcpHandler } from "./sse";
 export type { SseMcpOptions, SseMcpHandler } from "./sse";
+export { createWebSseMcpHandler } from "./web-sse";
+export type { WebSseMcpOptions, WebSseMcpHandler } from "./web-sse";
