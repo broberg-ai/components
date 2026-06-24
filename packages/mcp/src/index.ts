@@ -41,3 +41,4 @@ export { createSseMcpHandler } from "./sse";
 export type { SseMcpOptions, SseMcpHandler } from "./sse";
 export { createWebSseMcpHandler } from "./web-sse";
 export type { WebSseMcpOptions, WebSseMcpHandler } from "./web-sse";
+export { toSseRoutes, mountNodeSse } from "./adapters";
