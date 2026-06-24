@@ -5,10 +5,11 @@
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": ["dist", "bin", "README.md"],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": { "broberg-mcp": "./bin/mcp.mjs" },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
