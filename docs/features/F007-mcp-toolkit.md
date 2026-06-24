@@ -1,7 +1,17 @@
 # F007 — MCP Server Toolkit (@broberg/mcp)
 
-> L0 Rails · hybrid · effort **L** (re-scoped) · impact **high** · owner `components`. Status: **Active — Q&R COMPLETE (5/5 surveyed); design synthesized; build gated on Christian's go.**
+> L0 Rails · hybrid · effort **L** (re-scoped) · impact **high** · owner `components`. Status: **BUILD COMPLETE (2026-06-24) — all 11 stories shipped, 67/67 green, on `main`; epic stays open on the gated rollout (npm-publish + per-repo pilot swaps + a new-build runtime-verify, all Christian-gated).**
 > Graduate-candidate: no — stays in `components`.
+
+## Build status (2026-06-24) — package shipped
+`packages/mcp/` is built, tested, committed, and pushed. Surface delivered:
+- **Transports:** `createStdioMcpServer` (opt-in guard + WAL-safe SIGTERM) · `createHttpMcpHandler` (stateless Streamable-HTTP) · `createSseMcpHandler` (Node SSE) · `createWebSseMcpHandler` (Web-Streams SSE for Next App Router / Bun / Deno) + `SessionRegistry` (TTL sweep).
+- **Auth:** `validateBearerKey`/`hasScope`/`parseBearer` · `resolve3TierAuth` (host-callback cascade) · `@broberg/mcp/oauth` (`createOAuthProvider` HS256/jose + PKCE + refresh, `mountOAuthRouter`, `bearerAuth`, `createInMemoryClientStore`).
+- **Registry:** `defineTool` + pure `dispatchTool` (write-guard × scopes × envelope × audit) → both `registerTools` (low-level `Server`) and `registerMcpServerTools` (high-level `McpServer`).
+- **Ergonomics:** `createJsonlAudit` · `guardSubagents` · `toSseRoutes`/`mountNodeSse` adapters · `definePrompt`/`registerPrompts` · `scaffoldMcpJson`/`starterServerSource` + `broberg-mcp` CLI bin · full README.
+- **Decisions in build:** zod `^3` peer locked; express + jose are OPTIONAL peers (oauth only); core bundle verified free of express/jose; SDK installed 1.29.0 (`^1.12` floor). `withAudit` intentionally dropped — auditing is integrated into dispatch.
+
+**Remaining (all Christian-gated, mostly out-of-repo):** npm-publish v0.1.0 · pilot swaps in trail (stdio/high-level) + cms (HTTP-SSE/static-Bearer, test-first byte-identical) in each repo's own session · runtime-verify a NEW build (vn-leker/xrt81) on it (AC #7/#8).
 
 ## Re-scope (2026-06-24, Christian) — NOT slim
 The original plan (2026-06-08) started minimal: static-key only, OAuth deferred, two transports. **Christian overrode that — "ikke slim for slimheds skyld":** the package must cover the WHOLE estate's MCP surface so new builds (vn-leker order-MCP, xrt81) start FRESH on it — good enough to *build a new MCP server on*, not only to strangler-migrate existing ones. Breadth delivered by COMPOSITION (separate composable factories/providers), never one polymorphic god-object behind a config maze.
