@@ -1,82 +1,75 @@
-# F007 — MCP Server Toolkit
+# F007 — MCP Server Toolkit (@broberg/mcp)
 
-> L0 Rails · hybrid · effort **M** · impact **high** · owner `cms`. Status: Backlog.
+> L0 Rails · hybrid · effort **L** (re-scoped) · impact **high** · owner `components`. Status: **Active — re-scoped 2026-06-24; cross-repo Q&R in flight.**
 > Graduate-candidate: no — stays in `components`.
 
-## Motivation
-A @broberg/mcp-toolkit encapsulating the repeating MCP-server scaffolding: server instantiation via @modelcontextprotocol/sdk, transport wiring (stdio + Streamable-HTTP), API-key + OAuth 2.1 auth helpers, scope-gated tool registration, and an audit-log hook. Every repo that ships an MCP surface (dns-mcp, cardmem, cms-mcp-server, trail, buddy-channel) rebuilds this skeleton from scratch. The toolkit extracts the stable, framework-agnostic plumbing so new MCP projects start from a battle-tested base.
+## Re-scope (2026-06-24, Christian) — NOT slim
+The original plan (2026-06-08) deliberately started minimal: static-key auth only, OAuth 2.1 deferred, two transports. **Christian has overridden that.** This package must be GENUINELY reusable across the whole estate's MCP surface — **not slim for slimness' sake.** It must cover, by design:
+- **All transports:** stdio · Streamable-HTTP (WebStandard) · **SSE** (Apple Music MCP) — honest about WebSocket only if a real consumer needs it.
+- **All auth models:** static Bearer · hashed DB-backed 3-tier (cardmem) · **OAuth 2.1 PKCE** (dns-mcp, Apple Music) — composable, never a config maze.
+- **New consumers are first-class:** vn-leker (order-MCP, coming) + xrt81 (Christian building one) start FRESH on this — so the package must be good enough to *build a new MCP server on*, not only to strangler-migrate existing ones.
 
-## Solution
-**hybrid.** Auth primitives, transport factory, and the tool-registration loop are ~identical across 5+ repos (cms-mcp-server/auth.ts, cardmem/auth-mcp-key.ts, dns-mcp/auth/provider.ts, buddy/channel) — those stable primitives qualify as runtime-package. The tool definitions (switch/case handlers + inputSchema objects) are 100% domain-specific (dns-mcp DNS/R2; cardmem 50+ PM tools; cms content CRUD) and stay copy-owned/scaffold-generated. Result: engine ships as a runtime package, tool definitions stay per project.
+The design is **driven by a fresh cross-repo Q&R** so we capture ALL real scenarios before freezing the API — not a guess.
+
+### Cross-repo Q&R (design input — in flight)
+Sent 2026-06-24: cms #5982 · trail #5983 · cardmem #5984 · buddy #5985. **musicquiz (Apple Music MCP, OAuth2.1+SSE) — session DOWN, survey pending** (the only OAuth2.1+SSE consumer; dns-mcp's OAuth2.1-PKCE is documented below as a stand-in until musicquiz answers). Each repo asked: transports + SDK class/import-path, auth model, tool-registration boilerplate, session/state lifecycle, what a shared toolkit should own vs what stays app-specific, SDK version + stack. The synthesis refines the architecture + decomposes the additional stories below.
+
+## Motivation
+Every repo that ships an MCP surface rebuilds the same skeleton: server instantiation (@modelcontextprotocol/sdk), transport wiring, auth, scope-gated tool registration, audit hook, session lifecycle. Known servers: cms-mcp-server, cardmem, dns-mcp, buddy-channel, trail, Apple Music MCP — plus vn-leker + xrt81 coming. One battle-tested toolkit replaces N divergent re-rolls (the reuse-first thesis).
+
+## Solution — hybrid
+Engine (transports, auth, tool-registration loop, audit, session lifecycle, scaffold) ships as a runtime package; tool DEFINITIONS stay copy-owned/scaffold-generated per app (domain-specific). The breadth (multi-transport, multi-auth) is delivered by COMPOSITION — separate composable factories/providers, never one polymorphic god-object behind a config maze.
 
 ## Scope
 
-### In scope
-- Extract from `webhouse/cms` `packages/cms-mcp-server/src/{server,auth,tools,index}.ts`.
-- Transport factories (stdio + WebStandard HTTP), validateBearerKey + hasScope, defineTools, withAudit, scaffoldMcpJson + Hono/Next adapters.
+### In scope (broadened)
+- **Transports:** createStdioMcpServer (+ subagent guard) · createHttpMcpHandler (WebStandard Streamable-HTTP, per-session registry + TTL) · **createSseMcpHandler (SSE)**.
+- **Auth (all three, composable):** validateBearerKey + hasScope (static, timing-safe) · **hashed 3-tier resolver** (cardmem pa_<hex> → session → local bootstrap) · **OAuth 2.1 PKCE provider** (dns-mcp SimpleOAuthProvider, stateless HMAC — a public MCP server gets OAuth free).
+- **Ergonomics:** defineTools (Zod→JSON-schema) · withAudit · scaffoldMcpJson + Hono/Next adapters. Optional high-level McpServer(.tool()) path alongside the low-level Server path (trail uses McpServer).
 
 ### Out of scope
 - Domain tool definitions (copy-owned per app).
-- OAuth 2.1 PKCE (dns-mcp) in v1 — evaluate later.
-- DB-backed hashed-key auth (cardmem) if too coupled to its Drizzle schema.
+- WebSocket transport — unless the Q&R surfaces a real consumer (don't speculate).
 
 ## Architecture
 
-### Best source (reference implementation)
-`webhouse/cms` — `packages/cms-mcp-server/src/`: createAdminMcpServer() factory (cleanest engine/domain separation), auth.ts timing-safe validateApiKey + hasScope (<50 lines, no DB), writeAudit one-liner hook, TOOL_SCOPES map. The only source already shipped as a discrete npm package — closest analog to the toolkit.
+### Sources (reference implementations)
+- **cms** `packages/cms-mcp-server` — createAdminMcpServer factory + timing-safe auth.ts + TOOL_SCOPES (the seed; only one already a discrete npm pkg).
+- **cardmem** `apps/server/src/{mcp,auth-mcp-key}` + `packages/mcp-tools` — busiest HTTP server: WebStandard Streamable-HTTP + per-session registry + lifecycle; 3-tier auth; registerTools(server,deps) modular pattern.
+- **buddy** `packages/channel` + `apps/server/.../mcp-server.ts` — only dual stdio+HTTP; the prod-hardened subagent guard (ps-based `claude -p` detection); globalThis session persistence across bun --hot.
+- **dns-mcp** `src/{server,transports/http,auth/provider}` — full OAuth 2.1 PKCE (mcpAuthRouter), stateless HMAC tokens (no DB).
+- **trail** `apps/mcp` — smallest stdio-only; uses the high-level McpServer(.tool()) path.
+- **musicquiz / Apple Music MCP** — OAuth 2.1 + SSE, 33 tools (survey pending; the only OAuth2.1+SSE consumer).
 
-### Other implementations seen (contract cross-check)
-- `broberg/cardmem` `apps/server/src/{mcp,auth-mcp-key}.ts` + `packages/mcp-tools/src/index.ts` — registerTools(server,deps) with per-tool modules; 3-tier auth ladder (Bearer pa_<hex> → session → local bootstrap); WebStandard HTTP transport with per-session registry + lifecycle.
-- `webhouse/dns-mcp` `src/{server,transports/http,auth/provider}.ts` — full OAuth 2.1 PKCE via mcpAuthRouter; stateless HMAC-signed tokens (no DB); cleanest registerXxxTools decomposition.
-- `webhouse/buddy` `packages/channel/src/index.ts` + `apps/server/src/routes/mcp-server.ts` — stdio + HTTP in one repo; subagent guard (detect `claude -p` parent via ps, exit 0); globalThis session persistence across bun --hot.
-
-### Headless core vs. adapters
-- **Core (no React/next/Hono):** createStdioMcpServer(opts) (Server + StdioServerTransport + subagent guard); createHttpMcpHandler(opts) ((Request)=>Response via WebStandardStreamableHTTPServerTransport, per-session registry + lifecycle); validateBearerKey(header,keys[]) (timingSafeEqual), hasScope, resolveMcpAuth 3-tier; defineTools(defs) (Zod → JSON-schema via zod-to-json-schema); withAudit(handler,auditFn); scaffoldMcpJson(opts).
-- **Stack B (Hono):** mountMcpRoute(app,handler) = app.all('/mcp', ...) (~20 lines, cardmem pattern). Hono types only.
-- **Stack A (Next.js):** exports { GET, POST } wrapping createHttpMcpHandler for app/api/mcp/route.ts. No Hono dep.
-
-### Public API
-```ts
-export function createStdioMcpServer(opts: StdioMcpOpts): StdioMcpServer
-export function createHttpMcpHandler(opts: HttpMcpOpts): (req: Request) => Promise<Response>
-export function defineTools<T extends ToolDef[]>(defs: T): ToolRegistry
-export function validateBearerKey(authHeader: string|null, keys: ApiKeyConfig[]): AuthResult
-export function hasScope(userScopes: string[], required: string[]): boolean
-export function withAudit(handler: ToolHandler, audit: AuditFn): ToolHandler
-export function scaffoldMcpJson(opts: McpJsonOpts): McpJson
-```
+### Headless core (no React/next/Hono)
+createStdioMcpServer · createHttpMcpHandler · **createSseMcpHandler** · validateBearerKey · hasScope · **resolve3TierAuth** · **createOAuthProvider** (PKCE) · defineTools (Zod→JSON-schema) · withAudit · scaffoldMcpJson.
+Adapters: Hono `mountMcpRoute(app, handler)`; Next `{ GET, POST }`. Separate entry points (Hono adapter never pulls Next types, and vice versa).
 
 ## Stories
-- **F007.1** — Extract + publish auth helpers — _AC:_ validateBearerKey + hasScope match cms auth.ts; timingSafeEqual from node:crypto; tests cover valid/wrong/missing/scope-match/mismatch; cms-mcp-server adopts + removes its local copy.
-- **F007.2** — createStdioMcpServer with subagent guard — _AC:_ returns {start()} booting StdioServerTransport; guardSubagents:true checks ps for the `claude -p` pattern (buddy) + exit 0; trail/apps/mcp migrates, removing direct SDK wiring.
-- **F007.3** — defineTools registry helper — _AC:_ array of {name,description,inputSchema(Zod),handler} → correct ListTools/CallTool handlers; Zod→JSON-schema via zod-to-json-schema; missing required arg returns isError:true with a Zod message, not a throw.
-- **F007.4** — createHttpMcpHandler (WebStandard transport) — _AC:_ (Request)=>Response with per-session registry + onsessioninitialized/closed (cardmem pattern); mcp-session-id resumes the correct session; cardmem adopts + removes inline wiring.
-- **F007.5** — withAudit + Hono/Next adapters — _AC:_ withAudit calls auditFn({tool,actor,result,error?}) fire-and-forget; mountMcpRoute(app,handler) for Hono; { GET, POST } for Next; neither adapter imports the other stack.
-- **F007.6** — Scaffold generator scaffoldMcpJson — _AC:_ returns a .mcp.json object; `npx @broberg/mcp-toolkit scaffold` emits .mcp.json + a starter src/server.ts using createStdioMcpServer with one example tool; shape matches Claude Desktop + cc.
+Existing (keep): F007.1 auth helpers · F007.2 createStdioMcpServer + subagent guard · F007.3 defineTools · F007.4 createHttpMcpHandler (WebStandard) · F007.5 withAudit + Hono/Next adapters · F007.6 scaffoldMcpJson CLI.
+**To decompose after Q&R synthesis (the broadened surface):** OAuth 2.1 PKCE provider · SSE transport factory · hashed 3-tier auth resolver · optional McpServer(.tool()) high-level path. Carded once the Q&R locks the exact shapes — don't freeze prematurely.
 
-## Acceptance criteria
-1. @broberg/mcp-toolkit builds + typechecks clean; core imports no React/next/Hono.
-2. Each story (F007.1–F007.6) meets its own AC.
-3. Piloted in cms (cms-mcp-server) and adopted back with no regression (runtime-verified).
-4. A second consumer (trail or cardmem) migrates off its inline wiring with identical behaviour.
+## Acceptance criteria (epic)
+1. @broberg/mcp builds + typechecks clean; core imports no React/next/Hono.
+2. Covers stdio + Streamable-HTTP + SSE, AND static + 3-tier + OAuth2.1 auth — each composable, no config maze.
+3. A NEW MCP server (vn-leker or xrt81) is built ON it from scratch, runtime-verified.
+4. ≥2 existing servers (cms + cardmem/buddy) migrate off inline wiring with no regression (runtime-verified).
+5. Cross-repo Q&R synthesized + reflected in the final API.
 
 ## Dependencies
-- F010 — API-key + rate-limit helper (related).
-- External: @modelcontextprotocol/sdk, zod, zod-to-json-schema.
+F010 (API-key + rate-limit, related). External: @modelcontextprotocol/sdk, zod, zod-to-json-schema.
 
 ## Rollout
-Strangler: 1) extract auth.ts (validateBearerKey+hasScope) from cms-mcp-server, publish @0.1; 2) add createStdioMcpServer + subagent guard + defineTools, @0.2; 3) pilot back in cms-mcp-server + trail (smallest); 4) add createHttpMcpHandler (cardmem pattern), @0.3; 5) adopt in cardmem then buddy; 6) dns-mcp stays on OAuth 2.1 for now.
+1) Cross-repo Q&R (in flight) → synthesis. 2) Decompose the broadened stories (OAuth/SSE/3-tier). 3) Build the engine: transports first (stdio + HTTP + SSE), then auth (static → 3-tier → OAuth), then ergonomics + adapters + scaffold. 4) Pilot on a NEW build (vn-leker or xrt81) AND migrate one existing (cms). 5) Adopt across cardmem/buddy/trail; musicquiz adopts the OAuth2.1+SSE path.
 
-Graduate-candidate: no — stays in `components`.
-
-## Open Questions
-- DB-backed hashed-key auth (cardmem pa_<hex>, 3-tier) in the package, or too tied to @projects/db?
-- Include SimpleOAuthProvider (dns-mcp stateless HMAC) so public MCP servers get OAuth 2.1 free, or too much surface for v1?
-- Bake globalThis session-persistence-across-bun--hot into createHttpMcpHandler, or leave as a buddy-specific hack?
-- Offer an McpServer-based (.tool()) path alongside the low-level Server path (trail uses McpServer)?
-
-## Effort estimate
-**M** — owner session: `cms`. Reuse model: hybrid.
+## Open questions (pending Q&R)
+- musicquiz session down — need its OAuth2.1+SSE specifics (SSE transport class, token-refresh lifecycle) before locking the SSE+OAuth path.
+- Is standalone SSE still worth a first-class factory, or is everyone except Apple Music on Streamable-HTTP? (MCP deprecated standalone SSE in favour of Streamable-HTTP — confirm Apple Music can't move.)
+- 3-tier hashed auth: in-package generic, or too tied to cardmem's Drizzle schema? (cardmem Q&R answers this.)
+- High-level McpServer(.tool()) path alongside low-level Server — both, or pick one? (trail Q&R answers this.)
 
 ## Risks
-Three distinct auth patterns in the estate (static Bearer; hashed DB-backed 3-tier; full OAuth 2.1 PKCE) — covering all without a config maze is the hardest call; start static-key only. stdio vs WebStandard HTTP transports share no SDK interface — keep two separate exports. HTTP session registry leaks on unclean disconnect — implement TTL eviction. SDK version skew (1.11–1.12) — pin a minimum + document the WebStandardStreamableHTTPServerTransport export path (changed between minors).
+Three auth patterns + three transports = the breadth Christian wants; the hard part is keeping it COMPOSABLE (separate exports) not a config maze. SDK version skew (1.11–1.12) — pin a minimum + document the WebStandardStreamableHTTPServerTransport + SSE export paths (they moved between minors). HTTP/SSE session registries leak on unclean disconnect — TTL eviction mandatory.
+
+## Effort
+**L** (re-scoped from M — broadened surface). Owner: components.
