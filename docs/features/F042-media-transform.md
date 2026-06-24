@@ -3,8 +3,8 @@
 > **Server-side image-transform primitive for the fleet.** HEIC/HEIF → JPEG decode, WebP responsive derivatives, EXIF auto-orient + strip. The companion to `@broberg/media` (F006): **media = storage; media-transform = pixels.** They compose — transform returns buffers, the caller pipes them into `media.upload()`.
 
 - **Owner:** components · **Layer:** L0 (Rails) · **Dist:** npm `@broberg/media-transform`
-- **Status:** planned (carded 2026-06-23) · **First consumer:** xrt81 (blocked) · likely #2/#3: sanne, cardmem
-- **Decision:** Christian — components owns + builds the shared converter; xrt81's local impl is the source we extract from. API below is **consumer-validated by xrt81** (intercom #5926).
+- **Status:** **v0.1.0 built + tested** — Node 25 + Bun 1.3 verified end-to-end against a real HEIC (commit `5353f50`). **npm publish pending** (gated, Phase 2). · **First consumer:** xrt81 · likely #2/#3: sanne, cardmem
+- **Decision:** Christian — components owns + builds the shared converter. API consumer-validated by xrt81 (#5926); EXIF strip-everywhere per #5928.
 
 ## Motivation
 
@@ -12,11 +12,11 @@ xrt81 members upload iPhone photos in **HEIC**, which:
 1. **don't render** on Chrome / desktop (only Safari decodes HEIC natively), and
 2. are **rejected by the vision models** → `@broberg/ai-sdk` `ai.vision` can't produce alt-text/descriptions.
 
-That is the **#1 blocker**. Secondarily, apps want **WebP + responsive derivatives** (thumb/grid/full) to cut storage and bandwidth across viewports. No shared primitive exists (Discovery empty on `heic`/`sharp`/`thumbnail`/`resize`); without this, every media-heavy repo re-rolls a sharp pipeline with divergent shapes — exactly the drift the inventory exists to prevent.
+That is the **#1 blocker**. Secondarily, apps want **WebP + responsive derivatives** (thumb/grid/full) to cut storage and bandwidth across viewports. No shared primitive existed (Discovery empty on `heic`/`sharp`/`thumbnail`/`resize`); without this, every media-heavy repo re-rolls a sharp pipeline with divergent shapes — exactly the drift the inventory exists to prevent.
 
 ## Why separate from @broberg/media (not an extension)
 
-`@broberg/media` is deliberately **edge-portable** (Node/Bun/edge) with a **single dep** (`aws4fetch`). Image transform needs **native libvips + libheif** (heavy, server-only). Bolting it onto media would drag a native binary into the ~8 repos that only want to store bytes. So: **two primitives, one composition.**
+`@broberg/media` is deliberately **edge-portable** (Node/Bun/edge) with a **single dep** (`aws4fetch`). Image transform needs **native libvips + a HEVC decoder** (heavy, server-only). Bolting it onto media would drag native binaries into the ~8 repos that only want to store bytes. So: **two primitives, one composition.**
 
 ```
  bytes ──▶ media-transform.transformImage() ──▶ { variants[], orientationFixed }
@@ -24,7 +24,7 @@ That is the **#1 blocker**. Secondarily, apps want **WebP + responsive derivativ
                                 for each variant ─────┘──▶ media.upload(key, variant.bytes, {contentType})
 ```
 
-## The contract (consumer-validated — xrt81 #5926, locked)
+## The contract (consumer-validated — xrt81 #5926, locked + shipped)
 
 ```ts
 import { transformImage } from "@broberg/media-transform";
@@ -39,72 +39,60 @@ const { variants, orientationFixed } = await transformImage(bytes, {
   ],
 });
 // variants: [{ name, bytes, contentType, width, height }]
-// orientationFixed: boolean (true if an EXIF orientation tag was applied)
+// orientationFixed: boolean (true if a JPEG EXIF orientation tag was applied)
 ```
 
-**Input:** image bytes (`Uint8Array`/`Buffer`) + content-type. Accepts HEIC/HEIF, JPEG, PNG, WebP.
+**Input:** image bytes (`Uint8Array`/`ArrayBuffer`/`Buffer`). Accepts HEIC/HEIF, JPEG, PNG, WebP.
 
 **Behaviour:**
 1. **HEIC→JPEG decode** when input is HEIC/HEIF (and `heicToJpeg`). Universal display + vision-ready.
-2. **Responsive derivatives** at configurable **longest-edge** (`maxEdge`) sizes, aspect preserved, `quality` (default ~80), `format` per-variant (`webp`|`jpeg`).
-3. **EXIF orientation + privacy strip** — auto-rotate (iPhone photos carry an orientation tag), then **strip EXIF from _every_ output variant, including keep-original**. Consumers extract EXIF separately *before* calling (e.g. xrt81 reads it into `photos.exif` for reverse-geocode), so provenance lives in their DB; stripping GPS/location from any on-disk file is the privacy-safe default if an original is ever downloaded or shared. `orientationFixed` reports whether rotation was applied.
-4. **keep-original** option — return the orientation-normalised, EXIF-stripped original alongside derivatives so the app can store original + derivatives each under its own storage key.
+2. **Responsive derivatives** at configurable **longest-edge** (`maxEdge`) sizes, aspect preserved, never enlarged, `quality` (default 80), `format` per-variant (`webp`|`jpeg`).
+3. **EXIF orientation + privacy strip** — auto-rotate, then **strip EXIF from _every_ output variant, including keep-original**. Consumers extract EXIF separately *before* calling (e.g. xrt81 reads it into `photos.exif` for reverse-geocode), so provenance lives in their DB; no GPS/location survives on any stored file. `orientationFixed` reports whether a JPEG's orientation tag was applied (HEIC rotation is applied during decode → reported `false`).
+4. **keep-original** — full-resolution, oriented, EXIF-stripped (re-encoded). HEIC → JPEG; PNG/WebP keep their format so alpha survives.
 
-The function is **storage-agnostic**: it returns buffers + dims; the caller owns keys and calls `@broberg/media`.
+Storage-agnostic: returns buffers + dims; the caller owns keys and calls `@broberg/media`.
 
 ## Scope / Non-goals
 
 **In scope:** still images only — HEIC/HEIF/JPEG/PNG/WebP decode, WebP/JPEG encode, longest-edge resize, EXIF auto-orient + strip, keep-original.
 
-**Non-goals:**
-- **Storage** — that's `@broberg/media`. This composes with it.
-- **Edge runtime** — native deps; Node/Bun **server** only.
-- **Video** — streamed raw to R2, no transcoding here (possible future `@broberg/media-video`).
-- **On-the-fly URL resize / CDN** — this is **upload-time** processing, not a request-time image service.
-- **AI / vision** — that's `@broberg/ai-sdk`.
-- **EXIF extraction / geocode** — the consumer does that before calling; we only auto-orient + strip.
+**Non-goals:** Storage (`@broberg/media`) · Edge runtime (native deps; Node/Bun server only) · Video (streamed raw, no transcode; possible future `@broberg/media-video`) · On-the-fly URL/CDN resize (this is upload-time) · AI/vision (`@broberg/ai-sdk`) · EXIF extraction/geocode (the consumer does that before calling).
 
-## Architecture
+## Architecture (as built)
 
-- **Facade**, same house style as the other `@broberg/*` packages: a small pure function `transformImage(bytes, opts)` (plus exported types). No classes, no config singleton — single-call, stateless.
-- **Engine:** `sharp` (libvips). Resize + WebP/JPEG encode + EXIF rotate/strip are all native libvips ops.
-- **HEIC path (the risk):** sharp's **prebuilt binaries typically ship without HEVC/HEIF** (patent licensing). Options, decided in the spike (story F042.1):
-  - (a) libvips built **with libheif** (control the binary), or
-  - (b) `heic-convert` / **libheif-wasm** for the HEIC→raw step only, then hand off to sharp for resize/encode.
-  - Lean (b) first if it keeps the install portable and Bun-safe; fall back to (a) if perf/quality demands it.
-- **Bun compatibility (hard gate):** xrt81 runs **Bun + Hono**. `sharp` is a native N-API addon — historically finicky under Bun. The spike must **prove it loads + runs under Bun**, else ship a documented Bun-safe path: wasm-only pipeline, or a **Node sidecar** pattern (transform runs in a tiny Node process the Bun app calls). Document whichever wins. **xrt81 will report real data from their Bun+Hono env** (#5928).
-- **Ship-dark:** package imports cleanly even if the native engine is absent in an environment; a missing engine throws a clear, catchable error at call-time, never at import.
+- **Facade:** a small pure function `transformImage(bytes, opts)` + exported types. No classes, no config — single-call, stateless.
+- **Engine:** `sharp` (libvips 8.18) for resize / WebP+JPEG encode / EXIF rotate+strip. One decode, `.clone()`d per output.
+- **HEIC path — the key finding (spike-proven):** sharp's prebuilt libheif reads the HEIF **container** but ships only the **AVIF** decoder, **not HEVC** — and iPhone HEICs are HEVC. So `sharp(heic).metadata()` succeeds yet `.toBuffer()` throws (`Decoder plugin error`). → **HEIC is routed through `heic-convert`** (pure-JS, bundles its own HEVC decoder; applies rotation on decode), producing a JPEG that sharp then resizes/encodes. Detection is a magic-byte `ftyp`-brand sniff. (See trail: *sharp's prebuilt libheif … not HEVC*.)
+- **Bun (hard gate — PASSED):** `sharp` 0.35.2 loads + runs identically under **Bun 1.3.14**; full HEIC→WebP e2e green under Bun. No wasm/sidecar needed.
+- **Ship-dark:** `sharp`/`heic-convert` are `external` in the bundle (resolve from the consumer); package imports cleanly.
 
 ## Dependencies
 
-- `sharp` (native, libvips) — pinned; HEIC build path per the spike.
-- Possibly `heic-convert` / a libheif-wasm build for the HEIC decode step.
-- **Companion:** `@broberg/media` (F006) for storage — not a hard dep, a composition partner.
-- **Reference impl:** xrt81's local `transformImage()` seam (built first to unblock).
+- `sharp` ^0.35.2 (native libvips) — resize/encode/orient/strip.
+- `heic-convert` ^2.1.0 (pure-JS HEVC decoder) — the HEIC decode step, portable across glibc/musl/Bun.
+- **Companion:** `@broberg/media` (F006) for storage — composition partner, not a hard dep.
 
 ## Locked decisions
 
-- **API contract** per xrt81 #5926 — `transformImage(bytes, opts)` shape frozen (above).
-- **EXIF: strip everywhere**, including the keep-original variant (xrt81 #5928). Rationale: provenance preserved in the consumer's DB pre-transform; GPS/location must not survive on any downloadable file.
-- **Separate package** from `@broberg/media` (not an extension) — native-dep / server-only profile.
+- **API contract** per xrt81 #5926 — `transformImage(bytes, opts)` frozen (above).
+- **EXIF: strip everywhere**, including keep-original (#5928). Provenance preserved in the consumer's DB pre-transform; no GPS on downloadable files.
+- **Engine:** sharp + heic-convert (NOT sharp-alone — its prebuilt can't decode HEVC-HEIC). Bun-verified, no sidecar.
+- **Separate package** from `@broberg/media` — native-dep / server-only profile.
 
 ## Rollout
 
-1. **Phase 0 — xrt81 unblocks locally (now).** xrt81 builds the impl behind a thin `transformImage()` seam in their storage layer (the existing async `enrichPhoto` path). Unblocks HEIC display + vision immediately; becomes the extraction source.
-2. **Phase 1 — spike (F042.1).** Resolve the two risks: HEIC build path + Bun loading. Output: a proven engine recipe (and Bun strategy) before any package API is frozen. xrt81 feeds back concrete findings from their Bun+Hono env.
-3. **Phase 2 — extract + publish (F042.2).** `@broberg/media-transform` v0.1.0 with the contract above, exact-pinned deps, OIDC publish + Trusted Publisher, README with the Bun + HEIC gotchas. Add to `scripts/inventory-data.mjs` DATA → `node scripts/build-inventory.mjs` → `bash scripts/sync-mockup.sh`; self-report adoption to Discovery.
-4. **Phase 3 — pilot swap (F042.3).** xrt81 swaps local → `@broberg/media-transform`, exact-pinned. Live-verify: an uploaded HEIC renders on desktop **and** `ai.vision` returns text for it. sanne/cardmem adopt as their media surfaces need it.
+1. **Phase 1 — build (DONE).** components built `@broberg/media-transform` v0.1.0 directly (not extracted later) — spike resolved the HEIC engine + Bun gate up front, against a real HEIC fixture. 10 vitest cases green (Node) + Bun e2e green. Committed `5353f50`.
+2. **Phase 2 — publish (NEXT, gated).** npm OIDC publish + Trusted Publisher (needs Christian's go + npm TP setup). Then add to `scripts/inventory-data.mjs` DATA → `node scripts/build-inventory.mjs` → `bash scripts/sync-mockup.sh`; self-report adoption to Discovery.
+3. **Phase 3 — pilot adopt (xrt81).** xrt81 wires it behind their `transformImage()` seam, exact-pinned. Live-verify: an uploaded HEIC renders on desktop **and** `ai.vision` returns text. sanne/cardmem adopt as their media surfaces need it.
 
 ## Done-gate (epic)
 
-- v0.1.0 published to npm via OIDC (Trusted Publisher), exact-pinnable.
-- HEIC→JPEG + WebP `thumb/grid/full` derivatives + EXIF auto-orient/strip working per the contract.
-- **Proven under Bun** (or documented Bun-safe path shipped).
-- ≥1 pilot consumer (xrt81) live-verified: HEIC upload → desktop render + vision text.
-- Inventory + Discovery + mockup updated.
+- v0.1.0 published to npm via OIDC (Trusted Publisher), exact-pinnable. *(pending)*
+- HEIC→JPEG + WebP derivatives + EXIF orient/strip per the contract. ✅ built + tested
+- Proven under Bun. ✅
+- ≥1 pilot consumer (xrt81) live-verified: HEIC upload → desktop render + vision text. *(pending adopt)*
+- Inventory + Discovery + mockup updated. *(at publish)*
 
 ## Open questions
 
-1. **HEIC engine** — libvips+libheif vs heic-convert/wasm? (F042.1 spike decides; lean wasm-for-decode for portability.)
-2. **Bun** — does pinned `sharp` load under Bun, or do we ship wasm/sidecar? (F042.1 hard gate; xrt81 reports from their env.)
-3. **Animated input** (animated WebP/GIF) — out of scope for v0.1.0? (Assume yes — first frame or reject; document.)
+1. **Animated input** (animated WebP/GIF) — out of scope for v0.1.0 (first frame via sharp's default; document). Revisit only if a consumer needs animation preserved.
