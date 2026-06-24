@@ -237,6 +237,18 @@ export const INFRA = [
       { t: "No delete API (web-UI only). To delete programmatically, ask the pitch session via intercom — it has the Fly-volume access. The x-api-key is a Fly secret; never commit it.", by: "components", tag: "delete-and-auth" },
     ],
   },
+  {
+    id: "image-processing", name: "Image processing (sharp / HEIC)", role: "Server-side image transform — HEIC→JPEG, responsive WebP, EXIF orient + strip",
+    kw: ["image","images","photo","photos","sharp","libvips","heic","heif","hevc","webp","jpeg","png","resize","thumbnail","derivative","responsive","exif","orientation","strip","heic-convert","upload","convert","transform"],
+    notes: "Image transform for the fleet runs through @broberg/media-transform (F042, components): one transformImage() that decodes iPhone HEIC/HEIF → JPEG, auto-orients from EXIF, strips all metadata, and emits responsive WebP/JPEG derivatives. It's the companion to @broberg/media (storage): transform returns buffers, you pipe them into media.upload(). The single biggest gotcha: sharp's prebuilt libheif reads the HEIF container but ships only the AVIF decoder, NOT HEVC — and iPhone HEICs are HEVC, so sharp.metadata() succeeds yet .toBuffer() throws. The package routes HEIC through heic-convert (pure-JS HEVC decoder; glibc + musl/Alpine + Bun) and applies rotation on decode. Server-side only (native deps); verified on Node 25 + Bun 1.3. Don't hand-roll a sharp pipeline per repo — reuse the primitive.",
+    tips: [
+      { t: "Use @broberg/media-transform for HEIC→JPEG + responsive WebP/JPEG + EXIF orient/strip — don't hand-roll a sharp pipeline per app. transformImage(bytes, {heicToJpeg, keepOriginal, variants:[{name,maxEdge,format,quality}]}) → {variants:[{name,bytes,contentType,width,height}], orientationFixed}. Pipe each variant.bytes into @broberg/media.upload().", by: "components", tag: "reuse" },
+      { t: "sharp CANNOT decode iPhone HEIC: its prebuilt libheif reads the HEIF container + the AVIF decoder but NOT HEVC (sharp.format.heif.input.fileSuffix shows only ['.avif']). sharp(heic).metadata() SUCCEEDS yet .toBuffer() throws 'Decoder plugin error / bad seek'. So a metadata() capability-probe is a false positive — route HEIC through heic-convert (bundles its own HEVC decoder, pure-JS, works on glibc/musl/Bun, applies rotation on decode).", by: "components", tag: "heic-hevc" },
+      { t: "Privacy: strip EXIF from EVERY output, including the kept original — read any EXIF you need (GPS, capture time) BEFORE transform; never let location survive on a stored/downloadable file. sharp drops metadata by default on encode; .rotate() bakes orientation in and removes the tag.", by: "components", tag: "exif-privacy" },
+      { t: "sharp itself loads + runs fine under Bun (verified 0.35 on Bun 1.3) for resize/encode/orient — only the HEVC-HEIC decode needs heic-convert. No wasm/sidecar needed for the rest. Keep sharp/heic-convert as external (native) deps; never bundle them.", by: "components", tag: "bun" },
+      { t: "Generate a real HEIC test fixture locally with macOS sips: `sips -s format heic in.jpg --out out.heic` (produces HEVC HEIF). Lets you verify a HEIC decode path with hard runtime proof instead of assuming.", by: "components", tag: "test-fixture" },
+    ],
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
