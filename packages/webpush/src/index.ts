@@ -7,9 +7,15 @@
 // ever throwing into your request path.
 
 import webpush from 'web-push';
-import type { VapidConfig, PushSubscriptionJSON, PushMessage, SendResult } from './types';
+import type {
+  VapidConfig,
+  PushSubscriptionJSON,
+  PushMessage,
+  SilentPushMessage,
+  SendResult,
+} from './types';
 
-export type { VapidConfig, PushSubscriptionJSON, PushMessage, SendResult } from './types';
+export type { VapidConfig, PushSubscriptionJSON, PushMessage, SilentPushMessage, SendResult } from './types';
 
 /** Generate a VAPID keypair once; store the private key as a secret. */
 export function generateVapidKeys(): { publicKey: string; privateKey: string } {
@@ -42,8 +48,18 @@ export function buildPayload(m: PushMessage): string {
 }
 
 /**
- * Create a sender bound to your VAPID config. Returns `.send()` plus the public
- * key (hand it to the browser for subscribe()).
+ * Build the wire payload for a SILENT (data-only) push: NO `web_push` declarative
+ * field and NO title/body, so Safari 18.4+ does not auto-render anything — only
+ * `app_badge` (+ the classic `badge` field) and a `silent` flag the SW reads to
+ * call setAppBadge instead of showNotification.
+ */
+export function buildSilentPayload(m: SilentPushMessage): string {
+  return JSON.stringify({ silent: true, app_badge: m.badge, badge: m.badge, tag: m.tag });
+}
+
+/**
+ * Create a sender bound to your VAPID config. Returns `.send()` / `.sendSilent()`
+ * plus the public key (hand it to the browser for subscribe()).
  */
 export function createPushSender(vapid: VapidConfig) {
   const vapidDetails = {
@@ -53,12 +69,11 @@ export function createPushSender(vapid: VapidConfig) {
   };
 
   /**
-   * Fan a message out to every subscription. Never throws — a per-subscription
-   * failure is isolated; 404/410 ("gone") endpoints come back in `dead` for the
-   * caller to prune. Safe to `void` from inside a request handler.
+   * Fan a pre-built payload out to every subscription. Never throws — a per-
+   * subscription failure is isolated; 404/410 ("gone") endpoints come back in
+   * `dead` for the caller to prune. Safe to `void` from inside a request handler.
    */
-  async function send(subs: PushSubscriptionJSON[], message: PushMessage): Promise<SendResult> {
-    const payload = buildPayload(message);
+  async function fanOut(subs: PushSubscriptionJSON[], payload: string): Promise<SendResult> {
     const dead: string[] = [];
     let sent = 0;
     await Promise.all(
@@ -78,7 +93,19 @@ export function createPushSender(vapid: VapidConfig) {
     return { sent, dead };
   }
 
-  return { send, buildPayload, publicKey: vapid.publicKey };
+  /** Send a visible notification (declarative + classic) to every subscription. */
+  const send = (subs: PushSubscriptionJSON[], message: PushMessage) =>
+    fanOut(subs, buildPayload(message));
+
+  /**
+   * Send a SILENT, banner-less badge update — for cross-device read-sync (a
+   * closed PWA on another device counts its OS badge down without showing
+   * anything). Same never-throws fan-out + `dead` pruning as {@link send}.
+   */
+  const sendSilent = (subs: PushSubscriptionJSON[], message: SilentPushMessage) =>
+    fanOut(subs, buildSilentPayload(message));
+
+  return { send, sendSilent, buildPayload, buildSilentPayload, publicKey: vapid.publicKey };
 }
 
 export type PushSender = ReturnType<typeof createPushSender>;

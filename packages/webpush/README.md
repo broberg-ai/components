@@ -33,6 +33,23 @@ const { sent, dead } = await pusher.send(subscriptions, {
 await pruneEndpoints(dead); // your DB
 ```
 
+**Silent badge sync** — a data-only push that updates the OS app-badge with **no
+banner** (for cross-device read-sync: when a user clears a notification on one
+device, the other closed PWAs count their badge down silently). It carries no
+title/body and is NOT sent as declarative Web Push, so Safari 18.4+ doesn't
+auto-render it; the SW handler calls `setAppBadge` (badge `0` clears it):
+
+```ts
+await pusher.sendSilent(otherDeviceSubs, { badge: remainingUnread });
+```
+
+Wire the SW once — `handlePush` already branches on the silent payload:
+
+```ts
+import { handlePush } from '@broberg/webpush/sw';
+self.addEventListener('push', handlePush); // visible + silent both handled
+```
+
 Ship-dark: hold `createPushSender` behind a "VAPID env present?" check — no keys,
 no sender, no-op.
 

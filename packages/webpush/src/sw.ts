@@ -16,6 +16,10 @@ type PushPayload = {
   navigate?: string;
   icon?: string;
   tag?: string;
+  /** Silent (data-only) push: set the OS badge, show NO banner. */
+  silent?: boolean;
+  app_badge?: number;
+  badge?: number;
 };
 
 const DEFAULT_ICON = '/icon-192.png';
@@ -26,6 +30,16 @@ export function handlePush(event: PushEvent): void {
     data = (event.data?.json() as PushPayload) ?? {};
   } catch {
     data = {};
+  }
+  // Silent (data-only) push — set the OS app-badge, render no notification.
+  if (data.silent) {
+    const count = data.app_badge ?? data.badge ?? 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nav = (self as any).navigator as
+      | { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> }
+      | undefined;
+    event.waitUntil(Promise.resolve(count > 0 ? nav?.setAppBadge?.(count) : nav?.clearAppBadge?.()));
+    return;
   }
   const n = data.notification ?? data;
   const title = n.title || 'Notifikation';

@@ -31,6 +31,18 @@ export type PushMessage = {
   tag?: string;
 };
 
+/** A data-only (SILENT) push: it sets the OS app-badge with NO banner. Used for
+ *  cross-device read-sync — when a user clears a notification on one device, the
+ *  other (closed) PWA devices count their badge down without showing anything.
+ *  Deliberately carries no title/body and is NOT sent as declarative Web Push, so
+ *  Safari 18.4+ does not auto-render it; the classic SW handler calls setAppBadge. */
+export type SilentPushMessage = {
+  /** The app-badge count to set (0 clears the badge). */
+  badge: number;
+  /** Optional coalescing tag. */
+  tag?: string;
+};
+
 export type SendResult = {
   /** How many subscriptions accepted the push. */
   sent: number;

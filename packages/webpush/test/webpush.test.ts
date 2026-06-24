@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildPayload } from "../src/index";
+import { buildPayload, buildSilentPayload } from "../src/index";
 import { urlBase64ToUint8Array } from "../src/client";
 
 describe("buildPayload — dual-shape (declarative + classic)", () => {
@@ -26,6 +26,25 @@ describe("buildPayload — dual-shape (declarative + classic)", () => {
     const p = JSON.parse(buildPayload({ title: "T", body: "B" }));
     expect("app_badge" in p.notification).toBe(false);
     expect(p.web_push).toBe(8030);
+  });
+});
+
+describe("buildSilentPayload — data-only badge push (no banner)", () => {
+  it("carries the badge but NO web_push and NO title/body (so Safari won't render)", () => {
+    const p = JSON.parse(buildSilentPayload({ badge: 4, tag: "sync" }));
+    expect(p.silent).toBe(true);
+    expect(p.app_badge).toBe(4);
+    expect(p.badge).toBe(4);
+    expect(p.tag).toBe("sync");
+    expect("web_push" in p).toBe(false); // not declarative → no auto-render
+    expect("title" in p).toBe(false);
+    expect("notification" in p).toBe(false);
+  });
+
+  it("badge 0 (clear) is still expressed so the SW can clearAppBadge", () => {
+    const p = JSON.parse(buildSilentPayload({ badge: 0 }));
+    expect(p.silent).toBe(true);
+    expect(p.app_badge).toBe(0);
   });
 });
 
