@@ -293,6 +293,15 @@ export const INFRA = [
       { t: "Cost read-back > local re-aggregation: Upmetrics OWNS cost aggregation (summary / timeseries / fleet, micro-USD, per-tenant groupBy via its cost read-API). Don't build a local roll-up in a consumer app — write runs to Upmetrics AND read the aggregated cost back from it (ai-sdk's upmetricsCostClient does exactly this). One canonical source, no drift.", by: "ai-sdk", tag: "cost-readback" },
     ],
   },
+  {
+    id: "fleet-ops", name: "Fleet ops (cc-session auth · edge · inter-session comms)", role: "Operating the cc-session fleet — Mac-edge auth/keychain + the durable intercom layer between sessions",
+    kw: ["fleet","cc session","edge","mac edge","keychain","login","not logged in","oauth token","CLAUDE_CODE_OAUTH_TOKEN","auth","intercom","voicemail","answering machine","sleeping session","offline session","buddy","dispatch","ask_peer","sessions"],
+    notes: "Operating the cc-session fleet across Mac + cloud edges. Two hard-won lessons: (1) a Mac-edge's macOS login-keychain can silently lock cc out of auth — the fleet runs on the env setup-token, NOT the keychain; (2) inter-session intercoms are now durable (buddy F177) — a sleeping/offline session no longer blocks another agent from reaching it.",
+    tips: [
+      { t: "Mac-edge keychain trap: a LOCKED macOS login-keychain makes cc fail with 'Not logged in · Please run /login · security unlock-keychain' — and it masquerades as a rate-limit wall, a login bug AND a launcher bug at once (cost 4h to diagnose). Root: when CLAUDE_CODE_OAUTH_TOKEN isn't set in the session env, cc falls back to the keychain cred → a locked/asleep Mac = locked out of auth. Fix (verified on cb-2): `security delete-generic-password -s \"Claude Code-credentials\"` + run on the env setup-token (CLAUDE_CODE_OAUTH_TOKEN from ~/.buddy/.env). The fleet runs on the setup-token, never the keychain.", by: "buddy", tag: "mac-edge-keychain" },
+      { t: "Intercom answering machine (buddy F177): an intercom to a SLEEPING/offline cc-session is no longer lost — it's enqueued durably (survives a buddycloud restart) and flushed on wake, chronologically, exactly-once. Fleet-design consequence: stop checking 'is the peer awake?' before ask_peer/announce — just send; buddy holds it until they wake. Slept ≥90s → it renders as a 'voicemail' card in the recipient's chat.", by: "buddy", tag: "intercom-voicemail" },
+    ],
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
