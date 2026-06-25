@@ -268,8 +268,8 @@ export const INFRA = [
     ],
   },
   {
-    id: "frontend", name: "Frontend (Preact / PWA / web)", role: "Stack-B UI gotchas — Preact rendering, media viewers, iOS/PWA, GDPR webfonts",
-    kw: ["frontend","preact","react","pwa","ios","safari","webkit","flicker","carousel","lightbox","fonts","webfont","gdpr","overscroll","fullscreen","ui"],
+    id: "frontend", name: "Frontend (Preact / Next / PWA / web)", role: "Frontend/web gotchas — Stack-B Preact rendering + media viewers + iOS/PWA + GDPR webfonts, and Stack-A Next.js caching",
+    kw: ["frontend","preact","react","next.js","next","middleware","cache","cache coherence","route handler","pwa","ios","safari","webkit","flicker","carousel","lightbox","fonts","webfont","gdpr","overscroll","fullscreen","ui"],
     notes: "Hard-won Stack-B (Preact/Vite/PWA) UI lessons. Most 'flicker' / 'flash' bugs in media viewers are layout-resize or node-thrash, not the data swap — fix the layout, not the timing. iOS Safari/WebKit needs explicit defences (pull-to-refresh, body-scroll). Lens cannot drive native touch gestures, so layout-stability assertions replace gesture verification.",
     tips: [
       { t: "Preact ≠ React: NO setState-under-render bailout. Calling setState during render to 'reset' on a prop change makes Preact PAINT the intermediate state first → a visible blink. DERIVE state from an id (openId === curId), never set it during render.", by: "xrt81", tag: "preact-render" },
@@ -277,7 +277,7 @@ export const INFRA = [
       { t: "Carousel swap-flash: key your slides (prev|cur|next) on the media id → Preact MOVES the <img> nodes instead of swapping their src (src-thrash = repaint = flash).", by: "xrt81", tag: "carousel-key" },
       { t: "Fullscreen media viewer: use a FULLY opaque layer (position:fixed; inset:0; background:#000; height:100svh) — a translucent scrim lets the app-shell bleed through during transitions. Kill iOS pull-to-refresh with overscroll-behavior:none + touch-action:none + a body-scroll-lock.", by: "xrt81", tag: "ios-fullscreen" },
       { t: "GDPR-clean webfonts: use fonts.bunny.net, not Google Fonts — Paris-hosted, drop-in compatible with Google Fonts' CSS query API, no visitor data to the US. (On cardmem's mockup allow-list too.)", by: "vn-leker", tag: "gdpr-fonts" },
-      { t: "Lens has NO native pinch gesture and synthetic TouchEvents don't reproduce iOS pinch reliably (esp. WebKit) → touch-gesture features (pinch-zoom) CANNOT be auto-verified; say 'device-test required' instead of claiming verified. Prove layout stability instead: assert getBoundingClientRect().height is identical before/after a swipe / panel-open.", by: "xrt81", tag: "lens-touch" },
+      { t: "Lens has NO native pinch gesture and synthetic TouchEvents don't reproduce iOS pinch reliably (esp. WebKit) → touch-gesture features (pinch-zoom) CANNOT be auto-verified; say 'device-test required' instead of claiming verified. Prove layout stability instead: assert getBoundingClientRect().height is identical before/after a swipe / panel-open.", by: "xrt81", tag: "lens-touch" },\n      { t: "Next.js runs MIDDLEWARE and /api/* ROUTE-HANDLERS as SEPARATE module instances → separate module-level state. A `let _cached` in a lib imported by both has TWO copies: a write via the route-handler is INVISIBLE to the middleware's copy until a shared signal re-checks. Symptom (cms, prod): a new site added via a route-handler returned 200 from the API but the middleware router 404'd ALL its pages until restart — looked like a routing bug, was cache-coherence. Fix: any module-level cache backing BOTH middleware AND route-handlers must invalidate on a SHARED signal — file mtime (cheap fs.stat per call) or explicit cross-call invalidation. NEVER cache forever.", by: "cms", tag: "next-cache-coherence" },
     ],
   },
 ];
