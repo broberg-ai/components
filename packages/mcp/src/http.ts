@@ -15,6 +15,12 @@ export interface HttpMcpOptions<Ctx = unknown> {
    */
   authenticate?: (req: Request) => ToolContext<Ctx> | Promise<ToolContext<Ctx>>;
   audit?: AuditFn;
+  /**
+   * Server-level instructions surfaced in the MCP `initialize` result — a short
+   * "what this server is + how to use it" intro the client/model sees on connect
+   * (alongside serverInfo + the per-tool descriptions). Optional.
+   */
+  instructions?: string;
 }
 
 /**
@@ -40,7 +46,7 @@ export function createHttpMcpHandler<Ctx = unknown>(
     // Fresh server + transport per request — the stateless, leak-free path.
     const server = new Server(
       { name: opts.name, version: opts.version },
-      { capabilities: { tools: {} } },
+      { capabilities: { tools: {} }, instructions: opts.instructions },
     );
     registerTools(server, opts.tools, { getContext: () => context, audit: opts.audit });
 

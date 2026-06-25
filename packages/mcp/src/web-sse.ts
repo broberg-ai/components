@@ -90,6 +90,12 @@ export interface WebSseMcpOptions<Ctx = unknown> {
   /** Resolve principal + ctx from the SSE GET request. Throw to reject with 401. */
   authenticate?: (req: Request) => ToolContext<Ctx> | Promise<ToolContext<Ctx>>;
   audit?: AuditFn;
+  /**
+   * Server-level instructions surfaced in the MCP `initialize` result — a short
+   * "what this server is + how to use it" intro the client/model sees on connect
+   * (alongside serverInfo + the per-tool descriptions). Optional.
+   */
+  instructions?: string;
   /** Idle eviction window for a session (default 30 min). */
   ttlMs?: number;
 }
@@ -138,7 +144,7 @@ export function createWebSseMcpHandler<Ctx = unknown>(
       const transport = new WebSseServerTransport(messagesPath);
       const server = new Server(
         { name: opts.name, version: opts.version },
-        { capabilities: { tools: {} } },
+        { capabilities: { tools: {} }, instructions: opts.instructions },
       );
       registerTools(server, opts.tools, { getContext: () => context, audit: opts.audit });
 

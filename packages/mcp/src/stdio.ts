@@ -13,6 +13,12 @@ export interface StdioMcpOptions<Ctx = unknown> {
   getContext?: (extra: unknown) => ToolContext<Ctx> | Promise<ToolContext<Ctx>>;
   audit?: AuditFn;
   /**
+   * Server-level instructions surfaced in the MCP `initialize` result — a short
+   * "what this server is + how to use it" intro the client/model sees on connect
+   * (alongside serverInfo + the per-tool descriptions). Optional.
+   */
+  instructions?: string;
+  /**
    * Opt-in (default false): before registering, exit(0) if this process was
    * spawned as a Claude subagent / forked session / orphan — buddy needs this,
    * trail leaves it off.
@@ -42,7 +48,10 @@ export function createStdioMcpServer<Ctx = unknown>(
 ): StdioMcpServer {
   if (opts.guardSubagents) guardSubagents();
 
-  const server = new McpServer({ name: opts.name, version: opts.version });
+  const server = new McpServer(
+    { name: opts.name, version: opts.version },
+    { instructions: opts.instructions },
+  );
   registerMcpServerTools(server, opts.tools, {
     getContext: opts.getContext,
     audit: opts.audit,

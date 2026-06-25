@@ -105,6 +105,18 @@ import { createSseMcpHandler, mountNodeSse } from "@broberg/mcp";
 mountNodeSse(app, createSseMcpHandler({ name: "my-mcp", version: "1.0.0", tools }));
 ```
 
+Every transport factory also accepts **`instructions?: string`** (0.4.0+) —
+server-level intro text ("what this server is + how to use it") passed straight
+into the MCP `initialize` result, so the connecting client/model sees it on
+connect, alongside the per-tool descriptions:
+
+```ts
+createHttpMcpHandler({
+  name: "club", version: "1.0.0", tools, authenticate,
+  instructions: "Read-only club MCP. Search, read, list — never writes.",
+});
+```
+
 ## Pick an auth model
 
 `authenticate(req)` resolves a `ToolContext` ({ principal, ctx }); throw to 401.
