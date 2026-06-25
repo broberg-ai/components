@@ -12,9 +12,15 @@ export type {
   ToolKind,
   ToolDef,
   AnyToolDef,
+  ContentBlock,
+  TextContent,
+  ImageContent,
+  AudioContent,
+  ResourceLink,
+  EmbeddedResource,
 } from "./types";
 
-export { defineTool, dispatchTool, toToolListEntry, ToolNotFoundError } from "./tools";
+export { defineTool, imageResult, dispatchTool, toToolListEntry, ToolNotFoundError } from "./tools";
 export type { DispatchOptions } from "./tools";
 
 export { validateBearerKey, hasScope, parseBearer } from "./auth";

@@ -50,6 +50,24 @@ export const tools = [
 The same `tools` array feeds every transport below. Dispatch is pure and shared:
 *find → write-guard → scope-gate → validate → handle → envelope → audit.*
 
+A handler returns a string (auto-wrapped as text) or a `ToolResult` whose
+`content` is any MCP block — `text` · `image` · `audio` · `resource_link` ·
+`resource`. So a tool can return media an MCP client (Claude/ChatGPT) renders
+inline, not just a link:
+
+```ts
+import { imageResult } from "@broberg/mcp";
+defineTool({
+  name: "get_photo",
+  description: "Return a photo inline",
+  inputSchema: { id: z.string() },
+  handler: async ({ id }, { ctx }) => imageResult(await ctx.photoBase64(id), "image/webp"),
+});
+```
+
+> `ToolResult.content` is a typed union (0.3.0+); reading `.text` off a block now
+> needs a narrow (`block.type === "text"`). Returning blocks is unaffected.
+
 ## Pick a transport
 
 **stdio** (trail / buddy shape — `.mcp.json` subprocess):

@@ -22,6 +22,15 @@ export function defineTool<Shape extends RawShape, Ctx = unknown>(
   return def;
 }
 
+/**
+ * Build a tool result that returns an image INLINE — `data` is raw base64 (no
+ * `data:` prefix). An MCP client (Claude/ChatGPT) renders it directly instead of
+ * showing a link. e.g. `return imageResult(webpBase64, "image/webp")`.
+ */
+export function imageResult(data: string, mimeType: string): ToolResult {
+  return { content: [{ type: "image", data, mimeType }] };
+}
+
 /** Low-level ListTools entry — the raw shape converted to JSON Schema. */
 export function toToolListEntry(tool: AnyToolDef<any>): {
   name: string;

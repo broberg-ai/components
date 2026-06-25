@@ -3,7 +3,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { defineTool } from "../src/tools";
+import { defineTool, imageResult } from "../src/tools";
 import { registerMcpServerTools } from "../src/register";
 import type { AnyToolDef, ToolContext } from "../src/types";
 
@@ -58,5 +58,23 @@ describe("registerMcpServerTools (high-level McpServer, end-to-end)", () => {
     const r = (await client.callTool({ name: "secret", arguments: {} })) as any;
     expect(r.isError).toBeFalsy();
     expect(r.content[0].text).toBe("ok");
+  });
+
+  it("passes an IMAGE content block through the SDK to a real client (xrt81 F062.7)", async () => {
+    const photo = defineTool({
+      name: "get_photo",
+      description: "Return a photo inline",
+      inputSchema: {},
+      handler: () => imageResult("aGVsbG8=", "image/webp"), // base64, no data: prefix
+    });
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    registerMcpServerTools(server, [photo as AnyToolDef]);
+    const client = new Client({ name: "c", version: "0.0.0" });
+    const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(serverT), client.connect(clientT)]);
+
+    const r = (await client.callTool({ name: "get_photo", arguments: {} })) as any;
+    expect(r.isError).toBeFalsy();
+    expect(r.content[0]).toEqual({ type: "image", data: "aGVsbG8=", mimeType: "image/webp" });
   });
 });

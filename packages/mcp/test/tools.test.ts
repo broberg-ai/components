@@ -39,13 +39,13 @@ describe("dispatchTool", () => {
   it("write-guards a read-only principal", async () => {
     const r = await dispatchTool(tools, "save", { id: "x" }, ctx({ readOnly: true, scopes: ["docs:write"] }));
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/read-only/);
+    expect((r.content[0] as { text: string }).text).toMatch(/read-only/);
   });
 
   it("scope-gates when a required scope is missing", async () => {
     const r = await dispatchTool(tools, "save", { id: "x" }, ctx({ scopes: [] }));
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/scope/);
+    expect((r.content[0] as { text: string }).text).toMatch(/scope/);
   });
 
   it("allows a write tool with write access + the required scope", async () => {
@@ -56,7 +56,7 @@ describe("dispatchTool", () => {
   it("returns an isError envelope on invalid args (no throw)", async () => {
     const r = await dispatchTool(tools, "echo", { text: 123 }, ctx());
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/Invalid arguments/);
+    expect((r.content[0] as { text: string }).text).toMatch(/Invalid arguments/);
   });
 
   it("catches a handler throw into an isError envelope", async () => {
@@ -65,7 +65,7 @@ describe("dispatchTool", () => {
     ];
     const r = await dispatchTool(boom, "boom", {}, ctx());
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toBe("kaboom");
+    expect((r.content[0] as { text: string }).text).toBe("kaboom");
   });
 
   it("fires the audit hook with the cms-shaped entry", async () => {

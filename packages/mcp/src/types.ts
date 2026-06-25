@@ -26,9 +26,50 @@ export interface ToolContext<Ctx = unknown> {
   ctx: Ctx;
 }
 
-/** The MCP text result envelope — text-only covers the whole estate today. */
+/** A text content block. */
+export interface TextContent {
+  type: "text";
+  text: string;
+}
+/** A base64 image block (`data` is raw base64, no `data:` prefix) — an MCP client renders it inline. */
+export interface ImageContent {
+  type: "image";
+  data: string;
+  mimeType: string;
+}
+/** A base64 audio block. */
+export interface AudioContent {
+  type: "audio";
+  data: string;
+  mimeType: string;
+}
+/** A link to a resource the client may fetch itself. `name` is required (MCP spec). */
+export interface ResourceLink {
+  type: "resource_link";
+  uri: string;
+  name: string;
+  mimeType?: string;
+  description?: string;
+}
+/** An embedded resource — inline `text` OR a base64 `blob` (exactly one, per MCP spec). */
+export interface EmbeddedResource {
+  type: "resource";
+  resource:
+    | { uri: string; mimeType?: string; text: string }
+    | { uri: string; mimeType?: string; blob: string };
+}
+/** Any MCP tool-result content block. Text covers most tools; image/audio/resource
+ *  let a tool return media an MCP client (Claude/ChatGPT) shows inline. */
+export type ContentBlock =
+  | TextContent
+  | ImageContent
+  | AudioContent
+  | ResourceLink
+  | EmbeddedResource;
+
+/** The MCP tool-result envelope. `content` is a list of typed blocks. */
 export interface ToolResult {
-  content: Array<{ type: "text"; text: string }>;
+  content: ContentBlock[];
   isError?: boolean;
   [extra: string]: unknown;
 }
