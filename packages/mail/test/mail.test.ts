@@ -98,7 +98,7 @@ describe("createMailer.send", () => {
       expect(body.replyTo).toBeUndefined();
       return new Response(JSON.stringify({ id: "msg_live" }), { status: 200 });
     }) as unknown as typeof fetch;
-    const mailer = createMailer({ apiKey: "re_live", from: "noreply@webhouse.dk", fromName: "Sanne", fetch: f });
+    const mailer = createMailer({ apiKey: "re_live", from: "noreply@webhouse.dk", fromName: "Sanne", live: true, fetch: f });
     const r = await mailer.send({
       to: "u@example.com",
       subject: "Booking",
@@ -107,6 +107,24 @@ describe("createMailer.send", () => {
       replyTo: "reply@webhouse.dk",
     });
     expect(r).toEqual({ ok: true, id: "msg_live" });
+  });
+
+  it("FAIL-SAFE (0.3.0): key present but live UNSET ⇒ a real recipient is held back (skipped), not mass-sent", async () => {
+    const f = okFetch();
+    const log = vi.fn();
+    const mailer = createMailer({ apiKey: "re_x", from: "noreply@webhouse.dk", fetch: f, logger: log });
+    const r = await mailer.send({ to: "real-user@example.com", subject: "hi" });
+    expect(r.skipped).toBe(true); // would have SENT under the old !!apiKey default
+    expect(f).not.toHaveBeenCalled();
+    // and it warns at creation that real recipients are being held back
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("live not set"));
+  });
+
+  it("FAIL-SAFE: key present, live unset, but a fleet admin recipient still goes through", async () => {
+    const f = okFetch("msg_admin");
+    const mailer = createMailer({ apiKey: "re_x", from: "noreply@webhouse.dk", fetch: f });
+    const r = await mailer.send({ to: "christian@broberg.ai", subject: "hi" });
+    expect(r).toEqual({ ok: true, id: "msg_admin" });
   });
 
   it("message.from overrides the mailer default", async () => {

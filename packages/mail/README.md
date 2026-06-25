@@ -61,7 +61,7 @@ const mailer = createMailer({
 | `MAIL_FROM` | Default sender — `"Name <email>"` or a bare address. |
 | `MAIL_FROM_NAME` | Display name when `MAIL_FROM` is bare. |
 | `MAIL_DISABLED` | `1`/`true` ⇒ hard kill-switch (every send a no-op). |
-| `MAIL_LIVE` | `1`/`true` ⇒ deliver to anyone. Default: live when a key is set. |
+| `MAIL_LIVE` | `1`/`true` ⇒ deliver to anyone. **Default (0.3.0+): NOT live** — you must opt in explicitly, else only the allowlist + fleet admins receive mail (fail-safe; pre-0.3.0 it defaulted to live whenever a key was set). |
 | `MAIL_ALLOWLIST` | Comma-separated recipients allowed when **not** live. |
 | `MAIL_ID` | Per-project **cardmem MailID** stamped on every send (see below). |
 

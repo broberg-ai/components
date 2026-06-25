@@ -75,7 +75,13 @@ export interface MailerConfig {
   from?: string;
   /** Display name used when `from` is a bare address. */
   fromName?: string;
-  /** When false, only allowlisted recipients are delivered to. Default: !!apiKey. */
+  /**
+   * When true, deliver to ANY recipient. Default **false** — you must EXPLICITLY
+   * opt in (live:true / MAIL_LIVE=true) to reach non-allowlisted (real) users.
+   * (Before 0.3.0 this defaulted to `!!apiKey`, so any env with a key — including
+   * staging/preview — silently mass-sent to real users. Fail-safe now: a forgotten
+   * config delivers ONLY to the allowlist + fleet admins, never to everyone.)
+   */
   live?: boolean;
   /** Recipients permitted when !live. ALWAYS_ALLOWED are added automatically. */
   allowlist?: string[];
@@ -162,7 +168,18 @@ export function createMailer(config: MailerConfig = {}): Mailer {
   const doFetch = config.fetch ?? globalThis.fetch?.bind(globalThis);
   const log =
     config.logger ?? ((m: string, meta?: unknown) => console.warn(`[@broberg/mail] ${m}`, meta ?? ""));
-  const live = config.live ?? !!config.apiKey;
+  // Fail-safe (0.3.0): `live` requires an EXPLICIT opt-in. It used to default to
+  // !!config.apiKey, which silently mass-sent to real users from any env with a
+  // key (two repos hit this). Now a forgotten `live` delivers ONLY to the
+  // allowlist + fleet admins.
+  const live = config.live === true;
+  // Surface the behaviour change exactly where it bites: a key is present but
+  // `live` was never set, so real recipients are now being held back.
+  if (config.apiKey && config.live === undefined && !config.disabled) {
+    log(
+      "live not set — delivering ONLY to the allowlist + fleet admins. Set live:true / MAIL_LIVE=true to send to real recipients.",
+    );
+  }
 
   return {
     async send(message: MailMessage): Promise<MailResult> {
