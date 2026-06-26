@@ -27,6 +27,14 @@ export interface SetiClientOptions {
    * call via sendText's `timeoutMs`.
    */
   inputTimeoutMs?: number;
+  /**
+   * Read-idle watchdog (ms) for the live stream: if no frame arrives for this
+   * long the connection is treated as half-open (NAT drop / sleep / blip with no
+   * FIN — where `reader.read()` would block forever) and aborted so the
+   * auto-reconnect fires. Default 90000. The SETI hub pings well within it.
+   * Shares the contract of `@broberg/seti-client/sse`'s `consumeSSE`.
+   */
+  idleTimeoutMs?: number;
 }
 
 /**
@@ -39,12 +47,14 @@ export class SetiClient {
   private readonly headers: Record<string, string>;
   private readonly doFetch: typeof fetch;
   private readonly inputTimeoutMs: number;
+  private readonly idleTimeoutMs: number;
 
   constructor(opts: SetiClientOptions) {
     this.base = opts.baseUrl.replace(/\/$/, "");
     this.headers = opts.token ? { Authorization: `Bearer ${opts.token}` } : {};
     this.doFetch = opts.fetch ?? globalThis.fetch.bind(globalThis);
     this.inputTimeoutMs = opts.inputTimeoutMs ?? 30_000;
+    this.idleTimeoutMs = opts.idleTimeoutMs ?? 90_000;
   }
 
   async listSessions(): Promise<SetiRoster> {
@@ -111,7 +121,7 @@ export class SetiClient {
           if (!res.ok || !res.body) throw new Error(`http_${res.status}`);
           handlers.onStateChange?.("open");
           attempt = 0;
-          await this.consume(res.body, handlers);
+          await this.consume(res.body, handlers, controller);
         } catch {
           /* fall through to reconnect */
         }
@@ -131,15 +141,31 @@ export class SetiClient {
     };
   }
 
-  /** Minimal SSE parser: `event:` + `data:` lines, events split on blank lines. */
-  private async consume(body: ReadableStream<Uint8Array>, handlers: SetiStreamHandlers): Promise<void> {
+  /** Minimal SSE parser: `event:` + `data:` lines, events split on blank lines.
+   *  A read-idle watchdog aborts `controller` (→ reconnect) if no frame arrives
+   *  for `idleTimeoutMs`, closing the half-open zombie-stream gap. */
+  private async consume(
+    body: ReadableStream<Uint8Array>,
+    handlers: SetiStreamHandlers,
+    controller: AbortController,
+  ): Promise<void> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
+    let lastRecvMs = Date.now();
+    const watchdog = setInterval(
+      () => {
+        if (Date.now() - lastRecvMs > this.idleTimeoutMs) controller.abort();
+      },
+      Math.max(1_000, Math.floor(this.idleTimeoutMs / 3)),
+    );
+    (watchdog as unknown as { unref?: () => void }).unref?.();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        lastRecvMs = Date.now();
+        buf += decoder.decode(value, { stream: true });
       let sep: number;
       while ((sep = buf.indexOf("\n\n")) !== -1) {
         const chunk = buf.slice(0, sep);
@@ -166,6 +192,9 @@ export class SetiClient {
           handlers.onPing?.(parsed as { edgeConnected: boolean });
         }
       }
+      }
+    } finally {
+      clearInterval(watchdog);
     }
   }
 }

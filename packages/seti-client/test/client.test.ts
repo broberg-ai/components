@@ -126,4 +126,49 @@ describe("SetiClient", () => {
     expect(events).toEqual(["hello:true", "ping"]);
     expect(frames).toEqual(["line A\nline B"]);
   });
+
+  it("self-heals a silent (half-open) stream: idle watchdog aborts → openStream reconnects", async () => {
+    const enc = new TextEncoder();
+    let calls = 0;
+    // Each connect emits a hello then goes SILENT; only the watchdog's abort ends it.
+    const f = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      calls++;
+      const signal = init?.signal as AbortSignal | undefined;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            enc.encode('event: hello\ndata: {"edge":"e1","session":"cc","edgeConnected":true}\n\n'),
+          );
+          signal?.addEventListener("abort", () => {
+            try {
+              controller.error(new Error("aborted"));
+            } catch {
+              /* already closed */
+            }
+          });
+        },
+      });
+      return Promise.resolve(
+        new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } }),
+      );
+    }) as unknown as typeof fetch;
+
+    const c = new SetiClient({ baseUrl: "/api/seti", fetch: f, idleTimeoutMs: 300 });
+    const states: string[] = [];
+    let hellos = 0;
+    await new Promise<void>((resolve) => {
+      const handle = c.openStream("e1", "cc", {
+        onStateChange: (s) => states.push(s),
+        onHello: () => {
+          if (++hellos >= 2) {
+            // a 2nd hello = the silent stream was aborted and the loop reconnected
+            handle.close();
+            resolve();
+          }
+        },
+      });
+    });
+    expect(calls).toBeGreaterThanOrEqual(2);
+    expect(states).toContain("reconnecting");
+  }, 10_000);
 });
