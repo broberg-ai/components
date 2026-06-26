@@ -179,6 +179,9 @@ const CSS = `
   .spoke b{color:var(--fg)}
   .spoke .me{color:var(--green);font-weight:600}
   .spoke small{color:var(--faint);font-size:11px;margin-left:5px}
+  .copyright{grid-column:1/-1;margin-top:6px;padding-top:20px;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--faint);line-height:1.6}
+  .copyright a{color:var(--green);text-decoration:none;font-weight:600}
+  .copyright a:hover{text-decoration:underline}
   .cp p{font-size:13px;color:var(--muted);line-height:1.6}
   .cp code{font:12px ui-monospace,monospace;color:var(--fg);background:var(--panel);padding:1.5px 6px;border-radius:5px}
   .fleet{margin-top:42px}
@@ -359,6 +362,7 @@ const HTML = `<!doctype html>
         <h3>Critical path</h3>
         <p><code>F001 @broberg/theme</code> (shipped) is the keystone — it unblocks 8 downstream UI components, and everything visual inherits its tokens. It was the first card built; the rest of L0 (config, mail, media, MCP-toolkit) follows.</p>
       </div>
+      <div class="copyright">© 2026 <a href="https://broberg.ai">broberg.ai</a> · Aalborg · Blokhus · Copenhagen · Build &amp; Powered by the broberg.ai universe.</div>
     </footer>
   </div>
   <div class="drawer-backdrop" id="dback" data-testid="inv-detail-backdrop"></div>
