@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: { index: "src/index.ts", preact: "src/preact.tsx" },
+  entry: { index: "src/index.ts", preact: "src/preact.tsx", sse: "src/sse.ts" },
   format: ["esm", "cjs"],
   dts: true,
   clean: true,

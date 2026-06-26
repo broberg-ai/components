@@ -1,6 +1,6 @@
 {
   "name": "@broberg/seti-client",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Typed client + frame-merge engine + Preact <SetiChat> component for buddycloud.cc SET/SETI live streaming chat (consumed through a host-app proxy from @broberg/seti-server).",
   "type": "module",
   "license": "MIT",
@@ -22,6 +22,11 @@
       "types": "./dist/preact.d.ts",
       "import": "./dist/preact.js",
       "require": "./dist/preact.cjs"
+    },
+    "./sse": {
+      "types": "./dist/sse.d.ts",
+      "import": "./dist/sse.js",
+      "require": "./dist/sse.cjs"
     }
   },
   "scripts": {

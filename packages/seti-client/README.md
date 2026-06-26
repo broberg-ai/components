@@ -52,4 +52,32 @@ plus a live footer.
 
 Server-side/direct use: `new SetiClient({ baseUrl: "https://buddycloud.cc/api/seti/v1", token })`.
 
+## SSE read-idle watchdog — `@broberg/seti-client/sse`
+
+A generic, zero-dep SSE consumer with a **read-idle watchdog**, shared across the
+fleet (0.3.0+). An SSE stream can go half-open (NAT drop / sleep / blip with no
+FIN) → `reader.read()` blocks forever → a zombie stream that never reconnects
+while the hub has long marked it dead. `consumeSSE` aborts a stream that got no
+frame for `idleTimeoutMs` (default 90 s) so the caller's reconnect loop fires.
+
+```ts
+import { consumeSSE } from "@broberg/seti-client/sse";
+
+while (running) {
+  try {
+    await consumeSSE(url, token, (event, data) => handle(event, data), {
+      idleTimeoutMs: 90_000,
+      onConnected: () => (backoff = 0), // reset backoff on a healthy connect
+    });
+  } catch {
+    /* idle-abort or drop → fall through to the reconnect backoff */
+  }
+  await sleep(backoff);
+}
+```
+
+Resolves when the stream closes; rejects on idle-abort or a non-OK response. The
+hub must emit a frame (comment/ping) at least every ~30 s. Tree-shakeable — this
+subpath pulls in none of the chat client or Preact.
+
 MIT © broberg.ai
