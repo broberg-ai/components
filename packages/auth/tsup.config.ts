@@ -8,6 +8,6 @@ export default defineConfig([
     clean: true,
     sourcemap: true,
     treeshake: true,
-    external: ["better-auth", "better-auth/*", "drizzle-orm", "@broberg/mail"],
+    external: ["better-auth", "better-auth/*", "@better-auth/passkey", "drizzle-orm", "@broberg/mail"],
   },
 ]);
