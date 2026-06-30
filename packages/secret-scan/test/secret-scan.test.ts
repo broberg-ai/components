@@ -241,3 +241,53 @@ describe("v0.1.3 — Cronjobs API key (cj_ + 43 base64url)", () => {
     expect(r.findings.map((f) => f.label)).not.toContain("cronjobs-api-key");
   });
 });
+
+describe("v0.1.6 — DeepSeek API key (sk- + 32 hex; field-anchored fallback)", () => {
+  const dsKey = "sk-0123456789abcdef0123456789abcdef"; // sk- + 32 lowercase hex
+
+  it("redacts a DeepSeek key and labels it deepseek-api-key, NOT openai", () => {
+    const r = redactSecrets("DEEPSEEK_API_KEY=" + dsKey);
+    expect(r.redacted).toContain("[REDACTED:deepseek-api-key]");
+    expect(r.redacted).not.toContain(dsKey);
+    const labels = r.findings.map((f) => f.label);
+    expect(labels).toContain("deepseek-api-key");
+    expect(labels).not.toContain("openai-api-key");
+  });
+
+  it("redacts a bare DeepSeek-shaped key (no field) as deepseek-api-key", () => {
+    const r = redactSecrets("key " + dsKey + " ok");
+    expect(r.findings.map((f) => f.label)).toContain("deepseek-api-key");
+    expect(r.redacted).not.toContain(dsKey);
+  });
+
+  it("field-anchored: redacts a DEEPSEEK_TOKEN with an opaque (non-sk) value", () => {
+    const opaque = "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8"; // 24 base62, no sk- prefix
+    const r = redactSecrets("DEEPSEEK_TOKEN=" + opaque);
+    expect(r.redacted).toContain("[REDACTED:deepseek-api-key]");
+    expect(r.redacted).not.toContain(opaque);
+  });
+
+  it("does NOT steal a real OpenAI key (sk-proj-/mixed-case → still openai)", () => {
+    const openai = "sk-proj-AbCdEf0123456789GhIjKlMnOpQr"; // mixed case
+    const labels = redactSecrets(openai).findings.map((f) => f.label);
+    expect(labels).toContain("openai-api-key");
+    expect(labels).not.toContain("deepseek-api-key");
+  });
+
+  it("anthropic + openrouter attribution unchanged (they run before deepseek)", () => {
+    const ant = "sk-ant-api03-" + "A".repeat(80);
+    const or = "sk-or-v1-" + "a".repeat(64);
+    const la = redactSecrets(ant).findings.map((f) => f.label);
+    const lo = redactSecrets(or).findings.map((f) => f.label);
+    expect(la).toContain("anthropic-api-key");
+    expect(la).not.toContain("deepseek-api-key");
+    expect(lo).toContain("openrouter-api-key");
+    expect(lo).not.toContain("deepseek-api-key");
+  });
+
+  it("does NOT redact a bare 32-hex git sha (no sk- prefix, no deepseek field)", () => {
+    const sha = "0123456789abcdef0123456789abcdef"; // bare 32 hex
+    const r = redactSecrets("commit " + sha + " landed");
+    expect(r.findings.map((f) => f.label)).not.toContain("deepseek-api-key");
+  });
+});

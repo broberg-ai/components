@@ -57,6 +57,18 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\bsk-or-v1-[0-9a-f]{64}/g,
   },
   {
+    // DeepSeek — shares the sk- prefix with OpenAI, so it MUST run before the
+    // generic openai pattern (specific-before-generic = correct attribution).
+    // DeepSeek's documented shape is sk- + 32 lowercase hex (GitGuardian confirms
+    // an sk- prefix but hides the exact regex); the hex-only body + {32,} length
+    // distinguishes it from OpenAI's mixed-case base62 keys, so a real OpenAI key
+    // is never mislabelled. The field-anchored fallback below catches any
+    // DEEPSEEK_API_KEY value that doesn't fit this canonical shape.
+    label: 'deepseek-api-key',
+    description: 'DeepSeek API key (sk- + 32 lowercase hex)',
+    regex: /\bsk-[0-9a-f]{32,}(?![0-9a-z])/g,
+  },
+  {
     label: 'openai-api-key',
     description: 'OpenAI API key (sk-… / sk-proj-…)',
     regex: /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g,
@@ -212,6 +224,16 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     label: 'mistral-api-key',
     description: 'Mistral API key (mistral-(api-)key/token field + 24+ base62)',
     regex: /\bmistral(?:[_-]?api)?[_-]?(?:key|token)\b\s*[:=]\s*["'`]?[A-Za-z0-9]{24,}(?![A-Za-z0-9])/gi,
+  },
+  {
+    // DeepSeek — field-anchored fallback for any DEEPSEEK_API_KEY/TOKEN value that
+    // doesn't fit the canonical sk-+hex shape (mirrors the Mistral context-only
+    // approach). The field name is the signal → near-zero false positives. The
+    // sk-+hex format pattern above already attributes the canonical shape; this
+    // backstops a format change or an opaque token.
+    label: 'deepseek-api-key',
+    description: 'DeepSeek API key (deepseek-(api-)key/token field + 20+ token)',
+    regex: /\bdeepseek(?:[_-]?api)?[_-]?(?:key|token)\b\s*[:=]\s*["'`]?[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])/gi,
   },
   {
     // Vimeo personal access token — ~32 lowercase hex, no prefix (sanne). A bare
