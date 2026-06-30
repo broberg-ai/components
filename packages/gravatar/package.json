@@ -1,0 +1,60 @@
+{
+  "name": "@broberg/gravatar",
+  "version": "0.1.0",
+  "description": "Isomorphic Gravatar helper (SHA-256) + initials fallback. Headless core + React and Preact adapter components with 3-tier fallback: uploaded picture → Gravatar → generated initials.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@radix-ui/react-avatar": ">=1.0.0",
+    "preact": ">=10.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@radix-ui/react-avatar": { "optional": true },
+    "preact": { "optional": true },
+    "react": { "optional": true }
+  },
+  "devDependencies": {
+    "@radix-ui/react-avatar": "^1.1.0",
+    "@types/react": "^19.0.0",
+    "preact": "^10.23.0",
+    "react": "^19.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": ["gravatar", "avatar", "sha256", "initials", "react", "preact", "broberg"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/gravatar"
+  },
+  "publishConfig": { "access": "public" }
+}
