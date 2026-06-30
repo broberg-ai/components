@@ -121,4 +121,18 @@ export {
 
 export { buildPasskeyPlugin, type PasskeyConfig } from "./passkey.js";
 
+export {
+  googleConfigured,
+  appleConfigured,
+  githubConfigured,
+  microsoftConfigured,
+  linkedinConfigured,
+  facebookConfigured,
+  emailPasswordConfigured,
+  magicLinkConfigured,
+  passkeyConfigured,
+  configuredMethods,
+  type GuardInput,
+} from "./guards.js";
+
 export type { BetterAuthOptions };
