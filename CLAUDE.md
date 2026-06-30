@@ -167,20 +167,20 @@ Reads (the gap check) need no key; only `POST /api/enroll` uses your `DISCOVERY_
 
 ```ts
 import { createAI } from "@broberg/ai-sdk";
-const ai = createAI();                         // real adapters; keys from env (ANTHROPIC_API_KEY, …)
+const ai = createAI();                         // real adapters; keys from env (MISTRAL_API_KEY, …)
 const { text, usage } = await ai.chat({ prompt: "Hej", tier: "smart" });
 // also: ai.vision · ai.video · ai.translate · ai.image · ai.embedding · ai.transcribe · ai.ocr · ai.moderate · ai.contracts.{extract,classify,…}
 ```
 
 **Route by tier, not by model-string.** Tiers → current model (overridable per call):
-`fast`=claude-haiku-4-5 · `smart`=claude-sonnet-4-6 · `powerful`=claude-opus-4-8 · `cheap`=mistral-small-latest (cheapest GDPR-safe cloud model) · `vision`=claude-sonnet-4-6 · `video`=gemini-2.5-flash-lite · `embedding`=text-embedding-3-small.
+`fast`=mistral-small-latest · `smart`=mistral-large-latest · `powerful`=mistral-large-latest · `cheap`=mistral-small-latest · `vision`=mistral-small-latest · `video`=gemini-2.5-flash-lite · `embedding`=text-embedding-3-small.
 
-**Cost & provider policy.** Anthropic/Claude is what we **build and code with** (Claude Code) — it is *not* the reflexive API default. For cost-sensitive / high-volume cloud-API workloads, default to the **cheapest model that's good enough** (start cheap, only move up if a real test shows it's needed) — that's what the `cheap` tier is for. `claude -p` is retired as a route; don't reach for the Anthropic API just because it's familiar. The quality tiers (`smart`/`powerful`) resolve to Claude because that's the quality bar — override down for volume.
+**Cost & provider policy (F030 — Anthropic API phased out).** `ANTHROPIC_API_KEY` was globally removed, so **no default tier hits the Anthropic API** — the default cloud route is **Mistral EU** (Paris-hosted, Schrems II-safe → every default text/vision call is GDPR-safe). Claude Code (the Max-plan *coding tool*, $0) is untouched — only the SDK's programmatic cloud route moved. Claude stays reachable as a **non-default** quality fallback for **non-PII** via `override:{provider:"openrouter", model:"anthropic/claude-…"}`; **DeepSeek** (CN, non-PII only) is the opt-in secondary via `override:{provider:"deepseek", model:"deepseek-chat"}`. Default to the **cheapest model that's good enough** (start cheap; `magistral` for reasoning / `mistral-large` for heavy vision are per-call overrides, not defaults). Personal/health data ALWAYS stays on Mistral EU — never auto-fall-back to CN/US.
 
 **Model-availability gate (F022, v0.11+).** Before launching/spawning on a model, gate it — a suspended tier (e.g. Fable 5, globally disabled 2026-06-12) then degrades instead of erroring at the user:
 ```ts
 import { resolveModel, listModels } from "@broberg/ai-sdk";          // browser UI: import from "@broberg/ai-sdk/registry"
-const r = resolveModel("fable", { fallback: "claude-opus-4-8" });    // sync, zero-I/O → { ok, model, fellBack, status, reason }
+const r = resolveModel("fable", { fallback: "mistral-large-latest" }); // sync, zero-I/O → { ok, model, fellBack, status, reason }
 listModels();  // [{ id, alias?, provider, available, status, note? }] — grey out dead tiers in a picker
 ```
 
