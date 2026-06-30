@@ -14,6 +14,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./hono": {
+      "types": "./dist/hono.d.ts",
+      "import": "./dist/hono.js",
+      "require": "./dist/hono.cjs"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js",
+      "require": "./dist/next.cjs"
     }
   },
   "scripts": {
@@ -25,12 +35,16 @@
     "better-auth": ">=1.6.0",
     "drizzle-orm": ">=0.30.0",
     "@broberg/mail": ">=0.3.0",
-    "@better-auth/passkey": ">=1.6.0"
+    "@better-auth/passkey": ">=1.6.0",
+    "hono": ">=4.0.0",
+    "next": ">=14.0.0"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": { "optional": true },
     "@broberg/mail": { "optional": true },
-    "@better-auth/passkey": { "optional": true }
+    "@better-auth/passkey": { "optional": true },
+    "hono": { "optional": true },
+    "next": { "optional": true }
   },
   "peerDependenciesComment": "better-auth is a peer so the consumer pins ONE version shared between this server wrapper and better-auth/client on the frontend. @broberg/mail is an optional peer — only needed when you enable magic-link (you pass the Mailer in; we import its type only).",
   "devDependencies": {
@@ -38,6 +52,7 @@
     "@types/node": "^22.0.0",
     "better-auth": "^1.6.0",
     "drizzle-orm": "^0.45.2",
+    "hono": "^4.6.0",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
