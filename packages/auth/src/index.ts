@@ -113,6 +113,43 @@ export function createAuth(config: AuthConfig) {
 /** The configured Better Auth instance type returned by `createAuth`. */
 export type Auth = ReturnType<typeof createAuth>;
 
+/** A single Better Auth plugin (the element type of the options `plugins` array). */
+export type AuthPlugin = NonNullable<BetterAuthOptions["plugins"]>[number];
+
+/**
+ * Like {@link createAuth}, but you pass the plugin tuple EXPLICITLY so the
+ * returned instance is FULLY TYPED — plugin-augmented `api.*` methods
+ * (`auth.api.signInMagicLink`, the passkey endpoints, …) are statically
+ * available with NO `any` cast (F008.7).
+ *
+ * Why a separate factory: `createAuth` dark-ships magic-link/passkey
+ * CONDITIONALLY at runtime, so its return type can't know which plugins are
+ * present. Here you opt in by passing the plugins, so the `const P` tuple flows
+ * into Better Auth's inference. Social providers + email/password still
+ * dark-ship; build the plugins with the re-exported `buildMagicLinkPlugin` /
+ * `buildPasskeyPlugin` (or any Better Auth plugin).
+ *
+ *   const auth = createTypedAuth(
+ *     { database: drizzle(db, { provider: "sqlite" }), socials: { google } },
+ *     [buildMagicLinkPlugin({ mailer }), buildPasskeyPlugin({ rpID, rpName })],
+ *   );
+ *   await auth.api.signInMagicLink({ body: { email } });   // fully typed, no cast
+ */
+export function createTypedAuth<const P extends AuthPlugin[]>(
+  config: Omit<AuthConfig, "magicLink" | "passkey" | "plugins" | "extend">,
+  plugins: P,
+) {
+  const socialProviders = pruneSocials(config.socials);
+  return betterAuth({
+    database: config.database,
+    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+    ...(config.secret ? { secret: config.secret } : {}),
+    ...(config.emailPassword ? { emailAndPassword: { enabled: true } } : {}),
+    socialProviders,
+    plugins,
+  });
+}
+
 export {
   buildMagicLinkPlugin,
   makeMagicLinkSender,

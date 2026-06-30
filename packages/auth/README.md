@@ -78,6 +78,29 @@ Individual guards are exported too: `googleConfigured`, `appleConfigured`,
 `githubConfigured`, `microsoftConfigured`, `linkedinConfigured`, `facebookConfigured`,
 `emailPasswordConfigured`, `magicLinkConfigured`, `passkeyConfigured`.
 
+### Typed plugin api (magic-link / passkey) — `createTypedAuth`
+
+`createAuth` dark-ships magic-link/passkey *conditionally* at runtime, so its
+return type can't statically know which plugins are present — plugin-augmented
+`api.*` methods (`auth.api.signInMagicLink`, the passkey endpoints) drop off the
+type. When you enable those and want them **fully typed with no cast**, use
+`createTypedAuth` and pass the plugins explicitly:
+
+```ts
+import { createTypedAuth, buildMagicLinkPlugin, buildPasskeyPlugin } from "@broberg/auth";
+
+const auth = createTypedAuth(
+  { database: drizzle(db, { provider: "sqlite" }), socials: { google }, emailPassword: true },
+  [buildMagicLinkPlugin({ mailer }), buildPasskeyPlugin({ rpID: "xrt81.com", rpName: "XRT81" })],
+);
+
+await auth.api.signInMagicLink({ body: { email } });   // fully typed, no cast
+```
+
+Social providers + email/password still dark-ship; the plugins you pass are
+explicit (you opted in). `createAuth` is unchanged — use it when you don't need
+the plugin endpoints statically typed.
+
 ## MitID (and other custom IdPs) — deferred
 
 MitID is **not** bundled. It is OIDC, but it requires a broker

@@ -1,6 +1,6 @@
 {
   "name": "@broberg/auth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Thin fleet wrapper around Better Auth — one createAuth() for email+password, magic-link (via @broberg/mail), social login (Google/Apple/GitHub/Microsoft/LinkedIn/Facebook) and passkey/WebAuthn, with dark-ship provider guards and Hono + Next mount helpers. Runs in your own app/DB — no external service.",
   "type": "module",
   "license": "MIT",
