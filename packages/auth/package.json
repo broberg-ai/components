@@ -23,15 +23,14 @@
   },
   "peerDependencies": {
     "better-auth": ">=1.6.0",
-    "drizzle-orm": ">=0.30.0"
+    "drizzle-orm": ">=0.30.0",
+    "@broberg/mail": ">=0.3.0"
   },
   "peerDependenciesMeta": {
-    "drizzle-orm": { "optional": true }
+    "drizzle-orm": { "optional": true },
+    "@broberg/mail": { "optional": true }
   },
-  "dependencies": {
-    "@broberg/mail": ">=0.1.0"
-  },
-  "peerDependenciesComment": "better-auth is a peer so the consumer pins ONE version shared between this server wrapper and better-auth/client on the frontend.",
+  "peerDependenciesComment": "better-auth is a peer so the consumer pins ONE version shared between this server wrapper and better-auth/client on the frontend. @broberg/mail is an optional peer — only needed when you enable magic-link (you pass the Mailer in; we import its type only).",
   "devDependencies": {
     "@types/node": "^22.0.0",
     "better-auth": "^1.6.0",

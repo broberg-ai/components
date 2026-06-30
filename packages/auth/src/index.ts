@@ -1,5 +1,6 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { buildMagicLinkPlugin, type MagicLinkConfig } from "./magic-link.js";
 
 /**
  * @broberg/auth — a thin, opinionated wrapper around Better Auth.
@@ -39,6 +40,9 @@ export interface AuthConfig {
   secret?: string;
   /** Enable email + password sign-in. */
   emailPassword?: boolean;
+  /** Enable magic-link sign-in, delivered through @broberg/mail. Omitted when
+   *  unset (dark-ship) — no magic-link endpoints register without a mailer. */
+  magicLink?: MagicLinkConfig;
   /**
    * Social providers, keyed exactly as Better Auth expects. Each entry may be
    * `undefined` — such providers are DARK-SHIPPED (omitted, not registered).
@@ -76,24 +80,39 @@ export function pruneSocials(socials: AuthConfig["socials"]): SocialProviders {
   return out as SocialProviders;
 }
 
-/** Build a fleet-configured Better Auth instance. Thin wrapper: assembles
- *  `BetterAuthOptions` from `config` (dark-shipping unconfigured providers) and
- *  returns `betterAuth(options)`. */
-export function createAuth(config: AuthConfig) {
+/** Assemble `BetterAuthOptions` from the fleet config: dark-ship unconfigured
+ *  social providers, and register the magic-link plugin only when a mailer is
+ *  given. Exported (separately from `createAuth`) so the assembly is unit-
+ *  testable without constructing a live Better Auth instance. */
+export function buildAuthOptions(config: AuthConfig): BetterAuthOptions {
   const socialProviders = pruneSocials(config.socials);
-  const options: BetterAuthOptions = {
+  const plugins = [...(config.plugins ?? [])];
+  if (config.magicLink) plugins.push(buildMagicLinkPlugin(config.magicLink));
+  return {
     database: config.database,
     ...(config.baseURL ? { baseURL: config.baseURL } : {}),
     ...(config.secret ? { secret: config.secret } : {}),
     ...(config.emailPassword ? { emailAndPassword: { enabled: true } } : {}),
     socialProviders,
-    ...(config.plugins ? { plugins: config.plugins } : {}),
+    ...(plugins.length ? { plugins } : {}),
     ...config.extend,
   };
-  return betterAuth(options);
+}
+
+/** Build a fleet-configured Better Auth instance. Thin wrapper: assembles
+ *  `BetterAuthOptions` (dark-shipping unconfigured methods) and returns
+ *  `betterAuth(options)`. */
+export function createAuth(config: AuthConfig) {
+  return betterAuth(buildAuthOptions(config));
 }
 
 /** The configured Better Auth instance type returned by `createAuth`. */
 export type Auth = ReturnType<typeof createAuth>;
+
+export {
+  buildMagicLinkPlugin,
+  makeMagicLinkSender,
+  type MagicLinkConfig,
+} from "./magic-link.js";
 
 export type { BetterAuthOptions };
