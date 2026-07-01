@@ -161,6 +161,14 @@ Found one? Consume it (exact-pin prod-auth deps). Missing? Build it (or ask `com
 
 Reads (the gap check) need no key; only `POST /api/enroll` uses your `DISCOVERY_ENROLL_KEY`.
 
+## npm publish — bootstrap a brand-new `@broberg/*` package
+
+A package's **first-ever** `v0.1.0` can't go out via the OIDC workflow (`.github/workflows/publish.yml`) — npm has no Trusted Publisher yet for a name that doesn't exist. Bootstrap it locally instead, using the token already sitting in `~/.npmrc`:
+
+1. `cd packages/<name> && npm publish --access public --dry-run` first — validates the tarball/package.json.
+2. `npm publish --access public` (no `--dry-run`) — the real publish. **Caveat proven 2026-07-01 (forms-turnstile):** dry-run passing is NOT proof the token is good — npm's dry-run mode doesn't fully authenticate, so it can pass clean on a dead token. If the real publish 404s (`PUT .../@broberg%2f<pkg> - Not found`), confirm with `npm whoami` / `npm profile get` — a `401 "token seems to be invalid"` on those means the `~/.npmrc` token is genuinely expired, not a permissions/scope nuance. Tell Christian the token is dead; don't keep retrying.
+3. Once `v0.1.0` is live, Christian sets up the **Trusted Publisher** on npmjs.com (repo `broberg-ai/components` + workflow `publish.yml`) — every release after that runs token-free via OIDC on a tag push (`<pkg>-v<version>`). Add the package's job + tag prefix to `publish.yml` at that point.
+
 ## @broberg/ai-sdk — the AI/LLM gateway (MUST)
 
 **ALL LLM/AI calls in this repo go through `@broberg/ai-sdk` — never a raw Anthropic/OpenAI/Gemini/Vercel SDK or a bare `fetch` to a provider.** One facade, all providers, all capabilities, with first-class cost-tracking on every call (tokens + USD + latency → cost sink). Swap models by changing a *tier*, not your call-sites.
