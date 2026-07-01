@@ -1,0 +1,73 @@
+{
+  "name": "@broberg/forms-turnstile",
+  "version": "0.1.0",
+  "description": "Spam-protected public form primitives for the broberg.ai fleet: honeypot detection, an in-process IP rate limiter, and Cloudflare Turnstile server-side verification. Headless core + a Preact widget hook + a Hono middleware.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
+    "./hono": {
+      "types": "./dist/hono.d.ts",
+      "import": "./dist/hono.js",
+      "require": "./dist/hono.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "hono": ">=4",
+    "preact": ">=10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "hono": { "optional": true },
+    "preact": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "hono": "^4.6.0",
+    "preact": "^10.23.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "turnstile",
+    "cloudflare",
+    "captcha",
+    "spam-protection",
+    "honeypot",
+    "rate-limit",
+    "forms",
+    "hono",
+    "preact",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/forms-turnstile"
+  },
+  "publishConfig": { "access": "public" }
+}
