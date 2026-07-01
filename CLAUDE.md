@@ -163,11 +163,12 @@ Reads (the gap check) need no key; only `POST /api/enroll` uses your `DISCOVERY_
 
 ## npm publish — bootstrap a brand-new `@broberg/*` package
 
-A package's **first-ever** `v0.1.0` can't go out via the OIDC workflow (`.github/workflows/publish.yml`) — npm has no Trusted Publisher yet for a name that doesn't exist. Bootstrap it locally instead, using the token already sitting in `~/.npmrc`:
+A package's **first-ever** `v0.1.0` can't go out via the OIDC workflow (`.github/workflows/publish.yml`) — npm has no Trusted Publisher yet for a name that doesn't exist. Bootstrap it locally instead, using the credential already sitting in `~/.npmrc`:
 
-1. `cd packages/<name> && npm publish --access public --dry-run` first — validates the tarball/package.json.
-2. `npm publish --access public` (no `--dry-run`) — the real publish. **Caveat proven 2026-07-01 (forms-turnstile):** dry-run passing is NOT proof the token is good — npm's dry-run mode doesn't fully authenticate, so it can pass clean on a dead token. If the real publish 404s (`PUT .../@broberg%2f<pkg> - Not found`), confirm with `npm whoami` / `npm profile get` — a `401 "token seems to be invalid"` on those means the `~/.npmrc` token is genuinely expired, not a permissions/scope nuance. Tell Christian the token is dead; don't keep retrying.
-3. Once `v0.1.0` is live, Christian sets up the **Trusted Publisher** on npmjs.com (repo `broberg-ai/components` + workflow `publish.yml`) — every release after that runs token-free via OIDC on a tag push (`<pkg>-v<version>`). Add the package's job + tag prefix to `publish.yml` at that point.
+1. `cd packages/<name> && npm publish --access public --dry-run` first — validates the tarball/package.json. **Caveat:** dry-run passing is NOT proof the real publish will work — it doesn't fully authenticate.
+2. `npm publish --access public` (no `--dry-run`) — the real publish. If `npm whoami` 401s ("token seems to be invalid"), Christian is simply **logged out of npmjs.com** — the `~/.npmrc` credential is tied to his login session, not a standalone forever-token. Ask him to log in (one line, not deep debugging), then retry.
+3. Publish is 2FA-gated — expect `EOTP` ("one-time password required"). The browser-auth URL npm prints is **redacted in every log a cc session can read**, so don't chase it. Ask Christian for the 6-digit code from his authenticator and pass it straight through: `npm publish --access public --otp=<code>` (codes are short-lived, ~30s — use it immediately).
+4. Once `v0.1.0` is live, Christian sets up the **Trusted Publisher** on npmjs.com (repo `broberg-ai/components` + workflow `publish.yml`) — every release after that runs token-free via OIDC on a tag push (`<pkg>-v<version>`). Add the package's job + tag prefix to `publish.yml` at that point.
 
 ## @broberg/ai-sdk — the AI/LLM gateway (MUST)
 
