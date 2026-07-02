@@ -15,6 +15,7 @@ RUN bun install
 # App source.
 COPY apps/discovery/server.ts ./server.ts
 COPY apps/discovery/enroll.ts ./enroll.ts
+COPY apps/discovery/speech-dictionary.ts ./speech-dictionary.ts
 
 ENV PORT=8080
 EXPOSE 8080
