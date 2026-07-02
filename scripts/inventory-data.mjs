@@ -306,6 +306,14 @@ export const INFRA = [
       { t: "New fleet-wide MCP tool: search_history — full-text search (FTS5/BM25) over each edge's 'fermented' layer-2 dialog history, on the buddy channel. Complements trail_search: keyword-hit recall vs. trail's distilled/summarized knowledge. Live in already-running sessions after the next relaunch_fleet; new sessions get it from source automatically.", by: "buddy", tag: "search-history" },
     ],
   },
+  {
+    id: "macos-native", name: "Native macOS/iOS apps (Swift — codesign, entitlements, TCC)", role: "Code-signing + hardware-permission gotchas for native Swift apps (menubar apps, Capacitor-wrapped iOS/Android)",
+    kw: ["macos","swift","codesign","entitlements","hardened runtime","tcc","microphone","camera","privacy","permission","menubar","xcode","provisioning","notarize","notarization","avcapturedevice","info.plist"],
+    notes: "Native Swift/macOS apps fail hardware-permission requests SILENTLY when Hardened Runtime is signed without the matching entitlement — no crash, no TCC prompt, no System Settings entry, just a permission that's quietly denied. This is easy to misdiagnose as an Info.plist or OS bug instead of a signing gap.",
+    tips: [
+      { t: "Hardened Runtime + missing entitlement = SILENT permission denial, no TCC prompt ever shown. Symptom (Trail Ambient, Swift menubar app): AVCaptureDevice.requestAccess(for:.audio) returned with no dialog, no crash, and the app never appeared in System Settings › Privacy › Microphone. Root cause: signed with `codesign --options runtime` (Hardened Runtime) but no `--entitlements` plist — under Hardened Runtime, mic access requires `com.apple.security.device.audio-input` IN THE SIGNATURE ITSELF. `NSMicrophoneUsageDescription` in Info.plist is necessary but NOT sufficient on its own — without the entitlement, macOS denies access before it ever asks. Fix: sign with `codesign --options runtime --entitlements <plist> ...` where the plist sets `com.apple.security.device.audio-input = true` (camera = `com.apple.security.device.camera`; Screen Recording is TCC-only, no entitlement exists for it). ALWAYS verify post-build with `codesign -d --entitlements - <App>` — an empty entitlements block alongside `flags=0x10000(runtime)` in `codesign -d` output is exactly this trap. Cost Trail ~1h to diagnose.", by: "trail", tag: "hardened-runtime-entitlements" },
+    ],
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
