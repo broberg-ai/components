@@ -77,6 +77,7 @@ export const DATA = [
    {f:"fleet-client",nm:"Fleet client",pkg:"@broberg/fleet-client",kw:["fleet","intercom","dispatch","notify mobile","fleet comms","cross session","board digest","session messaging"],m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"broberg-ai/fleet",own:"fleet (buddy F072)",desc:"The typed fleet-comms client — intercom dispatch, terminal provision, notify-mobile, board digest — validated against fleet-contracts before send. Owned by broberg-ai/fleet. Live as @broberg/fleet-client v0.1.0."},
    {f:"fleet-contracts",nm:"Fleet contracts",pkg:"@broberg/fleet-contracts",kw:["fleet","contracts","zod schemas","fleet endpoints","fleet comms","validation","schema"],m:"runtime",s:"shipped",ver:"0.1.0",ext:1,src:"broberg-ai/fleet",own:"fleet (buddy F072)",desc:"The fleet-comms contracts — zod schemas + FLEET_ENDPOINTS (the single source of truth) that fleet-client validates against. Owned by broberg-ai/fleet. Live as @broberg/fleet-contracts v0.1.0."},
    {f:"complimenta-sdk",nm:"Complimenta booking SDK",pkg:"@broberg/complimenta-sdk",kw:["complimenta","booking","reservation","appointment","openapi","oauth2","client credentials","booking sdk","integration","fdaa"],m:"runtime",s:"shipped",ver:"0.2.0",ext:1,src:"broberg-ai/fdaa",own:"fdaa",desc:"Typed client SDK for the Complimenta booking API — all 40 endpoints, types generated from their OpenAPI spec (openapi-typescript → schema.ts), OAuth2 client-credentials auth, zero runtime deps, Node/Bun/Next. Lives in the fdaa monorepo (packages/complimenta) — the FIRST @broberg package published from a monorepo subdir (token-bootstrapped v0.1.0 by components, then token-free OIDC from its own tag complimenta-sdk-v*). Owner: fdaa (broberg-ai/fdaa). Reuse if you integrate Complimenta. Live as @broberg/complimenta-sdk v0.2.0."},
+   {f:"cms-inline-edit",nm:"CMS click-to-edit widget",pkg:"@broberg/cms-inline-edit",kw:["inline edit","click to edit","cms","content editing","live editing","hero","about","contact","content management"],m:"runtime",s:"shipped",ver:"0.4.1",ext:1,src:"webhousecode/cms",own:"cms",desc:"Click-to-edit widget for live @webhouse/cms-sites — auth-bridged from cms-admin, GET/PATCH straight against the CMS API, no server-side relay needed. First consumer: broberg.ai (Hero/About/Contact fields), verified live. Lives in webhousecode/cms's packages/cms-inline-edit/ — a DELIBERATE exception to \"all @broberg/* packages live in components\" (Christian wanted fast delivery over coordination; only the npm scope moved, not the repo). Owner: cms (webhousecode/cms). Plan-doc: docs/features/F157-inline-editing.md in the cms repo. Live as @broberg/cms-inline-edit v0.4.1."},
  ]},
 ];
 
@@ -89,10 +90,10 @@ export const FLEET = [
   { s:"cardmem", r:"PM board + Lens visual-verification daemon", src:["lens"], uses:["lens","seti-client","seti-server"] },
   { s:"trail", r:"trailmem — fleet second-brain", src:["secret-scan"], uses:["lens","secret-scan","mail"] },
   { s:"sanne", r:"sanneandersen.dk — booking + shop", src:["mail"], uses:["lens","mail"] },
-  { s:"cms", r:"AI-native CMS", src:["theme"] },
+  { s:"cms", r:"AI-native CMS", src:["theme"], pub:["cms-inline-edit"] },
   { s:"xrt81", r:"X RT 81 — club platform", src:["config"], uses:["lens","forms-turnstile"] },
-  { s:"fds", r:"sport.fdaalborg.dk", uses:["lens"], note:"mail via AWS SES (not @broberg/mail)" },
-  { s:"fdaa", r:"fdaalborg.dk — fysio platform", uses:["mail"], isNew:true },
+  { s:"fds", r:"sport.fdaalborg.dk", uses:["lens","webpush"], note:"mail via AWS SES (not @broberg/mail) — deliberate, budget-gated ($20/mo Resend domain verification for fdaalborg.dk)" },
+  { s:"fdaa", r:"fdaalborg.dk — fysio platform", uses:["mail"], pub:["complimenta-sdk"], isNew:true },
 ];
 
 // Infra best-practices — the platforms we primarily run on, with live, crowd-sourced
