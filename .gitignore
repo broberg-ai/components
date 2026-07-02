@@ -152,3 +152,4 @@ vite.config.ts.timestamp-*
 # npm auth (never commit)
 .npmrc
 packages/*/.npmrc
+.turbo
