@@ -12,7 +12,7 @@ import { DATA, FLEET, MODEL, INFRA, npmUrl, repoUrl } from "../../scripts/invent
 import { getEnrollStore, type Role } from "./enroll";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
 // edit: 503s until GITHUB_WRITE_TOKEN + SPEECH_DICT_EDIT_KEY are configured).
-import { readDictionary, editDictionary, type EditDiff } from "./speech-dictionary";
+import { readDictionary, editDictionary, authenticateEditor, type EditDiff } from "./speech-dictionary";
 
 const VERSION = "0.3.0";
 
@@ -194,7 +194,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
     { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = trust-on-first-use: generate your OWN key (openssl rand -hex 32) into your repo's .env, send it as header x-enroll-key — the first enroll binds it to your session, later enrolls must match. Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
     { method: "GET", path: "/api/speech-dictionary", description: "@broberg/speech-dictionary's current terms + corrections, always the latest committed state (F044.1)", example: "/api/speech-dictionary" },
-    { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff — service-to-service only (x-speech-dict-key header), never a user login. Commits + auto-publishes a new patch version. Body {addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
+    { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff. Auth = trust-on-first-use: generate your OWN key (openssl rand -hex 32), send it as header x-speech-dict-key + body.session — first call binds it, no pre-shared secret ever changes hands. Commits + auto-publishes a new patch version. Body {session,addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
   ],
   vocabularies: {
     layers: layers.map((l) => ({ id: l.id, name: l.name })),
@@ -385,20 +385,26 @@ app.get("/api/speech-dictionary", async (c) => {
 });
 
 app.post("/api/speech-dictionary/edit", async (c) => {
-  const editKey = process.env.SPEECH_DICT_EDIT_KEY;
-  if (!editKey || !process.env.GITHUB_WRITE_TOKEN) {
+  if (!process.env.GITHUB_WRITE_TOKEN) {
     return c.json({ ok: false, error: "speech_dictionary_edit_unconfigured" }, 503);
   }
-  const presented = c.req.header("x-speech-dict-key") ?? "";
-  if (presented !== editKey) return c.json({ ok: false, error: "unauthorized" }, 401);
 
-  let diff: EditDiff;
+  let body: EditDiff & { session?: string };
   try {
-    diff = (await c.req.json()) as EditDiff;
+    body = (await c.req.json()) as EditDiff & { session?: string };
   } catch {
     return c.json({ ok: false, error: "invalid_json" }, 400);
   }
 
+  // Trust-on-first-use per caller session — no pre-shared secret to distribute,
+  // so there's nothing for a human to generate and hand off through a chat
+  // channel. Caller generates its OWN key locally (openssl rand -hex 32).
+  const session = typeof body.session === "string" ? body.session : "";
+  const presented = c.req.header("x-speech-dict-key") ?? "";
+  const auth = await authenticateEditor(session, presented);
+  if (!auth.ok) return c.json({ ok: false, error: auth.error }, 401);
+
+  const { session: _session, ...diff } = body;
   try {
     return c.json(await editDictionary(diff));
   } catch (e) {

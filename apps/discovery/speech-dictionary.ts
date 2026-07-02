@@ -2,8 +2,64 @@
 // Reads always reflect the latest COMMITTED state on GitHub (not a build-time
 // snapshot like the rest of Discovery's inventory) because edits land via commits
 // this module makes itself, with no Discovery redeploy in between. Ship-dark:
-// edit 503s until GITHUB_WRITE_TOKEN + SPEECH_DICT_EDIT_KEY are both configured;
-// reads work unauthenticated against the public repo either way.
+// edit 503s until GITHUB_WRITE_TOKEN is configured; reads work unauthenticated
+// against the public repo either way.
+//
+// Edit auth is trust-on-first-use (same shape as F039's enroll session_keys,
+// but its OWN table — an edit key can commit to git, an enroll key can only
+// self-report a version, so the two scopes must never share a binding). The
+// caller (cardmem) generates its OWN key locally and never hands the raw value
+// to another session or channel — the first call for a given `session` name
+// binds sha256(key); a pre-shared secret one session generates and another
+// must receive never exists, so it can't leak through a chat/intercom channel.
+import { createClient, type Client } from "@libsql/client";
+import { createHash } from "node:crypto";
+
+const CREATE_EDIT_KEYS = `CREATE TABLE IF NOT EXISTS speech_dict_edit_keys (
+  session TEXT PRIMARY KEY,
+  key_hash TEXT NOT NULL,
+  bound_at INTEGER NOT NULL
+)`;
+
+let _client: Promise<Client | null> | null = null;
+function getClient(): Promise<Client | null> {
+  if (!_client) {
+    _client = (async () => {
+      const url = process.env.ENROLL_DB_URL || process.env.TURSO_DATABASE_URL;
+      if (!url) return null;
+      const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
+      await client.execute(CREATE_EDIT_KEYS);
+      return client;
+    })();
+  }
+  return _client;
+}
+
+export type AuthResult = { ok: true; status: "registered" | "matched" } | { ok: false; error: string };
+
+/** TOFU: first presented key for a session binds; later calls from that session must match it. */
+export async function authenticateEditor(session: string, presentedKey: string): Promise<AuthResult> {
+  if (!session) return { ok: false, error: "session is required" };
+  if (presentedKey.length < 32) {
+    return { ok: false, error: "x-speech-dict-key required (min 32 chars — generate your own: `openssl rand -hex 32`, keep it in your own repo's .env)" };
+  }
+  const client = await getClient();
+  if (!client) return { ok: false, error: "edit_key_store_unavailable" };
+
+  const keyHash = createHash("sha256").update(presentedKey).digest("hex");
+  const rs = await client.execute({ sql: "SELECT key_hash FROM speech_dict_edit_keys WHERE session = ?", args: [session] });
+  const bound = rs.rows.length ? String(rs.rows[0]!.key_hash) : null;
+
+  if (!bound) {
+    await client.execute({
+      sql: "INSERT INTO speech_dict_edit_keys (session, key_hash, bound_at) VALUES (?, ?, ?) ON CONFLICT(session) DO NOTHING",
+      args: [session, keyHash, Date.now()],
+    });
+    return { ok: true, status: "registered" };
+  }
+  if (bound === keyHash) return { ok: true, status: "matched" };
+  return { ok: false, error: "session_key_mismatch — this session is already bound to a different key" };
+}
 
 const REPO = "broberg-ai/components";
 const BRANCH = "main";

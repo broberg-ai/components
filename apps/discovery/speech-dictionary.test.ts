@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applyDiff, bumpPatch, groupTerms, type CorrectionEntry, type TermEntry } from "./speech-dictionary";
+
+// authenticateEditor's TOFU store is a lazy singleton reading env at first use.
+process.env.ENROLL_DB_URL = ":memory:";
+
+import { applyDiff, authenticateEditor, bumpPatch, groupTerms, type CorrectionEntry, type TermEntry } from "./speech-dictionary";
 
 const TERMS: TermEntry[] = [
   { term: "cardmem", group: "product" },
@@ -21,6 +25,42 @@ describe("bumpPatch", () => {
   it("increments the patch component", () => {
     expect(bumpPatch("0.1.0")).toBe("0.1.1");
     expect(bumpPatch("1.2.9")).toBe("1.2.10");
+  });
+});
+
+describe("authenticateEditor (trust-on-first-use)", () => {
+  const KEY = "a".repeat(32);
+
+  it("rejects a key shorter than 32 chars", async () => {
+    const r = await authenticateEditor("test-session-short", "tooshort");
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects a missing session name", async () => {
+    const r = await authenticateEditor("", KEY);
+    expect(r.ok).toBe(false);
+  });
+
+  it("binds on first use, matches on subsequent calls with the same key", async () => {
+    const session = "test-session-" + Math.random();
+    const first = await authenticateEditor(session, KEY);
+    expect(first).toEqual({ ok: true, status: "registered" });
+    const second = await authenticateEditor(session, KEY);
+    expect(second).toEqual({ ok: true, status: "matched" });
+  });
+
+  it("rejects a different key for an already-bound session", async () => {
+    const session = "test-session-" + Math.random();
+    await authenticateEditor(session, KEY);
+    const wrong = await authenticateEditor(session, "b".repeat(32));
+    expect(wrong.ok).toBe(false);
+  });
+
+  it("two different sessions never share a binding", async () => {
+    const a = await authenticateEditor("session-a-" + Math.random(), KEY);
+    const b = await authenticateEditor("session-b-" + Math.random(), "c".repeat(32));
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
   });
 });
 
