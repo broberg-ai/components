@@ -1,0 +1,45 @@
+{
+  "name": "@broberg/mail-core",
+  "version": "0.1.0",
+  "description": "Branded HTML email shell + primitives for the broberg.ai fleet — renderShell, heading/paragraph/cta/factBox/signOff, and a CID logo-attachment helper. No sending (@broberg/mail) and no template-content/override-resolution (@broberg/mail-templates) — layer 1 (visual structure) only. Every brand value is a caller-supplied param.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "email",
+    "mail",
+    "html-email",
+    "email-template",
+    "transactional-email",
+    "email-shell",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/mail-core"
+  },
+  "publishConfig": { "access": "public" }
+}
