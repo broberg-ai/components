@@ -1,0 +1,162 @@
+[
+  {
+    "term": "cardmem",
+    "group": "product"
+  },
+  {
+    "term": "buddy",
+    "group": "product"
+  },
+  {
+    "term": "Trail",
+    "group": "product"
+  },
+  {
+    "term": "Upmetrics",
+    "group": "product"
+  },
+  {
+    "term": "CPM",
+    "group": "product"
+  },
+  {
+    "term": "codepromptmaker",
+    "group": "product"
+  },
+  {
+    "term": "Pitch Vault",
+    "group": "product"
+  },
+  {
+    "term": "WHop",
+    "group": "product"
+  },
+  {
+    "term": "Lens",
+    "group": "product"
+  },
+  {
+    "term": "Cronjobs",
+    "group": "product"
+  },
+  {
+    "term": "Christian Broberg",
+    "group": "person"
+  },
+  {
+    "term": "broberg.ai",
+    "group": "brand"
+  },
+  {
+    "term": "WebHouse",
+    "group": "brand"
+  },
+  {
+    "term": "Senti.Cloud",
+    "group": "brand"
+  },
+  {
+    "term": "Blokhus",
+    "group": "brand"
+  },
+  {
+    "term": "Aalborg",
+    "group": "brand"
+  },
+  {
+    "term": "WhisperKit",
+    "group": "tech"
+  },
+  {
+    "term": "Whisper",
+    "group": "tech"
+  },
+  {
+    "term": "Fly.io",
+    "group": "tech"
+  },
+  {
+    "term": "Tigris",
+    "group": "tech"
+  },
+  {
+    "term": "Mistral",
+    "group": "tech"
+  },
+  {
+    "term": "Turso",
+    "group": "tech"
+  },
+  {
+    "term": "libSQL",
+    "group": "tech"
+  },
+  {
+    "term": "Litestream",
+    "group": "tech"
+  },
+  {
+    "term": "Hono",
+    "group": "tech"
+  },
+  {
+    "term": "Preact",
+    "group": "tech"
+  },
+  {
+    "term": "Drizzle",
+    "group": "tech"
+  },
+  {
+    "term": "Bun",
+    "group": "tech"
+  },
+  {
+    "term": "Better Auth",
+    "group": "tech"
+  },
+  {
+    "term": "Resend",
+    "group": "tech"
+  },
+  {
+    "term": "Cloudflare R2",
+    "group": "tech"
+  },
+  {
+    "term": "SETI",
+    "group": "tech"
+  },
+  {
+    "term": "MCP",
+    "group": "tech"
+  },
+  {
+    "term": "Claude Code",
+    "group": "tech"
+  },
+  {
+    "term": "Vite",
+    "group": "tech"
+  },
+  {
+    "term": "Tailwind",
+    "group": "tech"
+  },
+  {
+    "term": "Zod",
+    "group": "tech"
+  },
+  {
+    "term": "Octokit",
+    "group": "tech"
+  },
+  {
+    "term": "pnpm",
+    "group": "tech"
+  },
+  {
+    "term": "Turbo",
+    "group": "tech"
+  }
+]

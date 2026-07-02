@@ -1,0 +1,332 @@
+[
+  {
+    "wrong": "kommitte",
+    "right": "committe",
+    "note": "at gemme ændringer i git",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "komitte",
+    "right": "committe",
+    "note": "at gemme ændringer i git",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "kommit",
+    "right": "commit",
+    "note": "en git commit",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "merche",
+    "right": "merge",
+    "note": "at sammenflette kode",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "mærke",
+    "right": "merge",
+    "note": "at sammenflette kode, hvis kontekst er git",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "puste",
+    "right": "pushe",
+    "note": "at sende kode til remote",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "stache",
+    "right": "stashe",
+    "note": "git stash, gemme ændringer midlertidigt",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "ribase",
+    "right": "rebase",
+    "note": "git rebase",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "bransen",
+    "right": "branchen",
+    "note": "en git branch",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "klone",
+    "right": "clone",
+    "note": "at klone et repo",
+    "category": "Git og versionsstyring"
+  },
+  {
+    "wrong": "mokke",
+    "right": "mocke",
+    "note": "at lave mock/staffage i kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "møkke",
+    "right": "mocke",
+    "note": "at lave mock/staffage i kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "dibage",
+    "right": "debugge",
+    "note": "at fejlfinde kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "debukke",
+    "right": "debugge",
+    "note": "at fejlfinde kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "refaktore",
+    "right": "refaktorere",
+    "note": "at omstrukturere kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "parce",
+    "right": "parse",
+    "note": "at analysere data",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "passe",
+    "right": "parse",
+    "note": "at analysere data, hvis kontekst er kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "kashe",
+    "right": "cache",
+    "note": "mellemlager for data",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "kæshe",
+    "right": "cache",
+    "note": "mellemlager for data",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "cashe",
+    "right": "cache",
+    "note": "mellemlager for data",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "snipet",
+    "right": "snippet",
+    "note": "et kodestykke",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "snipper",
+    "right": "snippet",
+    "note": "et kodestykke",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "fiture",
+    "right": "feature",
+    "note": "en ny funktion",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "ficher",
+    "right": "feature",
+    "note": "en ny funktion",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "fikse",
+    "right": "fixe",
+    "note": "at rette en fejl",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "bogen",
+    "right": "buggen",
+    "note": "en fejl i kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "bokken",
+    "right": "buggen",
+    "note": "en fejl i kode",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "polle",
+    "right": "poll",
+    "note": "hente data tidsstyret",
+    "category": "Udvikling og kode"
+  },
+  {
+    "wrong": "displayet",
+    "right": "deployet",
+    "note": "kode er deployet/udgivet",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "pipelansen",
+    "right": "pipelinen",
+    "note": "CI/CD pipeline",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "pibelansen",
+    "right": "pipelinen",
+    "note": "CI/CD pipeline",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "kloster",
+    "right": "cluster",
+    "note": "en server-klynge",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "søver",
+    "right": "server",
+    "note": "en computer der betjener forespørgsler",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "skansen",
+    "right": "instansen",
+    "note": "en server-instans",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "endepunkt",
+    "right": "endpoint",
+    "note": "API endpoint",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "ruter",
+    "right": "router",
+    "note": "en netværks-router",
+    "category": "Infrastruktur og DevOps"
+  },
+  {
+    "wrong": "skram",
+    "right": "scrum",
+    "note": "agil metode",
+    "category": "Agilt og projektledelse"
+  },
+  {
+    "wrong": "skrum",
+    "right": "scrum",
+    "note": "agil metode",
+    "category": "Agilt og projektledelse"
+  },
+  {
+    "wrong": "stand op",
+    "right": "standup",
+    "note": "dagligt statusmøde",
+    "category": "Agilt og projektledelse"
+  },
+  {
+    "wrong": "bagloggen",
+    "right": "backloggen",
+    "note": "liste over opgaver",
+    "category": "Agilt og projektledelse"
+  },
+  {
+    "wrong": "rikvisst",
+    "right": "request",
+    "note": "en forespørgsel",
+    "category": "Agilt og projektledelse"
+  },
+  {
+    "wrong": "tiket",
+    "right": "ticket",
+    "note": "en opgave/sag",
+    "category": "Agilt og projektledelse"
+  },
+  {
+    "wrong": "tikkert",
+    "right": "ticket",
+    "note": "en opgave/sag",
+    "category": "Agilt og projektledelse"
+  },
+  {
+    "wrong": "tekstbil",
+    "right": "tekstfil",
+    "note": "en fil med tekst",
+    "category": "Generelle IT-udtryk brugt på dansk"
+  },
+  {
+    "wrong": "fremværk",
+    "right": "framework",
+    "note": "en softwareramme",
+    "category": "Generelle IT-udtryk brugt på dansk"
+  },
+  {
+    "wrong": "stakken",
+    "right": "stacken",
+    "note": "teknologi-stakken",
+    "category": "Generelle IT-udtryk brugt på dansk"
+  },
+  {
+    "wrong": "revue",
+    "right": "reviewe",
+    "note": "at gennemgå kode",
+    "category": "Generelle IT-udtryk brugt på dansk"
+  },
+  {
+    "wrong": "riview",
+    "right": "reviewe",
+    "note": "at gennemgå kode",
+    "category": "Generelle IT-udtryk brugt på dansk"
+  },
+  {
+    "wrong": "dansen",
+    "right": "dashboardet",
+    "note": "et overblikspanel",
+    "category": "Generelle IT-udtryk brugt på dansk"
+  },
+  {
+    "wrong": "lokken",
+    "right": "loggen",
+    "note": "en logfil",
+    "category": "Generelle IT-udtryk brugt på dansk"
+  },
+  {
+    "wrong": "epi-aj",
+    "right": "API",
+    "note": "Application Programming Interface",
+    "category": "Forkortelser Whisper kan misforstå"
+  },
+  {
+    "wrong": "ju-aj",
+    "right": "UI",
+    "note": "User Interface",
+    "category": "Forkortelser Whisper kan misforstå"
+  },
+  {
+    "wrong": "ju-eks",
+    "right": "UX",
+    "note": "User Experience",
+    "category": "Forkortelser Whisper kan misforstå"
+  },
+  {
+    "wrong": "si-si-di",
+    "right": "CI/CD",
+    "note": "Continuous Integration/Delivery",
+    "category": "Forkortelser Whisper kan misforstå"
+  },
+  {
+    "wrong": "si-el-aj",
+    "right": "CLI",
+    "note": "Command Line Interface",
+    "category": "Forkortelser Whisper kan misforstå"
+  }
+]
