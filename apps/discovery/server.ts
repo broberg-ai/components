@@ -10,6 +10,9 @@ import { cors } from "hono/cors";
 import { DATA, FLEET, MODEL, INFRA, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
 import { getEnrollStore, type Role } from "./enroll";
+// F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
+// edit: 503s until GITHUB_WRITE_TOKEN + SPEECH_DICT_EDIT_KEY are configured).
+import { readDictionary, editDictionary, type EditDiff } from "./speech-dictionary";
 
 const VERSION = "0.3.0";
 
@@ -190,6 +193,8 @@ const manifest = () => ({
     { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
     { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = trust-on-first-use: generate your OWN key (openssl rand -hex 32) into your repo's .env, send it as header x-enroll-key — the first enroll binds it to your session, later enrolls must match. Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
+    { method: "GET", path: "/api/speech-dictionary", description: "@broberg/speech-dictionary's current terms + corrections, always the latest committed state (F044.1)", example: "/api/speech-dictionary" },
+    { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff — service-to-service only (x-speech-dict-key header), never a user login. Commits + auto-publishes a new patch version. Body {addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
   ],
   vocabularies: {
     layers: layers.map((l) => ({ id: l.id, name: l.name })),
@@ -363,6 +368,42 @@ app.post("/api/enroll", async (c) => {
     notes: typeof body.notes === "string" ? body.notes : null,
   });
   return c.json({ ok: true, key: keyStatus, enrollment });
+});
+
+// ---- F044.1 speech-dictionary read + edit ----
+// Read is public (matches Discovery's "no auth on reads" convention — the
+// dictionary isn't secret) and always reflects the latest COMMITTED GitHub
+// state, since edits land via commits this module makes without a Discovery
+// redeploy in between. cardmem's Fleet-settings UI proxies both server-side
+// so its browser client never sees x-speech-dict-key.
+app.get("/api/speech-dictionary", async (c) => {
+  try {
+    return c.json(await readDictionary());
+  } catch (e) {
+    return c.json({ error: "speech_dictionary_unavailable", detail: String(e) }, 502);
+  }
+});
+
+app.post("/api/speech-dictionary/edit", async (c) => {
+  const editKey = process.env.SPEECH_DICT_EDIT_KEY;
+  if (!editKey || !process.env.GITHUB_WRITE_TOKEN) {
+    return c.json({ ok: false, error: "speech_dictionary_edit_unconfigured" }, 503);
+  }
+  const presented = c.req.header("x-speech-dict-key") ?? "";
+  if (presented !== editKey) return c.json({ ok: false, error: "unauthorized" }, 401);
+
+  let diff: EditDiff;
+  try {
+    diff = (await c.req.json()) as EditDiff;
+  } catch {
+    return c.json({ ok: false, error: "invalid_json" }, 400);
+  }
+
+  try {
+    return c.json(await editDictionary(diff));
+  } catch (e) {
+    return c.json({ ok: false, error: "speech_dictionary_edit_failed", detail: String(e) }, 502);
+  }
 });
 
 export default { port: Number(process.env.PORT) || 3000, fetch: app.fetch };
