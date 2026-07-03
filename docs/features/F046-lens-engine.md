@@ -18,8 +18,10 @@ There are now TWO drifting capture engines in the fleet: the cardmem **daemon** 
 - **flow.ts** — `runFlow` + step-grammar (goto/click/fill/type/press/select/upload/waitFor/assert/expectText/expectVisible/screenshot) + self-healing `resolveTarget` (DOM-layer) + `plannedLayers`.
 - **vision.ts** — Set-of-Marks (markInteractive/clearBadges/resolveVisionElement) via `@broberg/ai-sdk` (route env-configurable); ship-dark `visionEnabled`.
 - **schema.ts** — the whole Zod boundary (captureBodySchema, flowBodySchema, locateSpecSchema/targetSchema, uploadFileSchema, mintAuthSchema, storageStateSchema).
-- **mint.ts** — storageState fetch/apply (mint-auth for capture). Can live in engine or as a thin adapter — decide at packaging.
+- **mint.ts** — LOCKED (cardmem #15684): storageState **APPLY** (inject cookies/localStorage into the Playwright context before nav) goes IN the engine — both capture + flow use it. storageState **FETCH** stays consumer-injected: the engine takes `storageState?` (an object OR an async resolver) as INPUT and never binds to an auth surface, so it stays **auth-agnostic**. The consumer resolves mint→storageState and passes it in.
 - **tests** — port lens-cloud.test.ts (39, offline: schema + plannedLayers + Set-of-Marks gate + upload one-of) as the package regression fixture.
+
+**Note (cardmem #15684):** capture.ts's browser-lifecycle helpers (`getBrowser`, `armIdleTimer`, `settle`, `takeShot`) are reused by flow.ts → they go IN the engine (flow depends on them). `takeShot` returns the PNG bytes, matching "engine returns PNG bytes only".
 
 ## Scope (out)
 - **Stays daemon-side (NOT in engine):** baselines/store, DOM/vision critic, verify, video, scrape. These sit ON TOP of the engine; the engine is capture+flow+locators only.
@@ -28,10 +30,18 @@ There are now TWO drifting capture engines in the fleet: the cardmem **daemon** 
 
 ## Public API (agreed shape)
 ```ts
-capture(opts) → artifact   // { png, dom_hash, dims, title }
-runFlow(flow) → report      // step results + self-healing resolution layers
+capture({ url, …, storageState? }) → artifact   // { png, dom_hash, dims, title }
+runFlow({ …, storageState? })      → report      // step results + self-healing resolution layers
+// storageState = object OR async resolver, consumer-injected → engine stays auth-agnostic
 ```
 Zod boundary preserved + exported. Playwright is a dep of `@broberg/lens-engine` ONLY.
+
+## Sibling package (future, separate — NOT this epic)
+`@broberg/lens-client` — a THIN client for the **hosted** Lens (calls `lens.cardmem.com`, **NO Playwright**), mirroring `@broberg/seti-client`: `createLensClient({ baseUrl, token }) → .capture()/.runFlow()` with cold-start-retry, PLUS an optional `createLensProxy()` (a mountable Hono route, like `createSetiProxy`) so a product's own frontend can hit `/api/lens/*` same-origin without seeing the token. For consumers (autodoc, storeform) that call hosted Lens without running a browser. components will own it too; cardmem delivers the client code (same model as the engine). Flagged now so the 3-package split is explicit:
+
+- **`@broberg/lens`** — mint / compliance (dep-free).
+- **`@broberg/lens-engine`** — the browser engine (Playwright). *This epic.*
+- **`@broberg/lens-client`** — hosted-Lens client (no Playwright). *Its own future epic when cardmem delivers the client code.*
 
 ## Dependencies
 **Runtime:** `playwright` (or `playwright-core`), `zod`, `@broberg/ai-sdk` (vision route). Dev: tsup, typescript, vitest. Mirrors the monorepo conventions (pnpm workspace + turbo + tsup dual ESM/CJS/DTS).
