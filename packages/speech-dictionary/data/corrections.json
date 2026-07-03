@@ -346,5 +346,11 @@
     "right": "committer",
     "note": null,
     "category": null
+  },
+  {
+    "wrong": "katmen",
+    "right": "cardmem",
+    "note": null,
+    "category": null
   }
 ]
