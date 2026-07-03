@@ -58,3 +58,35 @@ function redactionMarker(label: string): string;                     // `[REDACT
 - Detector lifted verbatim (ordered patterns, specific-before-generic); pure, dep-free, ES2022.
 - Regression suite green: per-pattern positives, benign 0-FP, order-sensitivity, byte-identical clean, counts, `extraPatterns`.
 - **DONE GATE (binding):** trail migrates `@trail/shared` to re-export the npm and re-validates its gate passes (0 leaks / 0 FP). **F035 is NOT Done until trail confirms** — components shipping the npm is necessary but not sufficient.
+
+---
+
+## F035.6 — `classify()`: single-token type detection (v0.1.7)
+
+**Requested by:** `cardmem` (intercom #15522, 2026-07-03) for its **F214 Secrets Vault** — a "paste a key → detect its type" UI. cardmem currently runs its own loop over the exported `SECRET_PATTERNS` (cloning each regex without the `g` flag → `.test`). This is the exact self-service detector the original F035 plan (Scope §2) anticipated — it belongs **in the package** so every consumer shares one classification, not just redaction. Reuse-first: extend the shared npm, don't let a per-repo copy drift.
+
+**What it adds:** the *inverse* of redaction. `redactSecrets` neutralises secrets inside free text; `classify` identifies the type of a **single pasted token**.
+
+```ts
+interface ClassifyResult { label: string; description: string; }
+function classify(value: string, opts?: RedactOptions): ClassifyResult | null;
+```
+
+**Semantics:**
+- **First-match-wins over the ordered `SECRET_PATTERNS`** (same most-specific-first order as redaction), so a `sk-ant-…` value classifies as `anthropic-api-key`, never the generic `openai-api-key`.
+- Trims the input; empty / whitespace-only → `null`. No match → `null`.
+- Resets each pattern's `lastIndex` before `.test` (mirrors `hasSecret`) so the shared global regexes can't carry state between calls.
+- Honours `opts.extraPatterns` for parity with `redactSecrets` / `hasSecret` (consumer patterns run **after** canonical → canonical attribution wins).
+- Returns `description` (the pattern's human string, e.g. `"OpenAI API key (sk-… / sk-proj-…)"`) in addition to the machine `label` — a detection UI wants the human name. Structurally a superset of cardmem's requested `{ label }`, so their `.label` read is unaffected.
+
+**Field-anchored patterns (mistral / vimeo / cloudflare-api-token / labeled-hex-secret / deepseek fallback) only match if the pasted value includes their `NAME=` context** — a bare provider token classifies via its prefix pattern, which is the correct behaviour for a paste-a-key box (a bare Mistral key with no prefix is genuinely unidentifiable and returns `null`).
+
+**No new patterns, no behaviour change to `redactSecrets`/`hasSecret`** — additive export only. Patch/minor bump → **v0.1.7**, auto-published via the existing OIDC `secret-scan-v*` tag workflow (Trusted Publisher already set up).
+
+### F035.6 Acceptance criteria
+- `classify(value)` returns `{ label, description }` for a value matching a canonical pattern, `null` for no match / empty / whitespace.
+- First-match-wins verified: `sk-ant-…` → `anthropic-api-key` (not `openai-api-key`); `sk-or-v1-…` → `openrouter-api-key`.
+- Field-anchored patterns don't fire on a bare token (e.g. a bare 32-char base62 → `null`, not `mistral-api-key`); they DO fire when the `NAME=value` context is pasted.
+- `opts.extraPatterns` honoured, canonical attribution still wins.
+- Calling `classify` does not corrupt a subsequent `redactSecrets`/`hasSecret` (no `lastIndex` bleed) — asserted.
+- `@broberg/secret-scan` v0.1.7 on npm with the new export + type; README documents `classify`.
