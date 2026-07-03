@@ -1,11 +1,15 @@
 {
   "name": "@broberg/speech-dictionary",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fleet STT vocabulary + correction primitive — terms[] for WhisperKit-style prompt-biasing, corrections{} for post-transcription fixup. Seeded from the fleet's real dev-jargon mishear list.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "data", "README.md"],
+  "files": [
+    "dist",
+    "data",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -42,5 +46,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/speech-dictionary"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }
