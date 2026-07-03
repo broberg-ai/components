@@ -6,7 +6,7 @@ import type { SetiKey, SetiStreamState } from "./types";
 /**
  * <SetiChat> — the complete mobile-first SET/SETI live chat surface:
  * status header, accumulated screen (FrameAccumulator), nav-keys bar
- * (Esc/↑/↓/←/→/⏎) and a text input with delivery feedback (text is preserved
+ * (Esc + lucide arrow/enter glyphs) and a text input with delivery feedback (text is preserved
  * when delivery fails).
  *
  * Self-contained styles, themeable via CSS vars (set them on a parent):
@@ -34,14 +34,47 @@ export interface SetiChatProps {
   hideInput?: boolean;
 }
 
-const NAV_KEYS: Array<{ key: SetiKey; label: string; title: string }> = [
-  { key: "Escape", label: "Esc", title: "Escape" },
-  { key: "Up", label: "↑", title: "Pil op" },
-  { key: "Down", label: "↓", title: "Pil ned" },
-  { key: "Left", label: "←", title: "Pil venstre" },
-  { key: "Right", label: "→", title: "Pil højre" },
-  { key: "Enter", label: "⏎", title: "Enter" },
+const NAV_KEYS: Array<{ key: SetiKey; title: string }> = [
+  { key: "Escape", title: "Escape" },
+  { key: "Up", title: "Pil op" },
+  { key: "Down", title: "Pil ned" },
+  { key: "Left", title: "Pil venstre" },
+  { key: "Right", title: "Pil højre" },
+  { key: "Enter", title: "Enter" },
 ];
+
+/** Inline lucide glyphs for the nav keys — seti-client stays dependency-free
+ *  (6 icons don't justify pulling lucide-preact). Escape has no lucide glyph, so
+ *  it falls back to a styled "Esc". stroke=currentColor inherits the button colour. */
+const NAV_GLYPHS: Partial<Record<SetiKey, string[]>> = {
+  Up: ["m5 12 7-7 7 7", "M12 19V5"],
+  Down: ["M12 5v14", "m19 12-7 7-7-7"],
+  Left: ["m12 19-7-7 7-7", "M19 12H5"],
+  Right: ["M5 12h14", "m12 5 7 7-7 7"],
+  Enter: ["M20 4v7a4 4 0 0 1-4 4H4", "m9 10-5 5 5 5"],
+};
+
+function NavGlyph({ k }: { k: SetiKey }) {
+  const paths = NAV_GLYPHS[k];
+  if (!paths) return <span class="seti-chat__navkeys-esc">Esc</span>;
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      {paths.map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+}
 
 const STYLE_ID = "broberg-seti-chat-style";
 const CSS = `
@@ -54,8 +87,9 @@ const CSS = `
 .seti-chat__meta{color:var(--seti-dim,#8a93a6);font-family:var(--seti-mono,ui-monospace,Menlo,monospace);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .seti-chat__screen{flex:1;margin:0;padding:.9rem 1rem;overflow:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--seti-mono,ui-monospace,Menlo,monospace);font-size:12.5px;line-height:1.45;-webkit-overflow-scrolling:touch}
 .seti-chat__screen.is-empty{color:var(--seti-dim,#8a93a6)}
-.seti-chat__navkeys{display:flex;gap:.4rem;padding:.45rem .65rem .2rem;background:var(--seti-panel,#11151f);flex-wrap:wrap;border-top:1px solid var(--seti-edge,#1e2430)}
-.seti-chat__navkeys button{padding:.45rem .7rem;background:var(--seti-edge,#1e2430);color:var(--seti-fg,#d7dce5);font-size:13px;min-width:2.6rem;min-height:2.2rem;font-weight:600;border:0;border-radius:8px;cursor:pointer;transition:transform .06s,background .15s,opacity .15s}
+.seti-chat__navkeys{display:flex;gap:.4rem;padding:.45rem .65rem;background:var(--seti-panel,#11151f);flex-wrap:wrap;border-top:1px solid var(--seti-edge,#1e2430)}
+.seti-chat__navkeys button{display:inline-flex;align-items:center;justify-content:center;padding:.45rem .7rem;background:var(--seti-edge,#1e2430);color:var(--seti-fg,#d7dce5);font-size:13px;min-width:2.6rem;min-height:2.2rem;font-weight:600;border:0;border-radius:8px;cursor:pointer;transition:transform .06s,background .15s,opacity .15s}
+.seti-chat__navkeys-esc{font-size:11px;font-weight:700;letter-spacing:.03em}
 .seti-chat__navkeys button:hover{filter:brightness(1.25)}
 .seti-chat__navkeys button:active{transform:translateY(1px) scale(.98)}
 .seti-chat__navkeys button:disabled{opacity:.5;cursor:not-allowed}
@@ -177,7 +211,7 @@ export function SetiChat(props: SetiChatProps) {
             data-testid={`seti-chat-key-${k.key.toLowerCase()}`}
             onClick={() => void pressKey(k.key)}
           >
-            {k.label}
+            <NavGlyph k={k.key} />
           </button>
         ))}
       </div>
