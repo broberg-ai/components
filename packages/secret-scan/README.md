@@ -29,6 +29,31 @@ hasSecret("nothing here"); // false
 with `findings: []`. It replaces every detected secret with `[REDACTED:<label>]`
 and never blocks the write — the surrounding knowledge survives.
 
+## Classify a single token — `classify`
+
+The inverse of redaction: given a **single pasted token**, tell the caller what
+kind of secret it is. Backs a "paste a key → detect its type" UI so every
+consumer shares one classification (not just one redaction).
+
+```ts
+import { classify } from "@broberg/secret-scan";
+
+classify("sk-ant-api03-…"); // → { label: "anthropic-api-key", description: "Anthropic API key (sk-ant-…)" }
+classify("npm_" + "…");      // → { label: "npm-token", description: "npm publish/automation token (npm_ + 36 base62)" }
+classify("just some text");  // → null
+```
+
+**First-match-wins** over the same ordered `SECRET_PATTERNS`, so `sk-ant-…` is
+`anthropic-api-key`, never the generic `openai-api-key`. Input is trimmed;
+empty / whitespace-only / no-match → `null`. It honours `extraPatterns` too
+(`classify(value, { extraPatterns })`), with canonical attribution still winning.
+
+Field-anchored patterns (`mistral` / `vimeo` / `cloudflare-api-token` /
+`labeled-hex-secret` / the `deepseek` fallback) only classify when the pasted
+value includes their `NAME=value` context — a bare provider token classifies via
+its prefix, and a prefix-less bare token (e.g. a raw Mistral key) is genuinely
+unidentifiable and returns `null`.
+
 ## Two recommended integration shapes
 
 1. **Write boundary (ingest gate)** — redact before you persist, so secrets never
@@ -86,10 +111,12 @@ interface SecretPattern { label: string; description: string; regex: RegExp; }
 interface RedactionFinding { label: string; count: number; }
 interface RedactionResult { redacted: string; findings: RedactionFinding[]; }
 interface RedactOptions { extraPatterns?: SecretPattern[]; }
+interface ClassifyResult { label: string; description: string; }
 
 const SECRET_PATTERNS: SecretPattern[];
 function redactSecrets(text: string, opts?: RedactOptions): RedactionResult;
 function hasSecret(text: string, opts?: RedactOptions): boolean;
+function classify(value: string, opts?: RedactOptions): ClassifyResult | null; // single-token type detection
 function redactionMarker(label: string): string; // `[REDACTED:${label}]`
 ```
 

@@ -336,3 +336,37 @@ export function hasSecret(text: string, opts?: RedactOptions): boolean {
     return p.regex.test(text);
   });
 }
+
+export interface ClassifyResult {
+  /** the matching pattern's stable label (e.g. `openai-api-key`) */
+  label: string;
+  /** the matching pattern's human description (e.g. `OpenAI API key (sk-… / sk-proj-…)`) */
+  description: string;
+}
+
+/**
+ * Classify a SINGLE pasted token — the INVERSE of redaction. Returns the first
+ * (most-specific) pattern the value matches, or `null`. Backs a "paste a key →
+ * detect its type" UI (cardmem F214 Secrets Vault) so every consumer shares the
+ * same classification, not just the same redaction.
+ *
+ * First-match-wins over the ordered `SECRET_PATTERNS`, so `sk-ant-…` classifies
+ * as `anthropic-api-key`, never the generic `openai-api-key`. Field-anchored
+ * context-only patterns (mistral / vimeo / cloudflare-api-token /
+ * labeled-hex-secret / deepseek-fallback) only match when the pasted value
+ * includes their `NAME=` context; a bare provider token classifies via its
+ * prefix pattern, and a prefix-less bare token (e.g. a raw Mistral key) is
+ * genuinely unidentifiable → `null`. `opts.extraPatterns` run AFTER the
+ * canonical set (canonical attribution wins). Input is trimmed; empty /
+ * whitespace-only → `null`.
+ */
+export function classify(value: string, opts?: RedactOptions): ClassifyResult | null {
+  if (!value) return null;
+  const v = value.trim();
+  if (!v) return null;
+  for (const p of patternsFor(opts)) {
+    p.regex.lastIndex = 0;
+    if (p.regex.test(v)) return { label: p.label, description: p.description };
+  }
+  return null;
+}

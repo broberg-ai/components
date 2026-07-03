@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   redactSecrets,
   hasSecret,
+  classify,
   redactionMarker,
   SECRET_PATTERNS,
   type SecretPattern,
@@ -239,6 +240,71 @@ describe("v0.1.3 — Cronjobs API key (cj_ + 43 base64url)", () => {
     const r = redactSecrets("preview " + preview + " shown");
     expect(r.redacted).toBe("preview " + preview + " shown");
     expect(r.findings.map((f) => f.label)).not.toContain("cronjobs-api-key");
+  });
+});
+
+describe("v0.1.7 — classify() single-token type detection (cardmem F214)", () => {
+  it("returns { label, description } for a matching token", () => {
+    const r = classify("sk-proj-" + "B".repeat(40));
+    expect(r?.label).toBe("openai-api-key");
+    expect(r?.description).toContain("OpenAI");
+  });
+
+  it("returns null for a non-secret, empty, and whitespace-only input", () => {
+    expect(classify("just some normal text")).toBeNull();
+    expect(classify("")).toBeNull();
+    expect(classify("   \n\t ")).toBeNull();
+  });
+
+  it("trims surrounding whitespace before classifying", () => {
+    const r = classify("  npm_" + "a".repeat(36) + "  ");
+    expect(r?.label).toBe("npm-token");
+  });
+
+  it("first-match-wins: sk-ant-… → anthropic-api-key, NOT openai-api-key", () => {
+    expect(classify("sk-ant-api03-" + "A".repeat(80))?.label).toBe("anthropic-api-key");
+  });
+
+  it("first-match-wins: sk-or-v1-… → openrouter-api-key, NOT openai-api-key", () => {
+    expect(classify("sk-or-v1-" + "a1b2c3d4".repeat(8))?.label).toBe("openrouter-api-key");
+  });
+
+  it("field-anchored patterns do NOT fire on a bare token", () => {
+    // bare 32-char base62 with no MISTRAL_… field → unidentifiable → null
+    expect(classify("Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv")).toBeNull();
+  });
+
+  it("field-anchored patterns DO fire when the NAME=value context is pasted", () => {
+    expect(classify("MISTRAL_API_KEY=Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv")?.label).toBe(
+      "mistral-api-key",
+    );
+  });
+
+  it("honours opts.extraPatterns", () => {
+    const acme: SecretPattern = {
+      label: "acme-key",
+      description: "ACME key",
+      regex: /\bACME-[0-9]{6}\b/g,
+    };
+    expect(classify("ACME-123456")).toBeNull();
+    expect(classify("ACME-123456", { extraPatterns: [acme] })?.label).toBe("acme-key");
+  });
+
+  it("canonical attribution wins over a greedy extra pattern", () => {
+    const greedy: SecretPattern = { label: "greedy", description: "", regex: /sk-[A-Za-z0-9-]+/g };
+    const r = classify("sk-ant-api03-" + "A".repeat(40), { extraPatterns: [greedy] });
+    expect(r?.label).toBe("anthropic-api-key");
+  });
+
+  it("does NOT corrupt a subsequent redactSecrets/hasSecret (no lastIndex bleed)", () => {
+    const key = "sk-ant-api03-" + "A".repeat(40);
+    classify(key); // advances shared global regexes' lastIndex if unmanaged
+    // both must still detect the same key on the very next call
+    expect(hasSecret(key)).toBe(true);
+    expect(redactSecrets(key).findings.map((f) => f.label)).toContain("anthropic-api-key");
+    // and classify itself must be idempotent across repeated calls
+    expect(classify(key)?.label).toBe("anthropic-api-key");
+    expect(classify(key)?.label).toBe("anthropic-api-key");
   });
 });
 
