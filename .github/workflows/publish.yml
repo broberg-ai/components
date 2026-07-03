@@ -42,6 +42,8 @@ on:
       - "deploy-core-v*"
       - "gravatar-v*"
       - "auth-v*"
+      - "mail-core-v*"
+      - "speech-dictionary-v*"
   workflow_dispatch:
 
 jobs:
@@ -958,4 +960,126 @@ jobs:
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/gravatar
+        run: npm publish --access public --provenance
+
+  publish-mail-core:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mail-core-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # resolves to >=22.14, required by OIDC publishing
+          registry-url: https://registry.npmjs.org
+
+      # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Install (workspace)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: packages/mail-core
+        run: pnpm typecheck
+
+      - name: Build
+        working-directory: packages/mail-core
+        run: pnpm build
+
+      - name: Test
+        working-directory: packages/mail-core
+        run: pnpm test
+
+      - name: Guard — tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/mail-core-v')
+        working-directory: packages/mail-core
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#mail-core-v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag mail-core-v$TAG does not match packages/mail-core version $PKG"
+            exit 1
+          fi
+
+      - name: Guard — version not already on npm
+        working-directory: packages/mail-core
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if npm view "@broberg/mail-core@$PKG" version >/dev/null 2>&1; then
+            echo "::error::@broberg/mail-core@$PKG already published — bump the version first."
+            exit 1
+          fi
+          echo "Publishing @broberg/mail-core@$PKG"
+
+      # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
+      - name: Publish (OIDC)
+        working-directory: packages/mail-core
+        run: npm publish --access public --provenance
+
+  publish-speech-dictionary:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/speech-dictionary-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # resolves to >=22.14, required by OIDC publishing
+          registry-url: https://registry.npmjs.org
+
+      # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Install (workspace)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: packages/speech-dictionary
+        run: pnpm typecheck
+
+      - name: Build
+        working-directory: packages/speech-dictionary
+        run: pnpm build
+
+      - name: Test
+        working-directory: packages/speech-dictionary
+        run: pnpm test
+
+      - name: Guard — tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/speech-dictionary-v')
+        working-directory: packages/speech-dictionary
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#speech-dictionary-v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag speech-dictionary-v$TAG does not match packages/speech-dictionary version $PKG"
+            exit 1
+          fi
+
+      - name: Guard — version not already on npm
+        working-directory: packages/speech-dictionary
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if npm view "@broberg/speech-dictionary@$PKG" version >/dev/null 2>&1; then
+            echo "::error::@broberg/speech-dictionary@$PKG already published — bump the version first."
+            exit 1
+          fi
+          echo "Publishing @broberg/speech-dictionary@$PKG"
+
+      # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
+      - name: Publish (OIDC)
+        working-directory: packages/speech-dictionary
         run: npm publish --access public --provenance
