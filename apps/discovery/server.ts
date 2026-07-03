@@ -209,6 +209,14 @@ const app = new Hono();
 app.use("/api/*", cors()); // public read-only catalogue — any repo/browser may query
 app.use("/", cors());
 
+// Never cache API responses. /api/search keys entirely on ?q= — a client cache
+// that keys only on path (some web-fetch tools do) replays the first query's
+// result for every later query. no-store forbids that outright, for any consumer.
+app.use("/api/*", async (c, next) => {
+  await next();
+  c.header("Cache-Control", "no-store");
+});
+
 // Root: HTML dashboard for humans, the self-describing manifest for machines
 // (Accept: application/json) — so the literal front door opens up for both.
 app.get("/", (c) => {
