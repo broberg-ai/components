@@ -1,6 +1,6 @@
 {
   "name": "@broberg/speech-dictionary",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Fleet STT vocabulary + correction primitive — terms[] for WhisperKit-style prompt-biasing, corrections{} for post-transcription fixup. Seeded from the fleet's real dev-jargon mishear list.",
   "type": "module",
   "license": "MIT",
