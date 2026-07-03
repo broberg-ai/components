@@ -1,0 +1,45 @@
+{
+  "name": "@broberg/notify",
+  "version": "0.1.0",
+  "description": "Dark-ship team-chat webhook notifications for the broberg.ai fleet — createNotifier({ discord, slack }).send(msg) fans one message out to every configured incoming-webhook channel. Chat only (email → @broberg/mail, browser push → @broberg/webpush). Zero runtime deps.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "notify",
+    "notification",
+    "discord",
+    "slack",
+    "webhook",
+    "chatops",
+    "incoming-webhook",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/notify"
+  },
+  "publishConfig": { "access": "public" }
+}
