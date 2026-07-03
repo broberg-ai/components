@@ -3,7 +3,9 @@ import { CORRECTIONS, TERMS, applyCorrections, corrections, extend, terms, toIni
 
 describe("data", () => {
   it("seeds real corrections from ordbog.txt, identity rows dropped", () => {
-    expect(CORRECTIONS.length).toBe(55);
+    // Not an exact count — the dictionary is editable in prod (F044.1), so entries
+    // grow over time. Assert the seed floor + that specific seed entries survive.
+    expect(CORRECTIONS.length).toBeGreaterThanOrEqual(55);
     expect(CORRECTIONS.every((e) => e.wrong.toLowerCase() !== e.right.toLowerCase())).toBe(true);
     expect(CORRECTIONS.some((e) => e.wrong === "kommitte" && e.right === "committe")).toBe(true);
     expect(CORRECTIONS.some((e) => e.wrong === "kloster" && e.right === "cluster")).toBe(true);
