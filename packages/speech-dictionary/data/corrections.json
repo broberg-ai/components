@@ -328,5 +328,23 @@
     "right": "CLI",
     "note": "Command Line Interface",
     "category": "Forkortelser Whisper kan misforstå"
+  },
+  {
+    "wrong": "kartmem",
+    "right": "cardmem",
+    "note": null,
+    "category": null
+  },
+  {
+    "wrong": "karkmænd",
+    "right": "cardmem",
+    "note": null,
+    "category": null
+  },
+  {
+    "wrong": "kommitter",
+    "right": "committer",
+    "note": null,
+    "category": null
   }
 ]
