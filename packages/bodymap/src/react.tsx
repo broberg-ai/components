@@ -77,6 +77,53 @@ const FILL: Record<string, string> = {
   foot_left: "#f0a5a5", foot_right: "#f0a5a5",
 };
 
+// Back-view geometry (same viewBox 260×470 + same limb/head geometry as the
+// front, so a marked limb sits at the same spot in both views). The torso swaps
+// front regions (chest, groin) for the posterior ones — THORA (upper back),
+// LUMBAR (lower back) and HIP (buttocks, paired) — the pilot's blocker regions.
+// Same self-view L/R convention as the front (patient-left = viewer-left).
+const SHAPES_BACK: Record<string, Shape> = {
+  head: { el: "circle", cx: 130, cy: 40, r: 26 },
+  neck: { el: "rect", x: 120, y: 62, width: 20, height: 16, rx: 6 },
+  thora: { el: "rect", x: 100, y: 84, width: 60, height: 58, rx: 15 },
+  lumbar: { el: "rect", x: 104, y: 144, width: 52, height: 44, rx: 13 },
+  hip_left: { el: "rect", x: 100, y: 190, width: 27, height: 32, rx: 13 },
+  hip_right: { el: "rect", x: 133, y: 190, width: 27, height: 32, rx: 13 },
+  // arms — shared with the front (back of the arm sits at the same x/y)
+  shoulder_left: { el: "circle", cx: 88, cy: 98, r: 14 },
+  uarm_left: { el: "rect", x: 66, y: 104, width: 18, height: 54, rx: 9 },
+  elbow_left: { el: "circle", cx: 73, cy: 164, r: 10 },
+  farm_left: { el: "rect", x: 62, y: 174, width: 16, height: 50, rx: 8 },
+  wrist_left: { el: "circle", cx: 68, cy: 230, r: 8 },
+  hand_left: { el: "ellipse", cx: 67, cy: 250, rx: 11, ry: 13 },
+  shoulder_right: { el: "circle", cx: 172, cy: 98, r: 14 },
+  uarm_right: { el: "rect", x: 176, y: 104, width: 18, height: 54, rx: 9 },
+  elbow_right: { el: "circle", cx: 187, cy: 164, r: 10 },
+  farm_right: { el: "rect", x: 182, y: 174, width: 16, height: 50, rx: 8 },
+  wrist_right: { el: "circle", cx: 192, cy: 230, r: 8 },
+  hand_right: { el: "ellipse", cx: 193, cy: 250, rx: 11, ry: 13 },
+  // legs — back (thigh→calf→heel, same x/y as the front)
+  thigh_left: { el: "rect", x: 104, y: 224, width: 22, height: 80, rx: 11 },
+  thigh_right: { el: "rect", x: 134, y: 224, width: 22, height: 80, rx: 11 },
+  knee_left: { el: "circle", cx: 115, cy: 312, r: 13 },
+  knee_right: { el: "circle", cx: 145, cy: 312, r: 13 },
+  lowleg_left: { el: "rect", x: 106, y: 322, width: 18, height: 74, rx: 9 },
+  lowleg_right: { el: "rect", x: 136, y: 322, width: 18, height: 74, rx: 9 },
+  ankle_left: { el: "circle", cx: 115, cy: 404, r: 9 },
+  ankle_right: { el: "circle", cx: 145, cy: 404, r: 9 },
+  foot_left: { el: "ellipse", cx: 115, cy: 424, rx: 14, ry: 10 },
+  foot_right: { el: "ellipse", cx: 145, cy: 424, rx: 14, ry: 10 },
+};
+
+const FILL_BACK: Record<string, string> = {
+  ...FILL,
+  thora: "#e2896d",
+  lumbar: "#d97fa0",
+  hip_left: "#c99bd6", hip_right: "#c99bd6",
+};
+
+export type BodyView2D = "front" | "back";
+
 function center(s: Shape): { x: number; y: number } {
   if (s.el === "rect") return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
   return { x: s.cx, y: s.cy };
@@ -92,6 +139,12 @@ const STYLE = `
 .bmap{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-panel:#fff;--bmap-ink:#1e293b;--bmap-muted:#64748b;
   display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
 .bmap__svg{flex:0 0 auto}
+.bmap__stage{display:flex;flex-direction:column;gap:12px;flex:0 0 auto}
+.bmap__viewtoggle{display:inline-flex;align-self:flex-start;background:#f1f5f9;border:1px solid var(--bmap-line);border-radius:10px;padding:3px;gap:2px}
+.bmap__vbtn{font:inherit;font-size:13px;font-weight:600;color:var(--bmap-muted);background:none;border:0;border-radius:7px;padding:6px 16px;cursor:pointer;transition:color .12s,background .12s,transform .1s}
+.bmap__vbtn:hover{color:var(--bmap-ink)}
+.bmap__vbtn:active{transform:scale(.97)}
+.bmap__vbtn--on{background:#fff;color:var(--bmap-ink);box-shadow:0 1px 2px rgba(15,23,42,.14)}
 .bmap__region{cursor:pointer;stroke:#fff;stroke-width:2.4;transition:filter .12s}
 .bmap__region:hover{filter:brightness(1.08) saturate(1.15)}
 .bmap__region--locked{cursor:default;opacity:.4}
@@ -138,15 +191,32 @@ export interface BodyMapProps {
   onChange?: (report: PainReport) => void;
   /** Per-app region config (visible / selectable). */
   config?: RegionConfig;
+  /** Initial body view (front / back). Default "front". */
+  defaultView?: BodyView2D;
+  /** Fired when the user toggles the front/back view — pass it to
+   *  serializeReport({ view }) so the wire report carries the active view. */
+  onViewChange?: (view: BodyView2D) => void;
   className?: string;
 }
 
 /** 2D SVG body pain-map. Click a region → set intensity + quality → PainReport. */
-export function BodyMap({ value, defaultValue, onChange, config = {}, className }: BodyMapProps) {
+export function BodyMap({
+  value, defaultValue, onChange, config = {}, defaultView = "front", onViewChange, className,
+}: BodyMapProps) {
   useEffect(ensureStyles, []);
   const [internal, setInternal] = useState<PainReport>(defaultValue ?? []);
   const [selected, setSelected] = useState<string | null>(null);
+  const [view, setView] = useState<BodyView2D>(defaultView);
   const report = value ?? internal;
+  const shapes = view === "back" ? SHAPES_BACK : SHAPES;
+  const fills = view === "back" ? FILL_BACK : FILL;
+  const changeView = (v: BodyView2D) => {
+    if (v === view) return;
+    setView(v);
+    const sh = v === "back" ? SHAPES_BACK : SHAPES;
+    if (selected && !sh[selected]) setSelected(null); // selected region absent in the new view
+    onViewChange?.(v);
+  };
 
   const commit = (next: PainReport) => {
     if (value === undefined) setInternal(next);
@@ -169,6 +239,27 @@ export function BodyMap({ value, defaultValue, onChange, config = {}, className 
 
   return (
     <div className={rootCls} data-testid="bodymap-root">
+      <div className="bmap__stage">
+      <div className="bmap__viewtoggle" role="group" aria-label="Visning">
+        <button
+          type="button"
+          className={"bmap__vbtn" + (view === "front" ? " bmap__vbtn--on" : "")}
+          data-testid="bodymap-view-front"
+          aria-pressed={view === "front"}
+          onClick={() => changeView("front")}
+        >
+          Forfra
+        </button>
+        <button
+          type="button"
+          className={"bmap__vbtn" + (view === "back" ? " bmap__vbtn--on" : "")}
+          data-testid="bodymap-view-back"
+          aria-pressed={view === "back"}
+          onClick={() => changeView("back")}
+        >
+          Bagfra
+        </button>
+      </div>
       <svg
         className="bmap__svg"
         viewBox="0 0 260 470"
@@ -178,7 +269,7 @@ export function BodyMap({ value, defaultValue, onChange, config = {}, className 
         aria-label="Kropskort — vælg hvor det gør ondt"
       >
         {regions.map((r) => {
-          const s = SHAPES[r.key];
+          const s = shapes[r.key];
           if (!s) return null;
           const marked = pointOf(r.key);
           const selectable = isSelectable(r.key, config);
@@ -189,7 +280,7 @@ export function BodyMap({ value, defaultValue, onChange, config = {}, className 
           ]
             .filter(Boolean)
             .join(" ");
-          const fill = marked ? heat(marked.intensity) : FILL[r.key] ?? "#cbd5e1";
+          const fill = marked ? heat(marked.intensity) : fills[r.key] ?? "#cbd5e1";
           const common = {
             className: cls,
             fill,
@@ -202,9 +293,9 @@ export function BodyMap({ value, defaultValue, onChange, config = {}, className 
           if (s.el === "ellipse") return <ellipse key={r.key} cx={s.cx} cy={s.cy} rx={s.rx} ry={s.ry} {...common} />;
           return <rect key={r.key} x={s.x} y={s.y} width={s.width} height={s.height} rx={s.rx} {...common} />;
         })}
-        {/* intensity numbers on marked regions */}
+        {/* intensity numbers on marked regions visible in the current view */}
         {report.map((p) => {
-          const s = SHAPES[p.region];
+          const s = shapes[p.region];
           if (!s || (config[p.region]?.visible === false)) return null;
           const c = center(s);
           return (
@@ -214,6 +305,7 @@ export function BodyMap({ value, defaultValue, onChange, config = {}, className 
           );
         })}
       </svg>
+      </div>
 
       {region ? (
         <div className="bmap__panel" data-testid="bodymap-panel">

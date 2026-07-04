@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { BodyMap } from "../src/react";
-import type { PainReport } from "../src/index";
+import { serializeReport, type PainReport } from "../src/index";
 
 afterEach(cleanup);
 
@@ -43,5 +43,60 @@ describe("<BodyMap> (2D React adapter)", () => {
     expect(last).toHaveLength(1);
     fireEvent.click(screen.getByTestId("bodymap-remove"));
     expect(last).toHaveLength(0);
+  });
+
+  // ---- F052.7 front/back view toggle ----------------------------------------
+
+  it("has a front/back toggle; default view is front (chest visible, lumbar absent)", () => {
+    render(<BodyMap />);
+    expect(screen.getByTestId("bodymap-view-front")).toBeTruthy();
+    expect(screen.getByTestId("bodymap-view-back")).toBeTruthy();
+    expect(screen.getByTestId("bodymap-region-chest")).toBeTruthy();
+    expect(screen.queryByTestId("bodymap-region-lumbar")).toBeNull();
+  });
+
+  it("switching to back reveals THORA/LUMBAR/HIP and hides chest/groin; onViewChange fires", () => {
+    const onViewChange = vi.fn();
+    render(<BodyMap onViewChange={onViewChange} />);
+    fireEvent.click(screen.getByTestId("bodymap-view-back"));
+    expect(onViewChange).toHaveBeenCalledWith("back");
+    expect(screen.getByTestId("bodymap-region-lumbar")).toBeTruthy();
+    expect(screen.getByTestId("bodymap-region-thora")).toBeTruthy();
+    expect(screen.getByTestId("bodymap-region-hip_left")).toBeTruthy();
+    expect(screen.queryByTestId("bodymap-region-chest")).toBeNull();
+    expect(screen.queryByTestId("bodymap-region-groin")).toBeNull();
+  });
+
+  it("marks LUMBAR on the back view; the point persists in the report across a view switch (Britta 8/10)", () => {
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    fireEvent.click(screen.getByTestId("bodymap-view-back"));
+    fireEvent.click(screen.getByTestId("bodymap-region-lumbar"));
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Lænd");
+    fireEvent.click(screen.getByTestId("bodymap-intensity-8"));
+    expect(last).toHaveLength(1);
+    expect(last![0]).toMatchObject({ region: "lumbar", intensity: 8 });
+    // switch to front: lumbar is not rendered, but the point survives in the report
+    fireEvent.click(screen.getByTestId("bodymap-view-front"));
+    expect(screen.queryByTestId("bodymap-region-lumbar")).toBeNull();
+    expect(last).toHaveLength(1);
+    expect(last![0]).toMatchObject({ region: "lumbar", intensity: 8 });
+  });
+
+  it("serializes a back-marked LUMBAR to bodymap/v1 {region:LUMBAR, side:center} with view back", () => {
+    let last: PainReport = [];
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    fireEvent.click(screen.getByTestId("bodymap-view-back"));
+    fireEvent.click(screen.getByTestId("bodymap-region-lumbar"));
+    fireEvent.click(screen.getByTestId("bodymap-intensity-8"));
+    const env = serializeReport(last, { view: "back" });
+    expect(env).toMatchObject({ schema: "bodymap/v1", view: "back" });
+    expect(env.points[0]).toMatchObject({ region: "LUMBAR", side: "center", intensity: 8 });
+  });
+
+  it("defaultView='back' renders the back regions on first paint", () => {
+    render(<BodyMap defaultView="back" />);
+    expect(screen.getByTestId("bodymap-region-lumbar")).toBeTruthy();
+    expect(screen.queryByTestId("bodymap-region-chest")).toBeNull();
   });
 });
