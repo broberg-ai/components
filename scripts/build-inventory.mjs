@@ -42,10 +42,10 @@ function detailHtml(it, layerN, layerT){
   const badge = it.s==="shipped" ? `<span class="badge b-ship">✅ v${it.ver||""}</span>`
     : moved ? '<span class="badge b-moved">↗ moved</span>'
     : '<span class="badge b-back">🚧 under construction</span>';
-  const pkg = it.pkg ? `<div class="d-pkg">${it.pkg}</div>`
-    : it.via ? `<div class="d-pkg">${it.via}</div>`
-    : moved ? `<div class="d-pkg none">${it.note}</div>`
-    : `<div class="d-pkg none">copy-owned scaffold — no npm package</div>`;
+  const pkg = it.pkg ? `<div class="d-pkg">${it.pkg}${badge}</div>`
+    : it.via ? `<div class="d-pkg">${it.via}${badge}</div>`
+    : moved ? `<div class="d-pkg none">${it.note}${badge}</div>`
+    : `<div class="d-pkg none">copy-owned scaffold — no npm package${badge}</div>`;
   let facts = '<dl class="d-facts">';
   facts += `<dt>Layer</dt><dd>${layerN} · ${layerT}</dd>`;
   facts += `<dt>Reuse</dt><dd>${M[it.m]} ${it.m}<div class="d-model">${MODEL[it.m]}</div></dd>`;
@@ -67,11 +67,14 @@ function detailHtml(it, layerN, layerT){
   // non-null solely for shipped npm packages, never SwiftPM/scaffold/moved). The
   // pkg name + version + npm url ride as data-attrs; the drawer JS assembles the
   // clipboard text (name@version \n url) so there is no newline-in-attribute.
+  // Copy sits as an icon button beside the ✕ close (same button type + height),
+  // absolutely positioned top-right of the drawer. Icon-only + title/aria-label.
   const copyBtn = (nUrl && it.ver && it.pkg)
-    ? `<button type="button" class="d-copy" data-testid="d-copy-${fid}" data-pkg="${it.pkg}" data-ver="${it.ver}" data-npm="${nUrl}"><span class="d-copy-ic" aria-hidden="true">⧉</span><span class="d-copy-t">Copy npm ref</span></button>`
+    ? `<button type="button" class="d-copy-x" title="Copy npm ref — ${it.pkg}@${it.ver}" aria-label="Copy npm ref — ${it.pkg}@${it.ver}" data-testid="d-copy-${fid}" data-pkg="${it.pkg}" data-ver="${it.ver}" data-npm="${nUrl}"><span class="d-copy-ic" aria-hidden="true">⧉</span></button>`
     : "";
-  return `<div class="d-head"><span class="fnum">${it.f}</span>${badge}</div>`
-    + `<h2 class="d-name" id="d-name">${it.nm}</h2>${pkg}${copyBtn}${facts}`
+  return copyBtn
+    + `<div class="d-head"><span class="fnum">${it.f}</span></div>`
+    + `<h2 class="d-name" id="d-name">${it.nm}</h2>${pkg}${facts}`
     + `<div class="d-desc-h">What it is</div><div class="d-desc">${it.desc}</div>`;
 }
 const DETAIL = {};
@@ -95,7 +98,7 @@ const CSS = `
   [data-theme="light-cool"]{--bg:oklch(0.98 0.004 255);--panel:oklch(0.96 0.008 255);--card:oklch(1 0 0);--fg:oklch(0.22 0.025 255);--muted:oklch(0.5 0.015 255);--faint:oklch(0.62 0.012 255);--border:oklch(0.88 0.01 255);--primary:oklch(0.25 0.02 255);--primary-fg:oklch(0.985 0 0);--green:oklch(0.52 0.15 152);--amber:oklch(0.58 0.13 70);}
   [data-theme="light-warm"]{--bg:oklch(0.98 0.01 85);--panel:oklch(0.96 0.012 80);--card:oklch(1 0 0);--fg:oklch(0.22 0.025 65);--muted:oklch(0.5 0.02 65);--faint:oklch(0.62 0.015 70);--border:oklch(0.86 0.02 75);--primary:oklch(0.25 0.02 65);--primary-fg:oklch(0.985 0 0);--green:oklch(0.52 0.15 152);--amber:oklch(0.58 0.13 60);}
   *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
+  html{scroll-behavior:smooth;scrollbar-gutter:stable}
   body{background:var(--bg);color:var(--fg);font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
   .wrap{max-width:1200px;margin:0 auto;padding:0 24px}
   .top{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);background:color-mix(in oklab,var(--bg) 80%,transparent);border-bottom:1px solid var(--border)}
@@ -166,10 +169,11 @@ const CSS = `
   .drawer-x:hover{color:var(--fg);border-color:var(--faint)}
   .drawer-x:active{transform:scale(.92)}
   .drawer-x:focus-visible{outline:2px solid var(--green);outline-offset:2px}
-  .d-head{display:flex;align-items:center;gap:9px;margin-bottom:13px;padding-right:42px;min-height:32px}
+  .d-head{display:flex;align-items:center;gap:9px;margin-bottom:13px;padding-right:84px;min-height:32px}
   .d-name{font-size:21px;font-weight:680;letter-spacing:-.02em;line-height:1.2;margin-bottom:7px;padding-right:34px}
-  .d-pkg{font:12.5px ui-monospace,monospace;color:var(--green)}
+  .d-pkg{font:12.5px ui-monospace,monospace;color:var(--green);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .d-pkg.none{color:var(--faint)}
+  .d-pkg .badge{margin-left:0}
   .d-facts{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:18px 0;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
   .d-facts dt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;padding-top:1px}
   .d-facts dd{font-size:13px;color:var(--fg)}
@@ -177,13 +181,13 @@ const CSS = `
   .d-links a{color:var(--green);text-decoration:none;font-weight:600}
   .d-links a:hover{text-decoration:underline}
   .d-links-sep{color:var(--faint);margin:0 7px}
-  .d-copy{display:inline-flex;align-items:center;gap:6px;margin-top:11px;font:inherit;font-size:12px;font-weight:600;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s,transform .1s}
-  .d-copy:hover{color:var(--fg);border-color:var(--faint)}
-  .d-copy:active{transform:scale(.96)}
-  .d-copy:focus-visible{outline:2px solid var(--green);outline-offset:2px}
-  .d-copy .d-copy-ic{font-size:13px;line-height:1}
-  .d-copy.ok{color:var(--green);border-color:color-mix(in oklab,var(--green) 45%,var(--border));background:color-mix(in oklab,var(--green) 12%,var(--card))}
-  .d-copy.err{color:var(--amber);border-color:color-mix(in oklab,var(--amber) 45%,var(--border))}
+  .d-copy-x{position:absolute;top:16px;right:56px;width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:14px;cursor:pointer;transition:color .15s,border-color .15s,background .15s,transform .1s;display:flex;align-items:center;justify-content:center}
+  .d-copy-x:hover{color:var(--fg);border-color:var(--faint)}
+  .d-copy-x:active{transform:scale(.92)}
+  .d-copy-x:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .d-copy-x .d-copy-ic{font-size:14px;line-height:1}
+  .d-copy-x.ok{color:var(--green);border-color:color-mix(in oklab,var(--green) 55%,var(--border));background:color-mix(in oklab,var(--green) 14%,var(--card))}
+  .d-copy-x.err{color:var(--amber);border-color:color-mix(in oklab,var(--amber) 45%,var(--border))}
   .sbtn{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:6px 12px;cursor:pointer;transition:color .15s,border-color .15s,transform .1s}
   .sbtn:hover{color:var(--fg);border-color:var(--faint)}
   .sbtn:active{transform:scale(.97)}
@@ -314,7 +318,7 @@ const JS = [
 "if(dback)dback.addEventListener('click',closeDrawer);",
 "document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});",
 "function legacyCopy(t){try{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();var ok=document.execCommand('copy');document.body.removeChild(ta);return ok;}catch(_){return false;}}",
-"if(dbody)dbody.addEventListener('click',function(e){var b=e.target.closest('.d-copy');if(!b)return;var lab=b.querySelector('.d-copy-t');var txt=b.getAttribute('data-pkg')+'@'+b.getAttribute('data-ver')+'\\n'+b.getAttribute('data-npm');function flash(ok){b.classList.remove('ok','err');b.classList.add(ok?'ok':'err');if(lab)lab.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.classList.remove('ok','err');if(lab)lab.textContent='Copy npm ref';},1600);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){flash(true);},function(){flash(legacyCopy(txt));});}else{flash(legacyCopy(txt));}});",
+"if(dbody)dbody.addEventListener('click',function(e){var b=e.target.closest('.d-copy-x');if(!b)return;var ic=b.querySelector('.d-copy-ic');var txt=b.getAttribute('data-pkg')+'@'+b.getAttribute('data-ver')+'\\n'+b.getAttribute('data-npm');function flash(ok){b.classList.remove('ok','err');b.classList.add(ok?'ok':'err');if(ic)ic.textContent=ok?'✓':'!';setTimeout(function(){b.classList.remove('ok','err');if(ic)ic.textContent='⧉';},1600);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){flash(true);},function(){flash(legacyCopy(txt));});}else{flash(legacyCopy(txt));}});",
 "var sMod=document.getElementById('smod'),sInput=document.getElementById('sinput'),sList=document.getElementById('slist'),sIdx=0,sRes=[];",
 "function openSearch(){if(!sMod)return;sMod.classList.add('open');document.body.style.overflow='hidden';sInput.value='';renderSearch('');setTimeout(function(){sInput.focus();},20);}",
 "function closeSearch(){if(!sMod)return;sMod.classList.remove('open');if(!drawer.classList.contains('open'))document.body.style.overflow='';}",
@@ -356,9 +360,11 @@ const infraHtml = `<section class="infra">
       <div class="igrid">${INFRA.map(infraCard).join("")}</div>
     </section>`;
 
-// Favicon — a "Component Universe" atom (green orbits + nucleus on the brand-dark
-// tile), inlined as a data-URI so the page stays fully self-contained (F122).
-const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#191919"/><g fill="none" stroke="#34d399" stroke-width="1.5" opacity="0.9"><ellipse cx="16" cy="16" rx="11" ry="4.6" transform="rotate(-32 16 16)"/><ellipse cx="16" cy="16" rx="11" ry="4.6" transform="rotate(32 16 16)"/></g><circle cx="16" cy="16" r="3.6" fill="#34d399"/><circle cx="6.2" cy="11.4" r="1.5" fill="#6ee7b7"/><circle cx="25.8" cy="20.6" r="1.5" fill="#6ee7b7"/></svg>`;
+// Favicon — the broberg.ai "Modulær kerne" mark from cms (design A, Christian's
+// pick; cms mockup 66e188d0): one emerald core → four reused modules. Emerald
+// stroke on transparent → legible on light + dark tabs. Bumped to stroke 2 /
+// opacity 1 per cms's 16px-legibility tip. Inlined as a data-URI (self-contained).
+const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" stroke="#34d399" stroke-width="2" opacity="1"><path d="M16 16 8 8M16 16 24 8M16 16 8 24M16 16 24 24"/><rect x="4" y="4" width="8" height="8" rx="2.2"/><rect x="20" y="4" width="8" height="8" rx="2.2"/><rect x="4" y="20" width="8" height="8" rx="2.2"/><rect x="20" y="20" width="8" height="8" rx="2.2"/></g><circle cx="16" cy="16" r="3.2" fill="#34d399"/></svg>`;
 const FAVICON = "data:image/svg+xml;base64," + Buffer.from(FAVICON_SVG).toString("base64");
 
 const HTML = `<!doctype html>
