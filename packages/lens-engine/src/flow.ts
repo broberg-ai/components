@@ -80,6 +80,18 @@ export function plannedLayers(spec: LocateSpec): string[] {
   return layers;
 }
 
+/** The implicit setup navigation before step 0. The daemon flow-runner opens
+ *  `base_url` first, so a flow that doesn't start with its own `goto` runs step 0
+ *  on the page, not about:blank. Returns the base_url to pre-navigate to, or null
+ *  when a leading `goto` already handles it (idempotent) or there is no base_url.
+ *  Pure + exported so the parity contract is sealed by a unit test (like
+ *  plannedLayers) and can't silently drift from the daemon. */
+export function leadingNavigation(body: Pick<FlowBody, 'base_url' | 'steps'>): string | null {
+  if (!body.base_url) return null;
+  if (body.steps[0]?.action === 'goto') return null;
+  return body.base_url;
+}
+
 /** A compact label for a target (the primary hint), for the step report's detail. */
 function describeTarget(t: Target): string {
   if (typeof t === 'string') return t;
@@ -284,6 +296,38 @@ export async function runFlow(body: FlowOptions): Promise<FlowResult> {
     });
     if (storageState) await applyStorageState(context, storageState);
     const page = await context.newPage();
+
+    // Parity with the daemon flow-runner + least surprise: if the flow doesn't
+    // open with its own `goto`, navigate to base_url before step 0 so the first
+    // declared step runs on the page, not about:blank (lens-gap #15924). A leading
+    // `goto` makes this a no-op (idempotent). A failure here stays DATA — a failed
+    // goto step, never a thrown exception (the failed-flow-as-DATA contract).
+    const lead = leadingNavigation(body);
+    if (lead) {
+      const started = Date.now();
+      try {
+        await page.goto(new URL(lead).toString(), { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+        await settle(page, undefined, timeoutMs);
+      } catch (err) {
+        let png: Buffer | undefined;
+        try {
+          png = await page.screenshot();
+        } catch {
+          /* page may be gone — no shot */
+        }
+        steps.push({
+          index: 0,
+          action: 'goto',
+          status: 'failed',
+          ms: Date.now() - started,
+          detail: lead,
+          error: err instanceof Error ? err.message : String(err),
+          ...(png ? { png, screenshot_run_id: randomUUID() } : {}),
+        });
+        finalUrl = safeUrl(page);
+        return { run_id: runId, name: body.name, status: 'failed', steps, final_url: finalUrl };
+      }
+    }
 
     for (let i = 0; i < body.steps.length; i++) {
       const step = body.steps[i]!;

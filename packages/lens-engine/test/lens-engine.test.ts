@@ -16,7 +16,7 @@ import {
   uploadFileSchema,
 } from '../src/schema';
 import { resolveSelector, resolveViewport } from '../src/capture';
-import { plannedLayers } from '../src/flow';
+import { plannedLayers, leadingNavigation } from '../src/flow';
 import { visionEnabled } from '../src/vision';
 
 describe('captureBodySchema', () => {
@@ -178,6 +178,25 @@ describe('self-healing locators', () => {
     expect(plannedLayers({ role: 'heading', name: 'Example Domain' })).toEqual(['role']);
     expect(plannedLayers({ text: 'Submit' })).toEqual(['text']);
     expect(plannedLayers({ testid: 't', vision: 'the blue button' })).toEqual(['testid', 'vision']);
+  });
+});
+
+describe('leadingNavigation — base_url auto-nav parity (F049)', () => {
+  test('a flow that does NOT open with a goto pre-navigates to base_url', () => {
+    expect(leadingNavigation({ base_url: 'https://a.dev', steps: [{ action: 'click', target: 'x' }] })).toBe(
+      'https://a.dev',
+    );
+    expect(
+      leadingNavigation({ base_url: 'https://a.dev', steps: [{ action: 'fill', target: 'x', value: 'v' }] }),
+    ).toBe('https://a.dev');
+  });
+
+  test('a leading goto is a no-op (idempotent — the goto already navigates)', () => {
+    expect(leadingNavigation({ base_url: 'https://a.dev', steps: [{ action: 'goto', url: '/' }] })).toBeNull();
+  });
+
+  test('no base_url → no implicit navigation', () => {
+    expect(leadingNavigation({ base_url: '', steps: [{ action: 'click', target: 'x' }] })).toBeNull();
   });
 });
 
