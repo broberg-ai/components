@@ -156,6 +156,42 @@ export function isSelectable(key: string, config: RegionConfig = {}): boolean {
   return s?.selectable ?? true;
 }
 
+// ---- palette (consumer-defined colours — shared by the 2D + 3D renderers) ---
+
+/** Colour control for the body renderers. Consumers pass a palette to theme the
+ *  body base colour, the hover + selected highlights, the pain-heat colours, and
+ *  optional per-region base colours. All values are CSS/hex colour strings. */
+export interface BodymapPalette {
+  /** Base body colour (an unmarked region). */
+  body: string;
+  /** Region highlight on hover (before click). */
+  hover: string;
+  /** A region selected (clicked) but not yet given an intensity. */
+  selected: string;
+  /** Pain-intensity heat colours: low (0-3), mid (4-6), high (7-10). */
+  heat: { low: string; mid: string; high: string };
+  /** Optional per-region base-colour overrides (region key → colour). */
+  regions?: Record<string, string>;
+}
+
+/** The fleet default palette. Override any field per consumer. */
+export const defaultPalette: BodymapPalette = {
+  body: "#d2d7de",
+  hover: "#8fd0cd",
+  selected: "#5cc4b7",
+  heat: { low: "#fcd34d", mid: "#fb923c", high: "#ef4444" },
+};
+
+/** The heat colour for a pain intensity, honouring the palette. */
+export function heatFor(intensity: number, palette: BodymapPalette = defaultPalette): string {
+  return intensity >= 7 ? palette.heat.high : intensity >= 4 ? palette.heat.mid : palette.heat.low;
+}
+
+/** The base colour for a region (a per-region override, else the body colour). */
+export function baseColorFor(regionKey: string, palette: BodymapPalette = defaultPalette): string {
+  return palette.regions?.[regionKey] ?? palette.body;
+}
+
 // ---- bodymap/v1 serialization (the shared cross-app / native wire format) ---
 //
 // The shape every consumer + the native mobile apps read (aligned with
