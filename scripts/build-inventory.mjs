@@ -63,8 +63,15 @@ function detailHtml(it, layerN, layerT){
     facts += `<dt>Links</dt><dd class="d-links">${links}</dd>`;
   }
   facts += '</dl>';
+  // Copy-to-clipboard — only for a package that is actually live on npm (nUrl is
+  // non-null solely for shipped npm packages, never SwiftPM/scaffold/moved). The
+  // pkg name + version + npm url ride as data-attrs; the drawer JS assembles the
+  // clipboard text (name@version \n url) so there is no newline-in-attribute.
+  const copyBtn = (nUrl && it.ver && it.pkg)
+    ? `<button type="button" class="d-copy" data-testid="d-copy-${fid}" data-pkg="${it.pkg}" data-ver="${it.ver}" data-npm="${nUrl}"><span class="d-copy-ic" aria-hidden="true">⧉</span><span class="d-copy-t">Copy npm ref</span></button>`
+    : "";
   return `<div class="d-head"><span class="fnum">${it.f}</span>${badge}</div>`
-    + `<h2 class="d-name" id="d-name">${it.nm}</h2>${pkg}${facts}`
+    + `<h2 class="d-name" id="d-name">${it.nm}</h2>${pkg}${copyBtn}${facts}`
     + `<div class="d-desc-h">What it is</div><div class="d-desc">${it.desc}</div>`;
 }
 const DETAIL = {};
@@ -170,6 +177,13 @@ const CSS = `
   .d-links a{color:var(--green);text-decoration:none;font-weight:600}
   .d-links a:hover{text-decoration:underline}
   .d-links-sep{color:var(--faint);margin:0 7px}
+  .d-copy{display:inline-flex;align-items:center;gap:6px;margin-top:11px;font:inherit;font-size:12px;font-weight:600;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s,transform .1s}
+  .d-copy:hover{color:var(--fg);border-color:var(--faint)}
+  .d-copy:active{transform:scale(.96)}
+  .d-copy:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .d-copy .d-copy-ic{font-size:13px;line-height:1}
+  .d-copy.ok{color:var(--green);border-color:color-mix(in oklab,var(--green) 45%,var(--border));background:color-mix(in oklab,var(--green) 12%,var(--card))}
+  .d-copy.err{color:var(--amber);border-color:color-mix(in oklab,var(--amber) 45%,var(--border))}
   .d-model{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:3px}
   .d-desc-h{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700;margin:0 0 7px}
   .d-desc{font-size:14px;line-height:1.62;color:var(--fg)}
@@ -267,6 +281,8 @@ const JS = [
 "if(dclose)dclose.addEventListener('click',closeDrawer);",
 "if(dback)dback.addEventListener('click',closeDrawer);",
 "document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});",
+"function legacyCopy(t){try{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();var ok=document.execCommand('copy');document.body.removeChild(ta);return ok;}catch(_){return false;}}",
+"if(dbody)dbody.addEventListener('click',function(e){var b=e.target.closest('.d-copy');if(!b)return;var lab=b.querySelector('.d-copy-t');var txt=b.getAttribute('data-pkg')+'@'+b.getAttribute('data-ver')+'\\n'+b.getAttribute('data-npm');function flash(ok){b.classList.remove('ok','err');b.classList.add(ok?'ok':'err');if(lab)lab.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.classList.remove('ok','err');if(lab)lab.textContent='Copy npm ref';},1600);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){flash(true);},function(){flash(legacyCopy(txt));});}else{flash(legacyCopy(txt));}});",
 "})();",
 ].join("\n");
 
