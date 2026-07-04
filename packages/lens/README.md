@@ -140,6 +140,38 @@ interface LensMintOptions { secret?: string; createSession: CreateLensSession; p
 function createLensMintHandler(opts: LensMintOptions): (req: { authorization: string | null; host: string; secure: boolean }) => Promise<{ status: number; body: unknown }>;
 // @broberg/lens/next → createLensRoute(opts): { POST(req: Request): Promise<Response> }
 // @broberg/lens/hono → lensSessionHandler(opts): (c: Context) => Promise<Response>
+// @broberg/lens/next-auth → nextAuthLensSession(opts): (ctx: LensSessionContext) => Promise<LensCookie>
 ```
+
+## NextAuth apps — `@broberg/lens/next-auth`
+
+A ready-made `createSession` hook for **NextAuth (v5)** apps, so you don't hand-roll
+the JWT encode + the subtle cookie gotchas every NextAuth-behind-login repo hits:
+
+```ts
+import { createLensMintHandler } from "@broberg/lens";
+import { nextAuthLensSession } from "@broberg/lens/next-auth";
+
+const handler = createLensMintHandler({
+  principal: "lens@myapp.local",
+  createSession: nextAuthLensSession({
+    authSecret: process.env.AUTH_SECRET!,
+    claims: { id: "lens-user-id", email: "lens@myapp.local", name: "Lens" },
+    // `secure` defaults to NODE_ENV === "production" (NextAuth's useSecureCookies)
+  }),
+});
+```
+
+`next-auth` is an **optional peer dependency** (imported lazily; pass a custom
+`encode` to avoid it). The helper captures three battle-tested gotchas so you don't:
+
+1. **`salt` MUST equal the cookie name** — NextAuth `getToken` derives the JWE key
+   with `salt = cookie name`; a mismatch silently decodes to `null`.
+2. **`__Secure-` prefix ⇒ `secure: true`** — secure mode drives the cookie name
+   (`__Secure-authjs.session-token` vs `authjs.session-token`), the salt, AND the
+   secure flag, together.
+3. **Chromium rejects a secure cookie set by `{domain}` alone** — the Cardmem Lens
+   daemon synthesizes an https source-URL so `{domain, path}` works fleet-wide; on
+   a non-daemon env, set a `url` cookie instead.
 
 MIT · part of the [`@broberg/*`](https://github.com/broberg-ai/components) shared-library family.
