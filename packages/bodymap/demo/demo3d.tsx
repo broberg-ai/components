@@ -42,7 +42,9 @@ const PALETTES: Record<string, BodymapPalette> = {
 
 function App() {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [sex, setSex] = useState<"male" | "female">("male");
+  const [sex, setSex] = useState<"male" | "female">(
+    new URLSearchParams(window.location.search).get("sex") === "female" ? "female" : "male",
+  );
   const [paletteName, setPaletteName] = useState("Standard");
   const [selected, setSelected] = useState<string | null>(null);
   const [report, setReport] = useState<PainReport>([]);
@@ -69,7 +71,8 @@ function App() {
     const rl = new THREE.DirectionalLight(0x88aaff, 0.7); rl.position.set(-4, 2, -3); scene.add(rl);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor = 0.08;
-    controls.autoRotate = true; controls.autoRotateSpeed = 1.1;
+    const STATIC = new URLSearchParams(window.location.search).has("static");
+    controls.autoRotate = !STATIC; controls.autoRotateSpeed = 1.1;
     controls.minDistance = 2.2; controls.maxDistance = 8; controls.enablePan = false;
     controls.target.set(0, 0.95, 0);
     controls.addEventListener("start", () => { controls.autoRotate = false; });
