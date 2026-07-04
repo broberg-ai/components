@@ -1,0 +1,39 @@
+{
+  "name": "@broberg/bodymap",
+  "version": "0.1.0",
+  "description": "Interactive body pain-map: a genderless body a patient clicks to mark where it hurts, producing a structured PainReport (bodymap/v1). Framework-neutral core (region taxonomy + zod PainReport model + selection) with a 2D SVG renderer; 3D (vanilla Three.js) later on the same core.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": ["bodymap", "pain-map", "smertekort", "body-chart", "clinical", "broberg"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/bodymap"
+  },
+  "publishConfig": { "access": "public" }
+}
