@@ -20,32 +20,46 @@ export interface BodyRegion {
   side?: Side;
 }
 
-/** The canonical body regions: ~20 named SURFACE regions for a pain-map — not
- *  an anatomical atlas. Provisional until FD's clinical lead signs the list off
- *  (F052 plan-doc §9); the taxonomy is data-driven so the list can grow/shrink
- *  without touching the renderers. */
+/** The canonical body regions — the AUTHORITATIVE fd-sundhed clinical taxonomy
+ *  (docs/BODYMAP-TAKSONOMI.md, broberg-ai/fd-sundhed @360842f): 18 SIDE-LESS
+ *  clinical codes + a separate `side` field (L/R on limbs, C=center on axis
+ *  regions). The `key` is a unique per-side identifier; `code` is the side-less
+ *  clinical code that goes on the bodymap/v1 wire. NOT an anatomical atlas —
+ *  ~30 named surface regions for a pain-map. The 2D front renderer draws the
+ *  front-visible subset; the 3D body (F052.6) drives them all. */
 export const REGIONS: readonly BodyRegion[] = [
+  // axis / centre-line (serialised side "center")
   { key: "head", label: "Hoved", code: "HEAD" },
   { key: "neck", label: "Nakke", code: "NECK" },
-  { key: "shoulder_left", label: "Skulder, venstre", code: "SHLD_L", side: "left" },
-  { key: "shoulder_right", label: "Skulder, højre", code: "SHLD_R", side: "right" },
-  { key: "upper_arm_left", label: "Overarm, venstre", code: "UARM_L", side: "left" },
-  { key: "upper_arm_right", label: "Overarm, højre", code: "UARM_R", side: "right" },
-  { key: "forearm_left", label: "Underarm, venstre", code: "FARM_L", side: "left" },
-  { key: "forearm_right", label: "Underarm, højre", code: "FARM_R", side: "right" },
-  { key: "hand_left", label: "Hånd, venstre", code: "HAND_L", side: "left" },
-  { key: "hand_right", label: "Hånd, højre", code: "HAND_R", side: "right" },
   { key: "chest", label: "Bryst", code: "CHEST" },
-  { key: "abdomen", label: "Mave", code: "ABDO" },
-  { key: "lower_back", label: "Lænd / hofte", code: "LUMB" },
-  { key: "thigh_left", label: "Lår, venstre", code: "THIGH_L", side: "left" },
-  { key: "thigh_right", label: "Lår, højre", code: "THIGH_R", side: "right" },
-  { key: "knee_left", label: "Knæ, venstre", code: "KNEE_L", side: "left" },
-  { key: "knee_right", label: "Knæ, højre", code: "KNEE_R", side: "right" },
-  { key: "shin_left", label: "Skinneben, venstre", code: "SHIN_L", side: "left" },
-  { key: "shin_right", label: "Skinneben, højre", code: "SHIN_R", side: "right" },
-  { key: "foot_left", label: "Fod, venstre", code: "FOOT_L", side: "left" },
-  { key: "foot_right", label: "Fod, højre", code: "FOOT_R", side: "right" },
+  { key: "thora", label: "Øvre ryg (thorakal)", code: "THORA" },
+  { key: "lumbar", label: "Lænd (lumbal)", code: "LUMBAR" },
+  { key: "groin", label: "Lyske", code: "GROIN" },
+  // paired limbs / sides (L / R)
+  { key: "shoulder_left", label: "Skulder, venstre", code: "SHOULDER", side: "left" },
+  { key: "shoulder_right", label: "Skulder, højre", code: "SHOULDER", side: "right" },
+  { key: "uarm_left", label: "Overarm, venstre", code: "UARM", side: "left" },
+  { key: "uarm_right", label: "Overarm, højre", code: "UARM", side: "right" },
+  { key: "elbow_left", label: "Albue, venstre", code: "ELBOW", side: "left" },
+  { key: "elbow_right", label: "Albue, højre", code: "ELBOW", side: "right" },
+  { key: "farm_left", label: "Underarm, venstre", code: "FARM", side: "left" },
+  { key: "farm_right", label: "Underarm, højre", code: "FARM", side: "right" },
+  { key: "wrist_left", label: "Håndled, venstre", code: "WRIST", side: "left" },
+  { key: "wrist_right", label: "Håndled, højre", code: "WRIST", side: "right" },
+  { key: "hand_left", label: "Hånd, venstre", code: "HAND", side: "left" },
+  { key: "hand_right", label: "Hånd, højre", code: "HAND", side: "right" },
+  { key: "hip_left", label: "Hofte, venstre", code: "HIP", side: "left" },
+  { key: "hip_right", label: "Hofte, højre", code: "HIP", side: "right" },
+  { key: "thigh_left", label: "Lår, venstre", code: "THIGH", side: "left" },
+  { key: "thigh_right", label: "Lår, højre", code: "THIGH", side: "right" },
+  { key: "knee_left", label: "Knæ, venstre", code: "KNEE", side: "left" },
+  { key: "knee_right", label: "Knæ, højre", code: "KNEE", side: "right" },
+  { key: "lowleg_left", label: "Underben, venstre", code: "LOWLEG", side: "left" },
+  { key: "lowleg_right", label: "Underben, højre", code: "LOWLEG", side: "right" },
+  { key: "ankle_left", label: "Ankel, venstre", code: "ANKLE", side: "left" },
+  { key: "ankle_right", label: "Ankel, højre", code: "ANKLE", side: "right" },
+  { key: "foot_left", label: "Fod, venstre", code: "FOOT", side: "left" },
+  { key: "foot_right", label: "Fod, højre", code: "FOOT", side: "right" },
 ];
 
 const REGION_KEY_SET = new Set(REGIONS.map((r) => r.key));
@@ -207,10 +221,13 @@ export function deserializeReport(
   now: () => string = () => new Date().toISOString(),
 ): PainReport {
   const parsed = bodymapReportV1Schema.parse(env);
-  const byCode = new Map(REGIONS.map((r) => [r.code, r.key] as const));
+  // code is side-less, so a point is identified by code + side.
+  const byCodeSide = new Map(
+    REGIONS.map((r) => [`${r.code}|${r.side ?? "center"}`, r.key] as const),
+  );
   const out: PainReport = [];
   for (const sp of parsed.points) {
-    const key = byCode.get(sp.region);
+    const key = byCodeSide.get(`${sp.region}|${sp.side}`);
     if (!key) continue;
     out.push(
       painPointSchema.parse({

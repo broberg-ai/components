@@ -9,4 +9,16 @@ export default defineConfig([
     sourcemap: true,
     treeshake: true,
   },
+  {
+    entry: { react: "src/react.tsx" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    external: ["react", "react/jsx-runtime"],
+    esbuildOptions(options) {
+      options.jsx = "automatic";
+      options.jsxImportSource = "react";
+    },
+  },
 ]);
