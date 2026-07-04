@@ -184,6 +184,25 @@ const CSS = `
   .d-copy .d-copy-ic{font-size:13px;line-height:1}
   .d-copy.ok{color:var(--green);border-color:color-mix(in oklab,var(--green) 45%,var(--border));background:color-mix(in oklab,var(--green) 12%,var(--card))}
   .d-copy.err{color:var(--amber);border-color:color-mix(in oklab,var(--amber) 45%,var(--border))}
+  .sbtn{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:6px 12px;cursor:pointer;transition:color .15s,border-color .15s,transform .1s}
+  .sbtn:hover{color:var(--fg);border-color:var(--faint)}
+  .sbtn:active{transform:scale(.97)}
+  .sbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .sbtn .sk{font:11px ui-monospace,monospace;color:var(--faint);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+  .smod{position:fixed;inset:0;z-index:60;background:oklch(0 0 0 / .5);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding:14vh 16px 16px}
+  .smod.open{display:flex}
+  .sbox{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px oklch(0 0 0 / .4);overflow:hidden}
+  .sinput{width:100%;font:inherit;font-size:16px;color:var(--fg);background:transparent;border:0;border-bottom:1px solid var(--border);padding:16px 18px;outline:none}
+  .sinput::placeholder{color:var(--faint)}
+  .slist{max-height:52vh;overflow-y:auto;padding:6px}
+  .sres{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer}
+  .sres.on,.sres:hover{background:var(--card)}
+  .sres .sf{font:600 10.5px ui-monospace,monospace;color:var(--faint);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .sres .snm{font-weight:600;font-size:13.5px;color:var(--fg)}
+  .sres .spkg{font:11.5px ui-monospace,monospace;color:var(--green)}
+  .sres .slay{margin-left:auto;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+  .sempty{padding:22px;text-align:center;color:var(--faint);font-size:13px}
+  .sfoot{display:flex;gap:16px;padding:9px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--faint)}
   .d-model{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:3px}
   .d-desc-h{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700;margin:0 0 7px}
   .d-desc{font-size:14px;line-height:1.62;color:var(--fg)}
@@ -249,9 +268,21 @@ const CSS = `
   }
 `;
 
+// Flat search index for the ⌘K command palette (F038.3) — one row per
+// component/package + infra entry, matched on name/pkg/F-number/keywords/layer.
+const SEARCH_INDEX = [];
+DATA.forEach((L) => L.items.forEach((it) => SEARCH_INDEX.push({
+  f: it.f, nm: it.nm, pkg: it.pkg || it.via || "", layer: L.n, kw: (it.kw || []).join(" "),
+})));
+INFRA.forEach((p) => SEARCH_INDEX.push({
+  f: "infra-" + p.id, nm: p.name, pkg: "", layer: "INFRA",
+  kw: (p.tips || []).map((t) => t.t).join(" ").slice(0, 160),
+}));
+
 const JS = [
 "(function(){",
 "var DETAIL=" + JSON.stringify(DETAIL) + ";",
+"var SEARCH=" + JSON.stringify(SEARCH_INDEX) + ";",
 "var modeEl=document.getElementById('mode'),tempEl=document.getElementById('temp');",
 "var mode='dark',temp='';",
 "function applyTheme(){document.documentElement.setAttribute('data-theme',mode+temp);}",
@@ -275,7 +306,8 @@ const JS = [
 "(function(){var el=document.getElementById('f-infra');if(!el)return;el.addEventListener('click',function(e){var b=e.target.closest('.chip');if(!b)return;fip=b.getAttribute('data-ip');Array.prototype.forEach.call(el.querySelectorAll('.chip'),function(x){x.setAttribute('aria-pressed',x===b);});applyInfraFilter();});})();",
 "var drawer=document.getElementById('drawer'),dback=document.getElementById('dback'),dbody=document.getElementById('dbody'),dclose=document.getElementById('dclose');",
 "var lastFocus=null;",
-"function openDrawer(el){var h=DETAIL[el.getAttribute('data-f')];if(!h)return;lastFocus=el;dbody.innerHTML=h;drawer.classList.add('open');dback.classList.add('open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';if(dclose)dclose.focus();}",
+"function openDrawer(el){lastFocus=el;openDrawerByF(el.getAttribute('data-f'));}",
+"function openDrawerByF(f){var h=DETAIL[f];if(!h)return;dbody.innerHTML=h;drawer.classList.add('open');dback.classList.add('open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';if(dclose)dclose.focus();}",
 "function closeDrawer(){drawer.classList.remove('open');dback.classList.remove('open');drawer.setAttribute('aria-hidden','true');document.body.style.overflow='';if(lastFocus)lastFocus.focus();}",
 "Array.prototype.forEach.call(document.querySelectorAll('.c,.ic'),function(c){c.addEventListener('click',function(){openDrawer(c);});c.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openDrawer(c);}});});",
 "if(dclose)dclose.addEventListener('click',closeDrawer);",
@@ -283,6 +315,17 @@ const JS = [
 "document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});",
 "function legacyCopy(t){try{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();var ok=document.execCommand('copy');document.body.removeChild(ta);return ok;}catch(_){return false;}}",
 "if(dbody)dbody.addEventListener('click',function(e){var b=e.target.closest('.d-copy');if(!b)return;var lab=b.querySelector('.d-copy-t');var txt=b.getAttribute('data-pkg')+'@'+b.getAttribute('data-ver')+'\\n'+b.getAttribute('data-npm');function flash(ok){b.classList.remove('ok','err');b.classList.add(ok?'ok':'err');if(lab)lab.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.classList.remove('ok','err');if(lab)lab.textContent='Copy npm ref';},1600);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){flash(true);},function(){flash(legacyCopy(txt));});}else{flash(legacyCopy(txt));}});",
+"var sMod=document.getElementById('smod'),sInput=document.getElementById('sinput'),sList=document.getElementById('slist'),sIdx=0,sRes=[];",
+"function openSearch(){if(!sMod)return;sMod.classList.add('open');document.body.style.overflow='hidden';sInput.value='';renderSearch('');setTimeout(function(){sInput.focus();},20);}",
+"function closeSearch(){if(!sMod)return;sMod.classList.remove('open');if(!drawer.classList.contains('open'))document.body.style.overflow='';}",
+"function renderSearch(q){q=(q||'').trim().toLowerCase();sRes=(q?SEARCH.filter(function(x){return (x.nm+' '+x.pkg+' '+x.f+' '+x.kw+' '+x.layer).toLowerCase().indexOf(q)>=0;}):SEARCH).slice(0,24);sIdx=0;sList.innerHTML=sRes.length?sRes.map(function(x,i){return '<div class=\"sres'+(i===0?' on':'')+'\" data-testid=\"inv-search-result-'+x.f+'\" data-f=\"'+x.f+'\" data-i=\"'+i+'\"><span class=\"sf\">'+x.f+'</span><span class=\"snm\">'+x.nm+'</span>'+(x.pkg?'<span class=\"spkg\">'+x.pkg+'</span>':'')+'<span class=\"slay\">'+x.layer+'</span></div>';}).join(''):'<div class=\"sempty\">Ingen match</div>';}",
+"function moveSel(d){if(!sRes.length)return;sIdx=(sIdx+d+sRes.length)%sRes.length;Array.prototype.forEach.call(sList.children,function(c){if(c.classList)c.classList.toggle('on',+c.getAttribute('data-i')===sIdx);});var el=sList.children[sIdx];if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});}",
+"function chooseSel(){var x=sRes[sIdx];if(!x)return;closeSearch();openDrawerByF(x.f);}",
+"if(sInput)sInput.addEventListener('input',function(){renderSearch(sInput.value);});",
+"if(sList)sList.addEventListener('click',function(e){var r=e.target.closest('.sres');if(!r)return;closeSearch();openDrawerByF(r.getAttribute('data-f'));});",
+"if(sMod)sMod.addEventListener('click',function(e){if(e.target===sMod)closeSearch();});",
+"var sBtn=document.getElementById('sbtn');if(sBtn)sBtn.addEventListener('click',openSearch);",
+"document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){e.preventDefault();openSearch();return;}if(!sMod||!sMod.classList.contains('open'))return;if(e.key==='Escape'){e.preventDefault();closeSearch();}else if(e.key==='ArrowDown'){e.preventDefault();moveSel(1);}else if(e.key==='ArrowUp'){e.preventDefault();moveSel(-1);}else if(e.key==='Enter'){e.preventDefault();chooseSel();}});",
 "})();",
 ].join("\n");
 
@@ -331,6 +374,7 @@ const HTML = `<!doctype html>
   <div class="top"><div class="wrap">
     <span class="brand"><span class="at">@broberg/</span>components</span>
     <span class="spacer"></span>
+    <button class="sbtn" id="sbtn" data-testid="inv-search-open" aria-label="Søg (⌘K)"><span class="sk">⌘K</span>Søg</button>
     <div class="seg" id="mode"><button data-m="dark" aria-pressed="true">Dark</button><button data-m="light">Light</button></div>
     <div class="seg" id="temp"><button data-t="" aria-pressed="true">Neutral</button><button data-t="-cool">Cool</button><button data-t="-warm">Warm</button></div>
   </div></div>
@@ -380,6 +424,13 @@ const HTML = `<!doctype html>
       </div>
       <div class="copyright">© 2026 <a href="https://broberg.ai">broberg.ai</a> · Aalborg · Blokhus · Copenhagen · Build &amp; Powered by the broberg.ai universe.</div>
     </footer>
+  </div>
+  <div class="smod" id="smod" data-testid="inv-search-modal">
+    <div class="sbox" role="dialog" aria-label="Søg i komponenter" aria-modal="true">
+      <input id="sinput" class="sinput" type="text" placeholder="Søg pakker, komponenter, F-numre…" data-testid="inv-search-input" autocomplete="off" spellcheck="false" aria-label="Søgning">
+      <div id="slist" class="slist"></div>
+      <div class="sfoot"><span>↑↓ naviger</span><span>↵ åbn</span><span>esc luk</span></div>
+    </div>
   </div>
   <div class="drawer-backdrop" id="dback" data-testid="inv-detail-backdrop"></div>
   <aside class="drawer" id="drawer" data-testid="inv-detail" role="dialog" aria-modal="true" aria-labelledby="d-name" aria-hidden="true">
