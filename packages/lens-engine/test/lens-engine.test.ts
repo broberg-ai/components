@@ -16,7 +16,7 @@ import {
   uploadFileSchema,
 } from '../src/schema';
 import { resolveSelector, resolveViewport } from '../src/capture';
-import { plannedLayers, leadingNavigation } from '../src/flow';
+import { plannedLayers, leadingNavigation, resolveTarget } from '../src/flow';
 import { visionEnabled } from '../src/vision';
 
 describe('captureBodySchema', () => {
@@ -197,6 +197,45 @@ describe('leadingNavigation — base_url auto-nav parity (F049)', () => {
 
   test('no base_url → no implicit navigation', () => {
     expect(leadingNavigation({ base_url: '', steps: [{ action: 'click', target: 'x' }] })).toBeNull();
+  });
+});
+
+describe('resolveTarget — exported self-heal resolver (F050)', () => {
+  // Duck-typed fake page: just enough Locator-factory surface to drive the resolver
+  // OFFLINE (no real Chromium — same strategy as the rest of this file; the live
+  // DOM resolution against a real page is proven by the consumer/daemon).
+  const fakePage = {
+    locator: (sel: string) => ({ first: () => `SEL:${sel}`, count: async () => 0, nth: (n: number) => `CSS:${sel}#${n}` }),
+    getByTestId: (id: string) => ({ count: async () => 1, nth: (n: number) => `TESTID:${id}#${n}` }),
+    getByRole: () => ({ count: async () => 0, nth: (n: number) => `ROLE#${n}` }),
+    getByLabel: () => ({ count: async () => 0, nth: (n: number) => `LABEL#${n}` }),
+    getByPlaceholder: () => ({ count: async () => 0, nth: (n: number) => `PH#${n}` }),
+    getByText: () => ({ count: async () => 0, nth: (n: number) => `TEXT#${n}` }),
+  } as unknown as Parameters<typeof resolveTarget>[0];
+
+  test('a string target resolves via the selector layer (bare testid wrapped)', async () => {
+    const r = await resolveTarget(fakePage, 'save-btn');
+    expect(r.resolved_via).toBe('selector');
+    expect(r.locator).toBe('SEL:[data-testid="save-btn"]');
+  });
+
+  test('a LocateSpec resolves via its first matching DOM layer, surfacing resolved_via', async () => {
+    const r = await resolveTarget(fakePage, { testid: 'version' });
+    expect(r.resolved_via).toBe('testid');
+    expect(r.locator).toBe('TESTID:version#0');
+  });
+
+  test('a LocateSpec whose DOM layers all miss (no vision) throws — never guesses', async () => {
+    await expect(resolveTarget(fakePage, { role: 'button', name: 'Nope' })).rejects.toThrow(/no layer matched/);
+  });
+
+  test('a nullish target throws with the opts.action label', async () => {
+    await expect(resolveTarget(fakePage, null as unknown as string, { action: 'fill' })).rejects.toThrow(
+      /fill step requires a target/,
+    );
+    await expect(resolveTarget(fakePage, undefined as unknown as string)).rejects.toThrow(
+      /locate step requires a target/,
+    );
   });
 });
 

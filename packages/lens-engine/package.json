@@ -1,6 +1,6 @@
 {
   "name": "@broberg/lens-engine",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The shared Playwright capture + flow engine for the cardmem-lens fleet — capture(opts)→artifact and runFlow(opts)→report with self-healing locators (DOM layers + Set-of-Marks vision) and a frozen Zod flow grammar. Auth-agnostic (storageState in, PNG bytes out). The hosted cloud Lens and the local daemon import this ONE engine so they never drift. For the lightweight mint/compliance surface use @broberg/lens; for a no-Playwright hosted client use @broberg/lens-client.",
   "type": "module",
   "license": "MIT",

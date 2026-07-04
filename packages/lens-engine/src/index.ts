@@ -21,7 +21,15 @@ export {
   type StorageStateInput,
 } from './capture';
 
-export { runFlow, plannedLayers, type FlowOptions, type FlowResult, type FlowStepReport } from './flow';
+export {
+  runFlow,
+  plannedLayers,
+  resolveTarget,
+  type FlowOptions,
+  type FlowResult,
+  type FlowStepReport,
+  type ResolveTargetResult,
+} from './flow';
 
 export { applyStorageState, fetchStorageState } from './mint';
 

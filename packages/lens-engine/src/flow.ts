@@ -129,28 +129,40 @@ async function tryDomLayers(page: Page, spec: LocateSpec): Promise<{ locator: Lo
   return null;
 }
 
-/** Self-healing resolve. A string target is layer 0 (CSS/testid). A LocateSpec
- *  tries its DOM layers first; if they all miss AND `vision` is set, it falls
- *  back to the vision layer (Set-of-Marks → a REAL element, so every action can
- *  use it uniformly). Throws (clean, never a guess) when nothing matches. */
-async function resolveTarget(
+export interface ResolveTargetResult {
+  locator: Locator;
+  /** Which layer matched: selector|testid|css|role|label|placeholder|text|vision. */
+  resolved_via: string;
+}
+
+/** Self-healing resolve — the ONE resolver the cloud runFlow AND the local daemon
+ *  call, so their self-heal layer can't drift (F050). A string target is the
+ *  selector layer (CSS/testid). A LocateSpec tries its DOM layers in fixed order
+ *  (testid→css→role→label→placeholder→text); if they all miss AND `vision` is set,
+ *  it falls back to the Set-of-Marks vision layer (→ a REAL element, so every
+ *  action uses it uniformly). Throws (clean, never a guess) when nothing matches.
+ *  RECEIVES `page` (never constructs one) → runtime-safe across Playwright minor
+ *  versions. `opts.action` only labels the missing-target error. */
+export async function resolveTarget(
   page: Page,
-  target: Target | undefined,
-  action: FlowStep['action'],
-): Promise<{ locator: Locator; layer: string }> {
-  if (target == null) throw new Error(`${action} step requires a target (a selector, data-testid, or locate spec)`);
+  target: Target,
+  opts?: { action?: string },
+): Promise<ResolveTargetResult> {
+  if (target == null) {
+    throw new Error(`${opts?.action ?? 'locate'} step requires a target (a selector, data-testid, or locate spec)`);
+  }
   if (typeof target === 'string') {
-    return { locator: page.locator(resolveSelector(target)).first(), layer: 'selector' };
+    return { locator: page.locator(resolveSelector(target)).first(), resolved_via: 'selector' };
   }
   const dom = await tryDomLayers(page, target);
-  if (dom) return dom;
+  if (dom) return { locator: dom.locator, resolved_via: dom.layer };
   if (target.vision) {
     if (!visionEnabled()) {
       throw new Error(
         `locate: DOM layers missed; vision fallback is dark (set LENS_VISION_ENABLED=1 + a provider key) for "${target.vision}"`,
       );
     }
-    return { locator: await resolveVisionElement(page, target.vision), layer: 'vision' };
+    return { locator: await resolveVisionElement(page, target.vision), resolved_via: 'vision' };
   }
   throw new Error(`locate: no layer matched ${JSON.stringify(target)}`);
 }
@@ -189,23 +201,23 @@ async function execStep(
       return { detail: url };
     }
     case 'click': {
-      const { locator, layer } = await resolveTarget(page, step.target, 'click');
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'click' });
       await locator.click({ timeout: timeoutMs });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'fill': {
-      const { locator, layer } = await resolveTarget(page, step.target, 'fill');
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'fill' });
       await locator.fill(step.value, { timeout: timeoutMs });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'type': {
-      const { locator, layer } = await resolveTarget(page, step.target, 'type');
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'type' });
       await locator.pressSequentially(step.text, { timeout: timeoutMs });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'press': {
       if (step.target != null) {
-        const { locator, layer } = await resolveTarget(page, step.target, 'press');
+        const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'press' });
         await locator.press(step.key, { timeout: timeoutMs });
         return { detail: step.key, resolved_via: layer };
       }
@@ -213,22 +225,22 @@ async function execStep(
       return { detail: step.key };
     }
     case 'select': {
-      const { locator, layer } = await resolveTarget(page, step.target, 'select');
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'select' });
       await locator.selectOption(step.value, { timeout: timeoutMs });
       return { detail: `${describeTarget(step.target)}=${step.value}`, resolved_via: layer };
     }
     case 'upload': {
       const files = await Promise.all(step.files.map(resolveUploadFile));
-      const { locator, layer } = await resolveTarget(page, step.target, 'upload');
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'upload' });
       await locator.setInputFiles(files, { timeout: timeoutMs });
       return { detail: `${describeTarget(step.target)} ← ${files.map((f) => f.name).join(', ')}`, resolved_via: layer };
     }
     case 'waitFor': {
       let layer: string | undefined;
       if (step.target != null) {
-        const r = await resolveTarget(page, step.target, 'waitFor');
+        const r = await resolveTarget(page, step.target, { action: 'waitFor' });
         await r.locator.waitFor({ state: 'visible', timeout: timeoutMs });
-        layer = r.layer;
+        layer = r.resolved_via;
       }
       if (typeof step.ms === 'number') await page.waitForTimeout(step.ms);
       if (step.target == null && typeof step.ms !== 'number') throw new Error('waitFor step needs a target or ms');
@@ -241,7 +253,7 @@ async function execStep(
       return { detail: step.js };
     }
     case 'expectText': {
-      const { locator, layer } = await resolveTarget(page, step.target, 'expectText');
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectText' });
       await locator.waitFor({ state: 'visible', timeout: timeoutMs });
       const txt = (await locator.innerText()).trim();
       if (!txt.includes(step.text)) {
@@ -250,14 +262,14 @@ async function execStep(
       return { detail: `${describeTarget(step.target)} ⊇ "${step.text}"`, resolved_via: layer };
     }
     case 'expectVisible': {
-      const { locator, layer } = await resolveTarget(page, step.target, 'expectVisible');
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectVisible' });
       await locator.waitFor({ state: 'visible', timeout: timeoutMs });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'screenshot': {
       if (step.target != null) {
         // Element shot of the resolved target (supports a LocateSpec).
-        const { locator, layer } = await resolveTarget(page, step.target, 'screenshot');
+        const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'screenshot' });
         await locator.waitFor({ state: 'visible', timeout: timeoutMs });
         await locator.scrollIntoViewIfNeeded({ timeout: timeoutMs });
         const png = await locator.screenshot();
