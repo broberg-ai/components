@@ -81,7 +81,7 @@ A `PainReport` tied to a patient is **health PII**. The package itself is UI + d
 - **F052.10** Palette / branding — consume BodymapPalette + per-region colours + `--bmap-*` CSS vars in 2D (fd-sundhed gap #2). *(shipped 0.1.3)*
 - **F052.11** Accessibility — keyboard operation + live-state ARIA + focus + reduced-motion. *(shipped 0.1.2)*
 - **F052.12** i18n — labels/locale prop so map + report render in any language (da + en shipped). *(shipped 0.1.3)*
-- **F052.13** Before/after compare — show pain-report change over time (the push-to-update nudge is the consumer app's job via @broberg/webpush).
+- **F052.13** Before/after compare — show pain-report change over time (the push-to-update nudge is the consumer app's job via @broberg/webpush). *(shipped 0.1.4)*
 
 ## 9. Open questions
 

@@ -149,6 +149,11 @@ export interface BodyMapLabels {
   front: string;
   back: string;
   empty: string;
+  /** Compare view (F052.13). */
+  before: string;
+  after: string;
+  noChange: string;
+  change: { new: string; resolved: string; improved: string; worse: string };
   /** Accessible name for a marked region. */
   ariaMarked: (name: string, intensity: number, quality?: string) => string;
   /** Accessible name for an unmarked, selectable region. */
@@ -180,6 +185,10 @@ export const LABELS_DA: BodyMapLabels = {
   front: "Forfra",
   back: "Bagfra",
   empty: "Vælg en kropsdel for at markere smerte.",
+  before: "Før",
+  after: "Efter",
+  noChange: "Ingen ændring",
+  change: { new: "nyt", resolved: "forsvundet", improved: "bedre", worse: "værre" },
   ariaMarked: (n, i, q) => `${n}, smerte ${i} af 10${q ? ", " + q : ""}`,
   ariaUnmarked: (n) => `${n}, ikke markeret. Aktivér for at markere smerte.`,
   svgLabel: "Kropskort — vælg hvor det gør ondt",
@@ -199,6 +208,10 @@ export const LABELS_EN: BodyMapLabels = {
   front: "Front",
   back: "Back",
   empty: "Pick a body part to mark pain.",
+  before: "Before",
+  after: "After",
+  noChange: "No change",
+  change: { new: "new", resolved: "resolved", improved: "improved", worse: "worse" },
   ariaMarked: (n, i, q) => `${n}, pain ${i} of 10${q ? ", " + q : ""}`,
   ariaUnmarked: (n) => `${n}, not marked. Activate to mark pain.`,
   svgLabel: "Body map — pick where it hurts",
@@ -273,7 +286,7 @@ const STYLE = `
 .bmap__stage{display:flex;flex-direction:column;gap:10px;flex:0 1 340px;min-width:0;max-width:360px}
 .bmap__bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .bmap__viewtoggle{display:inline-flex;background:#f1f5f9;border:1px solid var(--bmap-line);border-radius:10px;padding:3px;gap:2px}
-.bmap__vbtn{font:inherit;font-size:13px;font-weight:600;color:var(--bmap-muted);background:none;border:0;border-radius:7px;padding:8px 16px;cursor:pointer;transition:color .12s,background .12s,transform .1s}
+.bmap__vbtn{font:inherit;font-size:13px;font-weight:600;color:#556274;background:none;border:0;border-radius:7px;padding:8px 16px;cursor:pointer;transition:color .12s,background .12s,transform .1s}
 .bmap__vbtn:hover{color:var(--bmap-ink)}
 .bmap__vbtn:active{transform:scale(.97)}
 .bmap__vbtn--on{background:#fff;color:var(--bmap-ink);box-shadow:0 1px 2px rgba(15,23,42,.14)}
@@ -310,6 +323,23 @@ const STYLE = `
 .bmap__rm:hover{background:#fef2f2}
 .bmap__rm:active{transform:scale(.97)}
 .bmap__i:focus-visible,.bmap__chip:focus-visible,.bmap__vbtn:focus-visible,.bmap__rm:focus-visible,.bmap__zoom button:focus-visible{outline:2px solid var(--bmap-accent);outline-offset:2px}
+.bmapc{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-ink:#1e293b;--bmap-muted:#64748b;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
+.bmapc__bodies{display:flex;gap:14px;flex-wrap:wrap}
+.bmapc__fig{flex:1 1 150px;min-width:130px;max-width:220px;margin:0;text-align:center}
+.bmapc__cap{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#556274;margin-bottom:6px}
+.bmapc__svg{width:100%;height:auto;display:block}
+.bmapc__vis{stroke:#fff;stroke-width:2.4}
+.bmapc__n{font:700 12px ui-sans-serif;fill:#fff;pointer-events:none}
+.bmapc__delta{margin-top:16px;display:flex;flex-direction:column;gap:6px;max-width:460px}
+.bmapc__row{display:flex;align-items:center;gap:10px;font-size:13.5px;border:1px solid var(--bmap-line);border-radius:9px;padding:7px 11px}
+.bmapc__rname{font-weight:600;flex:1 1 auto}
+.bmapc__rval{font:12px ui-monospace,monospace;color:#556274;white-space:nowrap}
+.bmapc__badge{font-size:11px;font-weight:700;border-radius:6px;padding:2px 8px;white-space:nowrap}
+.bmapc__badge--improved{background:#dcfce7;color:#166534}
+.bmapc__badge--worse{background:#fee2e2;color:#991b1b}
+.bmapc__badge--new{background:#fef3c7;color:#92400e}
+.bmapc__badge--resolved{background:#e2e8f0;color:#475569}
+.bmapc__empty{color:#556274;font-size:13.5px;margin-top:14px}
 @media (max-width:560px){
   .bmap{flex-direction:column;gap:14px}
   .bmap__stage{max-width:100%;width:100%;flex-basis:auto}
@@ -623,6 +653,109 @@ export function BodyMap({
         <div className="bmap__panel bmap__panel--empty" data-testid="bodymap-panel">
           {L.empty}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ---- <BodyMapCompare> — before/after progress (F052.13) ---------------------
+// Two read-only bodies side by side + a per-region change list (improved /
+// worse / new / resolved). Pure UI over two PainReports — no network. NB: the
+// "nudge the user to update their report over time" is the CONSUMER app's job
+// (fd-sundhed's mobile app via @broberg/webpush), NOT this component.
+
+type RegionChange = "new" | "resolved" | "improved" | "worse" | "same";
+function changeOf(b?: number, a?: number): RegionChange {
+  if (b == null && a != null) return "new";
+  if (b != null && a == null) return "resolved";
+  if (b == null || a == null) return "same";
+  return a < b ? "improved" : a > b ? "worse" : "same";
+}
+
+function CompareFigure({ report, view, palette, caption, testid }: {
+  report: PainReport; view: BodyView2D; palette?: BodymapPalette; caption: string; testid: string;
+}) {
+  const shapes = view === "back" ? SHAPES_BACK : SHAPES;
+  const fills = view === "back" ? FILL_BACK : FILL;
+  return (
+    <figure className="bmapc__fig" data-testid={testid}>
+      <figcaption className="bmapc__cap">{caption}</figcaption>
+      <svg className="bmapc__svg" viewBox="0 0 260 470" role="img" aria-label={caption}>
+        {REGIONS.map((r) => {
+          const s = shapes[r.key];
+          if (!s) return null;
+          const m = report.find((p) => p.region === r.key);
+          const fill = m ? markedFill(m.intensity, palette) : baseFill(r.key, fills[r.key] ?? "#cbd5e1", palette);
+          return <g key={r.key}>{shapeEl(s, { className: "bmapc__vis", fill })}</g>;
+        })}
+        {report.map((p) => {
+          const s = shapes[p.region];
+          if (!s) return null;
+          const c = center(s);
+          return (
+            <text key={p.region} x={c.x} y={c.y + 4} textAnchor="middle" className="bmapc__n">{p.intensity}</text>
+          );
+        })}
+      </svg>
+    </figure>
+  );
+}
+
+export interface BodyMapCompareProps {
+  /** The earlier report. */
+  before: PainReport;
+  /** The later report. */
+  after: PainReport;
+  palette?: BodymapPalette;
+  locale?: BodyMapLocale;
+  labels?: Partial<BodyMapLabels>;
+  defaultView?: BodyView2D;
+  className?: string;
+}
+
+/** Read-only before/after view: two bodies side by side + a per-region change list. */
+export function BodyMapCompare({
+  before, after, palette, locale = "da", labels, defaultView = "front", className,
+}: BodyMapCompareProps) {
+  useEffect(ensureStyles, []);
+  const [view, setView] = useState<BodyView2D>(defaultView);
+  const L = resolveLabels(locale, labels);
+  const nameOf = (k: string) => L.regions[k] ?? getRegion(k)?.label ?? k;
+  const rootStyle = palette ? ({ "--bmap-accent": palette.selected } as React.CSSProperties) : undefined;
+
+  const keys = Array.from(new Set([...before, ...after].map((p) => p.region)));
+  const changes = keys
+    .map((k) => ({
+      key: k,
+      b: before.find((p) => p.region === k)?.intensity,
+      a: after.find((p) => p.region === k)?.intensity,
+      status: changeOf(before.find((p) => p.region === k)?.intensity, after.find((p) => p.region === k)?.intensity),
+    }))
+    .filter((c) => c.status !== "same")
+    .sort((x, y) => (x.key < y.key ? -1 : 1));
+
+  return (
+    <div className={["bmapc", className].filter(Boolean).join(" ")} data-testid="bodymap-compare" style={rootStyle}>
+      <div className="bmap__viewtoggle" role="group" aria-label={L.viewLabel} style={{ marginBottom: 12 }}>
+        <button type="button" className={"bmap__vbtn" + (view === "front" ? " bmap__vbtn--on" : "")} data-testid="bodymap-compare-view-front" aria-pressed={view === "front"} onClick={() => setView("front")}>{L.front}</button>
+        <button type="button" className={"bmap__vbtn" + (view === "back" ? " bmap__vbtn--on" : "")} data-testid="bodymap-compare-view-back" aria-pressed={view === "back"} onClick={() => setView("back")}>{L.back}</button>
+      </div>
+      <div className="bmapc__bodies">
+        <CompareFigure report={before} view={view} palette={palette} caption={L.before} testid="bodymap-compare-before" />
+        <CompareFigure report={after} view={view} palette={palette} caption={L.after} testid="bodymap-compare-after" />
+      </div>
+      {changes.length ? (
+        <div className="bmapc__delta" data-testid="bodymap-compare-delta">
+          {changes.map((c) => (
+            <div key={c.key} className="bmapc__row" data-testid={`bodymap-compare-delta-${c.key}`}>
+              <span className="bmapc__rname">{nameOf(c.key)}</span>
+              <span className="bmapc__rval">{c.b ?? "–"} → {c.a ?? "–"}</span>
+              <span className={`bmapc__badge bmapc__badge--${c.status}`}>{L.change[c.status as Exclude<RegionChange, "same">]}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bmapc__empty" data-testid="bodymap-compare-delta">{L.noChange}</div>
       )}
     </div>
   );

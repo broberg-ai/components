@@ -4,7 +4,7 @@
 // features for verification: ?locale=en · ?palette=ak · ?readonly.
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BodyMap } from "../src/react";
+import { BodyMap, BodyMapCompare } from "../src/react";
 import { serializeReport, type BodymapPalette, type PainReport } from "../src/index";
 
 const AK: BodymapPalette = {
@@ -27,6 +27,27 @@ function App() {
 
   const [report, setReport] = useState<PainReport>(seed);
   const [view, setView] = useState<"front" | "back">("front");
+
+  if (params.has("compare")) {
+    const before: PainReport = [
+      { region: "lumbar", intensity: 8, type: "dump", timestamp: "b" },
+      { region: "knee_right", intensity: 5, timestamp: "b" },
+      { region: "shoulder_left", intensity: 4, timestamp: "b" },
+    ];
+    const after: PainReport = [
+      { region: "lumbar", intensity: 3, timestamp: "a" }, // improved
+      { region: "shoulder_left", intensity: 7, timestamp: "a" }, // worse
+      { region: "neck", intensity: 5, timestamp: "a" }, // new
+      // knee_right dropped → resolved
+    ];
+    return (
+      <div style={{ padding: 24, fontFamily: "system-ui, sans-serif", color: "#1e293b" }}>
+        <h1 style={{ fontSize: 20, marginBottom: 16 }}>@broberg/bodymap — før/efter</h1>
+        <BodyMapCompare before={before} after={after} locale={locale} palette={palette} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: 24, fontFamily: "system-ui, sans-serif", color: "#1e293b" }}>
       <h1 style={{ fontSize: 20, marginBottom: 16 }}>@broberg/bodymap — 2D demo</h1>

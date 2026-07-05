@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { BodyMap } from "../src/react";
+import { BodyMap, BodyMapCompare } from "../src/react";
 import { serializeReport, type PainReport } from "../src/index";
 
 afterEach(cleanup);
@@ -204,5 +204,45 @@ describe("<BodyMap> (2D React adapter)", () => {
     expect(onChange).not.toHaveBeenCalled();
     // the marked region still renders its intensity number
     expect(screen.getByTestId("bodymap-root").textContent).toContain("6");
+  });
+
+  // ---- F052.13 before/after compare -----------------------------------------
+
+  it("compare renders before/after bodies + a per-region change list", () => {
+    const before: PainReport = [
+      { region: "lumbar", intensity: 8, timestamp: "t" },
+      { region: "knee_right", intensity: 5, timestamp: "t" },
+    ];
+    const after: PainReport = [
+      { region: "lumbar", intensity: 3, timestamp: "t" }, // improved
+      { region: "shoulder_left", intensity: 6, timestamp: "t" }, // new
+      // knee_right dropped → resolved
+    ];
+    render(<BodyMapCompare before={before} after={after} />);
+    expect(screen.getByTestId("bodymap-compare-before")).toBeTruthy();
+    expect(screen.getByTestId("bodymap-compare-after")).toBeTruthy();
+    const lumbar = screen.getByTestId("bodymap-compare-delta-lumbar");
+    expect(lumbar.textContent).toContain("8");
+    expect(lumbar.textContent).toContain("3");
+    expect(lumbar.textContent).toContain("bedre");
+    expect(screen.getByTestId("bodymap-compare-delta-knee_right").textContent).toContain("forsvundet");
+    expect(screen.getByTestId("bodymap-compare-delta-shoulder_left").textContent).toContain("nyt");
+  });
+
+  it("compare with identical reports shows 'no change'", () => {
+    const r: PainReport = [{ region: "knee_right", intensity: 5, timestamp: "t" }];
+    render(<BodyMapCompare before={r} after={r} />);
+    expect(screen.getByTestId("bodymap-compare-delta").textContent).toContain("Ingen ændring");
+  });
+
+  it("compare honours locale='en' for captions + change words + region names", () => {
+    const before: PainReport = [{ region: "knee_right", intensity: 8, timestamp: "t" }];
+    const after: PainReport = [{ region: "knee_right", intensity: 9, timestamp: "t" }];
+    render(<BodyMapCompare before={before} after={after} locale="en" />);
+    expect(screen.getByTestId("bodymap-compare-before").textContent).toContain("Before");
+    expect(screen.getByTestId("bodymap-compare-after").textContent).toContain("After");
+    const row = screen.getByTestId("bodymap-compare-delta-knee_right");
+    expect(row.textContent).toContain("Knee, right");
+    expect(row.textContent).toContain("worse");
   });
 });
