@@ -113,6 +113,10 @@ export interface BodyMap3DProps {
   ui?: Partial<BodyMap3DUiLabels>;
   defaultSex?: BodyMap3DSex;
   onSexChange?: (sex: BodyMap3DSex) => void;
+  /** Controlled body type — when set, the parent owns it (e.g. from the user's profile); `onSexChange` still fires. */
+  sex?: BodyMap3DSex;
+  /** Show the Male/Female toggle (default true). Set false when `sex` comes from a profile and the picker would just be noise. */
+  showSexToggle?: boolean;
   /** Slowly auto-rotate until the user interacts (default true). */
   autoRotate?: boolean;
   className?: string;
@@ -124,7 +128,7 @@ const seg = (on: boolean): React.CSSProperties => ({ ...btn, background: on ? "#
 export function BodyMap3D(props: BodyMap3DProps) {
   const {
     models, value, defaultValue, onChange, config, palette = defaultPalette,
-    locale = "da", labels, ui, defaultSex = "male", onSexChange,
+    locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
     autoRotate = true, className,
   } = props;
 
@@ -136,7 +140,8 @@ export function BodyMap3D(props: BodyMap3DProps) {
   const loadedRef = useRef<HTMLSpanElement>(null);
   const [unsupported, setUnsupported] = useState(false);
   const [ready, setReady] = useState(false);
-  const [sex, setSex] = useState<BodyMap3DSex>(defaultSex);
+  const [internalSex, setInternalSex] = useState<BodyMap3DSex>(defaultSex);
+  const sex = sexProp ?? internalSex; // controlled when `sex` is passed, else internal
   const [selected, setSelected] = useState<string | null>(null);
   const [internal, setInternal] = useState<PainReport>(defaultValue ?? []);
   const report = value ?? internal;
@@ -152,6 +157,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
   const paletteRef = useRef(palette); paletteRef.current = palette;
   const configRef = useRef(config); configRef.current = config;
   const modelsRef = useRef(models); modelsRef.current = models;
+  const sexRef = useRef(sex); sexRef.current = sex;
   const setSelectedRef = useRef(setSelected); setSelectedRef.current = setSelected;
   const setReadyRef = useRef(setReady); setReadyRef.current = setReady;
   const apiRef = useRef<{ setSex: (s: BodyMap3DSex) => void; refresh: () => void } | null>(null);
@@ -269,7 +275,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
         if (loadedRef.current) { loadedRef.current.setAttribute("data-loaded", "true"); loadedRef.current.setAttribute("data-model", which); }
       });
     };
-    loadModel(defaultSex);
+    loadModel(sexRef.current);
     apiRef.current = {
       setSex: (s) => { loadedRef.current?.removeAttribute("data-loaded"); setReadyRef.current(false); loadModel(s); },
       refresh,
@@ -343,26 +349,34 @@ export function BodyMap3D(props: BodyMap3DProps) {
 
   // React → scene: recolour on selection / report / palette change; swap model on sex change.
   useEffect(() => { apiRef.current?.refresh(); }, [selected, report, palette]);
-  useEffect(() => { apiRef.current?.setSex(sex); }, [sex]);
+  // Swap the model on sex change — but skip the first run: the mount effect
+  // already loaded sexRef.current, so this avoids a redundant reload (matters on mobile).
+  const sexInited = useRef(false);
+  useEffect(() => {
+    if (!sexInited.current) { sexInited.current = true; return; }
+    apiRef.current?.setSex(sex);
+  }, [sex]);
 
   const pointOf = (k: string) => report.find((p) => p.region === k);
   const setPain = (k: string, intensity: number, type?: PainType) => {
     commit([...report.filter((p) => p.region !== k), { region: k, intensity, type, timestamp: new Date().toISOString() }]);
   };
   const removePain = (k: string) => { commit(report.filter((p) => p.region !== k)); setSelected(null); };
-  const changeSex = (s: BodyMap3DSex) => { setSex(s); onSexChange?.(s); };
+  const changeSex = (s: BodyMap3DSex) => { if (sexProp === undefined) setInternalSex(s); onSexChange?.(s); };
 
   const region = selected ? REGIONS.find((r) => r.key === selected) : null;
   const current = selected ? pointOf(selected) : undefined;
 
   return (
     <div data-testid="bodymap3d-root" className={className} style={{ fontFamily: "system-ui, sans-serif", color: "#1e293b" }}>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12, fontSize: 13 }}>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <button data-testid="bodymap3d-sex-male" onClick={() => changeSex("male")} style={seg(sex === "male")}>{UI.male}</button>
-          <button data-testid="bodymap3d-sex-female" onClick={() => changeSex("female")} style={seg(sex === "female")}>{UI.female}</button>
+      {showSexToggle && (
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12, fontSize: 13 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button data-testid="bodymap3d-sex-male" onClick={() => changeSex("male")} style={seg(sex === "male")}>{UI.male}</button>
+            <button data-testid="bodymap3d-sex-female" onClick={() => changeSex("female")} style={seg(sex === "female")}>{UI.female}</button>
+          </div>
         </div>
-      </div>
+      )}
       <span ref={loadedRef} data-testid="bodymap3d-loaded" style={{ display: "none" }} />
       {ready && <span data-testid="bodymap3d-ready" style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />}
       <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>

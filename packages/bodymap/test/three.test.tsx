@@ -48,4 +48,29 @@ describe("BodyMap3D", () => {
     expect(screen.getByTestId("bodymap3d-sex-male").textContent).toBe("Herre");
     expect(screen.getByTestId("bodymap3d-sex-female").textContent).toBe("Dame");
   });
+
+  it("hides the sex toggle when showSexToggle=false (F052.14 — sex from profile)", () => {
+    render(<BodyMap3D models={models} showSexToggle={false} sex="female" />);
+    expect(screen.queryByTestId("bodymap3d-sex-male")).toBeNull();
+    expect(screen.queryByTestId("bodymap3d-sex-female")).toBeNull();
+    // the map itself still renders (fallback in happy-dom, canvas in a browser)
+    expect(screen.getByTestId("bodymap3d-root")).toBeTruthy();
+  });
+
+  it("runs sex fully controlled when `sex` is passed (parent owns it; onSexChange still fires)", () => {
+    const ACTIVE = "#0e8f8a";
+    const onSexChange = vi.fn();
+    const { rerender } = render(<BodyMap3D models={models} sex="female" onSexChange={onSexChange} />);
+    expect(screen.getByTestId("bodymap3d-sex-female").style.background).toBe(ACTIVE);
+
+    // clicking the other option fires onSexChange but does NOT flip the active
+    // state — the parent controls it.
+    fireEvent.click(screen.getByTestId("bodymap3d-sex-male"));
+    expect(onSexChange).toHaveBeenCalledWith("male");
+    expect(screen.getByTestId("bodymap3d-sex-female").style.background).toBe(ACTIVE);
+
+    // parent updates the prop → active flips
+    rerender(<BodyMap3D models={models} sex="male" onSexChange={onSexChange} />);
+    expect(screen.getByTestId("bodymap3d-sex-male").style.background).toBe(ACTIVE);
+  });
 });

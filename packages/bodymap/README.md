@@ -112,6 +112,10 @@ import { BodyMap3D } from "@broberg/bodymap/three";
 - **Same contract as 2D.** `onChange` emits the identical `PainReport`, so swapping
   `<BodyMap>` for `<BodyMap3D>` needs zero change to your report handling. It honours
   the per-app `config` too — a non-selectable region isn't pickable in 3D either.
+- **Body type from a profile.** Pass `sex="male" | "female"` to run it fully
+  controlled (the parent owns it), and `showSexToggle={false}` to hide the picker —
+  common when the body type comes from the user's profile and a mid-flow toggle would
+  just be noise. Omit both to get the built-in toggle (uncontrolled).
 - **No WebXR/VR.** This is a rotatable in-page 3D canvas, not an immersive session —
   WebXR is intentionally out (a Capacitor webview can't host it reliably).
 - Every control carries a `data-testid` (`bodymap3d-canvas`, `bodymap3d-sex-*`,
