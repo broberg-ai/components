@@ -131,3 +131,81 @@ describe("buildConnectCheckout", () => {
     expect(sub.application_fee_percent).toBe(12);
   });
 });
+
+// The 4 byte-parity route distinctions sanne's real routes need (F029.3) that a
+// synthetic mock can silently miss — regression-sealed fleet-wide so a future
+// buildConnectCheckout refactor can't quietly break any consumer's parity.
+describe("buildConnectCheckout — byte-parity route contract (sanne F029.3)", () => {
+  it("#1 booking/klippekort: LEAN session metadata (2) is DISTINCT from RICH payment_intent_data metadata (8)", async () => {
+    const { stripe, create } = mockStripe();
+    const richPI = {
+      kind: "booking", booking_id: "b1", therapist: "sanne", room: "2",
+      service: "massage", duration: "60", price_ore: "80000", ts: "1700000000",
+    }; // 8 fields
+    await buildConnectCheckout(stripe, {
+      mode: "payment",
+      lineItems: [{ price: "p", quantity: 1 }],
+      destination: "acct_1",
+      applicationFeeAmount: 8,
+      metadata: { kind: "booking", booking_id: "b1" }, // 2 fields on the session
+      paymentIntentData: { metadata: richPI },
+      successUrl: "s",
+      cancelUrl: "c",
+    });
+    const arg = create.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams;
+    expect(Object.keys(arg.metadata!)).toHaveLength(2);
+    expect(Object.keys(arg.payment_intent_data!.metadata!)).toHaveLength(8);
+    expect(arg.payment_intent_data!.metadata).not.toEqual(arg.metadata); // DISTINCT
+  });
+
+  it("#2 shop: no paymentIntentData → payment_intent_data.metadata === undefined (no auto-copy)", async () => {
+    const { stripe, create } = mockStripe();
+    await buildConnectCheckout(stripe, {
+      mode: "payment",
+      lineItems: [{ price: "p", quantity: 1 }],
+      destination: "acct_1",
+      applicationFeeAmount: 30,
+      metadata: { kind: "shop", order_id: "o9" },
+      successUrl: "s",
+      cancelUrl: "c",
+    });
+    const arg = create.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams;
+    expect(arg.payment_intent_data!.metadata).toBeUndefined();
+  });
+
+  it("#3 courses: the SAME shared metadata rides on BOTH session and payment_intent_data (opposite of booking)", async () => {
+    const { stripe, create } = mockStripe();
+    const shared = { kind: "course", course_id: "c1", cohort: "autumn" };
+    await buildConnectCheckout(stripe, {
+      mode: "payment",
+      lineItems: [{ price: "p", quantity: 1 }],
+      destination: "acct_1",
+      applicationFeeAmount: 10,
+      metadata: shared,
+      paymentIntentData: { metadata: shared },
+      successUrl: "s",
+      cancelUrl: "c",
+    });
+    const arg = create.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams;
+    expect(arg.payment_intent_data!.metadata).toEqual(arg.metadata); // SAME on both
+    expect(arg.payment_intent_data!.metadata).toEqual(shared);
+  });
+
+  it("#4 subscription (qigong / courses-installments): application_fee_percent on subscription_data, never a flat fee", async () => {
+    const { stripe, create } = mockStripe();
+    await buildConnectCheckout(stripe, {
+      mode: "subscription",
+      lineItems: [{ price: "price_rod", quantity: 1 }],
+      destination: "acct_1",
+      applicationFeePercent: 8,
+      metadata: { kind: "qigong" },
+      subscriptionData: { metadata: { kind: "qigong", plan: "rod" } },
+      successUrl: "s",
+      cancelUrl: "c",
+    });
+    const arg = create.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams;
+    expect(arg.subscription_data!.application_fee_percent).toBe(8);
+    expect("application_fee_amount" in arg.subscription_data!).toBe(false);
+    expect(arg.payment_intent_data).toBeUndefined();
+  });
+});
