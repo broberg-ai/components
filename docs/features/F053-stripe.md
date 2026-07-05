@@ -1,0 +1,1 @@
+See docs/features/F053-stripe.md — full plan-doc authored in the same turn as this card (motivation, scope + non-goals, architecture sketch, dependencies, load-bearing rollout, stories, open questions).
