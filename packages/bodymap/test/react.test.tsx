@@ -11,7 +11,7 @@ describe("<BodyMap> (2D React adapter)", () => {
     render(<BodyMap />);
     expect(screen.getByTestId("bodymap-root")).toBeTruthy();
     expect(screen.getByTestId("bodymap-region-knee_right")).toBeTruthy();
-    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Klik en kropsdel");
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Vælg en kropsdel");
   });
 
   it("clicking a region opens its picker; intensity fires onChange with a validated PainReport", () => {
@@ -32,7 +32,7 @@ describe("<BodyMap> (2D React adapter)", () => {
     expect(screen.queryByTestId("bodymap-region-knee_right")).toBeNull();
     rerender(<BodyMap config={{ neck: { selectable: false } }} onChange={onChange} />);
     fireEvent.click(screen.getByTestId("bodymap-region-neck"));
-    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Klik en kropsdel");
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Vælg en kropsdel");
   });
 
   it("removing a point clears it from the report", () => {
@@ -98,5 +98,47 @@ describe("<BodyMap> (2D React adapter)", () => {
     render(<BodyMap defaultView="back" />);
     expect(screen.getByTestId("bodymap-region-lumbar")).toBeTruthy();
     expect(screen.queryByTestId("bodymap-region-chest")).toBeNull();
+  });
+
+  // ---- F052.8 touch-first + F052.11 accessibility ---------------------------
+
+  it("each region is a keyboard-focusable button with a live-state aria-label", () => {
+    render(<BodyMap />);
+    const knee = screen.getByTestId("bodymap-region-knee_right");
+    expect(knee.getAttribute("role")).toBe("button");
+    expect(knee.getAttribute("tabindex")).toBe("0");
+    expect(knee.getAttribute("aria-label")).toContain("ikke markeret");
+  });
+
+  it("Enter on a region opens its picker (keyboard operable)", () => {
+    render(<BodyMap />);
+    fireEvent.keyDown(screen.getByTestId("bodymap-region-knee_right"), { key: "Enter" });
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Knæ, højre");
+  });
+
+  it("a marked region's aria-label reflects intensity + quality", () => {
+    render(<BodyMap />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    fireEvent.click(screen.getByTestId("bodymap-intensity-8"));
+    fireEvent.click(screen.getByTestId("bodymap-type-dump"));
+    expect(screen.getByTestId("bodymap-region-knee_right").getAttribute("aria-label")).toContain("smerte 8 af 10, dump");
+  });
+
+  it("exposes zoom controls; reset is disabled at rest and enabled after zooming", () => {
+    render(<BodyMap />);
+    expect(screen.getByTestId("bodymap-zoom-in")).toBeTruthy();
+    expect(screen.getByTestId("bodymap-zoom-out")).toBeTruthy();
+    const reset = screen.getByTestId("bodymap-zoom-reset") as HTMLButtonElement;
+    expect(reset.disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("bodymap-zoom-in"));
+    expect((screen.getByTestId("bodymap-zoom-reset") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("a non-selectable region is not focusable and not markable", () => {
+    render(<BodyMap config={{ neck: { selectable: false } }} />);
+    const neck = screen.getByTestId("bodymap-region-neck");
+    expect(neck.getAttribute("tabindex")).toBe("-1");
+    fireEvent.click(neck);
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Vælg en kropsdel");
   });
 });
