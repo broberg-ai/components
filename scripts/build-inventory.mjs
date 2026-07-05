@@ -397,11 +397,11 @@ const HTML = `<!doctype html>
     </section>
     <section class="featured">
       <div>
-        <div class="ttl">✅ Shipped</div>
-        <h2>Design tokens + theme preset</h2>
-        <div class="pkg">@broberg/theme · v0.2.0 · Tailwind v4 · headless core + React/Preact + DESIGN.md→v4 generator</div>
+        <div class="ttl">🆕 Just shipped</div>
+        <h2>Stripe payments — one fleet chokepoint</h2>
+        <div class="pkg">@broberg/stripe · v0.1.0 · Connect checkout + webhook route factory · dark-ship client · fee calc · raw-body constructEvent · source: sanneandersen</div>
       </div>
-      <div class="cmd"><span class="p">$</span> npm i @broberg/theme</div>
+      <div class="cmd"><span class="p">$</span> npm i @broberg/stripe stripe</div>
     </section>
     <div class="controls">
       <div class="fil" id="f-layer"><span class="lbl">Layer</span>${layerChips}</div>
