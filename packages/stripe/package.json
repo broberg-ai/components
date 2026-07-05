@@ -1,0 +1,47 @@
+{
+  "name": "@broberg/stripe",
+  "version": "0.1.0",
+  "description": "The fleet's one Stripe chokepoint — a dark-ship client factory (pinned apiVersion), a Connect destination-charge Checkout builder (application_fee + on_behalf_of + transfer_data + metadata.kind), an injected fee calculator, and a raw-body webhook handler/route factory (constructEvent + dispatch-by-type). One pinned Stripe SDK, one signature-verification path for every @broberg/* app.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js",
+      "require": "./dist/next.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "stripe": ">=22.0.0"
+  },
+  "peerDependenciesComment": "stripe is a peer so the consumer pins ONE Stripe SDK version shared across the whole app (same reasoning as @broberg/auth pinning better-auth). The /next subpath uses only the Web-standard Request/Response globals — no next import — so it also runs under Hono, Bun and edge runtimes.",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "stripe": "^22.1.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": ["stripe", "payments", "connect", "checkout", "webhook", "marketplace", "application-fee", "broberg"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/stripe"
+  },
+  "publishConfig": { "access": "public" }
+}
