@@ -1,12 +1,13 @@
 {
   "name": "@broberg/bodymap",
-  "version": "0.1.4",
-  "description": "Interactive body pain-map: a genderless body a patient clicks to mark where it hurts, producing a structured PainReport (bodymap/v1). Framework-neutral core (region taxonomy + zod PainReport model + selection) + a 2D SVG React renderer; 3D (vanilla Three.js) later on the same core.",
+  "version": "0.2.0",
+  "description": "Interactive body pain-map: a body a patient clicks to mark where it hurts, producing a structured PainReport (bodymap/v1). Framework-neutral core (region taxonomy + zod PainReport model + selection) + a 2D SVG React renderer + a rotatable 3D renderer (vanilla three.js) on the SAME core.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
   "files": [
     "dist",
+    "models",
     "README.md"
   ],
   "main": "./dist/index.cjs",
@@ -22,7 +23,13 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",
       "require": "./dist/react.cjs"
-    }
+    },
+    "./three": {
+      "types": "./dist/three.d.ts",
+      "import": "./dist/three.js",
+      "require": "./dist/three.cjs"
+    },
+    "./models/*": "./models/*"
   },
   "scripts": {
     "build": "tsup",
@@ -33,10 +40,14 @@
     "zod": "^3.23.8"
   },
   "peerDependencies": {
-    "react": ">=18.0.0"
+    "react": ">=18.0.0",
+    "three": ">=0.160.0"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "three": {
       "optional": true
     }
   },
@@ -59,6 +70,9 @@
     "body-chart",
     "clinical",
     "react",
+    "3d",
+    "three",
+    "webgl",
     "broberg"
   ],
   "repository": {

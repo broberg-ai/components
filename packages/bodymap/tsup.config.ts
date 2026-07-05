@@ -21,4 +21,18 @@ export default defineConfig([
       options.jsxImportSource = "react";
     },
   },
+  {
+    entry: { three: "src/three.tsx" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    // react + three stay external (peers); the ./react re-exports (LABELS_*) are
+    // bundled in, but the 2D SVG renderer tree-shakes out (unused here).
+    external: ["react", "react/jsx-runtime", "three", "three/*"],
+    esbuildOptions(options) {
+      options.jsx = "automatic";
+      options.jsxImportSource = "react";
+    },
+  },
 ]);

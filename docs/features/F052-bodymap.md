@@ -74,7 +74,7 @@ A `PainReport` tied to a patient is **health PII**. The package itself is UI + d
 - **F052.3** Publish v0.1.0 (2D MVP) + README + OIDC + Discovery + first FD consumer pilot.
 - **F052.4** Preact adapter (Stack B parity).
 - **F052.5** 3D model pipeline — Blender Studio CC0 base → segment → Draco `.glb` + validation.
-- **F052.6** 3D renderer (vanilla Three.js) — `<BodyMap3D>` swappable on the same core; WebXR out.
+- **F052.6** 3D renderer (vanilla Three.js) — `<BodyMap3D>` swappable on the same core; WebXR out. *(shipped 0.2.0 — `@broberg/bodymap/three`; on-demand rendering + WebGL fallback + models-as-prop + RegionConfig; Lens-verified in a real browser)*
 - **F052.7** 2D front/back view toggle — back regions (LUMBAR/THORA/HIP) for the fd-sundhed pilot. *(shipped 0.1.1)*
 - **F052.8** Touch-first mobile — >=44px hit-areas, pinch-zoom + pan, tap-guard, responsive stacked layout, thumb-sized controls. Bodymap is PRIMARILY a mobile surface (Christian: touch = highest priority of all). *(shipped 0.1.2)*
 - **F052.9** Read-only / display mode — show a saved report (journal, PDF, clinician view) with no picker. *(shipped 0.1.3)*
