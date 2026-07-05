@@ -366,6 +366,11 @@ export function BodyMap3D(props: BodyMap3DProps) {
 
   const region = selected ? REGIONS.find((r) => r.key === selected) : null;
   const current = selected ? pointOf(selected) : undefined;
+  // Smart default: when the config locks EVERYTHING (a report/display view), the
+  // "tap a body part to mark pain" hint is misleading — suppress it unless the
+  // consumer explicitly set a display text via ui.hoverHint.
+  const anySelectable = REGIONS.some((r) => isSelectable(r.key, config ?? {}));
+  const showEmptyHint = anySelectable || ui?.hoverHint !== undefined;
 
   return (
     <div data-testid="bodymap3d-root" className={className} style={{ fontFamily: "system-ui, sans-serif", color: "#1e293b" }}>
@@ -408,9 +413,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
               </div>
               {current && <button data-testid="bodymap3d-remove" onClick={() => removePain(region.key)} style={{ ...btn, color: "#ef4444", borderColor: "#f6c9c9" }}>{L.remove}</button>}
             </div>
-          ) : (
+          ) : showEmptyHint ? (
             <div data-testid="bodymap3d-empty" style={{ border: "1px solid #e2e8f0", borderRadius: 14, padding: 16, background: "#fff", color: "#94a3b8", fontSize: 13.5 }}>{UI.hoverHint}</div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

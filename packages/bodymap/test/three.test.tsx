@@ -2,8 +2,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { BodyMap3D } from "../src/three.js";
+import { REGIONS } from "../src/index.js";
 
 afterEach(cleanup);
+
+const allLocked = Object.fromEntries(REGIONS.map((r) => [r.key, { selectable: false }]));
 
 // happy-dom has no WebGL, so the component takes its graceful-degradation path
 // (no three.js WebGLRenderer is constructed) — which is exactly what we want to
@@ -72,5 +75,20 @@ describe("BodyMap3D", () => {
     // parent updates the prop → active flips
     rerender(<BodyMap3D models={models} sex="male" onSexChange={onSexChange} />);
     expect(screen.getByTestId("bodymap3d-sex-male").style.background).toBe(ACTIVE);
+  });
+
+  it("suppresses the interactive hover-hint when fully locked (F052.15 — report view)", () => {
+    render(<BodyMap3D models={models} config={allLocked} />);
+    expect(screen.queryByTestId("bodymap3d-empty")).toBeNull();
+  });
+
+  it("shows an explicit ui.hoverHint even when locked; default hint when any region is selectable", () => {
+    const { rerender } = render(
+      <BodyMap3D models={models} config={allLocked} ui={{ hoverHint: "Din smerterapport" }} />,
+    );
+    expect(screen.getByTestId("bodymap3d-empty").textContent).toBe("Din smerterapport");
+    // no config → regions selectable → the default hint shows as before
+    rerender(<BodyMap3D models={models} />);
+    expect(screen.getByTestId("bodymap3d-empty")).toBeTruthy();
   });
 });

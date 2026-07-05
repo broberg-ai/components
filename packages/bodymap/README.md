@@ -116,6 +116,9 @@ import { BodyMap3D } from "@broberg/bodymap/three";
   controlled (the parent owns it), and `showSexToggle={false}` to hide the picker —
   common when the body type comes from the user's profile and a mid-flow toggle would
   just be noise. Omit both to get the built-in toggle (uncontrolled).
+- **Report view.** Lock every region (`config` with `selectable: false`) and the
+  interactive hover-hint is suppressed — a locked 3D body reads as a *report*, not a
+  form. Set `ui.hoverHint` to show a display caption instead.
 - **No WebXR/VR.** This is a rotatable in-page 3D canvas, not an immersive session —
   WebXR is intentionally out (a Capacitor webview can't host it reliably).
 - Every control carries a `data-testid` (`bodymap3d-canvas`, `bodymap3d-sex-*`,
