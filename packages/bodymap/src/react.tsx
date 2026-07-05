@@ -19,7 +19,11 @@ import {
   painPointSchema,
   resolveRegions,
   isSelectable,
+  getRegion,
+  heatFor,
+  baseColorFor,
   type BodyRegion,
+  type BodymapPalette,
   type PainReport,
   type PainType,
   type RegionConfig,
@@ -130,6 +134,94 @@ const FILL_BACK: Record<string, string> = {
 
 export type BodyView2D = "front" | "back";
 
+// ---- i18n (F052.12) — every UI string is overridable; da + en ship ----------
+// Region CODE + keys + the bodymap/v1 wire are NEVER touched — labels are
+// display-only, so a report is byte-identical in any language.
+
+export interface BodyMapLabels {
+  /** Region key → display name. */
+  regions: Record<string, string>;
+  /** PainType → display word (e.g. "stikkende" → "Stabbing"). */
+  qualities: Record<string, string>;
+  intensity: string;
+  quality: string;
+  remove: string;
+  front: string;
+  back: string;
+  empty: string;
+  /** Accessible name for a marked region. */
+  ariaMarked: (name: string, intensity: number, quality?: string) => string;
+  /** Accessible name for an unmarked, selectable region. */
+  ariaUnmarked: (name: string) => string;
+  svgLabel: string;
+  viewLabel: string;
+  zoomLabel: string;
+  zoomIn: string;
+  zoomOut: string;
+  zoomReset: string;
+}
+
+const daRegions: Record<string, string> = Object.fromEntries(REGIONS.map((r) => [r.key, r.label]));
+const EN_CODE: Record<string, string> = {
+  HEAD: "Head", NECK: "Neck", CHEST: "Chest", THORA: "Upper back", LUMBAR: "Lower back", GROIN: "Groin",
+  SHOULDER: "Shoulder", UARM: "Upper arm", ELBOW: "Elbow", FARM: "Forearm", WRIST: "Wrist", HAND: "Hand",
+  HIP: "Hip", THIGH: "Thigh", KNEE: "Knee", LOWLEG: "Lower leg", ANKLE: "Ankle", FOOT: "Foot",
+};
+const enRegions: Record<string, string> = Object.fromEntries(
+  REGIONS.map((r) => [r.key, EN_CODE[r.code] + (r.side ? (r.side === "left" ? ", left" : ", right") : "")]),
+);
+
+export const LABELS_DA: BodyMapLabels = {
+  regions: daRegions,
+  qualities: { stikkende: "stikkende", dump: "dump", konstant: "konstant", jagende: "jagende" },
+  intensity: "Intensitet (0-10)",
+  quality: "Kvalitet",
+  remove: "Fjern punkt",
+  front: "Forfra",
+  back: "Bagfra",
+  empty: "Vælg en kropsdel for at markere smerte.",
+  ariaMarked: (n, i, q) => `${n}, smerte ${i} af 10${q ? ", " + q : ""}`,
+  ariaUnmarked: (n) => `${n}, ikke markeret. Aktivér for at markere smerte.`,
+  svgLabel: "Kropskort — vælg hvor det gør ondt",
+  viewLabel: "Visning",
+  zoomLabel: "Zoom",
+  zoomIn: "Zoom ind",
+  zoomOut: "Zoom ud",
+  zoomReset: "Nulstil zoom",
+};
+
+export const LABELS_EN: BodyMapLabels = {
+  regions: enRegions,
+  qualities: { stikkende: "stabbing", dump: "dull", konstant: "constant", jagende: "shooting" },
+  intensity: "Intensity (0-10)",
+  quality: "Quality",
+  remove: "Remove point",
+  front: "Front",
+  back: "Back",
+  empty: "Pick a body part to mark pain.",
+  ariaMarked: (n, i, q) => `${n}, pain ${i} of 10${q ? ", " + q : ""}`,
+  ariaUnmarked: (n) => `${n}, not marked. Activate to mark pain.`,
+  svgLabel: "Body map — pick where it hurts",
+  viewLabel: "View",
+  zoomLabel: "Zoom",
+  zoomIn: "Zoom in",
+  zoomOut: "Zoom out",
+  zoomReset: "Reset zoom",
+};
+
+export type BodyMapLocale = "da" | "en";
+
+function resolveLabels(locale: BodyMapLocale, overrides?: Partial<BodyMapLabels>): BodyMapLabels {
+  const base = locale === "en" ? LABELS_EN : LABELS_DA;
+  if (!overrides) return base;
+  return {
+    ...base,
+    ...overrides,
+    regions: { ...base.regions, ...overrides.regions },
+    qualities: { ...base.qualities, ...overrides.qualities },
+  };
+}
+
 const VBW = 260;
 const VBH = 470;
 // The SVG renders ~320px wide → ~1.23 px per viewBox unit. A hit-area needs
@@ -153,6 +245,18 @@ function hitShape(s: Shape): Shape {
 }
 function heat(v: number): string {
   return v >= 7 ? "#ef4444" : v >= 4 ? "#fb923c" : "#fcd34d";
+}
+function heatTier(v: number): "low" | "mid" | "high" {
+  return v >= 7 ? "high" : v >= 4 ? "mid" : "low";
+}
+// F052.10 palette: a `palette` prop wins (direct colour); with no prop, a CSS-var
+// chain (--bmap-region-<key> → --bmap-body) themes with the default rainbow as
+// the fallback. Marked regions likewise: palette.heat or --bmap-heat-<tier>.
+function baseFill(key: string, rainbow: string, palette?: BodymapPalette): string {
+  return palette ? baseColorFor(key, palette) : `var(--bmap-region-${key}, var(--bmap-body, ${rainbow}))`;
+}
+function markedFill(v: number, palette?: BodymapPalette): string {
+  return palette ? heatFor(v, palette) : `var(--bmap-heat-${heatTier(v)}, ${heat(v)})`;
 }
 function shapeEl(s: Shape, props: Record<string, unknown>) {
   if (s.el === "circle") return <circle cx={s.cx} cy={s.cy} r={s.r} {...props} />;
@@ -242,6 +346,18 @@ export interface BodyMapProps {
   /** Fired when the user toggles the front/back view — pass it to
    *  serializeReport({ view }) so the wire report carries the active view. */
   onViewChange?: (view: BodyView2D) => void;
+  /** Colour theme (F052.10). Overrides the default rainbow: body/hover/selected/
+   *  heat + optional per-region base colours. Without it, the rainbow is used
+   *  (themeable via --bmap-body / --bmap-region-<key> / --bmap-heat-* CSS vars). */
+  palette?: BodymapPalette;
+  /** UI language (F052.12). "da" (default) or "en". */
+  locale?: BodyMapLocale;
+  /** Override individual UI strings (region names, headings, quality words, …).
+   *  Merged over the locale set — region CODE + wire format are never affected. */
+  labels?: Partial<BodyMapLabels>;
+  /** Display-only mode (F052.9): render a saved report coloured by intensity
+   *  with NO picker and no interactivity. For journals, PDFs, clinician views. */
+  readOnly?: boolean;
   className?: string;
 }
 
@@ -254,7 +370,8 @@ const clampPan = (p: { x: number; y: number }, z: number) => ({
 
 /** 2D SVG body pain-map. Click/tap a region → set intensity + quality → PainReport. */
 export function BodyMap({
-  value, defaultValue, onChange, config = {}, defaultView = "front", onViewChange, className,
+  value, defaultValue, onChange, config = {}, defaultView = "front", onViewChange,
+  palette, locale = "da", labels, readOnly = false, className,
 }: BodyMapProps) {
   useEffect(ensureStyles, []);
   const [internal, setInternal] = useState<PainReport>(defaultValue ?? []);
@@ -265,6 +382,8 @@ export function BodyMap({
   const report = value ?? internal;
   const shapes = view === "back" ? SHAPES_BACK : SHAPES;
   const fills = view === "back" ? FILL_BACK : FILL;
+  const L = resolveLabels(locale, labels);
+  const nameOf = (key: string) => L.regions[key] ?? getRegion(key)?.label ?? key;
 
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomRef = useRef(1);
@@ -366,16 +485,18 @@ export function BodyMap({
   const region: BodyRegion | undefined = selected ? REGIONS.find((r) => r.key === selected) : undefined;
   const current = selected ? pointOf(selected) : undefined;
   const rootCls = ["bmap", className].filter(Boolean).join(" ");
-  const ariaFor = (r: BodyRegion, marked?: PainReport[number], selectable = true): string => {
-    if (marked) return `${r.label}, smerte ${marked.intensity} af 10${marked.type ? ", " + marked.type : ""}`;
-    return selectable ? `${r.label}, ikke markeret. Aktivér for at markere smerte.` : r.label;
+  // palette.selected drives the focus/selected stroke via --bmap-accent.
+  const rootStyle = palette ? ({ "--bmap-accent": palette.selected } as React.CSSProperties) : undefined;
+  const ariaFor = (r: BodyRegion, marked?: PainReport[number], interactive = true): string => {
+    if (marked) return L.ariaMarked(nameOf(r.key), marked.intensity, marked.type ? L.qualities[marked.type] : undefined);
+    return interactive ? L.ariaUnmarked(nameOf(r.key)) : nameOf(r.key);
   };
 
   return (
-    <div className={rootCls} data-testid="bodymap-root">
+    <div className={rootCls} data-testid="bodymap-root" style={rootStyle}>
       <div className="bmap__stage">
         <div className="bmap__bar">
-          <div className="bmap__viewtoggle" role="group" aria-label="Visning">
+          <div className="bmap__viewtoggle" role="group" aria-label={L.viewLabel}>
             <button
               type="button"
               className={"bmap__vbtn" + (view === "front" ? " bmap__vbtn--on" : "")}
@@ -383,7 +504,7 @@ export function BodyMap({
               aria-pressed={view === "front"}
               onClick={() => changeView("front")}
             >
-              Forfra
+              {L.front}
             </button>
             <button
               type="button"
@@ -392,13 +513,13 @@ export function BodyMap({
               aria-pressed={view === "back"}
               onClick={() => changeView("back")}
             >
-              Bagfra
+              {L.back}
             </button>
           </div>
-          <div className="bmap__zoom" role="group" aria-label="Zoom">
-            <button type="button" data-testid="bodymap-zoom-out" aria-label="Zoom ud" disabled={zoom <= ZMIN} onClick={() => zoomBtn(1 / 1.4)}>−</button>
-            <button type="button" data-testid="bodymap-zoom-reset" aria-label="Nulstil zoom" disabled={zoom === 1 && pan.x === 0 && pan.y === 0} onClick={resetZoom}>⤢</button>
-            <button type="button" data-testid="bodymap-zoom-in" aria-label="Zoom ind" disabled={zoom >= ZMAX} onClick={() => zoomBtn(1.4)}>+</button>
+          <div className="bmap__zoom" role="group" aria-label={L.zoomLabel}>
+            <button type="button" data-testid="bodymap-zoom-out" aria-label={L.zoomOut} disabled={zoom <= ZMIN} onClick={() => zoomBtn(1 / 1.4)}>−</button>
+            <button type="button" data-testid="bodymap-zoom-reset" aria-label={L.zoomReset} disabled={zoom === 1 && pan.x === 0 && pan.y === 0} onClick={resetZoom}>⤢</button>
+            <button type="button" data-testid="bodymap-zoom-in" aria-label={L.zoomIn} disabled={zoom >= ZMAX} onClick={() => zoomBtn(1.4)}>+</button>
           </div>
         </div>
         <svg
@@ -406,7 +527,7 @@ export function BodyMap({
           className="bmap__svg"
           viewBox="0 0 260 470"
           role="group"
-          aria-label="Kropskort — vælg hvor det gør ondt"
+          aria-label={L.svgLabel}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -418,26 +539,25 @@ export function BodyMap({
               const s = shapes[r.key];
               if (!s) return null;
               const marked = pointOf(r.key);
-              const selectable = isSelectable(r.key, config);
+              const interactive = isSelectable(r.key, config) && !readOnly;
               const visCls = ["bmap__vis", selected === r.key && "bmap__vis--sel"].filter(Boolean).join(" ");
-              const fill = marked ? heat(marked.intensity) : fills[r.key] ?? "#cbd5e1";
+              const fill = marked ? markedFill(marked.intensity, palette) : baseFill(r.key, fills[r.key] ?? "#cbd5e1", palette);
               const hs = hitShape(s);
-              const act = () => (selectable ? pickRegion(r.key) : undefined);
               return (
                 <g key={r.key}>
                   {shapeEl(hs, {
-                    className: "bmap__hit" + (selectable ? "" : " bmap__hit--locked"),
+                    className: "bmap__hit" + (interactive ? "" : " bmap__hit--locked"),
                     "data-testid": `bodymap-region-${r.key}`,
-                    role: selectable ? "button" : "img",
-                    tabIndex: selectable ? 0 : -1,
-                    "aria-label": ariaFor(r, marked, selectable),
-                    "aria-pressed": selectable ? selected === r.key : undefined,
-                    onClick: act,
-                    onKeyDown: selectable
+                    role: interactive ? "button" : "img",
+                    tabIndex: interactive ? 0 : -1,
+                    "aria-label": ariaFor(r, marked, interactive),
+                    "aria-pressed": interactive ? selected === r.key : undefined,
+                    onClick: interactive ? () => pickRegion(r.key) : undefined,
+                    onKeyDown: interactive
                       ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); suppressClick.current = false; setSelected(r.key); } }
                       : undefined,
                   })}
-                  {shapeEl(s, { className: visCls, fill, opacity: selectable ? 1 : 0.4 })}
+                  {shapeEl(s, { className: visCls, fill, opacity: !readOnly && !isSelectable(r.key, config) ? 0.4 : 1 })}
                 </g>
               );
             })}
@@ -456,13 +576,14 @@ export function BodyMap({
         </svg>
       </div>
 
-      {region ? (
+      {/* picker panel — hidden entirely in readOnly (display-only) mode */}
+      {readOnly ? null : region ? (
         <div className="bmap__panel" data-testid="bodymap-panel">
           <div className="bmap__ph">
-            <b>{region.label}</b>
+            <b>{nameOf(region.key)}</b>
             <span className="bmap__code">{region.code}</span>
           </div>
-          <p className="bmap__lbl" id="bmap-intensity-lbl">Intensitet (0-10)</p>
+          <p className="bmap__lbl" id="bmap-intensity-lbl">{L.intensity}</p>
           <div className="bmap__scale" role="group" aria-labelledby="bmap-intensity-lbl">
             {Array.from({ length: 11 }, (_, n) => (
               <button
@@ -470,7 +591,6 @@ export function BodyMap({
                 type="button"
                 className={"bmap__i" + (current?.intensity === n ? " bmap__i--on" : "")}
                 data-testid={`bodymap-intensity-${n}`}
-                aria-label={`Intensitet ${n}`}
                 aria-pressed={current?.intensity === n}
                 onClick={() => setPain(region.key, n, current?.type)}
               >
@@ -478,7 +598,7 @@ export function BodyMap({
               </button>
             ))}
           </div>
-          <p className="bmap__lbl" id="bmap-quality-lbl">Kvalitet</p>
+          <p className="bmap__lbl" id="bmap-quality-lbl">{L.quality}</p>
           <div className="bmap__chips" role="group" aria-labelledby="bmap-quality-lbl">
             {PAIN_TYPES.map((t) => (
               <button
@@ -489,19 +609,19 @@ export function BodyMap({
                 aria-pressed={current?.type === t}
                 onClick={() => setPain(region.key, current?.intensity ?? 5, t)}
               >
-                {t}
+                {L.qualities[t]}
               </button>
             ))}
           </div>
           {current && (
             <button type="button" className="bmap__rm" data-testid="bodymap-remove" onClick={() => removePain(region.key)}>
-              Fjern punkt
+              {L.remove}
             </button>
           )}
         </div>
       ) : (
         <div className="bmap__panel bmap__panel--empty" data-testid="bodymap-panel">
-          Vælg en kropsdel for at markere smerte.
+          {L.empty}
         </div>
       )}
     </div>

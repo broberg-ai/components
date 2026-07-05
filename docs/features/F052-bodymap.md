@@ -77,10 +77,10 @@ A `PainReport` tied to a patient is **health PII**. The package itself is UI + d
 - **F052.6** 3D renderer (vanilla Three.js) — `<BodyMap3D>` swappable on the same core; WebXR out.
 - **F052.7** 2D front/back view toggle — back regions (LUMBAR/THORA/HIP) for the fd-sundhed pilot. *(shipped 0.1.1)*
 - **F052.8** Touch-first mobile — >=44px hit-areas, pinch-zoom + pan, tap-guard, responsive stacked layout, thumb-sized controls. Bodymap is PRIMARILY a mobile surface (Christian: touch = highest priority of all). *(shipped 0.1.2)*
-- **F052.9** Read-only / display mode — show a saved report (journal, PDF, clinician view) with no picker.
-- **F052.10** Palette / branding — consume BodymapPalette + per-region colours + `--bmap-*` CSS vars in 2D (fd-sundhed gap #2).
+- **F052.9** Read-only / display mode — show a saved report (journal, PDF, clinician view) with no picker. *(shipped 0.1.3)*
+- **F052.10** Palette / branding — consume BodymapPalette + per-region colours + `--bmap-*` CSS vars in 2D (fd-sundhed gap #2). *(shipped 0.1.3)*
 - **F052.11** Accessibility — keyboard operation + live-state ARIA + focus + reduced-motion. *(shipped 0.1.2)*
-- **F052.12** i18n — labels/locale prop so map + report render in any language (da + en shipped).
+- **F052.12** i18n — labels/locale prop so map + report render in any language (da + en shipped). *(shipped 0.1.3)*
 - **F052.13** Before/after compare — show pain-report change over time (the push-to-update nudge is the consumer app's job via @broberg/webpush).
 
 ## 9. Open questions

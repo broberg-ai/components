@@ -141,4 +141,68 @@ describe("<BodyMap> (2D React adapter)", () => {
     fireEvent.click(neck);
     expect(screen.getByTestId("bodymap-panel").textContent).toContain("Vælg en kropsdel");
   });
+
+  // ---- F052.10 palette / branding -------------------------------------------
+
+  const AK = {
+    body: "#c8ccdd", hover: "#5CC4B7", selected: "#141969",
+    heat: { low: "#FFE049", mid: "#F09A3E", high: "#D61C64" },
+    regions: { chest: "#e6e9f2" },
+  };
+  const vis = (tid: string) => screen.getByTestId(tid).nextElementSibling;
+
+  it("palette recolours base, per-region override, and heat (marked)", () => {
+    render(<BodyMap palette={AK} defaultValue={[{ region: "knee_right", intensity: 8, timestamp: "t" }]} />);
+    expect(vis("bodymap-region-knee_right")?.getAttribute("fill")).toBe("#D61C64"); // heat.high
+    expect(vis("bodymap-region-chest")?.getAttribute("fill")).toBe("#e6e9f2"); // per-region override
+    expect(vis("bodymap-region-head")?.getAttribute("fill")).toBe("#c8ccdd"); // palette.body
+  });
+
+  it("without palette, unmarked fill uses the CSS-var chain with the rainbow fallback", () => {
+    render(<BodyMap />);
+    const f = vis("bodymap-region-head")?.getAttribute("fill") ?? "";
+    expect(f).toContain("--bmap-region-head");
+    expect(f).toContain("--bmap-body");
+    expect(f).toContain("#cbb7ec"); // rainbow default for head
+  });
+
+  // ---- F052.12 i18n ----------------------------------------------------------
+
+  it("locale='en' renders English UI + region names; the wire code is unchanged", () => {
+    let last: PainReport = [];
+    render(<BodyMap locale="en" onChange={(r) => (last = r)} />);
+    expect(screen.getByTestId("bodymap-view-front").textContent).toBe("Front");
+    expect(screen.getByTestId("bodymap-view-back").textContent).toBe("Back");
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Pick a body part");
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Knee, right");
+    expect(screen.getByTestId("bodymap-type-dump").textContent).toBe("dull");
+    fireEvent.click(screen.getByTestId("bodymap-intensity-7"));
+    expect(serializeReport(last).points[0]).toMatchObject({ region: "KNEE", side: "right", intensity: 7 });
+  });
+
+  it("labels prop overrides individual strings; region CODE untouched", () => {
+    render(<BodyMap labels={{ remove: "Slet", regions: { knee_right: "Højre knæ" } }} />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Højre knæ");
+    fireEvent.click(screen.getByTestId("bodymap-intensity-3"));
+    expect(screen.getByTestId("bodymap-remove").textContent).toBe("Slet");
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("KNEE"); // code unchanged
+  });
+
+  // ---- F052.9 read-only / display mode --------------------------------------
+
+  it("readOnly renders marks but exposes no picker and is not interactive", () => {
+    const onChange = vi.fn();
+    render(<BodyMap readOnly value={[{ region: "knee_right", intensity: 6, timestamp: "t" }]} onChange={onChange} />);
+    expect(screen.queryByTestId("bodymap-panel")).toBeNull();
+    expect(screen.queryByTestId("bodymap-intensity-5")).toBeNull();
+    const chest = screen.getByTestId("bodymap-region-chest");
+    expect(chest.getAttribute("tabindex")).toBe("-1");
+    fireEvent.click(chest);
+    expect(screen.queryByTestId("bodymap-panel")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+    // the marked region still renders its intensity number
+    expect(screen.getByTestId("bodymap-root").textContent).toContain("6");
+  });
 });
