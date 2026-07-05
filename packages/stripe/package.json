@@ -1,6 +1,6 @@
 {
   "name": "@broberg/stripe",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The fleet's one Stripe chokepoint — a dark-ship client factory (pinned apiVersion), a Connect destination-charge Checkout builder (application_fee + on_behalf_of + transfer_data + metadata.kind), an injected fee calculator, and a raw-body webhook handler/route factory (constructEvent + dispatch-by-type). One pinned Stripe SDK, one signature-verification path for every @broberg/* app.",
   "type": "module",
   "license": "MIT",

@@ -72,10 +72,44 @@ await buildConnectCheckout(stripe, {
   lineItems: [{ price: recurringPriceId, quantity: 1 }],
   destination: accountId,
   applicationFeePercent: 10,             // → subscription_data.application_fee_percent
-  metadata: { kind: "qigong", planTier: "rod" },
+  metadata: { kind: "qigong", planTier: "rod" }, // SESSION metadata
+  subscriptionData: {                    // richer SUBSCRIPTION shape (v0.2.0)
+    description: "Qi Gong — Rod",
+    metadata: { kind: "qigong", planTier: "rod", memberId },
+  },
   successUrl, cancelUrl,
 });
 ```
+
+### PaymentIntent / Subscription passthrough (v0.2.0)
+
+The session is only half the object. Real routes need `description`, `receipt_email`,
+and a **richer, distinct** metadata on the PaymentIntent/Subscription than on the
+session. Pass them via `paymentIntentData` / `subscriptionData` — they are merged
+in first, and the Connect invariants (`on_behalf_of`, `transfer_data`) and the fee
+are applied **after** so they always win:
+
+```ts
+await buildConnectCheckout(stripe, {
+  mode: "payment",
+  lineItems, destination: accountId,
+  applicationFeeAmount: fees.calculateApplicationFee(totalØre, "booking"),
+  metadata: { kind: "booking", booking_id },          // SESSION metadata (lean)
+  paymentIntentData: {
+    description: "Booking hos Sanne",                  // Sanne reads it in the dashboard
+    receipt_email: customerEmail,                      // customer receipt
+    metadata: { kind: "booking", booking_id, therapist, room }, // RICHER PI metadata
+  },
+  successUrl, cancelUrl,
+});
+```
+
+> **Session metadata is NOT auto-copied onto the PaymentIntent/Subscription.**
+> PI/sub metadata comes ONLY from `paymentIntentData.metadata` /
+> `subscriptionData.metadata` — so a `shop` route with no `paymentIntentData` gets
+> a PaymentIntent with no metadata, and a `booking` route gets its full 8-field set.
+> `extra` remains an escape hatch for other **top-level** session params (use the
+> two fields above for PI/sub).
 
 ## Webhook handler + `/next` route
 

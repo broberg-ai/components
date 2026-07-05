@@ -119,7 +119,22 @@ export interface ConnectCheckoutParams {
   customer?: string;
   customerEmail?: string;
   clientReferenceId?: string;
-  /** Escape hatch for any other Checkout Session param. */
+  /**
+   * payment mode: extra PaymentIntent fields (`description`, `receipt_email`, a
+   * RICHER `metadata` than the session, …). Deep-merged INTO payment_intent_data;
+   * the Connect invariants (`on_behalf_of`, `transfer_data`) and the fee always
+   * win over anything set here. PaymentIntent metadata comes ONLY from here — the
+   * session `metadata` is NOT auto-copied onto the PaymentIntent (so a route that
+   * wants no PI metadata simply omits this).
+   */
+  paymentIntentData?: Partial<Stripe.Checkout.SessionCreateParams.PaymentIntentData>;
+  /**
+   * subscription mode: extra Subscription fields (`description`, own `metadata`,
+   * …). Merged INTO subscription_data; `on_behalf_of`, `transfer_data` and the
+   * fee percent always win. Subscription metadata comes ONLY from here.
+   */
+  subscriptionData?: Partial<Stripe.Checkout.SessionCreateParams.SubscriptionData>;
+  /** Escape hatch for any other TOP-LEVEL Checkout Session param (not PI/sub — use the fields above for those). */
   extra?: Partial<Stripe.Checkout.SessionCreateParams>;
 }
 
@@ -128,6 +143,13 @@ export interface ConnectCheckoutParams {
  * Connect params land under `payment_intent_data`; in `subscription` mode under
  * `subscription_data` (with `application_fee_percent`). Returns the created
  * session — the consumer redirects to `session.url` (hosted Checkout).
+ *
+ * The consumer owns the rest of the PaymentIntent/Subscription shape via
+ * `paymentIntentData` / `subscriptionData` (description, receipt_email, a richer
+ * metadata than the session, …); those are merged in FIRST and the Connect
+ * invariants — `on_behalf_of`, `transfer_data.destination` and the fee — are
+ * applied AFTER so they always win. Session `metadata` is NEVER auto-copied onto
+ * the PaymentIntent/Subscription (a route that wants none simply omits it there).
  */
 export async function buildConnectCheckout(
   stripe: Stripe,
@@ -147,21 +169,21 @@ export async function buildConnectCheckout(
 
   if (params.mode === "payment") {
     base.payment_intent_data = {
+      ...params.paymentIntentData, // consumer fields (description, receipt_email, own metadata)
+      on_behalf_of: params.destination, // Connect invariants ALWAYS win
+      transfer_data: { destination: params.destination },
       ...(params.applicationFeeAmount != null
         ? { application_fee_amount: params.applicationFeeAmount }
         : {}),
-      on_behalf_of: params.destination,
-      transfer_data: { destination: params.destination },
-      ...(params.metadata ? { metadata: params.metadata } : {}),
     };
   } else {
     base.subscription_data = {
+      ...params.subscriptionData,
+      on_behalf_of: params.destination,
+      transfer_data: { destination: params.destination },
       ...(params.applicationFeePercent != null
         ? { application_fee_percent: params.applicationFeePercent }
         : {}),
-      on_behalf_of: params.destination,
-      transfer_data: { destination: params.destination },
-      ...(params.metadata ? { metadata: params.metadata } : {}),
     };
   }
 

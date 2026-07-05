@@ -83,6 +83,11 @@ Stripe = **load-bearing** (real payments). Per the harness contract: **replace, 
 | F053.4 | `/next` adapter — App Router webhook route factory (nodejs raw body) | 0.1.0 |
 | F053.5 | Publish v0.1.0 + README + OIDC job + Discovery enroll | 0.1.0 |
 | F053.6 | sanneandersen pilot adoption behind proven parity (no naked cutover) | coord |
+| F053.7 | buildConnectCheckout escape hatches — paymentIntentData/subscriptionData passthrough + drop metadata auto-copy | 0.2.0 |
+
+### v0.2.0 (F053.7) — parity escape hatches
+
+Filed by sanne (consumer #1) during the F029.3 side-by-side rollout: `buildConnectCheckout@0.1.0` couldn't byte-match their 5 live route variants. Two fixes: `paymentIntentData` / `subscriptionData` (`Partial<…>`) now merge INTO the built PaymentIntent/Subscription — carrying `description`, `receipt_email` and a richer, DISTINCT metadata — with the Connect invariants (`on_behalf_of`, `transfer_data`) and the fee applied after so they always win; and the session `metadata` is NO LONGER auto-copied onto the PaymentIntent/Subscription (a `shop` route gets no PI metadata, a `booking` route gets its full set). `extra` stays a top-level escape hatch. Minor bump (sanne is the only consumer). Reuse-first in action: the package grew instead of the consumer working around it.
 
 ## 7. Open questions
 
