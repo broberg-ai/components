@@ -399,7 +399,7 @@ const HTML = `<!doctype html>
       <div>
         <div class="ttl">🆕 Just shipped</div>
         <h2>Stripe payments — one fleet chokepoint</h2>
-        <div class="pkg">@broberg/stripe · v0.1.0 · Connect checkout + webhook route factory · dark-ship client · fee calc · raw-body constructEvent · source: sanneandersen</div>
+        <div class="pkg">@broberg/stripe · v0.2.0 · Connect checkout + webhook route factory · dark-ship client · fee calc · raw-body constructEvent · source: sanneandersen</div>
       </div>
       <div class="cmd"><span class="p">$</span> npm i @broberg/stripe stripe</div>
     </section>

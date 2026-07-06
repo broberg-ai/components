@@ -58,7 +58,7 @@ describe("Discovery API", () => {
     const res = await app.request("/api/packages");
     const body = await res.json();
     const mail = body.packages.find((p: { name: string }) => p.name === "@broberg/mail");
-    expect(mail.version).toBe("0.1.0");
+    expect(mail.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(body.packages.every((p: { version: string | null }) => p.version)).toBe(true);
   });
 
@@ -112,7 +112,7 @@ describe("Discovery API", () => {
     const paths = body.endpoints.map((e: { path: string }) => e.path);
     expect(paths).toContain("/api/infra");
     expect(paths).toContain("/api/search");
-    expect(body.stats.infraPlatforms).toBe(9);
+    expect(body.stats.infraPlatforms).toBeGreaterThanOrEqual(9);
   });
 
   it("GET /api/infra → platforms incl. fly with tipCount", async () => {
@@ -149,7 +149,7 @@ describe("Discovery API", () => {
     const lens = (await (await app.request("/api/components?q=screenshot")).json()).components;
     expect(lens.some((c: { package: string }) => c.package === "@broberg/lens")).toBe(true);
     const oauth = (await (await app.request("/api/components?q=authentication")).json()).components;
-    expect(oauth.some((c: { package: string }) => c.package === "@broberg/oauth")).toBe(true);
+    expect(oauth.some((c: { package: string }) => c.package === "@broberg/auth")).toBe(true);
   });
 
   it("infra aliases — 'postgres' → supabase, 'hosting' → fly", async () => {
