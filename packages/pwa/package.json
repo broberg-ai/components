@@ -1,0 +1,78 @@
+{
+  "name": "@broberg/pwa",
+  "version": "0.1.0",
+  "description": "Fleet PWA primitive: a framework-agnostic service-worker update-detection controller (new-version-available lifecycle) + a React hook and unstyled banner skeleton + a service-worker skip-waiting helper. Zero runtime deps; ship-dark.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./sw": {
+      "types": "./dist/sw.d.ts",
+      "import": "./dist/sw.js",
+      "require": "./dist/sw.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19.0.0",
+    "happy-dom": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "pwa",
+    "progressive-web-app",
+    "service-worker",
+    "update",
+    "skipwaiting",
+    "new-version",
+    "add-to-home-screen",
+    "install",
+    "offline",
+    "serwist",
+    "workbox",
+    "react",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/pwa"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
