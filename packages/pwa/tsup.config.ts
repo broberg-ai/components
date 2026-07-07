@@ -23,4 +23,17 @@ export default defineConfig([
       options.jsxImportSource = "react";
     },
   },
+  {
+    // Preact adapter — preact stays external (optional peer).
+    entry: { preact: "src/preact.tsx" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    external: ["preact", "preact/hooks", "preact/jsx-runtime"],
+    esbuildOptions(options) {
+      options.jsx = "automatic";
+      options.jsxImportSource = "preact";
+    },
+  },
 ]);

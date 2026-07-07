@@ -1,6 +1,6 @@
 {
   "name": "@broberg/pwa",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fleet PWA primitive: a framework-agnostic service-worker update-detection controller (new-version-available lifecycle) + a React hook and unstyled banner skeleton + a service-worker skip-waiting helper. Zero runtime deps; ship-dark.",
   "type": "module",
   "license": "MIT",
@@ -27,6 +27,11 @@
       "types": "./dist/sw.d.ts",
       "import": "./dist/sw.js",
       "require": "./dist/sw.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
     }
   },
   "scripts": {
@@ -35,17 +40,23 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "react": ">=18.0.0"
+    "react": ">=18.0.0",
+    "preact": ">=10.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
+    },
+    "preact": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@testing-library/preact": "^3.2.3",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^19.0.0",
     "happy-dom": "^15.0.0",
+    "preact": "^10.23.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.3.0",
@@ -65,6 +76,7 @@
     "serwist",
     "workbox",
     "react",
+    "preact",
     "broberg"
   ],
   "repository": {

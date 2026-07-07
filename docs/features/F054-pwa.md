@@ -72,4 +72,5 @@ Release: bootstrap-publish `v0.1.0` (manual `npm publish` + one OTP from Christi
 - **F054.1** Core controller (`createPwaUpdater`) + `@broberg/pwa/sw` skip-waiting helper — framework-agnostic, zero-dep, vitest.
 - **F054.2** React adapter — `usePwaUpdate()` + unstyled `<PwaUpdateBanner>` skeleton (a11y + testids), vitest.
 - **F054.3** Publish `v0.1.0` (package.json/tsup/README, dark-ship, bootstrap + OIDC job) + Discovery enroll + promote inventory catalogue → package.
+- **F054.5** Preact adapter — `@broberg/pwa/preact` (`usePwaUpdate()` + unstyled `<PwaUpdateBanner>`) for cardmem + the Stack B (Bun/Hono/Preact) apps, same core, `preact` optional peer. Ships v0.1.1 token-free (OIDC tag `pwa-v0.1.1`).
 - **F054.4** *(backlog, v0.2.0)* PWA setup — manifest/meta factory + SVG→apple-touch/maskable icon generator (absorb pitch-vault `cbroberg/pitch @ d5de8c2` + xrt81).

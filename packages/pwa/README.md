@@ -59,6 +59,23 @@ skeleton: it renders `role="status"` + `aria-live="polite"`, carries the stable
 testids `pwa-update-confirm` / `pwa-update-dismiss` / `pwa-update-close`, and
 ships **no** colours or design-system classes.
 
+## Preact usage
+
+Same API for the Stack B (Bun / Hono / Preact) apps — just the `/preact` subpath
+(`preact` is the optional peer instead of `react`):
+
+```tsx
+import { usePwaUpdate, PwaUpdateBanner } from "@broberg/pwa/preact";
+
+export function PwaUpdater() {
+  const { updateReady, applyUpdate } = usePwaUpdate({ disabled: isNative || isDev });
+  return <PwaUpdateBanner updateReady={updateReady} onUpdate={applyUpdate} className="my-banner" />;
+}
+```
+
+`usePwaUpdate()` and `<PwaUpdateBanner>` behave exactly as their React
+counterparts.
+
 ## Framework-agnostic core
 
 No React? Drive the controller directly (Preact, Svelte, vanilla):
