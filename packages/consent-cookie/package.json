@@ -1,0 +1,46 @@
+{
+  "name": "@broberg/consent-cookie",
+  "version": "0.1.0",
+  "description": "Headless GDPR consent / cookie-banner core: a framework-free consent state machine with category granularity (essential always-on + analytics/marketing), policy-version re-surfacing, an injectable ConsentStorage (localStorage + memory/SSR), a subscribe stream, and a GDPR withdraw(). The banner UI is copy-owned per brand; this owns the correct, testable consent logic.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "gdpr",
+    "consent",
+    "cookie-banner",
+    "cookie-consent",
+    "privacy",
+    "eprivacy",
+    "consent-manager",
+    "headless",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/consent-cookie"
+  },
+  "publishConfig": { "access": "public" }
+}
