@@ -76,8 +76,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -137,8 +139,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -198,8 +202,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -259,8 +265,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -320,8 +328,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -381,8 +391,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -442,8 +454,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -503,8 +517,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -564,8 +580,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -625,8 +643,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -686,8 +706,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -747,8 +769,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -808,8 +832,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -869,8 +895,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -930,8 +958,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -991,8 +1021,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -1052,8 +1084,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -1113,8 +1147,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -1174,8 +1210,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -1237,8 +1275,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -1298,8 +1338,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -1359,8 +1401,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
@@ -1420,8 +1464,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
