@@ -1,0 +1,45 @@
+{
+  "name": "@broberg/cmdk",
+  "version": "0.1.0",
+  "description": "Headless Cmd+K command-palette core: a framework-free fuzzyFilter (ranked subsequence match), a createPaletteController state machine (open/query/results/active-index with wrap-around keyboard nav + Enter activation), and a quota-safe localStorage recents store. Items are always consumer-defined; the React/Preact shells build on this. Zero deps.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "command-palette",
+    "cmdk",
+    "cmd-k",
+    "fuzzy-search",
+    "keyboard-navigation",
+    "quick-actions",
+    "headless",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/cmdk"
+  },
+  "publishConfig": { "access": "public" }
+}
