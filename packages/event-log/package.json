@@ -1,0 +1,45 @@
+{
+  "name": "@broberg/event-log",
+  "version": "0.1.0",
+  "description": "Headless append-only event-log core (audit / activity / server layers): typed LogEntry with a generic kind, a frozen LogStore interface, fire-and-forget writers that never throw, convenience wrappers (logLogin, logDocumentCreated, …), plus GDPR primitives — filterEntries, anonymizeContact, and a Web-Crypto SHA-256 hashIp. Zero deps, no framework/DB imports; JSONL/SQLite/Supabase adapters build on top.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "event-log",
+    "audit-log",
+    "activity-log",
+    "gdpr",
+    "anonymize",
+    "retention",
+    "headless",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/event-log"
+  },
+  "publishConfig": { "access": "public" }
+}
