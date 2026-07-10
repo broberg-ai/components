@@ -1,0 +1,45 @@
+{
+  "name": "@broberg/i18n",
+  "version": "0.1.0",
+  "description": "Headless locale engine: a framework-free createI18n() with dot-path t() (fallback chain + {var} interpolation), a bilingual() helper for {da,en} content objects, localStorage persistence + navigator.language detection, an html[lang] sync, a pub/sub with no context provider, and a globalThis-keyed singleton guard (pnpm-hoist safe). The LanguageSwitcher UI is copy-owned per stack.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "localization",
+    "locale",
+    "translation",
+    "language-switch",
+    "headless",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/i18n"
+  },
+  "publishConfig": { "access": "public" }
+}
