@@ -123,6 +123,10 @@ export interface BodyMap3DProps {
    *  shorter value on narrow viewports so the picker panel below the body stays visible
    *  the moment a region is selected (no full-screen scroll). */
   canvasHeight?: string | number;
+  /** Show the clinical region-code badge (e.g. "HIP · right") in the panel header
+   *  (default true). Set false for a patient/employee-facing flow where the code is
+   *  internal jargon and the readable region name is enough. */
+  showRegionCode?: boolean;
   className?: string;
 }
 
@@ -133,7 +137,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
   const {
     models, value, defaultValue, onChange, config, palette = defaultPalette,
     locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
-    autoRotate = true, canvasHeight = "60vh", className,
+    autoRotate = true, canvasHeight = "60vh", showRegionCode = true, className,
   } = props;
 
   const L = mergeLabels(locale, labels);
@@ -402,7 +406,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
             <div style={{ border: "1px solid #e2e8f0", borderRadius: 14, padding: 16, background: "#fff" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <b style={{ fontSize: 16 }}>{nameOf(region.key)}</b>
-                <span style={{ font: "11px ui-monospace, monospace", color: "#64748b", background: "#f1f5f9", borderRadius: 6, padding: "2px 7px" }}>{region.code}{region.side ? " · " + region.side : ""}</span>
+                {showRegionCode && (
+                  <span data-testid="bodymap3d-region-code" style={{ font: "11px ui-monospace, monospace", color: "#64748b", background: "#f1f5f9", borderRadius: 6, padding: "2px 7px" }}>{region.code}{region.side ? " · " + region.side : ""}</span>
+                )}
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 7 }}>{L.intensity}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>

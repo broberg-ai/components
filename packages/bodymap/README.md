@@ -95,6 +95,7 @@ import { BodyMap3D } from "@broberg/bodymap/three";
   locale="da"                            // da | en (region names + UI)
   autoRotate={false}                     // idle when static (battery + Lens-friendly)
   canvasHeight="45vh"                    // shorter body on mobile → picker panel stays visible
+  showRegionCode={false}                 // hide the clinical code-badge in patient-facing flows
 />;
 ```
 
@@ -122,13 +123,18 @@ import { BodyMap3D } from "@broberg/bodymap/three";
   (default `"60vh"`; a bare number = px) — a shorter body on mobile keeps the panel
   visible the moment a region is selected. You drive the responsive value; the package
   stays non-opinionated (no forced bottom-sheet).
+- **Hide the code-badge.** The selection panel shows the region's clinical **code**
+  ("HIP · right") next to the readable name — useful for a clinician, noise in a
+  patient-facing flow. Pass `showRegionCode={false}` (default `true`) to hide it and
+  keep only the human name. The badge carries `data-testid="bodymap3d-region-code"`.
 - **Report view.** Lock every region (`config` with `selectable: false`) and the
   interactive hover-hint is suppressed — a locked 3D body reads as a *report*, not a
   form. Set `ui.hoverHint` to show a display caption instead.
 - **No WebXR/VR.** This is a rotatable in-page 3D canvas, not an immersive session —
   WebXR is intentionally out (a Capacitor webview can't host it reliably).
 - Every control carries a `data-testid` (`bodymap3d-canvas`, `bodymap3d-sex-*`,
-  `bodymap3d-intensity-<n>`, `bodymap3d-type-<quality>`, `bodymap3d-ready`).
+  `bodymap3d-intensity-<n>`, `bodymap3d-type-<quality>`, `bodymap3d-region-code`,
+  `bodymap3d-ready`).
 
 ## Colour control — `BodymapPalette`
 
