@@ -84,6 +84,42 @@ expectText · expectVisible · screenshot`. Reuse the exported Zod schemas
 (`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`, `uploadFileSchema`, …)
 to validate at your own HTTP boundary.
 
+## Page-read primitives (v0.2.0) — token-frugal reads
+
+Automation (`capture` / `runFlow`) is already token-free. These three **readers**
+close the other gap: pulling a *live* page into an agent's **own** LLM context
+without swallowing 15–30k tokens of raw HTML. Each is deterministic and spends
+**zero LLM tokens** in the extraction itself.
+
+```ts
+import { read, extract, network } from "@broberg/lens-engine";
+
+// 1) Clean markdown of the MAIN content only (nav/header/footer/chrome stripped)
+const { title, markdown } = await read("https://example.com/post");
+
+// 2) Repeating structures (tables + explicit lists) → structured JSON
+const { regions } = await extract("https://example.com/pricing");
+// regions: [{ kind:'table'|'list', columns, rows, totalRows, truncated, confidence, selector }]
+
+// 3) Capture the page's own XHR/fetch API responses — skip the HTML entirely
+const { responses } = await network("https://example.com/app", { urlPattern: "/api/" });
+// responses: [{ url, status, method, contentType, json? | text? }]
+```
+
+**Auth:** a **string URL** opens an anonymous context; to read behind a login pass
+a **live (already-authed) `Page`** — the caller owns its lifecycle (never navigated
+or closed here). This keeps the reader signatures minimal and the locked types stable.
+
+**`extract()` v1 fence (deterministic, no LLM):** `<table>` + `role=table|grid`
+(columns from `<th>`, `confidence:'high'`); explicit lists `<ul>/<ol>` → `{text, href?}`,
+`<dl>` → `{term, definition}` (`'high'`); and a repeated-sibling-grid — `≥ minRows`
+(default 3) siblings sharing a non-empty class-signature → `{text, href?}`
+(`confidence:'medium'`). It does **not** decompose arbitrary "cards" into sub-fields
+(that heuristic is the noise this fence omits). `regions: []` means nothing qualified —
+fall back to `read()`. Hints: `selector` (scope) · `kind` (`auto|table|list`) ·
+`mustHaveColumns` (disambiguate) · `columns` (positional rename + drop the rest) ·
+`minRows` (grid gate) · `limit` (row cap → `truncated` + `totalRows`).
+
 ## API
 
 ```ts
@@ -93,8 +129,14 @@ function plannedLayers(spec: LocateSpec): string[];               // the locator
 function applyStorageState(ctx, state): Promise<void>;            // core (used by capture/flow)
 function fetchStorageState(auth: MintAuth): Promise<StorageState>;// OPTIONAL consumer helper
 function visionEnabled(): boolean;                                // dark-ship gate
+// v0.2.0 readers:
+function read(target: string | Page, opts?: ReadOptions): Promise<ReadResult>;       // { url, title, markdown }
+function extract(target: string | Page, hint?: ExtractHint): Promise<ExtractResult>; // { url, regions[] }
+function network(target: string | Page, opts?: NetworkOptions): Promise<NetworkResult>; // { url, responses[] }
+// pure, offline-testable cores: htmlToMarkdown, extractRegions, matchesUrlPattern, shapeResponseParts
 // + resolveSelector, resolveViewport, getBrowser, closeBrowser, armIdleTimer, and all Zod schemas
 ```
 
-**Runtime deps:** `playwright`, `zod`, `@broberg/ai-sdk` (vision only). MIT · part
-of the [`@broberg/*`](https://github.com/broberg-ai/components) shared-library family.
+**Runtime deps:** `playwright`, `zod`, `@broberg/ai-sdk` (vision only), and — for the
+readers — `jsdom` + `@mozilla/readability` + `turndown`. MIT · part of the
+[`@broberg/*`](https://github.com/broberg-ai/components) shared-library family.

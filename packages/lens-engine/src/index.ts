@@ -35,4 +35,26 @@ export { applyStorageState, fetchStorageState } from './mint';
 
 export { resolveVisionElement, visionEnabled } from './vision';
 
+// v0.2.0 — token-frugal page-READ primitives (read / extract / network).
+export { withPageSession, type PageSessionOptions } from './page-session';
+
+export { read, htmlToMarkdown, type ReadOptions, type ReadResult } from './read';
+
+export {
+  extract,
+  extractRegions,
+  type ExtractHint,
+  type ExtractRegion,
+  type ExtractResult,
+} from './extract';
+
+export {
+  network,
+  matchesUrlPattern,
+  shapeResponseParts,
+  type NetworkOptions,
+  type NetworkResponse,
+  type NetworkResult,
+} from './network';
+
 export * from './schema';
