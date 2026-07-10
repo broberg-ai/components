@@ -1,0 +1,83 @@
+{
+  "name": "@broberg/soundkit",
+  "version": "0.1.0",
+  "description": "Browser audio-effect engine: a zero-dependency Web Audio synth (oscillator tones + noise) with autoplay-policy handling (lazy AudioContext gated on the first user gesture), a single typed play(name) over a sound registry, mute/volume persisted to localStorage, an optional Howler.js file-playback layer, and React + Preact-signals adapters. Ship-dark (inert without Web Audio).",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
+    "./presets": {
+      "types": "./dist/presets.d.ts",
+      "import": "./dist/presets.js",
+      "require": "./dist/presets.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "howler": ">=2.2.0",
+    "react": ">=18.0.0",
+    "preact": ">=10.0.0",
+    "@preact/signals": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "howler": { "optional": true },
+    "react": { "optional": true },
+    "preact": { "optional": true },
+    "@preact/signals": { "optional": true }
+  },
+  "devDependencies": {
+    "@preact/signals": "^1.3.0",
+    "@testing-library/preact": "^3.2.3",
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19.0.0",
+    "happy-dom": "^15.0.0",
+    "preact": "^10.23.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "sound",
+    "audio",
+    "web-audio",
+    "sound-effects",
+    "sfx",
+    "oscillator",
+    "howler",
+    "react",
+    "preact",
+    "browser",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/soundkit"
+  },
+  "publishConfig": { "access": "public" }
+}
