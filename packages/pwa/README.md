@@ -118,6 +118,39 @@ With **Serwist**/**Workbox**, keep activation user-gated:
 new Serwist({ /* … */, skipWaiting: false, clientsClaim: true });
 ```
 
+## Install setup — manifest, icons, meta (`@broberg/pwa/manifest`, v0.2.0)
+
+The *other* half of a PWA: the `manifest.webmanifest`, the icon set, and the
+apple-touch `<meta>` tags — all as **pure, zero-dep** factories so you stop
+hand-rolling `app/manifest.ts`, a `gen-pwa-icons.cjs` script, and a wall of
+`<meta>` tags. Icons are emitted as self-contained **SVG** (modern manifests +
+apple-touch accept SVG); no rasteriser is bundled.
+
+```ts
+import { defineManifest, serializeManifest, buildIconSet, pwaMetaTags } from "@broberg/pwa/manifest";
+
+// 1. Icons from a monogram (or pass `svg: "<svg…>"` for real artwork).
+const { files, icons } = buildIconSet({ monogram: "AK", background: "#141969", color: "#fff" });
+//    files → [{ path:"/icons/icon-180.svg", content:"<svg…>", … }, …]  (write to public/)
+//    icons → manifest icons[] incl. a padded maskable-512
+
+// 2. Manifest — required members defaulted; `extra` merges last.
+const manifest = defineManifest({ name: "Aalborg Klinik", shortName: "AK", themeColor: "#141969", icons });
+writeFile("public/manifest.webmanifest", serializeManifest(manifest));
+
+// 3. Head tags — typed descriptors you render in Next metadata / a Hono head / plain HTML.
+pwaMetaTags({ themeColor: "#141969", title: "AK" });
+// → [{tag:"link",attrs:{rel:"manifest",href:"/manifest.webmanifest"}}, {tag:"meta",attrs:{name:"theme-color",…}}, …]
+```
+
+- **`buildIconSet`** emits apple-touch (180), 192, 512 + a maskable-512 (10 % safe-zone
+  inset) by default; override `sizes`, `basePath`, `maskable`. `180` goes in the
+  apple-touch `<link>`, not the manifest `icons[]`.
+- **Everything is a pure return value** — you own the filesystem write and the head
+  render. Runs in a build script, a Route Handler, or the browser.
+- Need PNG? Rasterise the returned SVGs with `sharp` on your side — the package
+  stays dependency-free.
+
 ## Gotchas (baked into this package so you don't rediscover them)
 
 - **First install is suppressed.** A worker reaching `installed` with no existing

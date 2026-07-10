@@ -2,8 +2,8 @@ import { defineConfig } from "tsup";
 
 export default defineConfig([
   {
-    // Core (zero-dep) + the service-worker helper.
-    entry: { index: "src/index.ts", sw: "src/sw.ts" },
+    // Core (zero-dep) + the service-worker helper + the manifest/icon factory.
+    entry: { index: "src/index.ts", sw: "src/sw.ts", manifest: "src/manifest.ts" },
     format: ["esm", "cjs"],
     dts: true,
     clean: true,
