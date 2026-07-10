@@ -1,0 +1,47 @@
+{
+  "name": "@broberg/ui-controls-core",
+  "version": "0.1.0",
+  "description": "Headless logic for the estate's native-control replacements (Christian's no-native-dialogs/controls rule): Monday-first calendar math + DD-MM-YYYY/YYYY-MM-DD normalisation, a select keyboard-navigation reducer, an outside-click/scroll/resize handler, and a framework-neutral toast queue. Zero JSX, zero deps — the React + Preact adapters render on top.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "happy-dom": "^15.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "ui-controls",
+    "custom-select",
+    "datepicker",
+    "calendar",
+    "toast",
+    "modal",
+    "keyboard-navigation",
+    "headless",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/ui-controls-core"
+  },
+  "publishConfig": { "access": "public" }
+}
