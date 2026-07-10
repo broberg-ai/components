@@ -119,6 +119,10 @@ export interface BodyMap3DProps {
   showSexToggle?: boolean;
   /** Slowly auto-rotate until the user interacts (default true). */
   autoRotate?: boolean;
+  /** Height of the 3D canvas (default '60vh'). A bare number is treated as px. Set a
+   *  shorter value on narrow viewports so the picker panel below the body stays visible
+   *  the moment a region is selected (no full-screen scroll). */
+  canvasHeight?: string | number;
   className?: string;
 }
 
@@ -129,12 +133,13 @@ export function BodyMap3D(props: BodyMap3DProps) {
   const {
     models, value, defaultValue, onChange, config, palette = defaultPalette,
     locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
-    autoRotate = true, className,
+    autoRotate = true, canvasHeight = "60vh", className,
   } = props;
 
   const L = mergeLabels(locale, labels);
   const UI = { ...(locale === "en" ? UI_EN : UI_DA), ...ui };
   const nameOf = (key: string) => L.regions[key] ?? getRegion(key)?.label ?? key;
+  const canvasH = typeof canvasHeight === "number" ? `${canvasHeight}px` : canvasHeight;
 
   const mountRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef<HTMLSpanElement>(null);
@@ -386,11 +391,11 @@ export function BodyMap3D(props: BodyMap3DProps) {
       {ready && <span data-testid="bodymap3d-ready" style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />}
       <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
         {unsupported ? (
-          <div data-testid="bodymap3d-unsupported" style={{ flex: "1 1 520px", minWidth: 320, height: "60vh", borderRadius: 16, background: "#0e1424", color: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontSize: 14 }}>
+          <div data-testid="bodymap3d-unsupported" style={{ flex: "1 1 520px", minWidth: 320, height: canvasH, borderRadius: 16, background: "#0e1424", color: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontSize: 14 }}>
             3D kræver WebGL, som ikke er tilgængeligt her.
           </div>
         ) : (
-          <div ref={mountRef} data-testid="bodymap3d-canvas" style={{ flex: "1 1 520px", height: "60vh", minWidth: 320, borderRadius: 16, overflow: "hidden", background: "#0e1424", touchAction: "none" }} />
+          <div ref={mountRef} data-testid="bodymap3d-canvas" style={{ flex: "1 1 520px", height: canvasH, minWidth: 320, borderRadius: 16, overflow: "hidden", background: "#0e1424", touchAction: "none" }} />
         )}
         <div style={{ flex: "1 1 300px", minWidth: 260 }}>
           {region ? (
@@ -402,7 +407,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 7 }}>{L.intensity}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
                 {Array.from({ length: 11 }, (_, i) => (
-                  <button key={i} data-testid={`bodymap3d-intensity-${i}`} onClick={() => setPain(region.key, i, current?.type)} style={{ ...btn, width: 30, height: 30, background: current?.intensity === i ? "#0e8f8a" : "#fff", color: current?.intensity === i ? "#fff" : "#1e293b" }}>{i}</button>
+                  <button key={i} data-testid={`bodymap3d-intensity-${i}`} onClick={() => setPain(region.key, i, current?.type)} style={{ ...btn, display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 30, height: 30, padding: 0, background: current?.intensity === i ? "#0e8f8a" : "#fff", color: current?.intensity === i ? "#fff" : "#1e293b" }}>{i}</button>
                 ))}
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 7 }}>{L.quality}</div>

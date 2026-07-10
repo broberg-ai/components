@@ -94,6 +94,7 @@ import { BodyMap3D } from "@broberg/bodymap/three";
   palette={palette}                      // same BodymapPalette
   locale="da"                            // da | en (region names + UI)
   autoRotate={false}                     // idle when static (battery + Lens-friendly)
+  canvasHeight="45vh"                    // shorter body on mobile → picker panel stays visible
 />;
 ```
 
@@ -116,6 +117,11 @@ import { BodyMap3D } from "@broberg/bodymap/three";
   controlled (the parent owns it), and `showSexToggle={false}` to hide the picker —
   common when the body type comes from the user's profile and a mid-flow toggle would
   just be noise. Omit both to get the built-in toggle (uncontrolled).
+- **Mobile panel visibility.** The picker panel is a flex-sibling below the body; on a
+  narrow viewport a full-height body pushes it a screen down. Pass `canvasHeight`
+  (default `"60vh"`; a bare number = px) — a shorter body on mobile keeps the panel
+  visible the moment a region is selected. You drive the responsive value; the package
+  stays non-opinionated (no forced bottom-sheet).
 - **Report view.** Lock every region (`config` with `selectable: false`) and the
   interactive hover-hint is suppressed — a locked 3D body reads as a *report*, not a
   form. Set `ui.hoverHint` to show a display caption instead.

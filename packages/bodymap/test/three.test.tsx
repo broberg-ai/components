@@ -91,4 +91,15 @@ describe("BodyMap3D", () => {
     rerender(<BodyMap3D models={models} />);
     expect(screen.getByTestId("bodymap3d-empty")).toBeTruthy();
   });
+
+  it("canvasHeight sizes the canvas/placeholder (F052.16 — default 60vh, string + numeric override)", () => {
+    // WebGL is absent in happy-dom → the placeholder carries the height (same
+    // `canvasHeight` value flows to the real canvas div in a browser).
+    const { rerender } = render(<BodyMap3D models={models} />);
+    expect(screen.getByTestId("bodymap3d-unsupported").style.height).toBe("60vh");
+    rerender(<BodyMap3D models={models} canvasHeight="45vh" />);
+    expect(screen.getByTestId("bodymap3d-unsupported").style.height).toBe("45vh");
+    rerender(<BodyMap3D models={models} canvasHeight={360} />);
+    expect(screen.getByTestId("bodymap3d-unsupported").style.height).toBe("360px");
+  });
 });

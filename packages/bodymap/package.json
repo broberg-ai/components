@@ -1,6 +1,6 @@
 {
   "name": "@broberg/bodymap",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Interactive body pain-map: a body a patient clicks to mark where it hurts, producing a structured PainReport (bodymap/v1). Framework-neutral core (region taxonomy + zod PainReport model + selection) + a 2D SVG React renderer + a rotatable 3D renderer (vanilla three.js) on the SAME core.",
   "type": "module",
   "license": "MIT",
