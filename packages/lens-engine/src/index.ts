@@ -57,4 +57,13 @@ export {
   type NetworkResult,
 } from './network';
 
+export {
+  coverage,
+  computeCoverage,
+  type CoverageSchema,
+  type CoveragePage,
+  type CoverageReport,
+  type CoverageOptions,
+} from './coverage';
+
 export * from './schema';
