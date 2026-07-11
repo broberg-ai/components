@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="da" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@broberg/ui-controls-core — F016 mockup</title>
+<style>
+  /* === @broberg/theme neutral tokens (shadcn new-york) — dark default === */
+  :root{
+    --background:oklch(0.211 0 0);--foreground:oklch(0.985 0 0);
+    --card:oklch(0.239 0 0);--card-foreground:oklch(0.985 0 0);
+    --popover:oklch(0.239 0 0);--popover-foreground:oklch(0.985 0 0);
+    --primary:oklch(0.922 0 0);--primary-foreground:oklch(0.205 0 0);
+    --secondary:oklch(0.301 0 0);--secondary-foreground:oklch(0.985 0 0);
+    --muted:oklch(0.260 0 0);--muted-foreground:oklch(0.630 0 0);
+    --accent:oklch(0.301 0 0);--accent-foreground:oklch(0.985 0 0);
+    --destructive:oklch(0.65 0.22 25);
+    --border:oklch(0.301 0 0);--input:oklch(0.260 0 0);--ring:oklch(0.556 0 0);
+    --radius:0.5rem;--radius-sm:calc(var(--radius)*0.6);--radius-md:calc(var(--radius)*0.8);
+    color-scheme:dark;
+  }
+  [data-theme="light"]{
+    --background:oklch(1 0 0);--foreground:oklch(0.145 0 0);
+    --card:oklch(1 0 0);--card-foreground:oklch(0.145 0 0);
+    --popover:oklch(1 0 0);--popover-foreground:oklch(0.145 0 0);
+    --primary:oklch(0.205 0 0);--primary-foreground:oklch(0.985 0 0);
+    --secondary:oklch(0.97 0 0);--secondary-foreground:oklch(0.205 0 0);
+    --muted:oklch(0.97 0 0);--muted-foreground:oklch(0.556 0 0);
+    --accent:oklch(0.97 0 0);--accent-foreground:oklch(0.205 0 0);
+    --destructive:oklch(0.577 0.245 27);
+    --border:oklch(0.922 0 0);--input:oklch(0.922 0 0);--ring:oklch(0.708 0 0);
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--background);color:var(--foreground);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+    padding-bottom:4rem;
+  }
+  .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;gap:1rem;
+    padding:1rem 1.5rem;border-bottom:1px solid var(--border);
+    position:sticky;top:0;background:color-mix(in oklab,var(--background) 88%,transparent);
+    backdrop-filter:blur(8px);z-index:20;
+  }
+  .brand{font-weight:600;letter-spacing:-0.01em;display:flex;align-items:center;gap:.6rem}
+  .brand .mono{font-weight:500}
+  .badge{font-size:11px;font-weight:600;padding:.15rem .5rem;border-radius:999px;
+    background:var(--secondary);color:var(--secondary-foreground);letter-spacing:.02em}
+  main{max-width:1080px;margin:0 auto;padding:2rem 1.5rem}
+  .lede{color:var(--muted-foreground);max-width:60ch;margin:0 0 2rem}
+  .lede b{color:var(--foreground);font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .panel{
+    background:var(--card);color:var(--card-foreground);
+    border:1px solid var(--border);border-radius:var(--radius);
+    padding:1.25rem 1.25rem 1.5rem;position:relative;min-height:180px;
+  }
+  .panel h3{margin:0 0 .25rem;font-size:15px;font-weight:600}
+  .panel .sub{color:var(--muted-foreground);font-size:12.5px;margin:0 0 1.1rem}
+  .field-label{display:block;font-size:12.5px;font-weight:500;margin:0 0 .4rem;color:var(--foreground)}
+  /* ---- shared control chrome ---- */
+  .ctl{
+    width:100%;display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+    min-height:40px;padding:.5rem .75rem;border:1px solid var(--input);
+    background:var(--background);color:var(--foreground);
+    border-radius:var(--radius-md);font-size:14px;cursor:pointer;text-align:left;
+    transition:border-color .12s,box-shadow .12s;
+  }
+  .ctl:hover{border-color:var(--ring)}
+  .ctl:focus-visible,.ctl.open{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 35%,transparent)}
+  .ctl .placeholder{color:var(--muted-foreground)}
+  .chev{width:16px;height:16px;opacity:.6;flex:none;transition:transform .15s}
+  .ctl.open .chev{transform:rotate(180deg)}
+  /* ---- popover ---- */
+  .pop{
+    position:absolute;z-index:30;margin-top:.35rem;left:1.25rem;right:1.25rem;
+    background:var(--popover);color:var(--popover-foreground);
+    border:1px solid var(--border);border-radius:var(--radius-md);
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.5),0 4px 8px -4px rgba(0,0,0,.4);
+    padding:.35rem;overflow:hidden;
+  }
+  .opt{display:flex;align-items:center;gap:.5rem;padding:.5rem .55rem;border-radius:var(--radius-sm);
+    cursor:pointer;font-size:14px;color:var(--popover-foreground)}
+  .opt .ck{width:15px;height:15px;flex:none;opacity:0}
+  .opt[aria-selected="true"] .ck{opacity:1}
+  .opt.active{background:var(--accent);color:var(--accent-foreground)}
+  .opt .muted{margin-left:auto;font-size:12px;color:var(--muted-foreground)}
+  /* ---- buttons ---- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;
+    min-height:38px;padding:.5rem .9rem;border-radius:var(--radius-md);font-size:13.5px;
+    font-weight:500;cursor:pointer;border:1px solid transparent;transition:filter .12s,background .12s;
+    user-select:none}
+  .btn:active{filter:brightness(.94)}
+  .btn-primary{background:var(--primary);color:var(--primary-foreground)}
+  .btn-secondary{background:var(--secondary);color:var(--secondary-foreground);border-color:var(--border)}
+  .btn-destructive{background:var(--destructive);color:oklch(0.985 0 0)}
+  .btn-ghost{background:transparent;color:var(--foreground);border-color:var(--border)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn-row{display:flex;flex-wrap:wrap;gap:.5rem}
+  /* ---- calendar ---- */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;padding:.15rem .25rem .6rem}
+  .cal-title{font-weight:600;font-size:13.5px;text-transform:capitalize}
+  .cal-nav{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+    border-radius:var(--radius-sm);cursor:pointer;color:var(--foreground)}
+  .cal-nav:hover{background:var(--accent)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .cal-dow{font-size:11px;color:var(--muted-foreground);text-align:center;padding:.2rem 0;font-weight:500}
+  .cal-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:12.5px;
+    border-radius:var(--radius-sm);cursor:pointer;color:var(--foreground)}
+  .cal-cell:hover{background:var(--accent)}
+  .cal-cell.out{color:var(--muted-foreground);opacity:.45}
+  .cal-cell.today{box-shadow:inset 0 0 0 1px var(--ring)}
+  .cal-cell.sel{background:var(--primary);color:var(--primary-foreground);font-weight:600}
+  .cal-foot{display:flex;justify-content:space-between;gap:.5rem;padding-top:.6rem;margin-top:.4rem;border-top:1px solid var(--border)}
+  .link-btn{background:none;border:none;color:var(--muted-foreground);font-size:12.5px;cursor:pointer;padding:.3rem .2rem}
+  .link-btn:hover{color:var(--foreground)}
+  /* ---- modal ---- */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);
+    display:flex;align-items:center;justify-content:center;padding:1rem;z-index:50;
+    opacity:0;pointer-events:none;transition:opacity .15s}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .modal{width:min(420px,100%);background:var(--card);color:var(--card-foreground);
+    border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:0 24px 60px -12px rgba(0,0,0,.6);padding:1.4rem;transform:translateY(6px) scale(.98);transition:transform .15s}
+  .scrim.show .modal{transform:none}
+  .modal .ico{width:38px;height:38px;border-radius:999px;display:flex;align-items:center;justify-content:center;margin-bottom:.8rem}
+  .ico.danger{background:color-mix(in oklab,var(--destructive) 22%,transparent);color:var(--destructive)}
+  .ico.info{background:var(--accent);color:var(--accent-foreground)}
+  .modal h4{margin:0 0 .35rem;font-size:16px;font-weight:600}
+  .modal p{margin:0 0 1.3rem;color:var(--muted-foreground);font-size:13.5px}
+  .modal .actions{display:flex;justify-content:flex-end;gap:.5rem}
+  .spinner{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:999px;animation:spin .6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* ---- toasts ---- */
+  #toasts{position:fixed;top:1rem;right:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:60;width:min(340px,calc(100vw - 2rem))}
+  .toast{background:var(--popover);color:var(--popover-foreground);border:1px solid var(--border);
+    border-radius:var(--radius-md);box-shadow:0 12px 28px -10px rgba(0,0,0,.5);padding:.75rem .8rem .8rem;
+    display:flex;gap:.6rem;align-items:flex-start;overflow:hidden;position:relative;
+    animation:slidein .18s ease-out}
+  @keyframes slidein{from{transform:translateX(12px);opacity:0}to{transform:none;opacity:1}}
+  .toast.leaving{animation:slideout .18s ease-in forwards}
+  @keyframes slideout{to{transform:translateX(12px);opacity:0}}
+  .toast .dot{width:16px;height:16px;flex:none;margin-top:1px}
+  .toast .msg{font-size:13px;flex:1}
+  .toast .msg b{display:block;font-weight:600;margin-bottom:1px}
+  .toast .x{background:none;border:none;color:var(--muted-foreground);cursor:pointer;font-size:15px;line-height:1;padding:0 .1rem}
+  .toast .x:hover{color:var(--foreground)}
+  .toast .bar{position:absolute;left:0;bottom:0;height:2px;background:currentColor;opacity:.5;animation:shrink 4s linear forwards}
+  @keyframes shrink{from{width:100%}to{width:0}}
+  .ok{color:oklch(0.72 0.17 150)}.err{color:var(--destructive)}.inf{color:oklch(0.7 0.12 240)}
+  .footnote{color:var(--muted-foreground);font-size:12px;margin-top:2rem;text-align:center}
+  .footnote .mono{color:var(--foreground)}
+  svg{stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="mono">@broberg/ui-controls-core</span><span class="badge">F016 · mockup</span></div>
+  <button class="btn btn-ghost" id="themeBtn" data-testid="theme-toggle">Skift til lys</button>
+</header>
+<main>
+  <p class="lede">Suiten der <b>erstatter hver native control</b> huset ikke kan udstå — CustomSelect, DatePicker, ConfirmModal og Toast. Ét headless-core (kalender-matematik, tastatur-FSM, toast-kø) driver React- og Preact-adaptere. <b>Alt herunder er ægte og klikbart.</b></p>
+  <div class="grid">
+
+    <!-- CustomSelect -->
+    <section class="panel" id="p-select">
+      <h3>CustomSelect</h3>
+      <p class="sub">Portal-listbox i stedet for <span class="mono">&lt;select&gt;</span> — tastatur-navigerbar (↑↓ · ↵ · esc), afkryds valgt.</p>
+      <label class="field-label" for="selTrigger">Vælg klinik</label>
+      <button class="ctl" id="selTrigger" data-testid="clinic-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+        <span id="selValue" class="placeholder">Vælg en klinik…</span>
+        <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="pop" id="selMenu" role="listbox" hidden></div>
+    </section>
+
+    <!-- DatePicker -->
+    <section class="panel" id="p-date">
+      <h3>DatePicker</h3>
+      <p class="sub">Mandag-først dansk kalender · format <span class="mono">DD-MM-ÅÅÅÅ</span> · Today/Ryd. Ingen native <span class="mono">type=date</span>.</p>
+      <label class="field-label" for="dateTrigger">Behandlingsdato</label>
+      <button class="ctl" id="dateTrigger" data-testid="date-picker-trigger" aria-haspopup="dialog" aria-expanded="false">
+        <span id="dateValue" class="placeholder">DD-MM-ÅÅÅÅ</span>
+        <svg class="chev" viewBox="0 0 24 24" style="opacity:.55"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </button>
+      <div class="pop" id="calPop" role="dialog" hidden></div>
+    </section>
+
+    <!-- ConfirmModal -->
+    <section class="panel" id="p-modal">
+      <h3>ConfirmModal</h3>
+      <p class="sub">Scrim + ESC + tone (fare/primær) i stedet for <span class="mono">window.confirm()</span>. Bekræft viser loading.</p>
+      <div class="btn-row">
+        <button class="btn btn-destructive" id="btnDelete" data-testid="delete-report-btn">Slet rapport</button>
+        <button class="btn btn-primary" id="btnPublish" data-testid="publish-btn">Publicér</button>
+      </div>
+    </section>
+
+    <!-- Toast -->
+    <section class="panel" id="p-toast">
+      <h3>Toast</h3>
+      <p class="sub">Stak øverst-højre, auto-dismiss med progress, manuel luk, kappet ved 3. Erstatter <span class="mono">alert()</span>.</p>
+      <div class="btn-row">
+        <button class="btn btn-secondary" data-testid="toast-success" onclick="toast('ok','Gemt','Rapporten blev gemt.')">Success</button>
+        <button class="btn btn-secondary" data-testid="toast-error" onclick="toast('err','Kunne ikke sende','Tjek forbindelsen og prøv igen.')">Fejl</button>
+        <button class="btn btn-secondary" data-testid="toast-info" onclick="toast('inf','Synkroniserer','3 ændringer sendes…')">Info</button>
+      </div>
+    </section>
+
+  </div>
+  <p class="footnote">Headless-core: <span class="mono">@broberg/ui-controls-core v0.1.0</span> (F016.1, shipped) · adaptere = F016.2+ · data-testid på hver control (Lens-klar)</p>
+</main>
+
+<div id="toasts"></div>
+<div id="modalRoot"></div>
+
+<script>
+  // ---------- theme toggle ----------
+  const root=document.documentElement, tb=document.getElementById('themeBtn');
+  tb.onclick=()=>{const light=root.getAttribute('data-theme')==='light';
+    root.setAttribute('data-theme',light?'dark':'light');
+    tb.textContent=light?'Skift til lys':'Skift til mørk';};
+
+  // ---------- CustomSelect ----------
+  const CLINICS=[['aalborg','Aalborg — Vesterbro'],['hjoerring','Hjørring — Centrum'],['frederikshavn','Frederikshavn — Havnen'],['brroenderslev','Brønderslev'],['skagen','Skagen — Klinik Nord']];
+  const selTrigger=document.getElementById('selTrigger'),selMenu=document.getElementById('selMenu'),selValue=document.getElementById('selValue');
+  let selOpen=false, selIdx=0, selChosen=-1;
+  function renderSel(){selMenu.innerHTML=CLINICS.map((c,i)=>
+    `<div class="opt${i===selIdx?' active':''}" role="option" aria-selected="${i===selChosen}" data-i="${i}" data-testid="clinic-opt-${c[0]}">
+       <svg class="ck" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span>${c[1]}</span></div>`).join('');}
+  function openSel(o){selOpen=o;selMenu.hidden=!o;selTrigger.classList.toggle('open',o);selTrigger.setAttribute('aria-expanded',o);if(o){selIdx=selChosen<0?0:selChosen;renderSel();}}
+  selTrigger.onclick=()=>openSel(!selOpen);
+  selMenu.onclick=e=>{const o=e.target.closest('.opt');if(!o)return;pick(+o.dataset.i);};
+  selMenu.onmousemove=e=>{const o=e.target.closest('.opt');if(!o)return;selIdx=+o.dataset.i;renderSel();};
+  function pick(i){selChosen=i;selValue.textContent=CLINICS[i][1];selValue.classList.remove('placeholder');openSel(false);}
+  selTrigger.addEventListener('keydown',e=>{
+    if(['ArrowDown','ArrowUp','Enter',' '].includes(e.key)){e.preventDefault();if(!selOpen)return openSel(true);}
+    if(e.key==='ArrowDown'){selIdx=(selIdx+1)%CLINICS.length;renderSel();}
+    else if(e.key==='ArrowUp'){selIdx=(selIdx-1+CLINICS.length)%CLINICS.length;renderSel();}
+    else if(e.key==='Enter'||e.key===' '){if(selOpen)pick(selIdx);}
+    else if(e.key==='Escape'){openSel(false);}
+  });
+
+  // ---------- DatePicker (Monday-first) ----------
+  const MONTHS=['januar','februar','marts','april','maj','juni','juli','august','september','oktober','november','december'];
+  const DOW=['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
+  const dTrigger=document.getElementById('dateTrigger'),calPop=document.getElementById('calPop'),dValue=document.getElementById('dateValue');
+  const today=new Date(2026,6,11); let view=new Date(2026,6,1), chosen=null, calOpen=false;
+  const pad=n=>String(n).padStart(2,'0');
+  function grid(y,m){const first=new Date(y,m,1);let off=(first.getDay()+6)%7;/*Mon=0*/
+    const cells=[];const start=new Date(y,m,1-off);
+    for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);cells.push(d);}return cells;}
+  function renderCal(){const y=view.getFullYear(),m=view.getMonth();
+    let h=`<div class="cal-head"><span class="cal-nav" data-nav="-1" data-testid="cal-prev">‹</span>
+      <span class="cal-title">${MONTHS[m]} ${y}</span>
+      <span class="cal-nav" data-nav="1" data-testid="cal-next">›</span></div><div class="cal-grid">`;
+    h+=DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+    for(const d of grid(y,m)){const out=d.getMonth()!==m;
+      const isT=d.toDateString()===today.toDateString();
+      const isS=chosen&&d.toDateString()===chosen.toDateString();
+      h+=`<div class="cal-cell${out?' out':''}${isT?' today':''}${isS?' sel':''}" data-d="${d.toISOString()}" data-testid="cal-day-${pad(d.getDate())}">${d.getDate()}</div>`;}
+    h+=`</div><div class="cal-foot"><button class="link-btn" data-today="1" data-testid="cal-today">I dag</button><button class="link-btn" data-clear="1" data-testid="cal-clear">Ryd</button></div>`;
+    calPop.innerHTML=h;}
+  function openCal(o){calOpen=o;calPop.hidden=!o;dTrigger.classList.toggle('open',o);dTrigger.setAttribute('aria-expanded',o);if(o)renderCal();}
+  dTrigger.onclick=()=>openCal(!calOpen);
+  calPop.onclick=e=>{const nav=e.target.closest('[data-nav]');if(nav){view.setMonth(view.getMonth()+ +nav.dataset.nav);renderCal();return;}
+    if(e.target.dataset.today){chosen=new Date(today);view=new Date(today.getFullYear(),today.getMonth(),1);commitDate();return;}
+    if(e.target.dataset.clear){chosen=null;dValue.textContent='DD-MM-ÅÅÅÅ';dValue.classList.add('placeholder');openCal(false);return;}
+    const cell=e.target.closest('[data-d]');if(cell){chosen=new Date(cell.dataset.d);commitDate();}};
+  function commitDate(){dValue.textContent=`${pad(chosen.getDate())}-${pad(chosen.getMonth()+1)}-${chosen.getFullYear()}`;dValue.classList.remove('placeholder');openCal(false);}
+
+  // ---------- ConfirmModal ----------
+  const modalRoot=document.getElementById('modalRoot');
+  function confirmModal({tone,title,body,confirmLabel,onConfirm}){
+    modalRoot.innerHTML=`<div class="scrim" id="scrim">
+      <div class="modal" role="alertdialog" aria-modal="true" data-testid="confirm-modal">
+        <div class="ico ${tone==='danger'?'danger':'info'}">${tone==='danger'
+          ?'<svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'
+          :'<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 8v4M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>'}</div>
+        <h4>${title}</h4><p>${body}</p>
+        <div class="actions">
+          <button class="btn btn-secondary" id="mCancel" data-testid="modal-cancel">Annuller</button>
+          <button class="btn ${tone==='danger'?'btn-destructive':'btn-primary'}" id="mOk" data-testid="modal-confirm">${confirmLabel}</button>
+        </div></div></div>`;
+    const scrim=document.getElementById('scrim');requestAnimationFrame(()=>scrim.classList.add('show'));
+    const close=()=>{scrim.classList.remove('show');setTimeout(()=>modalRoot.innerHTML='',160);};
+    document.getElementById('mCancel').onclick=close;
+    scrim.onclick=e=>{if(e.target===scrim)close();};
+    document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);}});
+    document.getElementById('mOk').onclick=function(){const b=this;b.innerHTML='<span class="spinner"></span>Arbejder…';b.style.pointerEvents='none';
+      setTimeout(()=>{close();onConfirm&&onConfirm();},1100);};
+  }
+  document.getElementById('btnDelete').onclick=()=>confirmModal({tone:'danger',title:'Slet rapporten?',
+    body:'Rapporten “Skulder, højre — uge 28” slettes permanent. Dette kan ikke fortrydes.',confirmLabel:'Slet',
+    onConfirm:()=>toast('ok','Slettet','Rapporten blev fjernet.')});
+  document.getElementById('btnPublish').onclick=()=>confirmModal({tone:'info',title:'Publicér til patienten?',
+    body:'Patienten får adgang til rapporten og modtager en notifikation.',confirmLabel:'Publicér',
+    onConfirm:()=>toast('ok','Publiceret','Patienten er notificeret.')});
+
+  // ---------- Toast queue (cap 3) ----------
+  const region=document.getElementById('toasts');
+  const ICON={ok:'<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>',
+    err:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>',
+    inf:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>'};
+  function toast(kind,title,msg){
+    while(region.children.length>=3)region.firstChild.remove();
+    const t=document.createElement('div');t.className='toast';
+    t.innerHTML=`<span class="dot ${kind}">${ICON[kind]}</span><div class="msg"><b>${title}</b>${msg}</div>
+      <button class="x" aria-label="Luk">×</button><span class="bar ${kind}"></span>`;
+    const kill=()=>{t.classList.add('leaving');setTimeout(()=>t.remove(),180);};
+    t.querySelector('.x').onclick=kill;region.appendChild(t);setTimeout(kill,4000);
+  }
+
+  // close popovers on outside click
+  document.addEventListener('pointerdown',e=>{
+    if(selOpen&&!e.target.closest('#p-select'))openSel(false);
+    if(calOpen&&!e.target.closest('#p-date'))openCal(false);
+  });
+</script>
+</body>
+</html>

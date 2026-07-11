@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="da" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@broberg/cmdk — F018 mockup</title>
+<style>
+  :root{
+    --background:oklch(0.211 0 0);--foreground:oklch(0.985 0 0);
+    --card:oklch(0.239 0 0);--card-foreground:oklch(0.985 0 0);
+    --popover:oklch(0.239 0 0);--popover-foreground:oklch(0.985 0 0);
+    --primary:oklch(0.922 0 0);--primary-foreground:oklch(0.205 0 0);
+    --secondary:oklch(0.301 0 0);--secondary-foreground:oklch(0.985 0 0);
+    --muted:oklch(0.260 0 0);--muted-foreground:oklch(0.630 0 0);
+    --accent:oklch(0.301 0 0);--accent-foreground:oklch(0.985 0 0);
+    --border:oklch(0.301 0 0);--input:oklch(0.260 0 0);--ring:oklch(0.556 0 0);
+    --radius:0.5rem;--radius-sm:calc(var(--radius)*0.6);--radius-md:calc(var(--radius)*0.8);
+    color-scheme:dark;
+  }
+  [data-theme="light"]{
+    --background:oklch(1 0 0);--foreground:oklch(0.145 0 0);
+    --card:oklch(1 0 0);--card-foreground:oklch(0.145 0 0);
+    --popover:oklch(1 0 0);--popover-foreground:oklch(0.145 0 0);
+    --primary:oklch(0.205 0 0);--primary-foreground:oklch(0.985 0 0);
+    --secondary:oklch(0.97 0 0);--secondary-foreground:oklch(0.205 0 0);
+    --muted:oklch(0.97 0 0);--muted-foreground:oklch(0.556 0 0);
+    --accent:oklch(0.97 0 0);--accent-foreground:oklch(0.205 0 0);
+    --border:oklch(0.922 0 0);--input:oklch(0.922 0 0);--ring:oklch(0.708 0 0);
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--background);color:var(--foreground);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+  kbd{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-size:11px;
+    background:var(--secondary);color:var(--secondary-foreground);border:1px solid var(--border);
+    border-radius:5px;padding:.1rem .38rem;line-height:1.4;box-shadow:0 1px 0 rgba(0,0,0,.25)}
+  /* ---- faux app backdrop ---- */
+  .app{min-height:100vh;display:flex;flex-direction:column}
+  .app-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.5rem;border-bottom:1px solid var(--border)}
+  .app-brand{font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:.6rem}
+  .badge{font-size:11px;font-weight:600;padding:.15rem .5rem;border-radius:999px;background:var(--secondary);color:var(--secondary-foreground)}
+  .app-body{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem;text-align:center}
+  .hint{color:var(--muted-foreground);max-width:48ch}
+  .hint h1{font-size:20px;font-weight:600;color:var(--foreground);margin:0 0 .5rem;letter-spacing:-.01em}
+  .open-cta{margin-top:1.4rem;display:inline-flex;align-items:center;gap:.55rem;min-height:40px;
+    padding:.5rem 1rem;border-radius:var(--radius-md);border:1px solid var(--border);
+    background:var(--card);color:var(--foreground);cursor:pointer;font-size:14px}
+  .open-cta:hover{border-color:var(--ring)}
+  .themebtn{background:transparent;border:1px solid var(--border);color:var(--foreground);
+    border-radius:var(--radius-md);padding:.4rem .8rem;font-size:13px;cursor:pointer}
+  .skel{max-width:640px;margin:0 auto;text-align:left;width:100%;opacity:.5}
+  .skel .bar{height:12px;border-radius:6px;background:var(--muted);margin:.7rem 0}
+  .skel .bar:nth-child(1){width:40%}.skel .bar:nth-child(2){width:88%}.skel .bar:nth-child(3){width:72%}.skel .bar:nth-child(4){width:80%}
+  /* ---- palette overlay ---- */
+  .cmd-scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(3px);
+    display:flex;align-items:flex-start;justify-content:center;padding:12vh 1rem 1rem;z-index:50;
+    opacity:0;pointer-events:none;transition:opacity .14s}
+  .cmd-scrim.show{opacity:1;pointer-events:auto}
+  .cmd{width:min(600px,100%);background:var(--popover);color:var(--popover-foreground);
+    border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+    box-shadow:0 32px 70px -20px rgba(0,0,0,.7),0 8px 20px -12px rgba(0,0,0,.5);
+    transform:translateY(-8px) scale(.985);transition:transform .14s}
+  .cmd-scrim.show .cmd{transform:none}
+  .cmd-search{display:flex;align-items:center;gap:.6rem;padding:.85rem 1rem;border-bottom:1px solid var(--border)}
+  .cmd-search svg{width:18px;height:18px;color:var(--muted-foreground);flex:none}
+  .cmd-search input{flex:1;background:none;border:none;outline:none;color:var(--foreground);font-size:15px}
+  .cmd-search input::placeholder{color:var(--muted-foreground)}
+  .cmd-search .esc{color:var(--muted-foreground)}
+  .cmd-list{max-height:min(52vh,420px);overflow-y:auto;padding:.4rem}
+  .grp-label{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--muted-foreground);padding:.6rem .6rem .3rem}
+  .item{display:flex;align-items:center;gap:.7rem;padding:.55rem .6rem;border-radius:var(--radius-sm);cursor:pointer}
+  .item.active{background:var(--accent);color:var(--accent-foreground)}
+  .item .ic{width:32px;height:32px;flex:none;border-radius:var(--radius-sm);background:var(--secondary);
+    display:flex;align-items:center;justify-content:center;color:var(--secondary-foreground)}
+  .item.active .ic{background:color-mix(in oklab,var(--primary) 20%,var(--secondary))}
+  .item .ic svg{width:16px;height:16px}
+  .item .lbl{flex:1;min-width:0}
+  .item .lbl b{font-weight:500;font-size:14px;display:block}
+  .hl{color:var(--foreground);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+  .item .lbl small{color:var(--muted-foreground);font-size:12px}
+  .item .sc{display:flex;gap:.25rem;flex:none}
+  .empty{padding:2.5rem 1rem;text-align:center;color:var(--muted-foreground);font-size:13.5px}
+  .cmd-foot{display:flex;align-items:center;gap:1rem;padding:.55rem .9rem;border-top:1px solid var(--border);
+    font-size:11.5px;color:var(--muted-foreground);flex-wrap:wrap}
+  .cmd-foot span{display:inline-flex;align-items:center;gap:.35rem}
+  svg{stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  #flash{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--primary);color:var(--primary-foreground);padding:.6rem 1rem;border-radius:999px;
+    font-size:13px;font-weight:500;opacity:0;transition:.2s;z-index:60;pointer-events:none}
+  #flash.show{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="app-top">
+    <div class="app-brand"><span class="mono">@broberg/cmdk</span><span class="badge">F018 · mockup</span></div>
+    <button class="themebtn" id="themeBtn" data-testid="theme-toggle">Skift til lys</button>
+  </div>
+  <div class="app-body">
+    <div>
+      <div class="hint">
+        <h1>Command palette (⌘K)</h1>
+        <p>Fuzzy handlings-søgning + hurtig-nav over ét overlay. Grupperet, tastatur-drevet, med seneste-liste. Kernen <span class="mono">@broberg/cmdk</span> er headless — items injiceres altid af app'en.</p>
+      </div>
+      <button class="open-cta" id="openBtn" data-testid="open-palette"><svg viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Åbn paletten <kbd>⌘</kbd><kbd>K</kbd></button>
+      <div class="skel" style="margin-top:2.5rem"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="cmd-scrim" id="scrim">
+  <div class="cmd" role="dialog" aria-modal="true" data-testid="command-palette">
+    <div class="cmd-search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="q" placeholder="Skriv en kommando eller søg…" autocomplete="off" data-testid="palette-input" aria-label="Søg">
+      <kbd class="esc">esc</kbd>
+    </div>
+    <div class="cmd-list" id="list" data-testid="palette-list"></div>
+    <div class="cmd-foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd> Naviger</span>
+      <span><kbd>↵</kbd> Vælg</span>
+      <span><kbd>esc</kbd> Luk</span>
+      <span style="margin-left:auto" class="mono">fuzzyFilter + createPaletteController</span>
+    </div>
+  </div>
+</div>
+<div id="flash"></div>
+
+<script>
+  const root=document.documentElement,themeBtn=document.getElementById('themeBtn');
+  themeBtn.onclick=()=>{const l=root.getAttribute('data-theme')==='light';root.setAttribute('data-theme',l?'dark':'light');themeBtn.textContent=l?'Skift til lys':'Skift til mørk';};
+
+  const I={ // tiny lucide-ish icons
+    plus:'<path d="M12 5v14M5 12h14"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    user:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/>',cog:'<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+    home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
+    search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/>'};
+  // items: consumer-injected (this is what an app passes in)
+  const ITEMS=[
+    {id:'new-report',group:'Handlinger',icon:'plus',label:'Ny rapport',hint:'Opret en tom indberetning',keys:['⌘','N'],kw:'opret tilføj'},
+    {id:'invite',group:'Handlinger',icon:'user',label:'Inviter medarbejder',hint:'Send adgang via e-mail',kw:'bruger tilføj'},
+    {id:'export',group:'Handlinger',icon:'doc',label:'Eksportér til PDF',hint:'Nuværende visning',kw:'download gem'},
+    {id:'settings',group:'Handlinger',icon:'cog',label:'Indstillinger',keys:['⌘',','],kw:'konfiguration preferencer'},
+    {id:'go-dash',group:'Naviger til',icon:'home',label:'Dashboard',kw:'forside oversigt'},
+    {id:'go-reports',group:'Naviger til',icon:'chart',label:'Rapporter',hint:'Alle indberetninger',kw:'statistik'},
+    {id:'go-inbox',group:'Naviger til',icon:'mail',label:'Indbakke',kw:'beskeder mail'},
+    {id:'go-team',group:'Naviger til',icon:'user',label:'Medarbejdere',kw:'team brugere'},
+    {id:'logout',group:'Konto',icon:'logout',label:'Log ud',kw:'afslut'}
+  ];
+  const RECENTS=['go-reports','new-report','settings'];
+
+  // fuzzy subsequence scorer (mirrors fuzzyFilter)
+  function score(item,q){if(!q)return 0;const t=(item.label+' '+(item.kw||'')).toLowerCase();q=q.toLowerCase();
+    let ti=0,s=0,streak=0,matchedLabel=false;
+    for(const ch of q){const idx=t.indexOf(ch,ti);if(idx<0)return -1;
+      s+= idx===ti?3:1; streak=idx===ti?streak+1:0; s+=streak; ti=idx+1;}
+    if(item.label.toLowerCase().startsWith(q))s+=8;
+    if(item.label.toLowerCase().includes(q))s+=4;
+    return s;}
+  function bold(label,q){if(!q)return label;const i=label.toLowerCase().indexOf(q.toLowerCase());
+    if(i<0)return label;return label.slice(0,i)+'<span class="hl">'+label.slice(i,i+q.length)+'</span>'+label.slice(i+q.length);}
+
+  const scrim=document.getElementById('scrim'),q=document.getElementById('q'),list=document.getElementById('list');
+  let results=[],active=0,open=false;
+
+  function compute(){const query=q.value.trim();
+    if(!query){results=RECENTS.map(id=>ITEMS.find(x=>x.id===id)).filter(Boolean).map(x=>({...x,group:'Seneste'}));return;}
+    results=ITEMS.map(x=>({x,s:score(x,query)})).filter(r=>r.s>=0).sort((a,b)=>b.s-a.s).map(r=>r.x);}
+  function render(){compute();active=Math.min(active,Math.max(0,results.length-1));const query=q.value.trim();
+    if(!results.length){list.innerHTML=`<div class="empty">Ingen resultater for “${query}”.</div>`;return;}
+    let html='',lastG=null;
+    results.forEach((it,i)=>{if(it.group!==lastG){html+=`<div class="grp-label">${it.group}</div>`;lastG=it.group;}
+      html+=`<div class="item${i===active?' active':''}" data-i="${i}" data-testid="palette-item-${it.id}">
+        <span class="ic"><svg viewBox="0 0 24 24">${I[it.icon]}</svg></span>
+        <span class="lbl"><b>${bold(it.label,query)}</b>${it.hint?`<small>${it.hint}</small>`:''}</span>
+        <span class="sc">${(it.keys||[]).map(k=>`<kbd>${k}</kbd>`).join('')}</span></div>`;});
+    list.innerHTML=html;
+    const el=list.querySelector('.item.active');if(el)el.scrollIntoView({block:'nearest'});}
+  function setOpen(o){open=o;scrim.classList.toggle('show',o);if(o){q.value='';active=0;render();setTimeout(()=>q.focus(),20);}}
+  function select(){const it=results[active];if(!it)return;setOpen(false);
+    const f=document.getElementById('flash');f.textContent=(it.group==='Naviger til'?'→ ':'✓ ')+it.label;
+    f.classList.add('show');setTimeout(()=>f.classList.remove('show'),1300);}
+
+  document.getElementById('openBtn').onclick=()=>setOpen(true);
+  q.addEventListener('input',()=>{active=0;render();});
+  list.onmousemove=e=>{const it=e.target.closest('.item');if(it){active=+it.dataset.i;render();}};
+  list.onclick=e=>{const it=e.target.closest('.item');if(it){active=+it.dataset.i;select();}};
+  scrim.onclick=e=>{if(e.target===scrim)setOpen(false);};
+  window.addEventListener('keydown',e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setOpen(!open);return;}
+    if(!open)return;
+    if(e.key==='ArrowDown'){e.preventDefault();active=(active+1)%results.length;render();}
+    else if(e.key==='ArrowUp'){e.preventDefault();active=(active-1+results.length)%results.length;render();}
+    else if(e.key==='Enter'){e.preventDefault();select();}
+    else if(e.key==='Escape'){e.preventDefault();setOpen(false);}
+  });
+</script>
+</body>
+</html>
