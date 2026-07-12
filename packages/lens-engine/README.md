@@ -80,9 +80,35 @@ DOM-miss fails cleanly — it never guesses.
 ## Flow step grammar (frozen, Zod-validated)
 
 `goto · click · fill · type · press · select · upload · waitFor · assert ·
-expectText · expectVisible · screenshot`. Reuse the exported Zod schemas
-(`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`, `uploadFileSchema`, …)
-to validate at your own HTTP boundary.
+expectText · expectVisible · expectEditable · screenshot`. Reuse the exported Zod
+schemas (`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`,
+`uploadFileSchema`, …) to validate at your own HTTP boundary.
+
+## Assert a field is editable (v0.4.0) — prove click-to-edit worked
+
+`expectEditable` asserts that a resolved element is editable **right now** — the
+proof that a `@broberg/cms-inline-edit` click-to-edit field actually turned
+editable (instead of the hand-rolled `assert({ js })` escape-hatch). Compose it
+after a `click`:
+
+```ts
+await runFlow({
+  base_url: "https://site.example",
+  storageState,
+  steps: [
+    { action: "click", target: "bio-field" },       // enter edit mode
+    { action: "expectEditable", target: "bio-field" }, // ← passes only if now editable
+  ],
+});
+```
+
+Editable = `contenteditable` (the nearest ancestor carrying the attribute wins —
+`""`/`true`/`plaintext-only` ⇒ editable, `false` ⇒ not, inherited counts) **or**
+an enabled, non-readonly native form control (`<input>`/`<textarea>` not
+`disabled` + not `readOnly`, or a `<select>` not `disabled`). A present-but-not
+-editable target throws, naming the target. The predicate is exported as the pure
+`isEditableElement(el)` (offline-testable; the SAME function is serialized into
+the page at runtime).
 
 ## Page-read primitives (v0.2.0) — token-frugal reads
 

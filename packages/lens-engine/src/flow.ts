@@ -2,7 +2,7 @@
 //
 // Reuses the SAME warm-browser + settle + screenshot helpers as capture() (no
 // second engine). The step grammar (goto/click/fill/type/press/select/waitFor/
-// assert/expectText/expectVisible/screenshot) plus `upload` (setInputFiles) for
+// assert/expectText/expectVisible/expectEditable/screenshot) plus `upload` (setInputFiles) for
 // the store-console use case. Self-healing locators: a step target is a CSS/
 // testid string OR a LocateSpec whose DOM layers (testid→css→role→label→
 // placeholder→text) are tried in order, with a Set-of-Marks vision fallback.
@@ -56,6 +56,36 @@ export interface FlowStepReport {
   png?: Buffer;
   screenshot_run_id?: string;
   screenshot_url?: string | null;
+}
+
+/**
+ * Is this element editable RIGHT NOW? Editable =
+ *  - contenteditable: the NEAREST ancestor carrying the attribute wins
+ *    ("" / "true" / "plaintext-only" ⇒ editable; "false" ⇒ not; inherited counts;
+ *    "inherit"/absent keeps walking up), OR
+ *  - an enabled, writable native form control: an <input>/<textarea> that is not
+ *    `disabled` and not `readOnly`, or a <select> that is not `disabled`.
+ *
+ * Pure + self-contained (no closures, only its arg + DOM globals) so it BOTH
+ * unit-tests over jsdom AND serializes into the page via `locator.evaluate` — one
+ * definition of "editable", identical on both sides. Powers the `expectEditable`
+ * flow step (prove @broberg/cms-inline-edit click-to-edit turned a field editable).
+ */
+export function isEditableElement(el: Element): boolean {
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    const f = el as HTMLInputElement | HTMLTextAreaElement;
+    return !f.disabled && !f.readOnly;
+  }
+  if (tag === 'SELECT') return !(el as HTMLSelectElement).disabled;
+  let node: Element | null = el;
+  while (node) {
+    const v = node.getAttribute('contenteditable');
+    if (v === 'false') return false;
+    if (v === '' || v === 'true' || v === 'plaintext-only') return true;
+    node = node.parentElement;
+  }
+  return false;
 }
 
 export interface FlowResult {
@@ -264,6 +294,18 @@ async function execStep(
     case 'expectVisible': {
       const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectVisible' });
       await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+      return { detail: describeTarget(step.target), resolved_via: layer };
+    }
+    case 'expectEditable': {
+      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectEditable' });
+      await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+      const editable = await locator.evaluate(isEditableElement);
+      if (!editable) {
+        throw new Error(
+          `expectEditable: ${describeTarget(step.target)} is present but not editable ` +
+            `(no contenteditable, or a disabled/readonly form control)`,
+        );
+      }
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'screenshot': {

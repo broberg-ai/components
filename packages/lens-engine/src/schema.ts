@@ -148,6 +148,7 @@ export const flowStepSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('assert'), js: z.string().min(1) }),
   z.object({ action: z.literal('expectText'), target: targetSchema, text: z.string().min(1) }),
   z.object({ action: z.literal('expectVisible'), target: targetSchema }),
+  z.object({ action: z.literal('expectEditable'), target: targetSchema }),
   z.object({
     action: z.literal('screenshot'),
     name: z.string().min(1).optional(),

@@ -25,6 +25,7 @@ export {
   runFlow,
   plannedLayers,
   resolveTarget,
+  isEditableElement,
   type FlowOptions,
   type FlowResult,
   type FlowStepReport,
