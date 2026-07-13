@@ -192,4 +192,67 @@ ${tipsHtml}
 </html>`;
 
 writeFileSync(new URL("../docs/onboarding.html", import.meta.url), html);
-console.log(`onboarding.html written · ${pkgCount} packages / ${categories.length} categories · ${tipCount} tips / ${tips.length} platforms`);
+
+// ---- llms.txt (llmstxt.org standard) — the AI-discoverable markdown map ----
+const BASE = "https://discovery.broberg.ai";
+const preamble = `# broberg.ai shared inventory — @broberg/* packages + fleet tips
+
+> You are an AI coding assistant. A developer pointed you here because they are starting or
+> extending a project in the **broberg.ai** fleet. **Rule: reuse before you build** — every
+> cross-cutting capability (mail, auth, storage, web-push, LLM access, design tokens, cron, …)
+> already has a shared \`@broberg/*\` package. Skim this file top to bottom, consume what fits
+> (exact-pin production deps), and tell the \`components\` session if something is missing so it
+> lands for everyone. Human page: ${BASE}/onboarding · JSON API: ${BASE}/api
+
+## Using the inventory
+- Found it? \`npm i @broberg/<name>\`. Missing it? Build it, then tell \`components\`.
+- Enroll when you adopt: \`POST ${BASE}/api/enroll\` (trust-on-first-use key; see ${BASE}/api).
+- Every one of the ${tipCount} tips, inline: ${BASE}/llms-full.txt
+`;
+
+const pkgLines = (c) =>
+  c.packages
+    .map(
+      (p) =>
+        `- **${p.pkg}**${p.version ? ` v${p.version}` : " (planned)"} — ${p.oneLiner}. \`npm i ${p.pkg}\``,
+    )
+    .join("\n");
+const pkgMd = categories
+  .map((c) => `### ${c.layer} — ${c.title} (${c.desc})\n${pkgLines(c)}`)
+  .join("\n\n");
+const tipsSummary = tips.map((t) => `${t.platform} (${t.count})`).join(" · ");
+
+const llms = `${preamble}
+## Packages by category (${pkgCount})
+
+${pkgMd}
+
+## Tips & tricks (${tipCount} across ${tips.length} platforms)
+
+Platforms: ${tipsSummary}.
+Full text of every tip: ${BASE}/llms-full.txt
+`;
+
+const tipsFullMd = tips
+  .map(
+    (t) =>
+      `### ${t.platform} (${t.count})\n` +
+      t.items.map((it) => `- **[${it.tag}]** ${it.text}${it.by ? ` _(${it.by})_` : ""}`).join("\n"),
+  )
+  .join("\n\n");
+const llmsFull = `${preamble}
+## Packages by category (${pkgCount})
+
+${pkgMd}
+
+## Tips & tricks — every tip inline (${tipCount})
+
+${tipsFullMd}
+`;
+
+writeFileSync(new URL("../docs/llms.txt", import.meta.url), llms);
+writeFileSync(new URL("../docs/llms-full.txt", import.meta.url), llmsFull);
+
+console.log(
+  `onboarding.html + llms.txt + llms-full.txt written · ${pkgCount} packages / ${categories.length} categories · ${tipCount} tips / ${tips.length} platforms`,
+);

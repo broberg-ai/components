@@ -112,7 +112,25 @@ describe("Discovery API", () => {
     const paths = body.endpoints.map((e: { path: string }) => e.path);
     expect(paths).toContain("/api/infra");
     expect(paths).toContain("/api/search");
+    expect(paths).toContain("/llms.txt"); // F060 onboarding surface advertised
     expect(body.stats.infraPlatforms).toBeGreaterThanOrEqual(9);
+  });
+
+  it("GET /llms.txt → the markdown AI onboarding map (F060)", async () => {
+    const res = await app.request("/llms.txt");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("# broberg.ai shared inventory");
+    expect(text).toContain("## Packages by category");
+    expect(text).toContain("reuse before you build");
+  });
+
+  it("GET /onboarding → human page; /ai + /llms-full.txt resolve (F060)", async () => {
+    expect((await app.request("/onboarding")).status).toBe(200);
+    expect((await app.request("/ai")).status).toBe(200);
+    const full = await app.request("/llms-full.txt");
+    expect(full.status).toBe(200);
+    expect(await full.text()).toContain("every tip inline");
   });
 
   it("GET /api/infra → platforms incl. fly with tipCount", async () => {

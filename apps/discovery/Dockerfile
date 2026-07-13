@@ -6,6 +6,9 @@ WORKDIR /app
 # Single source of truth (shared with the dashboard generator) + landing page.
 COPY scripts/inventory-data.mjs ./scripts/inventory-data.mjs
 COPY docs/inventory.html ./docs/inventory.html
+COPY docs/onboarding.html ./docs/onboarding.html
+COPY docs/llms.txt ./docs/llms.txt
+COPY docs/llms-full.txt ./docs/llms-full.txt
 
 # App deps.
 COPY apps/discovery/package.json ./apps/discovery/package.json

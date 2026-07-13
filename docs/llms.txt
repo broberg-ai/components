@@ -1,0 +1,76 @@
+# broberg.ai shared inventory — @broberg/* packages + fleet tips
+
+> You are an AI coding assistant. A developer pointed you here because they are starting or
+> extending a project in the **broberg.ai** fleet. **Rule: reuse before you build** — every
+> cross-cutting capability (mail, auth, storage, web-push, LLM access, design tokens, cron, …)
+> already has a shared `@broberg/*` package. Skim this file top to bottom, consume what fits
+> (exact-pin production deps), and tell the `components` session if something is missing so it
+> lands for everyone. Human page: https://discovery.broberg.ai/onboarding · JSON API: https://discovery.broberg.ai/api
+
+## Using the inventory
+- Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
+- Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
+- Every one of the 107 tips, inline: https://discovery.broberg.ai/llms-full.txt
+
+## Packages by category (46)
+
+### L0 — Rails (foundation every app stands on)
+- **@broberg/theme** v0.3.1 — The design-token foundation every surface inherits. `npm i @broberg/theme`
+- **@broberg/stack-b-base** (planned) — A ready-to-run base scaffold for Stack B apps (Bun · Hono · Preact · Tailwind v4) so a new lightweight service boots with the house wiring already …. `npm i @broberg/stack-b-base`
+- **@broberg/stack-a-base** (planned) — The Stack A counterpart. `npm i @broberg/stack-a-base`
+- **@broberg/config** v0.2.0 — The fleet's single-source config helper. `npm i @broberg/config`
+- **@broberg/mail** v0.3.0 — The fleet's thin Resend send primitive. `npm i @broberg/mail`
+- **@broberg/media** v0.2.0 — The fleet's provider-agnostic media-storage facade. `npm i @broberg/media`
+- **@broberg/mail-core** v0.1.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
+- **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
+- **@broberg/cron** v0.1.0 — The fleet's typed self-service client for cronjobs.webhouse.net. `npm i @broberg/cron`
+- **@broberg/webpush** v0.1.1 — The fleet's storage-agnostic Web Push primitive. `npm i @broberg/webpush`
+- **@broberg/mcp** v0.4.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
+- **@broberg/secret-scan** v0.1.7 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
+- **@broberg/lens** v0.1.3 — A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem…. `npm i @broberg/lens`
+
+### L1 — Identity (who the user is)
+- **@broberg/auth** v0.1.1 — Thin fleet wrapper around Better Auth. `npm i @broberg/auth`
+- **@broberg/apikey** v0.1.1 — The fleet's inbound API-key primitives. `npm i @broberg/apikey`
+- **@broberg/event-log** v0.1.0 — A GDPR-aware event and activity log. `npm i @broberg/event-log`
+- **@broberg/gravatar** v0.1.0 — Isomorphic Gravatar helper (SHA-256 via crypto.subtle) + initials fallback. `npm i @broberg/gravatar`
+- **@broberg/consent-cookie** v0.1.0 — A consent and cookie banner. `npm i @broberg/consent-cookie`
+
+### L2 — Shell (the app frame & controls)
+- **@broberg/theme** v0.3.1 — DELIVERED by @broberg/theme (0.3.1). `npm i @broberg/theme`
+- **@broberg/ui-controls-core** v0.1.0 — The custom-control kit. `npm i @broberg/ui-controls-core`
+- **@broberg/cmdk** v0.1.0 — A Cmd+K command palette. `npm i @broberg/cmdk`
+- **@broberg/i18n** v0.1.0 — i18n and a language switch. `npm i @broberg/i18n`
+- **@broberg/seo** (planned) — SEO and metadata helpers for Stack A. `npm i @broberg/seo`
+
+### L3 — Domain (feature surfaces)
+- **@broberg/mail-core** v0.1.0 — Branded HTML email shell + primitives (renderShell, heading/paragraph/cta/factBox/signOff, CID logo attachment). `npm i @broberg/mail-core`
+- **@broberg/speech-dictionary** v0.1.1 — Fleet STT vocabulary + correction primitive. `npm i @broberg/speech-dictionary`
+- **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
+- **@broberg/lens-engine** v0.4.0 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
+- **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
+- **@broberg/bodymap** v0.2.4 — Interactive body pain-map. `npm i @broberg/bodymap`
+- **@broberg/stripe** v0.2.0 — The fleet's one Stripe chokepoint. `npm i @broberg/stripe`
+- **@broberg/pwa** v0.2.0 — The fleet's PWA primitive. `npm i @broberg/pwa`
+- **@broberg/forms-turnstile** v0.1.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
+- **@broberg/seti-client** v0.3.2 — The SETI streaming-chat client. `npm i @broberg/seti-client`
+- **@broberg/seti-server** v0.2.5 — The SETI proxy router. `npm i @broberg/seti-server`
+- **@broberg/soundkit** v0.1.0 — SoundKit. `npm i @broberg/soundkit`
+- **@broberg/deploy-core** v0.1.0 — The fleet's shared deploy execution layer. `npm i @broberg/deploy-core`
+- **@broberg/changelog** (planned) — Auto product-changelog from git history. `npm i @broberg/changelog`
+
+### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
+- **@broberg/db-sdk** v0.1.0 — The fleet Data SDK. `npm i @broberg/db-sdk`
+- **@broberg/ai-sdk** v0.22.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@upmetrics/sdk** v0.3.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
+- **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
+- **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
+- **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts`
+- **@broberg/complimenta-sdk** v0.2.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk`
+- **@broberg/cms-inline-edit** v0.4.14 — Click-to-edit widget for live @webhouse/cms-sites. `npm i @broberg/cms-inline-edit`
+- **@broberg/cms-chat-client** v0.4.16 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
+
+## Tips & tricks (107 across 14 platforms)
+
+Platforms: Fly.io (22) · Cloudflare (13) · Resend (8) · Stripe (7) · Supabase (8) · Turso / libSQL (5) · npm / OIDC publishing (9) · Pitch Vault (7) · Image processing (sharp / HEIC) (6) · GitHub Actions / CI-CD (6) · Frontend (Preact / Next / PWA / web) (7) · AI / LLM providers (@broberg/ai-sdk) (4) · Fleet ops (cc-session auth · edge · inter-session comms) (4) · Native macOS/iOS apps (Swift — codesign, entitlements, TCC) (1).
+Full text of every tip: https://discovery.broberg.ai/llms-full.txt

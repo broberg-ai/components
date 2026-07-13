@@ -169,6 +169,24 @@ try {
   LANDING = "<!doctype html><title>discovery.broberg.ai</title><p>Inventory dashboard unavailable.</p>";
 }
 
+// Onboarding surface (F060): generated from the SAME single source by
+// scripts/build-onboarding.mjs. /onboarding = human page; /llms.txt (+ /ai alias,
+// /llms-full.txt) = the web-standard AI map (llmstxt.org) a new agent can discover
+// by its guessable name, in markdown, without knowing a bespoke endpoint.
+const readDoc = (rel: string, fallback: string) => {
+  try {
+    return readFileSync(new URL(rel, import.meta.url), "utf8");
+  } catch {
+    return fallback;
+  }
+};
+const ONBOARDING = readDoc(
+  "../../docs/onboarding.html",
+  "<!doctype html><title>onboarding</title><p>Onboarding page unavailable.</p>",
+);
+const LLMS = readDoc("../../docs/llms.txt", "# broberg.ai shared inventory\n\nllms.txt is unavailable — see https://discovery.broberg.ai/api");
+const LLMS_FULL = readDoc("../../docs/llms-full.txt", LLMS);
+
 // The self-describing Discovery root: ONE call hands the caller every other call
 // AND the values they can search by — so a session that doesn't yet know what
 // exists can discover everything from here. This is the primary entry point.
@@ -177,9 +195,11 @@ const manifest = () => ({
   tagline: "Discover everything reusable across broberg.ai — query this BEFORE you build. Reuse > re-roll.",
   version: VERSION,
   start_here:
-    "You are at the Discovery root. Every endpoint and every value you can filter by is listed below, so you can explore the whole inventory without knowing it in advance. Typical flow: GET /api/search?q=<what-you-need> → if nothing fits, you're clear to build (then tell components so it's added for everyone). Search is tokenized and alias-aware: a natural phrase OR a short keyword both work — 'send email' and 'mail' both find @broberg/mail, 'dark mode' finds @broberg/theme, 'postgres' finds Supabase. Each component also carries a `keywords` array of the aliases it answers to.",
+    "New here and don't know what to search for? GET /llms.txt — the whole map in one markdown file (every @broberg/* package by category + all fleet tips), the web-standard AI onboarding file (llmstxt.org). Humans: /onboarding. Otherwise, every endpoint and every value you can filter by is listed below. Typical flow: GET /api/search?q=<what-you-need> → if nothing fits, you're clear to build (then tell components so it's added for everyone). Search is tokenized and alias-aware: 'send email' and 'mail' both find @broberg/mail, 'dark mode' finds @broberg/theme, 'postgres' finds Supabase.",
   stats,
   endpoints: [
+    { method: "GET", path: "/llms.txt", description: "START HERE — the whole inventory as one markdown map (packages by category + tips), the standard AI onboarding file. /ai aliases it; /llms-full.txt inlines every tip.", example: "/llms.txt" },
+    { method: "GET", path: "/onboarding", description: "the human-browsable onboarding page — same map, rendered", example: "/onboarding" },
     { method: "GET", path: "/api", description: "this self-describing manifest — all endpoints + searchable vocabularies", example: "/api" },
     { method: "GET", path: "/api/components", description: "all components; filter with ?q= &layer= &status= &model=", example: "/api/components?q=mail&status=shipped" },
     { method: "GET", path: "/api/components/:id", description: "one component by F-number or slug", example: "/api/components/F005" },
@@ -225,6 +245,12 @@ app.get("/", (c) => {
 });
 
 app.get("/health", (c) => c.json({ ok: true, service: "discovery", version: VERSION }));
+
+// Onboarding surface (F060) — discoverable without a query.
+app.get("/onboarding", (c) => c.html(ONBOARDING));
+app.get("/llms.txt", (c) => c.text(LLMS));
+app.get("/llms-full.txt", (c) => c.text(LLMS_FULL));
+app.get("/ai", (c) => c.text(LLMS)); // webhouse-style entry-point alias → the llms.txt map
 
 app.get("/api", (c) => c.json(manifest()));
 
