@@ -1,6 +1,6 @@
 // F060 — generate the Discovery onboarding surface from the SINGLE SOURCE
 // (inventory-data.mjs). One aggregation → the /onboarding HTML page (here) and
-// the /api/onboarding JSON digest (server, once approved). No hand-maintained copy.
+// the /llms.txt AI map (llmstxt.org standard) + /llms-full.txt. No hand-maintained copy.
 //
 //   node scripts/build-onboarding.mjs   → writes docs/onboarding.html
 import { DATA, INFRA, npmUrl } from "./inventory-data.mjs";
@@ -17,7 +17,7 @@ const oneLiner = (c) => {
   return s.length > 150 ? s.slice(0, 147) + "…" : s;
 };
 
-// ---- aggregation (the SAME shape the /api/onboarding digest will return) ----
+// ---- aggregation (also feeds the /llms.txt map) ----
 const categories = DATA.map((L) => ({
   layer: L.n,
   title: L.t,
@@ -164,8 +164,8 @@ footer a{color:var(--muted)}
     <div class="stat"><b>${tips.length}</b><span>platforms</span></div>
   </div>
   <div class="agentbar">
-    <div><div class="ttl">For agents</div><p>Don't guess a search term — pull the whole map in one call.</p></div>
-    <div class="cmd"><span class="p">GET</span> https://discovery.broberg.ai/api/onboarding</div>
+    <div><div class="ttl">For agents</div><p>Don't guess a search term — fetch the whole map as one markdown file (the llms.txt standard).</p></div>
+    <div class="cmd"><span class="p">GET</span> https://discovery.broberg.ai/llms.txt</div>
   </div>
 </section>
 
@@ -179,8 +179,8 @@ ${tipsHtml}
 
 <footer>
   Generated from the single source (<code>scripts/inventory-data.mjs</code>) — this page and
-  <code>GET /api/onboarding</code> never drift. Adopted a package? Self-report:
-  <code>POST /api/onboarding</code> … see <a href="https://discovery.broberg.ai/api">/api</a>.
+  <code>GET /llms.txt</code> never drift. Adopted a package? Self-report:
+  <code>POST /api/enroll</code> … see <a href="https://discovery.broberg.ai/api">/api</a>.
   Missing something? Build it, then tell <strong>components</strong> so it's added for everyone.
 </footer>
 </main>

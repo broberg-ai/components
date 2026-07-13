@@ -75,8 +75,8 @@ footer a{color:var(--muted)}
     <div class="stat"><b>14</b><span>platforms</span></div>
   </div>
   <div class="agentbar">
-    <div><div class="ttl">For agents</div><p>Don't guess a search term — pull the whole map in one call.</p></div>
-    <div class="cmd"><span class="p">GET</span> https://discovery.broberg.ai/api/onboarding</div>
+    <div><div class="ttl">For agents</div><p>Don't guess a search term — fetch the whole map as one markdown file (the llms.txt standard).</p></div>
+    <div class="cmd"><span class="p">GET</span> https://discovery.broberg.ai/llms.txt</div>
   </div>
 </section>
 
@@ -220,8 +220,8 @@ footer a{color:var(--muted)}
 
 <footer>
   Generated from the single source (<code>scripts/inventory-data.mjs</code>) — this page and
-  <code>GET /api/onboarding</code> never drift. Adopted a package? Self-report:
-  <code>POST /api/onboarding</code> … see <a href="https://discovery.broberg.ai/api">/api</a>.
+  <code>GET /llms.txt</code> never drift. Adopted a package? Self-report:
+  <code>POST /api/enroll</code> … see <a href="https://discovery.broberg.ai/api">/api</a>.
   Missing something? Build it, then tell <strong>components</strong> so it's added for everyone.
 </footer>
 </main>
