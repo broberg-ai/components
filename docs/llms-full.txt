@@ -70,7 +70,7 @@
 - **@broberg/cms-inline-edit** v0.4.14 — Click-to-edit widget for live @webhouse/cms-sites. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.16 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
-## Tips & tricks — every tip inline (107)
+## Tips & tricks — every tip inline (107 across 14 platforms)
 
 ### Fly.io (22)
 - **[region]** Region is ALWAYS arn (Stockholm). Set primary_region = "arn" — never US/Amsterdam. _(components)_

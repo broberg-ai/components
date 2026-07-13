@@ -3,12 +3,15 @@
 FROM oven/bun:1
 WORKDIR /app
 
-# Single source of truth (shared with the dashboard generator) + landing page.
+# Single source of truth + the generators that render every served surface from it.
 COPY scripts/inventory-data.mjs ./scripts/inventory-data.mjs
-COPY docs/inventory.html ./docs/inventory.html
-COPY docs/onboarding.html ./docs/onboarding.html
-COPY docs/llms.txt ./docs/llms.txt
-COPY docs/llms-full.txt ./docs/llms-full.txt
+COPY scripts/build-inventory.mjs ./scripts/build-inventory.mjs
+COPY scripts/build-onboarding.mjs ./scripts/build-onboarding.mjs
+
+# Generate the landing + onboarding surfaces AT BUILD TIME from the single source,
+# so every deploy re-renders them — a committed snapshot can never go stale in prod.
+# (docs/inventory.html, docs/onboarding.html, docs/llms.txt, docs/llms-full.txt)
+RUN mkdir -p docs && bun scripts/build-inventory.mjs && bun scripts/build-onboarding.mjs
 
 # App deps.
 COPY apps/discovery/package.json ./apps/discovery/package.json

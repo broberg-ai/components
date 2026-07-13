@@ -220,19 +220,6 @@ const pkgLines = (c) =>
 const pkgMd = categories
   .map((c) => `### ${c.layer} — ${c.title} (${c.desc})\n${pkgLines(c)}`)
   .join("\n\n");
-const tipsSummary = tips.map((t) => `${t.platform} (${t.count})`).join(" · ");
-
-const llms = `${preamble}
-## Packages by category (${pkgCount})
-
-${pkgMd}
-
-## Tips & tricks (${tipCount} across ${tips.length} platforms)
-
-Platforms: ${tipsSummary}.
-Full text of every tip: ${BASE}/llms-full.txt
-`;
-
 const tipsFullMd = tips
   .map(
     (t) =>
@@ -240,18 +227,22 @@ const tipsFullMd = tips
       t.items.map((it) => `- **[${it.tag}]** ${it.text}${it.by ? ` _(${it.by})_` : ""}`).join("\n"),
   )
   .join("\n\n");
-const llmsFull = `${preamble}
+
+// The AI map is COMPLETE — packages by category AND every tip inline — so a new
+// agent gets the whole briefing in ONE fetch of /llms.txt (or /ai), no second hop.
+// /llms-full.txt is kept as a convention alias for the same content.
+const llms = `${preamble}
 ## Packages by category (${pkgCount})
 
 ${pkgMd}
 
-## Tips & tricks — every tip inline (${tipCount})
+## Tips & tricks — every tip inline (${tipCount} across ${tips.length} platforms)
 
 ${tipsFullMd}
 `;
 
 writeFileSync(new URL("../docs/llms.txt", import.meta.url), llms);
-writeFileSync(new URL("../docs/llms-full.txt", import.meta.url), llmsFull);
+writeFileSync(new URL("../docs/llms-full.txt", import.meta.url), llms);
 
 console.log(
   `onboarding.html + llms.txt + llms-full.txt written · ${pkgCount} packages / ${categories.length} categories · ${tipCount} tips / ${tips.length} platforms`,

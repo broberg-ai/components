@@ -1,0 +1,32 @@
+name: inventory-fresh
+
+# Ensures the generated Discovery surfaces (landing + onboarding + llms.txt) never
+# drift from their single source (scripts/inventory-data.mjs). Prod regenerates at
+# Docker build time; this gate keeps the COMMITTED snapshots honest too (they back
+# the local preview + the F060 mockup raw URL). If you add a package or a tip and
+# forget to regenerate, this job goes red with the exact fix.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Regenerate the surfaces from the single source
+        run: |
+          bun scripts/build-inventory.mjs
+          bun scripts/build-onboarding.mjs
+
+      - name: Fail if the committed docs are stale
+        run: |
+          if ! git diff --quiet -- docs/inventory.html docs/onboarding.html docs/llms.txt docs/llms-full.txt; then
+            echo "::error::Discovery docs are stale vs scripts/inventory-data.mjs — run: bun scripts/build-inventory.mjs && bun scripts/build-onboarding.mjs, then commit docs/."
+            git --no-pager diff --stat -- docs/
+            exit 1
+          fi
+          echo "Discovery docs are in sync with the single source."
