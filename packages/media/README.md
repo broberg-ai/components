@@ -26,24 +26,45 @@ const media = createMedia({
   bucket: "assets",
   jurisdiction: "eu",          // pin EU data-residency (GDPR); must match how the bucket was created
   keyPrefix: "tenants/acme/",  // optional multi-tenant isolation
+  publicBaseUrl: "https://media.example.com", // optional — enables publicUrl() (public bucket)
 });
 
-await media.upload("logo.png", bytes, { contentType: "image/png" });
-const url = await media.signedUrl("logo.png", { expiresIn: 600 }); // presigned GET, no public bucket
-await media.delete("logo.png"); // idempotent — a missing key is not an error
+const { key } = await media.upload("logo.png", bytes, { contentType: "image/png" });
+const signed = await media.signedUrl(key, { expiresIn: 600 }); // presigned GET, no public bucket
+const stable = media.publicUrl(key);                            // stable public URL (needs publicBaseUrl)
+await media.delete(key);                                        // idempotent — a missing key is not an error
 ```
 
 ## API
 
 | Method | Returns | Notes |
 |---|---|---|
-| `upload(key, body, opts?)` | `{ key }` | `body` = anything `fetch` accepts; `opts.contentType` / `opts.cacheControl` |
-| `signedUrl(key, opts?)` | `string` | time-limited presigned GET (`opts.expiresIn` seconds, default 3600) |
+| `upload(key, body, opts?)` | `{ key }` | returns the **logical** key you passed (safe to feed back into the others); `opts.contentType` / `opts.cacheControl` |
+| `signedUrl(key, opts?)` | `string` (async) | time-limited presigned GET (`opts.expiresIn` seconds, default 3600) — no public bucket needed |
+| `publicUrl(key)` | `string` (**sync**) | stable, non-expiring public URL; needs `publicBaseUrl` + a public bucket; **throws** if `publicBaseUrl` is unset |
 | `delete(key)` | `void` | idempotent (404 tolerated) |
 
-`keyPrefix` is prepended to every key (with a single `/`); leading slashes on
-keys are stripped, so `keyPrefix:"tenants/acme"` + `"/logo.png"` →
-`tenants/acme/logo.png`.
+Every method takes the **logical** key; `keyPrefix` is applied internally (with a
+single `/`, leading slashes stripped), so `keyPrefix:"tenants/acme"` + `"/logo.png"`
+→ `tenants/acme/logo.png`. Because `upload()` returns the logical key, storing it and
+passing it back never double-prefixes.
+
+> **v0.2.0 (behavior):** `upload()` now returns the **logical** (un-prefixed) key,
+> not the prefixed one — so the round-trip into `signedUrl`/`delete`/`publicUrl` is
+> symmetric. Only observable when you use `keyPrefix` (and that round-trip was broken
+> before). Also new: `publicUrl(key)` + `publicBaseUrl`.
+
+## Public URLs (v0.2.0)
+
+`signedUrl()` expires — wrong for an image embedded in already-published content
+(news richtext, a **sent** email). For those, set `publicBaseUrl` (the bucket's R2
+custom-domain or `r2.dev` URL) and use `publicUrl(key)` — a stable, non-expiring
+URL, built synchronously (no signing/IO) so it drops straight into a template.
+
+The package only **constructs** the URL — the bucket must actually be publicly
+readable. Bind a custom domain (via `dns-mcp`, e.g. `media.example.com`) or enable
+the bucket's `r2.dev` public URL, then set that as `publicBaseUrl`. Until it is set,
+`publicUrl()` throws (public stays off — nothing is exposed by accident).
 
 ## Provisioning the bucket
 

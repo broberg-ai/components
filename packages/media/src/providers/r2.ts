@@ -17,6 +17,7 @@ const encodeKey = (key: string) =>
 export function createR2Store(cfg: R2Config): MediaStore {
   const base = `https://${r2Host(cfg.accountId, cfg.jurisdiction)}/${cfg.bucket}`;
   const prefix = cfg.keyPrefix ? `${cfg.keyPrefix.replace(/\/+$/, "")}/` : "";
+  const publicBase = cfg.publicBaseUrl ? cfg.publicBaseUrl.replace(/\/+$/, "") : undefined;
   // R2 always uses region "auto"; the S3 service signs the request.
   const aws = new AwsClient({
     accessKeyId: cfg.accessKeyId,
@@ -26,7 +27,9 @@ export function createR2Store(cfg: R2Config): MediaStore {
     retries: 2, // modest resilience against R2's transient 5xx/429 (aws4fetch defaults to 10)
   });
 
-  const fullKey = (key: string) => prefix + key.replace(/^\/+/, "");
+  // Strip a leading slash so callers can pass "/logo.png" or "logo.png" alike.
+  const normalize = (key: string) => key.replace(/^\/+/, "");
+  const fullKey = (key: string) => prefix + normalize(key);
   const objectUrl = (key: string) => `${base}/${encodeKey(fullKey(key))}`;
 
   return {
@@ -38,7 +41,9 @@ export function createR2Store(cfg: R2Config): MediaStore {
       if (!res.ok) {
         throw new Error(`media(r2): upload failed ${res.status} ${await res.text().catch(() => "")}`.trim());
       }
-      return { key: fullKey(key) };
+      // Return the LOGICAL key (prefix applied internally) — safe to feed back
+      // into signedUrl/delete/publicUrl without double-prefixing.
+      return { key: normalize(key) };
     },
 
     async signedUrl(key: string, opts?: SignedUrlOptions) {
@@ -52,6 +57,16 @@ export function createR2Store(cfg: R2Config): MediaStore {
       if (!res.ok && res.status !== 404) {
         throw new Error(`media(r2): delete failed ${res.status}`);
       }
+    },
+
+    publicUrl(key: string): string {
+      if (!publicBase) {
+        throw new Error(
+          "media(r2): publicUrl requires publicBaseUrl in the config (the bucket's " +
+            "public R2 custom-domain or r2.dev URL). Public access is off until it is set.",
+        );
+      }
+      return `${publicBase}/${encodeKey(fullKey(key))}`;
     },
   };
 }

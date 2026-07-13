@@ -1,6 +1,6 @@
 {
   "name": "@broberg/media",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The fleet's provider-agnostic media-storage facade — one createMedia() API (upload · signedUrl · delete) over swappable storage providers, so a later move between providers never touches a call-site. Ships with a Cloudflare R2 provider (S3-compatible, SigV4 via aws4fetch — Node/Bun/edge), multi-tenant keyPrefix and EU-jurisdiction support. Start on R2, add S3/Supabase later without changing your code.",
   "type": "module",
   "license": "MIT",
