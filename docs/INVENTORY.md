@@ -1,93 +1,126 @@
 # @broberg/components — Inventory & Vision
 
-> Generated from a code-grounded estate sweep (80 repos under `~/Apps`, 52-agent workflow, 2026-06-08). Each component below is a cardmem **epic** with a full plan-doc + stories on the [components board](https://www.cardmem.com/board). This file is the scored reference; the board is the live index.
+> Origin: a code-grounded estate sweep (80 repos under `~/Apps`, 52-agent workflow, **2026-06-08**). **Re-synced 2026-07-13** against the single source of truth `scripts/inventory-data.mjs` (the same data that powers [discovery.broberg.ai](https://discovery.broberg.ai)). Each component below is a cardmem **epic** with a full plan-doc + stories on the [components board](https://www.cardmem.com/board).
 >
-> **Reuse models:** 📦 runtime-package · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid. **Graduate** = should get its own repo + cardmem project.
+> **This file is the scored, human-readable reference. The live authoritative roster is [discovery.broberg.ai/ai](https://discovery.broberg.ai/ai)** (one markdown fetch, all packages + tips) — always current because it re-renders from `inventory-data.mjs` at deploy time. When the two disagree, Discovery wins; open an edit to `inventory-data.mjs` (never hand-edit this doc to lead).
+>
+> **Reuse models:** 📦 runtime-package · 📋 copy-owned · 🏗️ scaffold · 🔀 hybrid. **Graduate** = should get its own repo + cardmem project. **Status:** ✅ = shipped on npm · — = planned / copy-source not yet extracted · ⤳ = moved / superseded.
 
-## L0 Rails
+**Snapshot (2026-07-13): 31 shipped `@broberg/*` primitives** owned + published by `components`, plus the sibling fleet SDKs installed here from their own repos (bottom table). See Discovery for the live count.
 
-| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
+## L0 Rails — foundation every app stands on
+
+| F | Component | Package | Model | Status | Impact | Graduate | Best source |
 |---|---|---|---|---|---|---|---|
-| F001 | Design tokens + theme preset — **`@broberg/theme` ✅ shipped v0.2.0** (npm; Tailwind v4; + DESIGN.md→v4 generator) | hybrid | M | critical | — | `webhouse/cms` | `cms` |
-| F002 | @broberg/stack-b-base — Stack B base scaffold | scaffold | M | high | — | `broberg/cardmem` | `cardmem` |
-| F003 | Stack A base-scaffold (@broberg/stack-a-base) | scaffold | M | high | — | `webhouse/boilerplates-cms` | `boilerplates-cms — the cc session in webhouse/boilerplates-cms already maintains the canonical variants. Extraction into @broberg/components and publication as a create-* CLI should be piloted there.` |
-| F004 | Config single-source helper | runtime-package | S | high | — | `broberg/xrt81` | `xrt81` |
-| F005 | Mail sending (Resend) | runtime-package | S | high | — | `webhouse/sanneandersen` | `sanneandersen` |
-| F006 | Media / R2 — Cloudflare R2 object-storage core | runtime-package | M | high | — | `broberg/cardmem` | `cardmem` |
-| F007 | MCP Server Toolkit | hybrid | M | high | — | `webhouse/cms` | `cms` |
+| F001 | Design tokens + theme preset | `@broberg/theme` | 🔀 | ✅ v0.3.1 | critical | — | `webhouse/cms` |
+| F002 | Stack B base scaffold | `@broberg/stack-b-base` | 🏗️ | — planned | high | — | `broberg/cardmem` |
+| F003 | Stack A base scaffold | `@broberg/stack-a-base` | 🏗️ | — planned | high | — | `webhouse/boilerplates-cms` |
+| F004 | Config single-source helper | `@broberg/config` | 📦 | ✅ v0.2.0 | high | — | `broberg/xrt81` |
+| F005 | Mail sending (Resend) | `@broberg/mail` | 📦 | ✅ v0.3.0 | high | — | `webhouse/sanneandersen` |
+| F006 | Media storage (provider-agnostic R2) | `@broberg/media` | 📦 | ✅ v0.2.0 | high | — | `broberg/cardmem` |
+| F043 | Branded email shell | `@broberg/mail-core` | 📦 | ✅ v0.1.0 | medium | — | `broberg-ai/components` |
+| F042 | Image transform (HEIC→WebP) | `@broberg/media-transform` | 📦 | ✅ v0.1.0 | high | — | `broberg/xrt81` |
+| F041 | Cron client (cronjobs.webhouse.net) | `@broberg/cron` | 📦 | ✅ v0.1.0 | high | — | `broberg-ai/components` |
+| — | Web Push (PWA notifications) | `@broberg/webpush` | 📦 | ✅ v0.1.1 | high | — | `broberg-ai/components` |
+| F007 | MCP Server Toolkit | `@broberg/mcp` | 🔀 | ✅ v0.4.0 | high | — | `webhouse/cms` |
+| F035 | Secret / credential redaction | `@broberg/secret-scan` | 📦 | ✅ v0.1.7 | high | — | `broberg/trail` |
+| F036 | Lens-mint compliance | `@broberg/lens` | 🔀 | ✅ v0.1.3 | high | — | `broberg/cardmem` |
+| F058 | HTTP header helpers (`contentDisposition`) | `@broberg/http` | 📦 | 🔨 built · awaiting bootstrap-publish | medium | — | `broberg-ai/components` |
 
-## L1 Identity
+> **F058 `@broberg/http`** is the one row not yet on npm / not yet in the live Discovery roster: the code is built, tested + committed, but a brand-new npm name needs a one-time org-owner bootstrap publish (npm login + OTP) before its OIDC workflow can ship later versions. It joins Discovery the moment it goes live.
 
-| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
+## L1 Identity — who the user is
+
+| F | Component | Package | Model | Status | Impact | Graduate | Best source |
 |---|---|---|---|---|---|---|---|
-| F008 | OAuth Login Providers (Google / Apple / GitHub + identity linking) | runtime-package | M | high | — | `broberg/xrt81` | `xrt81` |
-| F009 | User Management + Invitation | hybrid | M | high | — | `webhouse/cms` | `cms` |
-| F010 | API-key + rate-limit helper | runtime-package | M | high | — | `broberg/trail` | `trail` |
-| F011 | Event Log (GDPR + Activity Log) | hybrid | M | high | — | `webhouse/cms` | `cms` |
-| F012 | Profile + Image Upload | hybrid | M | medium | — | `broberg/xrt81` | `xrt81` |
-| F013 | Gravatar Connector | runtime-package | S | medium | — | `webhouse/fysiodk-aalborg-sport` | `fysiodk-aalborg-sport` |
-| F014 | Consent / Cookie Banner | copy-owned | M | medium | — | `cbroberg/codepromptmaker` | `codepromptmaker` |
+| F008 | Unified auth (Better Auth wrapper) | `@broberg/auth` | 📦 | ✅ v0.1.1 | high | — | `broberg/xrt81` |
+| F009 | User management + invitation | — | 🔀 | — planned | high | — | `webhouse/cms` |
+| F010 | API-key + rate-limit | `@broberg/apikey` | 📦 | ✅ v0.1.1 | high | — | `broberg/trail` |
+| F011 | Event / activity log (GDPR) | `@broberg/event-log` | 🔀 | ✅ v0.1.0 | high | — | `webhouse/cms` |
+| F012 | Profile + image upload | — | 🔀 | — planned | medium | — | `broberg/xrt81` |
+| F013 | Gravatar connector | `@broberg/gravatar` | 📦 | ✅ v0.1.0 | medium | — | `webhouse/fysiodk-aalborg-sport` |
+| F014 | Consent / cookie banner | `@broberg/consent-cookie` | 📋 | ✅ v0.1.0 | medium | — | `cbroberg/codepromptmaker` |
 
-## L2 Shell
+## L2 Shell — the app frame & controls
 
-| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
+| F | Component | Package | Model | Status | Impact | Graduate | Best source |
 |---|---|---|---|---|---|---|---|
-| F015 | Mode-switch (dark / light / system) | hybrid | S | high | — | `webhouse/fysiodk-aalborg-sport` | `fysiodk-aalborg-sport` |
-| F016 | Toasts / Modals + Custom Controls (CustomSelect, DatePicker, ConfirmModal) | copy-owned | M | high | — | `webhouse/cms` | `cms` |
-| F017 | Settings — Tabbed Config Shell with Section Panels | hybrid | M | high | — | `webhouse/cms` | `cms` |
-| F018 | CMD+K Command Palette | copy-owned | M | high | — | `webhouse/cms` | `cms` |
-| F019 | i18n / Language Switch | hybrid | M | medium | — | `broberg/trail` | `trail` |
-| F020 | SEO / Metadata Helpers (Stack A) | runtime-package | M | high | — | `webhouse/cms` | `cms` |
-| F021 | PWA Setup | hybrid | M | medium | — | `broberg/xrt81` | `xrt81` |
-| F022 | PWA Update Banner | copy-owned | M | medium | — | `broberg/cardmem` | `cardmem` |
-| F034 | User Menu (account dropdown + quick-prefs) — composition of F012/13 · F015 · F019 · F016 · F008/09 | copy-owned | M | high | — | `webhouse/cms` | `cms` + `xrt81` |
+| F015 | Mode-switch (dark / light / system) | `@broberg/theme` | 🔀 | ✅ v0.3.1 | high | — | `webhouse/cms` |
+| F016 | Toasts / Modals / Custom controls | `@broberg/ui-controls-core` | 📋 | ✅ v0.1.0 | high | — | `webhouse/cms` |
+| F017 | Settings — tabbed config shell | — | 🔀 | — planned | high | — | `webhouse/cms` |
+| F018 | Command palette (Cmd+K) | `@broberg/cmdk` | 📋 | ✅ v0.1.0 | high | — | `webhouse/cms` |
+| F019 | i18n / language switch | `@broberg/i18n` | 🔀 | ✅ v0.1.0 | medium | — | `broberg/trail` |
+| F020 | SEO / metadata helpers (Stack A) | `@broberg/seo` | 📦 | — planned | high | — | `webhouse/cms` |
+| F021 | PWA setup | — | 🔀 | — planned | medium | — | `broberg/xrt81` |
+| F022 | PWA update banner | — | 📋 | ⤳ shipped as `@broberg/pwa` (F054) | medium | — | `broberg/cardmem` |
+| F034 | User menu (account dropdown) | — | 📋 | — planned | high | — | `webhouse/cms` + `xrt81` |
 
-## L3 Domain
+## L3 Domain — feature surfaces
 
-| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
+| F | Component | Package | Model | Status | Impact | Graduate | Best source |
 |---|---|---|---|---|---|---|---|
-| F023 | Mail Templates | copy-owned | M | high | — | `webhouse/sanneandersen` | `sanneandersen` |
-| F024 | Forms + Turnstile — spam-protected form pipeline | hybrid | M | high | — | `webhouse/cms` | `cms` |
-| F025 | Chat / Chatbot UI | hybrid | L | high | — | `webhouse/cms` | `cms` |
-| F026 | SoundKit — synthesized & file-based audio effects for browser apps | runtime-package | M | medium | — | `cbroberg/catan-multi-player` | `buddy` |
-| ~~F027~~ → **Upmetrics F019** | Deployment Mgmt — observe half (probe/health/CI-watch/deploy-events + relay + release-registry) **re-homed to Upmetrics** | — | — | — | moved | `webhouse/cms` | `upmetrics` |
-| F033 | Deploy provider core + trigger UI (`@broberg/deploy-core`) — execution half of former F027 | hybrid | L | high | — | `webhouse/cms` | `cms` |
-| F028 | Podcast Manager / Maker | scaffold | L | medium | yes | `webhouse/cms` | `webhouse/cms — F05 already specifies the canonical design (collection templates, RSS generator, admin page, PodcastAgent). The CMS session should implement F05 first, then the extraction into @broberg/components scaffold follows naturally. The ai-sdk session (broberg/ai-sdk) already owns the AI generation half and needs no changes.` |
+| F023 | Mail templates — branded shell + primitives | `@broberg/mail-core` | 📦 | ✅ v0.1.0 | high | — | `broberg-ai/components` |
+| F024 | Forms + Turnstile — spam-protected pipeline | `@broberg/forms-turnstile` | 🔀 | ✅ v0.1.0 | high | — | `webhouse/cms` |
+| F025 | Chat / chatbot UI | — | 🔀 | — planned | high | — | `webhouse/cms` |
+| F026 | SoundKit — browser audio effects | `@broberg/soundkit` | 📦 | ✅ v0.1.0 | medium | — | `cbroberg/catan-multi-player` |
+| F033 | Deploy provider core + trigger UI | `@broberg/deploy-core` | 🔀 | ✅ v0.1.0 | high | — | `webhouse/cms` |
+| F044 | Speech dictionary (STT vocabulary + corrections) | `@broberg/speech-dictionary` | 📦 | ✅ v0.1.1 | medium | — | `broberg-ai/components` |
+| F045 | Team-chat webhook notifications | `@broberg/notify` | 📦 | ✅ v0.1.0 | medium | — | `broberg-ai/components` |
+| F046 | Lens capture / flow engine (Playwright) | `@broberg/lens-engine` | 📦 | ✅ v0.4.0 | high | — | `broberg/cardmem` |
+| F047 | Hosted-Lens client (no Playwright) | `@broberg/lens-client` | 📦 | ✅ v0.1.0 | high | — | `broberg-ai/components` |
+| F052 | Body pain-map | `@broberg/bodymap` | 📦 | ✅ v0.2.4 | medium | — | `broberg-ai/components` |
+| F053 | Stripe payments (Connect chokepoint) | `@broberg/stripe` | 📦 | ✅ v0.2.0 | high | — | `broberg-ai/components` |
+| F054 | PWA update primitive | `@broberg/pwa` | 📦 | ✅ v0.2.0 | medium | — | `broberg/fysiodk-aalborg-sport` |
+| F037 | SETI streaming chat — client + Preact UI | `@broberg/seti-client` | 🔀 | ✅ v0.3.2 | high | — | `broberg-ai/components` |
+| F037 | SETI proxy router | `@broberg/seti-server` | 📦 | ✅ v0.2.5 | high | — | `broberg-ai/components` |
+| F027 | Deployment Mgmt (observe half) | — | 🔀 | ⤳ moved → Upmetrics | — | — | `webhouse/cms` |
+| F028 | Podcast manager / maker | — | 🏗️ | — planned | medium | yes | `webhouse/cms` |
+| — | Auto product-changelog | `@broberg/changelog` | 📦 | — planned (lift candidate) | medium | — | `webhouse/fysiodk-aalborg-sport` |
 
-## L4 Capstone
+## L4 Capstone — whole-product builders
 
-| F | Component | Model | Effort | Impact | Graduate | Best source | Owner |
+| F | Component | Package | Model | Status | Impact | Graduate | Best source |
 |---|---|---|---|---|---|---|---|
-| F029 | Multi-Tenant Management | hybrid | L | high | yes | `webhouse/cms` | `cms` |
-| F030 | Native Mobile Boilerplate (Capacitor) | hybrid | L | high | yes | `webhouse/cms` | `cms` |
-| F031 | Cardmem Greenfield-Scaffolder (Plain npm vs pnpm+Turbo monorepo) | scaffold | M | high | — | `broberg/cardmem` | `cardmem` |
-| F032 | create-app CLI + machine-readable manifest (AI product builder) | scaffold | L | high | yes | `webhouse/cms` | `cms` |
+| F029 | Multi-tenant management | — | 🔀 | — planned | high | yes | `webhouse/cms` |
+| F030 | Native mobile boilerplate (Capacitor) | — | 🔀 | — planned | high | yes | `webhouse/cms` |
+| F031 | Greenfield scaffolder (npm vs pnpm+Turbo) | — | 🏗️ | — planned | high | — | `broberg/cardmem` |
+| F032 | create-app CLI + machine-readable manifest | — | 🏗️ | — planned | high | yes | `webhouse/cms` |
 
-## Where this fits — the fleet shared-library landscape
+## Fleet SDK spokes — sibling `@broberg` packages installed here, owned + shipped in their own repos
 
-`components` is the **UI / app-shell spoke** of a larger fleet shared-library wheel. The sibling spokes live in their own repos and are consumed as npm deps — they are **not** components epics:
+`components` is the **UI / app-shell spoke** of a larger fleet shared-library wheel. These sibling SDKs are **not** components epics — they are consumed as npm deps and owned where their domain lives:
 
-- **UI / app-shell / identity** → this inventory (`@broberg/*`, owned by `components`)
-- **Data** → `@broberg/db-sdk`
-- **LLM** → `@broberg/ai-sdk`
-- **Telemetry / cost / errors** → `@upmetrics/sdk`
-- **Fleet comms** (intercom dispatch, terminal provision, notify-mobile, board digest, submit-idea) → **`@broberg/fleet-client`** + **`@broberg/fleet-contracts`** — **published v0.1.0** (repo `broberg-ai/fleet`, buddy epic **F072**). `fleet-contracts` = zod schemas + `FLEET_ENDPOINTS` (single source of truth); `fleet-client` = typed client — `createFleetClient({buddyBaseUrl,buddyKey}).dispatchIntercom(…)`, validates against contracts before send. Replaces hand-rolled fetch+bearer fleet calls.
-- **Security / secret-redaction** → **`@broberg/secret-scan`** — *components-owned*, lifted from `broberg/trail` (F197): `redactSecrets(text)→{redacted,findings[]}` / `hasSecret(text)` / a curated ordered `SECRET_PATTERNS[]` (+ optional `extraPatterns`). Redacts secrets at comms in/out boundaries (ingest-gate + egress-scrub); pure, deterministic, dependency-free. **✅ shipped** (epic **F035**, v0.1.1 on npm via OIDC trusted-publishing) — `@trail/shared` re-exports it and trail re-validated parity against the npm (0 leaks / 0 false positives); Cloudflare Turnstile + API-token patterns folded in from sanne/xrt81. Christian to add OIDC trusted-publishing (`publish.yml`, tag `secret-scan-v*`) like `@broberg/theme`.
-- **Lens-compliance / auth-mint** → **`@broberg/lens`** — *components-owned*, implements the fleet **F098.1 Lens-mint standard** (cardmem owns the spec, `docs/LENS-MINT-ENDPOINT.md`). A headless `POST /api/lens-session` endpoint — `createLensMintHandler` + thin `@broberg/lens/next` · `@broberg/lens/hono` adapters — that mints a **short-lived, read-only Playwright `storageState`** so Cardmem Lens can log *past the auth wall* and screenshot the real authed surface, incl. prod. The app supplies only a `createLensSession` hook (mints + signs its own cookie); the package guarantees ship-dark 503, constant-time bearer, a **never-cb** principal guard, TTL clamp + rate-limit, and the correct cookie-domain (never `0.0.0.0`). **✅ v0.1.0 on npm** (epic **F036**) — replaces the mint each authed repo hand-rolled (sanne/upmetrics/fysiodk), where two silent-false-green bugs already surfaced. OIDC `lens-v*` job wired; Christian to add the Trusted Publisher; epic **Done-gated** on a pilot consumer validating real-surface capture.
-  The Lens family is a **3-package split** (keeping Playwright confined to the engine means an app that only mints a session never installs Chromium):
-    - **`@broberg/lens`** — the mint above (dep-free). Epic **F036**, **✅ v0.1.0**.
-    - **`@broberg/lens-engine`** — the shared **Playwright capture + flow engine**: `capture()`→PNG+dom_hash · `runFlow()`→self-healing-locator flow (testid→css→role→label→placeholder→text + Set-of-Marks vision, ships dark) · exported `resolveTarget()`. The hosted cloud Lens AND the local daemon import this ONE engine so they never drift. Epic **F046**, **✅ v0.2.0 on npm** — **v0.2.0 (epic F055) adds token-frugal page-READ primitives**: `read()`→clean markdown of a page's main content (jsdom+Readability+turndown) · `extract()`→deterministic JSON of repeating tables/lists (locked shape, zero-LLM, fence = table/ul/ol/dl/repeated-sibling-grid, **no** arbitrary cards) · `network()`→the page's own captured XHR/fetch API responses — so an agent pulls a live page into its LLM context for ~a few hundred tokens instead of 15–30k of raw HTML (consumer #1: cardmem Research Adapter F125).
-    - **`@broberg/lens-client`** — a thin, **no-Playwright** client for the *hosted* Lens (`createLensClient().capture()/.runFlow()` + cold-start retry + optional `/hono` proxy). Epic **F047**, **✅ v0.1.0 on npm**. Consumers: storeform, autodoc.
-- **SETI streaming chat** → **`@broberg/seti-client`** + **`@broberg/seti-server`** — *components-owned*, the embeddable live cc-session streaming-chat (epic **F037**; SETI API contract = buddy **F071.10**, first consumer = cardmem's PLAN→Chat). `seti-server` = a mountable Hono proxy router (`createSetiProxy`) the host mounts behind its OWN auth (consumer token stays server-side ⇒ no CORS, EventSource works with host cookie auth); it proxies the full SETI v1 surface incl. the **session→edge resolver** (`GET /resolve?session=` → which edge hosts a moved/remote session, fixes "No running Agent" after a session-move) and **fleet-wide @mention / message routing** (`POST /intercom {to,message,from?}` → deliver to ANY fleet session by name, authoritative sessionName routing, no m1 assumption); `seti-client` = a framework-agnostic core (`FrameAccumulator` scrollback engine + `SetiClient`) + a mobile-first Preact `<SetiChat>` with per-control `data-testid`. **✅ shipped** (`seti-client` v0.2.1, `seti-server` v0.2.5 on npm; `seti-*-v*` OIDC Trusted Publishers live — token-free). A productized *feature*, not a cross-cutting primitive — it lives here because >1 app (cardmem, buddy) embeds it.
-- **cms product packages** (cms-owned, published under the `@broberg` scope from `webhousecode/cms` — a deliberate exception where only the npm scope moved, not the repo; **not** components epics) → **`@broberg/cms-inline-edit`** (click-to-edit widget) and **`@broberg/cms-chat-client`** (**✅ v0.4.14**, the chat quick-action cache-client / seed of the full CMS chat client, cms **F158.2**; consumer #1 = cms-admin). Fully rostered in [Discovery](https://discovery.broberg.ai). Note: cms's `NPM_TOKEN` is **granular** (update-only) — a brand-new `@broberg` name needs a one-time bootstrap publish by the org-owner before the workflow can ship later versions.
+| Package | Status | Domain | Owner repo |
+|---|---|---|---|
+| `@broberg/db-sdk` | ✅ v0.1.0 | Data | own repo |
+| `@broberg/ai-sdk` | ✅ v0.22.0 | LLM / AI gateway | `broberg-ai/ai-sdk` |
+| `@upmetrics/sdk` | ✅ v0.3.1 | Telemetry / cost / errors | `broberg/upmetrics` |
+| `upmetrics-swift` | ✅ v0.1.0 | Telemetry (Swift / SwiftPM) | `broberg-ai/upmetrics-swift` |
+| `@broberg/fleet-client` | ✅ v0.1.0 | Fleet comms (typed client) | `broberg-ai/fleet` (buddy F072) |
+| `@broberg/fleet-contracts` | ✅ v0.1.0 | Fleet comms (zod schemas + endpoints) | `broberg-ai/fleet` (buddy F072) |
+| `@broberg/complimenta-sdk` | ✅ v0.2.0 | Complimenta booking API | `broberg-ai/fdaa` |
+| `@broberg/cms-inline-edit` | ✅ v0.4.14 | CMS click-to-edit widget | `webhousecode/cms` |
+| `@broberg/cms-chat-client` | ✅ v0.4.16 | CMS chat quick-action cache-client | `webhousecode/cms` |
 
-This keeps the share/copy discipline honest: `components` owns UI; each cross-cutting concern has one canonical SDK owned where the domain lives. **`@broberg/secret-scan`, `@broberg/lens` (cross-cutting *security* primitives) and the `@broberg/seti-*` pair (a shared product *feature*) are components-owned + published here** — each because it's needed by >1 repo and belongs in one neutral, audited place rather than re-implemented inside every app.
+> The `@broberg/cms-*` packages publish under the `@broberg` scope from `webhousecode/cms` — a deliberate exception where only the npm scope moved, not the repo. Their `NPM_TOKEN` is **granular** (update-only), so a brand-new `@broberg` name needs a one-time org-owner bootstrap publish before its workflow can ship later versions (the same constraint that gates F058 `@broberg/http`).
+
+## Why the components-owned cross-cutting primitives live here (not inside every app)
+
+Three families are cross-cutting concerns needed by >1 repo, so they belong in one neutral, audited place rather than re-implemented per app:
+
+- **Security / redaction — `@broberg/secret-scan` (F035, ✅ v0.1.7).** `redactSecrets(text)→{redacted,findings[]}` / `hasSecret(text)` + a curated ordered `SECRET_PATTERNS[]`. Pure, deterministic, dependency-free; redacts secrets at comms in/out boundaries. Lifted from `broberg/trail`; `@trail/shared` re-exports it. OIDC trusted-publishing live (`secret-scan-v*`).
+- **The Lens family — a 3-package split** (keeping Playwright confined to the engine means an app that only *mints* a session never installs Chromium):
+  - `@broberg/lens` (F036, ✅ v0.1.3) — the **F098.1 Lens-mint standard**: a dep-free headless `POST /api/lens-session` (`createLensMintHandler` + `/next` · `/hono` adapters) that mints a short-lived, read-only Playwright `storageState` so Cardmem Lens logs *past the auth wall*. Ship-dark 503, constant-time bearer, never-cb guard, TTL clamp + rate-limit.
+  - `@broberg/lens-engine` (F046, ✅ v0.4.0) — the shared **Playwright capture + flow engine**: `capture()`→PNG+dom_hash · `runFlow()`→self-healing-locator flow (testid→css→role→label→placeholder→text + Set-of-Marks vision) · token-frugal page-READ primitives `read()` / `extract()` / `network()` · and (**v0.4.0, F057**) the `expectEditable` flow-step + exported `isEditableElement()` predicate. The hosted cloud Lens AND the local daemon import this ONE engine so they never drift.
+  - `@broberg/lens-client` (F047, ✅ v0.1.0) — a thin, **no-Playwright** client for the *hosted* Lens (`createLensClient().capture()/.runFlow()` + cold-start retry + optional `/hono` proxy).
+- **SETI streaming chat — `@broberg/seti-client` (✅ v0.3.2) + `@broberg/seti-server` (✅ v0.2.5)** (F037).** The embeddable live cc-session streaming-chat: `seti-server` = a mountable Hono proxy router the host mounts behind its OWN auth (session→edge resolver + fleet-wide @mention routing); `seti-client` = a framework-agnostic `FrameAccumulator` core + a mobile-first Preact `<SetiChat>`. A productized *feature* (>1 app embeds it: cardmem, buddy), not a cross-cutting primitive — it lives here for the same neutral-home reason.
 
 ## Method & guardrails
+
 - **Evidence-based:** every "best source" is a file path read by a deep-read agent, not memory.
 - **Ruthless share/copy line:** runtime-package only when genuinely identical across ≥3 repos, stable, and painful to sync; otherwise copy-owned. Over-sharing is the bigger risk.
 - **Headless core + thin adapters:** Stack A (Next.js) and Stack B (Bun/Hono) share framework-agnostic core TS; a package importing `next/*` is dead weight in Stack B.
 - **Foundation first:** F001 design-tokens underpins every UI layer.
 - **Strangler, never big-bang;** owner-session per package; `components` stays a multi-package monorepo, big epics graduate out into their own repos.
 
-_Full per-component specs (architecture, file refs, headless/adapter split, public API, stories, AC) live in each F-doc and on the board._
+_Full per-component specs (architecture, file refs, headless/adapter split, public API, stories, AC) live in each F-doc and on the board. The always-current roster is [discovery.broberg.ai/ai](https://discovery.broberg.ai/ai)._
