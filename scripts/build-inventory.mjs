@@ -379,6 +379,7 @@ const HTML = `<!doctype html>
 <body>
   <div class="top"><div class="wrap">
     <span class="brand"><span class="at">@broberg/</span>components</span>
+    <a href="/onboarding" data-testid="inv-onboarding-link" style="font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-left:14px" title="Start here — all packages by category + all tips">Start here ↗</a>
     <span class="spacer"></span>
     <button class="sbtn" id="sbtn" data-testid="inv-search-open" aria-label="Søg (⌘K)"><span class="sk">⌘K</span>Søg</button>
     <div class="seg" id="mode"><button data-m="dark" aria-pressed="true">Dark</button><button data-m="light">Light</button></div>
