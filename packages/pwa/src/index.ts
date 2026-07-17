@@ -111,8 +111,18 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
     }
   };
 
+  // With `clientsClaim: true` a brand-new worker claims a previously
+  // uncontrolled page and fires `controllerchange` on the FIRST install — that
+  // is not an update, so reloading there would yank a first-time visitor out of
+  // whatever they are doing. Only a `controllerchange` that REPLACES an existing
+  // controller is a real takeover worth reloading for.
+  let hadController = !!container.controller;
   const onControllerChange = (): void => {
     if (!reloadOnControllerChange || reloading) return;
+    if (!hadController) {
+      hadController = true; // first claim of an uncontrolled page — not an update
+      return;
+    }
     reloading = true; // guard against a reload-loop
     if (typeof location !== "undefined") location.reload();
   };

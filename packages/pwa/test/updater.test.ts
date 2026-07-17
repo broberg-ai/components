@@ -94,10 +94,23 @@ describe("createPwaUpdater", () => {
     expect(worker.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
   });
 
-  it("reloads once on controllerchange, guarding against a reload-loop", async () => {
+  it("reloads once on controllerchange that replaces an existing controller, guarding against a reload-loop", async () => {
+    container.controller = {}; // an existing controller → a controllerchange is a real takeover
     const updater = createPwaUpdater();
     await flush();
     container.dispatchEvent(new Event("controllerchange"));
+    container.dispatchEvent(new Event("controllerchange"));
+    expect(reload).toHaveBeenCalledTimes(1);
+    updater.destroy();
+  });
+
+  it("does NOT reload on the first-install controllerchange (clientsClaim, no prior controller)", async () => {
+    container.controller = null; // first install: the page was never controlled
+    const updater = createPwaUpdater();
+    await flush();
+    container.dispatchEvent(new Event("controllerchange")); // the first claim — not an update
+    expect(reload).not.toHaveBeenCalled();
+    // a LATER controllerchange (a real worker takeover) still reloads
     container.dispatchEvent(new Event("controllerchange"));
     expect(reload).toHaveBeenCalledTimes(1);
     updater.destroy();
