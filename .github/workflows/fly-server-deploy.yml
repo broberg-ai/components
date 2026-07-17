@@ -67,6 +67,11 @@ on:
         required: false
         type: string
         default: "22"
+      bun_version:
+        description: Bun version when build_runtime = bun (e.g. "1.1.34"; "latest" = newest).
+        required: false
+        type: string
+        default: latest
       health_url:
         description: >
           URL polled for HTTP 200 after deploy — proves it serves, not just that
@@ -127,6 +132,8 @@ jobs:
       - name: Setup Bun
         if: steps.guard.outputs.skip == 'false' && inputs.build_runtime == 'bun'
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun_version }}
 
       - name: Host build (Fly remote-builder esbuild workaround)
         if: steps.guard.outputs.skip == 'false' && inputs.build_command != ''
