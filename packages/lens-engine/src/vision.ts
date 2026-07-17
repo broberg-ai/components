@@ -14,11 +14,13 @@
 // If no candidate matches, the model returns null → clean failure (never a guess).
 //
 // Routed through @broberg/ai-sdk — NEVER a raw provider SDK. Default route =
-// Gemini 2.5 Flash via OpenRouter (strong at reading labels), env-overridable:
-//   LENS_VISION_PROVIDER (default 'openrouter')  ·  LENS_VISION_MODEL (default 'google/gemini-2.5-flash')
-// GDPR: a store-console screenshot is the developer's own app UI, not client/
-// personal/health data → Gemini is fine here; for personal-data pages set the
-// Mistral EU route (provider 'mistral', model 'pixtral-large-latest').
+// Mistral EU (GDPR-safe): a screenshot can carry personal/health data, so the
+// SAFE, EU-hosted route (Mistral, Paris) is the DEFAULT and any non-EU model is
+// a deliberate, informed opt-in — never the reverse. Env-overridable:
+//   LENS_VISION_PROVIDER (default 'mistral')  ·  LENS_VISION_MODEL (default 'mistral-large-latest')
+// For a page you KNOW is PII-free (e.g. a developer's own store-console UI) you
+// may consciously opt into a non-EU label-reader:
+//   LENS_VISION_PROVIDER=openrouter  LENS_VISION_MODEL=google/gemini-2.5-flash
 //
 // SHIPS DARK: inert unless LENS_VISION_ENABLED=1 AND a provider key is set.
 
@@ -28,12 +30,13 @@ import type { Locator, Page } from 'playwright';
 /** Max interactive elements to mark — keeps the screenshot legible + the prompt small. */
 const MAX_MARKS = 80;
 
-/** The vision route (provider + model), env-overridable. Default = Gemini 2.5
- *  Flash via OpenRouter (best at the label-picking task). */
-function visionRoute(): { provider: string; model: string } {
+/** The vision route (provider + model), env-overridable. Default = Mistral EU
+ *  (GDPR-safe) — a screenshot can carry PII, so the safe EU route is the default
+ *  and any non-EU model is an explicit LENS_VISION_PROVIDER opt-in. */
+export function visionRoute(): { provider: string; model: string } {
   return {
-    provider: process.env.LENS_VISION_PROVIDER ?? 'openrouter',
-    model: process.env.LENS_VISION_MODEL ?? 'google/gemini-2.5-flash',
+    provider: process.env.LENS_VISION_PROVIDER ?? 'mistral',
+    model: process.env.LENS_VISION_MODEL ?? 'mistral-large-latest',
   };
 }
 

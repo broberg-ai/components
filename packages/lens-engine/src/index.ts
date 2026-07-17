@@ -34,7 +34,7 @@ export {
 
 export { applyStorageState, fetchStorageState } from './mint';
 
-export { resolveVisionElement, visionEnabled } from './vision';
+export { resolveVisionElement, visionEnabled, visionRoute } from './vision';
 
 // v0.2.0 — token-frugal page-READ primitives (read / extract / network).
 export { withPageSession, type PageSessionOptions } from './page-session';
