@@ -77,6 +77,8 @@
 | F028 | Podcast manager / maker | — | 🏗️ | — planned | medium | yes | `webhouse/cms` |
 | — | Auto product-changelog | `@broberg/changelog` | 📦 | — planned (lift candidate) | medium | — | `webhouse/fysiodk-aalborg-sport` |
 
+> **F033.7 — `fly-server-deploy` shared reusable GH Actions workflow (✅ shipped, NOT a package).** The CI complement to `@broberg/deploy-core`: the package (`flyLiveDeploy`) only does the STATIC content-sync deploy, so **server-app** deploys (Bun/Hono + custom Docker) reuse a `workflow_call` workflow the whole fleet calls — `uses: broberg-ai/components/.github/workflows/fly-server-deploy.yml@main`. It does the deploy half (caller owns the test gate via `needs: test`): ship-dark guard (no `FLY_API_TOKEN` → skip, stay green) → optional host-build (esbuild-on-host workaround) → `flyctl deploy --remote-only` → **health-verify** (poll for HTTP 200) → optional required-secrets check. Runtime-proven by **happy-little-place** (consumer #1). Because it's a workflow, not an npm package, it's discoverable via Discovery's Fly infra tip (`server-deploy-workflow`), not the package roster.
+
 ## L4 Capstone — whole-product builders
 
 | F | Component | Package | Model | Status | Impact | Graduate | Best source |
