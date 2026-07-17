@@ -1,0 +1,197 @@
+name: fly-server-deploy
+
+# F033.7 — fleet-shared, REUSABLE "deploy a server app to Fly" workflow.
+#
+# The CALLER owns the test gate (a `deploy` job with `needs: test`) and calls
+# this reusable workflow, which does the DEPLOY half:
+#   ship-dark guard -> optional host build -> flyctl deploy --remote-only
+#   -> health-verify (prove it serves 200) -> optional required-secrets check.
+#
+# Usage in a consumer repo (.github/workflows/ci.yml):
+#
+#   jobs:
+#     test:
+#       runs-on: ubuntu-latest
+#       steps: [ ... your tests ... ]
+#     deploy:
+#       needs: test
+#       uses: broberg-ai/components/.github/workflows/fly-server-deploy.yml@main
+#       with:
+#         app: my-app
+#         health_url: https://my-app.fly.dev/health
+#       secrets:
+#         FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+#
+# Ship-dark: with no FLY_API_TOKEN the deploy is SKIPPED (job stays green) — a
+# fork/PR without the secret never red-fails. The token is only ever read via
+# env, never interpolated into a shell command.
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: Fly app name (overrides the fly.toml app when set).
+        required: false
+        type: string
+        default: ""
+      config:
+        description: Path to the Fly config file.
+        required: false
+        type: string
+        default: fly.toml
+      dockerfile:
+        description: Path to the Dockerfile (optional; fly.toml build.dockerfile wins when unset).
+        required: false
+        type: string
+        default: ""
+      working_directory:
+        description: Directory to run from (where fly.toml lives).
+        required: false
+        type: string
+        default: "."
+      build_command:
+        description: >
+          Optional host/CI build to run BEFORE deploy. Use it to build a
+          Vite/esbuild dist on the runner and COPY it in your Dockerfile, since
+          Fly's remote builder can't run esbuild (EPIPE). Empty = skip.
+        required: false
+        type: string
+        default: ""
+      build_runtime:
+        description: 'Runtime to set up for build_command: none | node | bun.'
+        required: false
+        type: string
+        default: none
+      node_version:
+        description: Node version when build_runtime = node.
+        required: false
+        type: string
+        default: "22"
+      health_url:
+        description: >
+          URL polled for HTTP 200 after deploy — proves it serves, not just that
+          deploy returned. Empty = skip health-verify.
+        required: false
+        type: string
+        default: ""
+      health_timeout:
+        description: Seconds to wait for health_url to return 200.
+        required: false
+        type: number
+        default: 120
+      required_secrets:
+        description: >
+          Comma-separated Fly secret NAMES that must exist on the app (checked
+          via `flyctl secrets list`). Values are never printed. Empty = skip.
+        required: false
+        type: string
+        default: ""
+      region:
+        description: Expected primary region (advisory log only; house default arn).
+        required: false
+        type: string
+        default: arn
+    secrets:
+      FLY_API_TOKEN:
+        description: Fly deploy token. Absent = deploy skipped (ship-dark).
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ship-dark guard (no token, no deploy)
+        id: guard
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::notice::FLY_API_TOKEN not set — skipping deploy (ship-dark)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Deploy target region (advisory): ${{ inputs.region }}"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.guard.outputs.skip == 'false' && inputs.build_runtime == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Setup Bun
+        if: steps.guard.outputs.skip == 'false' && inputs.build_runtime == 'bun'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Host build (Fly remote-builder esbuild workaround)
+        if: steps.guard.outputs.skip == 'false' && inputs.build_command != ''
+        run: ${{ inputs.build_command }}
+
+      - name: Setup flyctl
+        if: steps.guard.outputs.skip == 'false'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Required-secrets presence check
+        if: steps.guard.outputs.skip == 'false' && inputs.required_secrets != ''
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          APP: ${{ inputs.app }}
+          REQUIRED_SECRETS: ${{ inputs.required_secrets }}
+        run: |
+          APP_ARG=""
+          [ -n "$APP" ] && APP_ARG="--app $APP"
+          # Names only — flyctl secrets list never prints values.
+          PRESENT=" $(flyctl secrets list $APP_ARG 2>/dev/null | awk 'NR>1 {print $1}' | tr '\n' ' ') "
+          MISSING=""
+          IFS=',' read -ra NEED <<< "$REQUIRED_SECRETS"
+          for raw in "${NEED[@]}"; do
+            n="$(echo "$raw" | xargs)"
+            [ -z "$n" ] && continue
+            case "$PRESENT" in
+              *" $n "*) : ;;
+              *) MISSING="$MISSING $n" ;;
+            esac
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing Fly secrets on the app:$MISSING — set them with 'flyctl secrets set' (values never printed)."
+            exit 1
+          fi
+          echo "All required secrets present."
+
+      - name: Deploy (flyctl --remote-only)
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          APP: ${{ inputs.app }}
+          CONFIG: ${{ inputs.config }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+        run: |
+          APP_ARG=""; [ -n "$APP" ] && APP_ARG="--app $APP"
+          DF_ARG=""; [ -n "$DOCKERFILE" ] && DF_ARG="--dockerfile $DOCKERFILE"
+          set -x
+          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG
+
+      - name: Health-verify (prove it serves 200)
+        if: steps.guard.outputs.skip == 'false' && inputs.health_url != ''
+        env:
+          HEALTH_URL: ${{ inputs.health_url }}
+          HEALTH_TIMEOUT: ${{ inputs.health_timeout }}
+        run: |
+          echo "Polling $HEALTH_URL for HTTP 200 (up to ${HEALTH_TIMEOUT}s)…"
+          deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$HEALTH_URL" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "✓ 200 from $HEALTH_URL — deploy proven healthy."
+              exit 0
+            fi
+            echo "  … got $code, retrying in 5s"
+            sleep 5
+          done
+          echo "::error::$HEALTH_URL never returned 200 within ${HEALTH_TIMEOUT}s — deploy not proven healthy."
+          exit 1

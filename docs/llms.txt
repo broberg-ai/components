@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- Every one of the 108 tips, inline: https://discovery.broberg.ai/llms-full.txt
+- Every one of the 109 tips, inline: https://discovery.broberg.ai/llms-full.txt
 
 ## Secrets Vault — flådens delte krypterede secret-store
 
@@ -86,9 +86,9 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/cms-inline-edit** v0.4.14 — Click-to-edit widget for live @webhouse/cms-sites. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.16 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
-## Tips & tricks — every tip inline (108 across 14 platforms)
+## Tips & tricks — every tip inline (109 across 14 platforms)
 
-### Fly.io (23)
+### Fly.io (24)
 - **[region]** Region is ALWAYS arn (Stockholm). Set primary_region = "arn" — never US/Amsterdam. _(components)_
 - **[cost]** Idle-cheap services: auto_stop_machines = "stop" + auto_start_machines = true + min_machines_running = 0. Cold-start ~1s. _(components)_
 - **[deploy]** fly deploy --remote-only builds on Fly's builder — no local Docker daemon needed. _(components)_
@@ -112,6 +112,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **[secrets-flip]** Emergency flag-flip without a rebuild: flyctl secrets set KEY=val applies via a ~30s machine restart (overrides image-baked ENV). Good to unstick prod fast — then fix the durable source (fly.toml [env]) so a later deploy doesn't revert it. _(cardmem)_
 - **[chromium-on-fly]** Heavy SYNCHRONOUS CPU work in an API route on shared-cpu-1x/1GB (Chromium screenshot→PDF: large PNG frames + pdf-lib.embedPng) can take down the WHOLE machine — it blocks the single core's event loop long enough that Fly's port health-check fails → the proxy 503s ALL traffic ('could not find a good candidate within 40 attempts') and the Chromium child is OOM-reaped. Fix (all three): (1) deviceScaleFactor:1 not 2 — ~4× lighter frames + far faster embed, fidelity fine for PDF (biggest single win); (2) serialize jobs via a module-level promise-chain so only ONE render runs at a time (no parallel Chromium); (3) cache the output on the PERSISTENT volume, mtime-invalidated (regenerate only if a source file is newer) — repeated calls went 52s → 0.3s. Verify the machine STAYS UP by polling a cheap endpoint (/login) every 6s DURING generation — prove it stays 200, not just that the PDF came back. (An app's OWN runtime render legitimately uses playwright-core; the no-raw-Playwright rule — cardmem Lens F112 — governs VERIFICATION automation, not a shipped render feature.) _(pitch-vault)_
 - **[remote-builder-esbuild]** Fly's REMOTE builder can't run esbuild — the esbuild service dies mid-build (EPIPE / 'service was stopped') under BOTH bun and node, so a Vite/esbuild bundle step INSIDE `flyctl deploy --remote-only` fails. Fix: build the Vite/esbuild dist on the host or in CI FIRST, then COPY the prebuilt dist into the image (the Dockerfile does no esbuild) — let the remote builder only assemble the image, not bundle. _(happy-little-place)_
+- **[server-deploy-workflow]** Server-app Fly deploy (Bun/Hono + custom Docker) → reuse the fleet-shared reusable workflow instead of hand-rolling a per-repo deploy job: `uses: broberg-ai/components/.github/workflows/fly-server-deploy.yml@main` (workflow_call). It does the DEPLOY half — optional host-build (the esbuild-on-host workaround) → flyctl deploy --remote-only → health-verify (polls your health_url for 200, fails if never) → optional required-secrets presence check. Ship-dark: no FLY_API_TOKEN → deploy skipped, job stays green. The CALLER owns the test gate (`deploy: needs: test`). See components F033.7. _(components)_
 
 ### Cloudflare (13)
 - **[dns]** CNAME → a Fly app MUST be DNS-only (grey cloud), not proxied (orange) — else Fly's TLS cert validation fails. _(components)_
