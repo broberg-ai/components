@@ -67,7 +67,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
 - **@broberg/bodymap** v0.2.4 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.2.0 — The fleet's one Stripe chokepoint. `npm i @broberg/stripe`
-- **@broberg/pwa** v0.2.1 — The fleet's PWA primitive. `npm i @broberg/pwa`
+- **@broberg/pwa** v0.2.2 — The fleet's PWA primitive. `npm i @broberg/pwa`
 - **@broberg/forms-turnstile** v0.1.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
 - **@broberg/seti-client** v0.3.2 — The SETI streaming-chat client. `npm i @broberg/seti-client`
 - **@broberg/seti-server** v0.2.5 — The SETI proxy router. `npm i @broberg/seti-server`
