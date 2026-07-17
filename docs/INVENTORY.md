@@ -66,11 +66,11 @@
 | F033 | Deploy provider core + trigger UI | `@broberg/deploy-core` | 🔀 | ✅ v0.1.0 | high | — | `webhouse/cms` |
 | F044 | Speech dictionary (STT vocabulary + corrections) | `@broberg/speech-dictionary` | 📦 | ✅ v0.1.1 | medium | — | `broberg-ai/components` |
 | F045 | Team-chat webhook notifications | `@broberg/notify` | 📦 | ✅ v0.1.0 | medium | — | `broberg-ai/components` |
-| F046 | Lens capture / flow engine (Playwright) | `@broberg/lens-engine` | 📦 | ✅ v0.4.0 | high | — | `broberg/cardmem` |
+| F046 | Lens capture / flow engine (Playwright) | `@broberg/lens-engine` | 📦 | ✅ v0.4.1 | high | — | `broberg/cardmem` |
 | F047 | Hosted-Lens client (no Playwright) | `@broberg/lens-client` | 📦 | ✅ v0.1.0 | high | — | `broberg-ai/components` |
 | F052 | Body pain-map | `@broberg/bodymap` | 📦 | ✅ v0.2.4 | medium | — | `broberg-ai/components` |
 | F053 | Stripe payments (Connect chokepoint) | `@broberg/stripe` | 📦 | ✅ v0.2.0 | high | — | `broberg-ai/components` |
-| F054 | PWA update primitive | `@broberg/pwa` | 📦 | ✅ v0.2.0 | medium | — | `broberg/fysiodk-aalborg-sport` |
+| F054 | PWA update primitive | `@broberg/pwa` | 📦 | ✅ v0.2.2 | medium | — | `broberg/fysiodk-aalborg-sport` |
 | F037 | SETI streaming chat — client + Preact UI | `@broberg/seti-client` | 🔀 | ✅ v0.3.2 | high | — | `broberg-ai/components` |
 | F037 | SETI proxy router | `@broberg/seti-server` | 📦 | ✅ v0.2.5 | high | — | `broberg-ai/components` |
 | F027 | Deployment Mgmt (observe half) | — | 🔀 | ⤳ moved → Upmetrics | — | — | `webhouse/cms` |
@@ -111,7 +111,7 @@ Three families are cross-cutting concerns needed by >1 repo, so they belong in o
 - **Security / redaction — `@broberg/secret-scan` (F035, ✅ v0.1.7).** `redactSecrets(text)→{redacted,findings[]}` / `hasSecret(text)` + a curated ordered `SECRET_PATTERNS[]`. Pure, deterministic, dependency-free; redacts secrets at comms in/out boundaries. Lifted from `broberg/trail`; `@trail/shared` re-exports it. OIDC trusted-publishing live (`secret-scan-v*`).
 - **The Lens family — a 3-package split** (keeping Playwright confined to the engine means an app that only *mints* a session never installs Chromium):
   - `@broberg/lens` (F036, ✅ v0.1.3) — the **F098.1 Lens-mint standard**: a dep-free headless `POST /api/lens-session` (`createLensMintHandler` + `/next` · `/hono` adapters) that mints a short-lived, read-only Playwright `storageState` so Cardmem Lens logs *past the auth wall*. Ship-dark 503, constant-time bearer, never-cb guard, TTL clamp + rate-limit.
-  - `@broberg/lens-engine` (F046, ✅ v0.4.0) — the shared **Playwright capture + flow engine**: `capture()`→PNG+dom_hash · `runFlow()`→self-healing-locator flow (testid→css→role→label→placeholder→text + Set-of-Marks vision) · token-frugal page-READ primitives `read()` / `extract()` / `network()` · and (**v0.4.0, F057**) the `expectEditable` flow-step + exported `isEditableElement()` predicate. The hosted cloud Lens AND the local daemon import this ONE engine so they never drift.
+  - `@broberg/lens-engine` (F046, ✅ v0.4.1) — the shared **Playwright capture + flow engine**: `capture()`→PNG+dom_hash · `runFlow()`→self-healing-locator flow (testid→css→role→label→placeholder→text + Set-of-Marks vision) · token-frugal page-READ primitives `read()` / `extract()` / `network()` · (**v0.4.0, F057**) the `expectEditable` flow-step + exported `isEditableElement()` predicate · and (**v0.4.1, F046.3**) a **GDPR-safe EU-default vision route** — Set-of-Marks vision defaults to Mistral EU (a screenshot can carry PII); a non-EU model is an explicit opt-in, sealed by a test. The hosted cloud Lens AND the local daemon import this ONE engine so they never drift.
   - `@broberg/lens-client` (F047, ✅ v0.1.0) — a thin, **no-Playwright** client for the *hosted* Lens (`createLensClient().capture()/.runFlow()` + cold-start retry + optional `/hono` proxy).
 - **SETI streaming chat — `@broberg/seti-client` (✅ v0.3.2) + `@broberg/seti-server` (✅ v0.2.5)** (F037).** The embeddable live cc-session streaming-chat: `seti-server` = a mountable Hono proxy router the host mounts behind its OWN auth (session→edge resolver + fleet-wide @mention routing); `seti-client` = a framework-agnostic `FrameAccumulator` core + a mobile-first Preact `<SetiChat>`. A productized *feature* (>1 app embeds it: cardmem, buddy), not a cross-cutting primitive — it lives here for the same neutral-home reason.
 
