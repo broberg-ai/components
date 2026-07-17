@@ -101,6 +101,10 @@ Social providers + email/password still dark-ship; the plugins you pass are
 explicit (you opted in). `createAuth` is unchanged — use it when you don't need
 the plugin endpoints statically typed.
 
+The `createTypedAuth` result mounts through `mountAuth` / `toNextHandler` with
+**no cast** — the mount helpers accept the structural slice they use, so the
+plugin-narrowed instance is accepted just like a `createAuth` one (F008.8).
+
 ## MitID (and other custom IdPs) — deferred
 
 MitID is **not** bundled. It is OIDC, but it requires a broker
