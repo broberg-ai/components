@@ -1,6 +1,6 @@
 {
   "name": "@broberg/pwa",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Fleet PWA primitive: a framework-agnostic service-worker update-detection controller (new-version-available lifecycle) + a React hook and unstyled banner skeleton + a service-worker skip-waiting helper. Zero runtime deps; ship-dark.",
   "type": "module",
   "license": "MIT",
@@ -40,13 +40,13 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "rm -rf dist && tsup && node verify-exports.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "react": ">=18.0.0",
-    "preact": ">=10.0.0"
+    "preact": ">=10.0.0",
+    "react": ">=18.0.0"
   },
   "peerDependenciesMeta": {
     "react": {

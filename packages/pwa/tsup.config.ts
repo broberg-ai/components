@@ -3,10 +3,13 @@ import { defineConfig } from "tsup";
 export default defineConfig([
   {
     // Core (zero-dep) + the service-worker helper + the manifest/icon factory.
+    // NOTE: no `clean` here. With multiple configs in this array, a per-config
+    // `clean` races the sibling react/preact builds and can wipe their freshly
+    // emitted .d.ts (the 0.2.1 tarball shipped without react.d.ts because of
+    // this). dist is cleaned ONCE up front by the `build` script instead.
     entry: { index: "src/index.ts", sw: "src/sw.ts", manifest: "src/manifest.ts" },
     format: ["esm", "cjs"],
     dts: true,
-    clean: true,
     sourcemap: true,
     treeshake: true,
   },
