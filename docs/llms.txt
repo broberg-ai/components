@@ -36,7 +36,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/stack-a-base** (planned) — The Stack A counterpart. `npm i @broberg/stack-a-base`
 - **@broberg/config** v0.2.0 — The fleet's single-source config helper. `npm i @broberg/config`
 - **@broberg/mail** v0.3.0 — The fleet's thin Resend send primitive. `npm i @broberg/mail`
-- **@broberg/media** v0.2.0 — The fleet's provider-agnostic media-storage facade. `npm i @broberg/media`
+- **@broberg/media** v0.2.1 — The fleet's provider-agnostic media-storage facade. `npm i @broberg/media`
 - **@broberg/mail-core** v0.1.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
 - **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
 - **@broberg/cron** v0.1.0 — The fleet's typed self-service client for cronjobs.webhouse.net. `npm i @broberg/cron`

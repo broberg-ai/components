@@ -17,7 +17,7 @@
 | F003 | Stack A base scaffold | `@broberg/stack-a-base` | 🏗️ | — planned | high | — | `webhouse/boilerplates-cms` |
 | F004 | Config single-source helper | `@broberg/config` | 📦 | ✅ v0.2.0 | high | — | `broberg/xrt81` |
 | F005 | Mail sending (Resend) | `@broberg/mail` | 📦 | ✅ v0.3.0 | high | — | `webhouse/sanneandersen` |
-| F006 | Media storage (provider-agnostic R2) | `@broberg/media` | 📦 | ✅ v0.2.0 | high | — | `broberg/cardmem` |
+| F006 | Media storage (provider-agnostic R2) | `@broberg/media` | 📦 | ✅ v0.2.1 | high | — | `broberg/cardmem` |
 | F043 | Branded email shell | `@broberg/mail-core` | 📦 | ✅ v0.1.0 | medium | — | `broberg-ai/components` |
 | F042 | Image transform (HEIC→WebP) | `@broberg/media-transform` | 📦 | ✅ v0.1.0 | high | — | `broberg/xrt81` |
 | F041 | Cron client (cronjobs.webhouse.net) | `@broberg/cron` | 📦 | ✅ v0.1.0 | high | — | `broberg-ai/components` |
