@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AwsClient } from "aws4fetch";
 import { createMedia, type R2Config } from "../src/index";
 
 const cfg: R2Config = {
@@ -88,6 +89,33 @@ describe("r2 provider — upload / delete (stubbed fetch)", () => {
   it("throws on a persistent non-404 delete failure (after retries)", async () => {
     fetchMock.mockResolvedValue(new Response("", { status: 500 })); // every attempt fails
     await expect(createMedia(cfg).delete("x.png")).rejects.toThrow(/delete failed 500/);
+  });
+});
+
+describe("r2 provider — upload sets Content-Length (R2 411 fix, F059.3)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("passes an explicit content-length = byteLength for a Uint8Array body", async () => {
+    // Spy at the aws4fetch seam so we assert what upload() HANDS to the signer,
+    // not what undici recomputes downstream (in plain Node undici sets the length
+    // itself, which is exactly why the prod-only 411 doesn't repro here).
+    const spy = vi
+      .spyOn(AwsClient.prototype, "fetch")
+      .mockResolvedValue(new Response("", { status: 200 }));
+    await createMedia(cfg).upload("photo.png", new Uint8Array([1, 2, 3, 4, 5]), {
+      contentType: "image/png",
+    });
+    const init = spy.mock.calls[0][1] as { headers: Record<string, string> };
+    expect(init.headers["content-length"]).toBe("5"); // RED without the fix
+  });
+
+  it("omits content-length for a string body (no byteLength — left to fetch)", async () => {
+    const spy = vi
+      .spyOn(AwsClient.prototype, "fetch")
+      .mockResolvedValue(new Response("", { status: 200 }));
+    await createMedia(cfg).upload("note.txt", "hello");
+    const init = spy.mock.calls[0][1] as { headers: Record<string, string> };
+    expect(init.headers["content-length"]).toBeUndefined();
   });
 });
 

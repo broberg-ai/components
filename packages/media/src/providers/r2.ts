@@ -37,6 +37,14 @@ export function createR2Store(cfg: R2Config): MediaStore {
       const headers: Record<string, string> = {};
       if (opts?.contentType) headers["content-type"] = opts.contentType;
       if (opts?.cacheControl) headers["cache-control"] = opts.cacheControl;
+      // Cloudflare R2 requires Content-Length on PUT. In a patched-fetch runtime
+      // (e.g. Next.js standalone on Fly) a Uint8Array/ArrayBuffer body is streamed
+      // chunked and the header is dropped → 411 MissingContentLength. Set it
+      // explicitly when the body's byte length is known. Harmless elsewhere:
+      // plain Node/undici computes it anyway; strings/Blobs/streams are left to
+      // fetch (a string has no byteLength, so it's skipped, not sent wrong).
+      const byteLength = (body as { byteLength?: unknown } | null)?.byteLength;
+      if (typeof byteLength === "number") headers["content-length"] = String(byteLength);
       const res = await aws.fetch(objectUrl(key), { method: "PUT", body: body as BodyInit, headers });
       if (!res.ok) {
         throw new Error(`media(r2): upload failed ${res.status} ${await res.text().catch(() => "")}`.trim());
