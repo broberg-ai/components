@@ -25,9 +25,9 @@
 | F007 | MCP Server Toolkit | `@broberg/mcp` | 🔀 | ✅ v0.4.0 | high | — | `webhouse/cms` |
 | F035 | Secret / credential redaction | `@broberg/secret-scan` | 📦 | ✅ v0.1.7 | high | — | `broberg/trail` |
 | F036 | Lens-mint compliance | `@broberg/lens` | 🔀 | ✅ v0.1.3 | high | — | `broberg/cardmem` |
-| F058 | HTTP header helpers (`contentDisposition`) | `@broberg/http` | 📦 | 🔨 built · awaiting bootstrap-publish | medium | — | `broberg-ai/components` |
+| F058 | HTTP header helpers (`contentDisposition`) | `@broberg/http` | 📦 | ✅ v0.1.0 | medium | — | `broberg-ai/components` |
 
-> **F058 `@broberg/http`** is the one row not yet on npm / not yet in the live Discovery roster: the code is built, tested + committed, but a brand-new npm name needs a one-time org-owner bootstrap publish (npm login + OTP) before its OIDC workflow can ship later versions. It joins Discovery the moment it goes live.
+> **F058 `@broberg/http`** shipped as v0.1.0 (2026-07-18, bootstrap publish — brand-new npm name minted via a one-time org-owner `npm login` + OTP). Trusted Publisher now set, so 0.1.1+ auto-publish token-free via the `http-v*` OIDC tag. Now live in the Discovery roster; first consumer is cardmem F224.8 (swaps its hand-rolled `contentDisposition`).
 
 ## L1 Identity — who the user is
 

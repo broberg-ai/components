@@ -28,7 +28,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (46)
+## Packages by category (47)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.3.1 — The design-token foundation every surface inherits. `npm i @broberg/theme`
@@ -69,6 +69,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/stripe** v0.2.0 — The fleet's one Stripe chokepoint. `npm i @broberg/stripe`
 - **@broberg/pwa** v0.2.2 — The fleet's PWA primitive. `npm i @broberg/pwa`
 - **@broberg/forms-turnstile** v0.1.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
+- **@broberg/http** v0.1.0 — Framework-free, zero-dep HTTP header/response primitives for Node/Bun/edge. `npm i @broberg/http`
 - **@broberg/seti-client** v0.3.2 — The SETI streaming-chat client. `npm i @broberg/seti-client`
 - **@broberg/seti-server** v0.2.5 — The SETI proxy router. `npm i @broberg/seti-server`
 - **@broberg/soundkit** v0.1.0 — SoundKit. `npm i @broberg/soundkit`
