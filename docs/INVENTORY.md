@@ -33,7 +33,7 @@
 
 | F | Component | Package | Model | Status | Impact | Graduate | Best source |
 |---|---|---|---|---|---|---|---|
-| F008 | Unified auth (Better Auth wrapper) | `@broberg/auth` | 📦 | ✅ v0.1.1 | high | — | `broberg/xrt81` |
+| F008 | Unified auth (Better Auth wrapper) | `@broberg/auth` | 📦 | ✅ v0.1.2 | high | — | `broberg/xrt81` |
 | F009 | User management + invitation | — | 🔀 | — planned | high | — | `webhouse/cms` |
 | F010 | API-key + rate-limit | `@broberg/apikey` | 📦 | ✅ v0.1.1 | high | — | `broberg/trail` |
 | F011 | Event / activity log (GDPR) | `@broberg/event-log` | 🔀 | ✅ v0.1.0 | high | — | `webhouse/cms` |
