@@ -95,7 +95,7 @@
 | Package | Status | Domain | Owner repo |
 |---|---|---|---|
 | `@broberg/db-sdk` | ✅ v0.1.0 | Data | own repo |
-| `@broberg/ai-sdk` | ✅ v0.22.0 | LLM / AI gateway | `broberg-ai/ai-sdk` |
+| `@broberg/ai-sdk` | ✅ v0.25.1 | LLM / AI gateway | `broberg-ai/ai-sdk` |
 | `@upmetrics/sdk` | ✅ v0.3.1 | Telemetry / cost / errors | `broberg/upmetrics` |
 | `upmetrics-swift` | ✅ v0.1.0 | Telemetry (Swift / SwiftPM) | `broberg-ai/upmetrics-swift` |
 | `@broberg/fleet-client` | ✅ v0.1.0 | Fleet comms (typed client) | `broberg-ai/fleet` (buddy F072) |

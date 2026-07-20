@@ -78,7 +78,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.1.0 — The fleet Data SDK. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.22.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@broberg/ai-sdk** v0.25.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
 - **@upmetrics/sdk** v0.3.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
