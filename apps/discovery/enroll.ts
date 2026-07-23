@@ -66,6 +66,14 @@ export interface EnrollStore {
   sessionKeyHash(session: string): Promise<string | null>;
   /** Bind a key hash to a session on first enroll (no-op if already bound — race-safe). */
   bindSessionKey(session: string, keyHash: string): Promise<void>;
+  /**
+   * F039.5 — the "ask components to reset it" escape hatch. Drops ONLY this
+   * session's key binding so it can re-bind a fresh key on the next enroll.
+   * The enrollments (adoptions) live in a SEPARATE table and are untouched.
+   * Owner-only: there is deliberately no HTTP route to this — a network-reachable
+   * reset would be a TOFU-bypass surface. Returns rows removed (0 if not bound).
+   */
+  resetSessionKey(session: string): Promise<number>;
 }
 
 export function makeEnrollStore(client: Client): EnrollStore {
@@ -103,6 +111,10 @@ export function makeEnrollStore(client: Client): EnrollStore {
         sql: "INSERT INTO session_keys (session, key_hash, bound_at) VALUES (?, ?, ?) ON CONFLICT(session) DO NOTHING",
         args: [session, keyHash, Date.now()],
       });
+    },
+    async resetSessionKey(session) {
+      const rs = await client.execute({ sql: "DELETE FROM session_keys WHERE session = ?", args: [session] });
+      return rs.rowsAffected;
     },
   };
 }

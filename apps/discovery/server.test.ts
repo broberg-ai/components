@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 process.env.ENROLL_DB_URL = ":memory:";
 
 import { app } from "./server";
+import { getEnrollStore } from "./enroll";
 
 describe("Discovery API", () => {
   it("GET /health → ok", async () => {
@@ -269,6 +270,32 @@ describe("auto-enrollment (F039) — trust-on-first-use keys", () => {
     expect(paths).toContain("/api/enroll");
     expect(paths).toContain("/api/enrollments");
     expect(paths).toContain("/api/sessions/:session");
+  });
+
+  it("resetSessionKey clears ONLY the key binding — enrollments survive, session re-binds a fresh key (F039.5)", async () => {
+    const sess = "reset-test";
+    // Bind KEY + record an enrollment for this session.
+    expect((await enroll({ session: sess, pkg: "@broberg/mail", version: "0.1.0" }, KEY)).status).toBe(200);
+    // While bound, a DIFFERENT key is rejected (the lock-out fd-sundhed hit).
+    expect((await enroll({ session: sess, pkg: "@broberg/lens", version: "0.1.0" }, KEY2)).status).toBe(401);
+
+    const store = await getEnrollStore();
+    expect(store).not.toBeNull();
+    // Reset drops exactly one row (the binding) — RED without resetSessionKey.
+    expect(await store!.resetSessionKey(sess)).toBe(1);
+    expect(await store!.sessionKeyHash(sess)).toBeNull();
+
+    // The enrollments (adoptions) live in a separate table and MUST survive.
+    const roster = await (await app.request("/api/enrollments")).json();
+    expect(roster.enrollments.some((e: { session: string; pkg: string }) => e.session === sess && e.pkg === "@broberg/mail")).toBe(true);
+
+    // Now the session can re-bind with its FRESH key and enroll again.
+    const re = await enroll({ session: sess, pkg: "@broberg/lens", version: "0.1.0" }, KEY2);
+    expect(re.status).toBe(200);
+    expect((await re.json()).key).toBe("registered");
+
+    // Resetting an unbound session is a safe no-op (0 rows) — never throws.
+    expect(await store!.resetSessionKey("never-bound-session")).toBe(0);
   });
 
   it("a session's own published packages are excluded from its gap (ai-sdk #5335)", async () => {
