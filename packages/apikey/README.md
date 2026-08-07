@@ -170,6 +170,19 @@ withApiKeyAuth(handler, { lookup, project: (r) => ({ id: r.id, role: r.role }) }
 > still emits the built-in string bodies. Filing an issue is the right move if
 > you need them there.
 
+> **If you render your own 429 body, quote the same `result`.** The headers come
+> from the middleware and the body comes from your `onLimited`, so they are
+> produced in two places. A caller told *"1 per 60s"* in the body while
+> `X-RateLimit-Limit` says `600` cannot tell which to believe. Use
+> `result.limit` / `result.resetAt` in the body rather than a constant you hold
+> separately — the package cannot assert this for you, so it is worth a test on
+> your side.
+
+`Retry-After` is floored at `1` (since v0.3.1): with a shared remote store whose
+round-trip outlasts the remaining window, the raw computation could go negative
+and emit `Retry-After: 0` — telling a client to retry *immediately* while still
+limited.
+
 `lookup(presented) => record | null` is yours: hash + DB/filesystem read, your storage, your tenancy. The package never sees your store.
 
 ## Boundaries (what it deliberately does NOT do)

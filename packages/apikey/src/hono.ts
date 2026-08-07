@@ -82,7 +82,7 @@ export function honoRateLimit(
     c.header("X-RateLimit-Limit", String(r.limit));
     c.header("X-RateLimit-Remaining", String(r.remaining));
     if (!r.allowed) {
-      c.header("Retry-After", String(Math.max(0, Math.ceil((r.resetAt - Date.now()) / 1000))));
+      c.header("Retry-After", String(Math.max(1, Math.ceil((r.resetAt - Date.now()) / 1000))));
       return opts?.onLimited?.(c, r) ?? c.json({ error: "rate_limited" }, 429);
     }
     await next();

@@ -54,7 +54,7 @@ export function nextRateLimit(
     const { key, max } = resolveRateLimitKey(keyFn ? keyFn(req) : clientIp(req));
     const r = await limiter.check(key, max === undefined ? {} : { max });
     if (r.allowed) return null;
-    const retry = Math.max(0, Math.ceil((r.resetAt - Date.now()) / 1000));
+    const retry = Math.max(1, Math.ceil((r.resetAt - Date.now()) / 1000));
     return json({ error: "rate_limited" }, 429, {
       "Retry-After": String(retry),
       "X-RateLimit-Limit": String(r.limit),
