@@ -1,4 +1,4 @@
-import type { SlidingWindowRateLimiter } from "./rate-limit";
+import { resolveRateLimitKey, type RateLimitKey, type SlidingWindowRateLimiter } from "./rate-limit";
 
 /**
  * Next.js (App Router) adapter — built on the Web-standard `Request`/`Response`
@@ -10,6 +10,13 @@ export interface ApiKeyAuthOptions<T> {
   /** Override the header. Default: `Authorization: Bearer …` then `x-api-key`. */
   headerName?: string;
   authorize?: (record: T, req: Request) => boolean | Promise<boolean>;
+  /**
+   * Narrow what the handler receives. By default the WHOLE looked-up record is
+   * passed through — including a storage `hash` column and anything else on the
+   * row. Not a credential leak, but more than a handler needs; supply `project`
+   * to pass a caller shape you chose. (Mirrors the Hono adapter.)
+   */
+  project?: (record: T) => unknown;
 }
 
 type RouteHandler<T> = (req: Request, record: T, ...rest: unknown[]) => Response | Promise<Response>;
@@ -34,22 +41,23 @@ export function withApiKeyAuth<T>(
       return json({ error: "forbidden" }, 403);
     }
 
-    return handler(req, record, ...rest);
+    return handler(req, (opts.project ? opts.project(record) : record) as T, ...rest);
   };
 }
 
 /** Returns a 429 `Response` when over the limit, or `null` to continue. */
 export function nextRateLimit(
   limiter: SlidingWindowRateLimiter,
-  keyFn?: (req: Request) => string,
+  keyFn?: (req: Request) => RateLimitKey,
 ): (req: Request) => Promise<Response | null> {
   return async (req) => {
-    const key = keyFn ? keyFn(req) : clientIp(req);
-    const r = await limiter.check(key);
+    const { key, max } = resolveRateLimitKey(keyFn ? keyFn(req) : clientIp(req));
+    const r = await limiter.check(key, max === undefined ? {} : { max });
     if (r.allowed) return null;
     const retry = Math.max(0, Math.ceil((r.resetAt - Date.now()) / 1000));
     return json({ error: "rate_limited" }, 429, {
       "Retry-After": String(retry),
+      "X-RateLimit-Limit": String(r.limit),
       "X-RateLimit-Remaining": "0",
     });
   };

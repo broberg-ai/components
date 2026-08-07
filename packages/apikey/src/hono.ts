@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from "hono";
 import type { RateLimitResult, SlidingWindowRateLimiter } from "./rate-limit";
+import { resolveRateLimitKey, type RateLimitKey } from "./rate-limit";
 
 /**
  * Hono adapter. The consumer supplies `lookup` (it does the hash + DB read, so
@@ -18,6 +19,14 @@ export interface HonoApiKeyOptions<T> {
   authorize?: (record: T, c: Context) => boolean | Promise<boolean>;
   /** Context key the resolved record is set under. Default: `"apiKey"`. */
   contextKey?: string;
+  /**
+   * Narrow what lands on the context. By default the WHOLE looked-up record is
+   * stored — including whatever your storage row carries (a `hash` column, for
+   * instance). That is not a credential leak (a hash is not usable), but it is
+   * more than a handler needs, and one `c.json(caller)` later it becomes a
+   * response body. Supply `project` to hand handlers a caller shape you chose.
+   */
+  project?: (record: T) => unknown;
   /**
    * Render the 401. `reason` is `"missing"` when no key was presented and
    * `"invalid"` when `lookup` returned null. Both answer 401 by default, but the
@@ -49,27 +58,28 @@ export function honoApiKeyMiddleware<T>(opts: HonoApiKeyOptions<T>): MiddlewareH
       return opts.onForbidden?.(c, record) ?? c.json({ error: "forbidden" }, 403);
     }
 
-    c.set(ctxKey, record);
+    c.set(ctxKey, opts.project ? opts.project(record) : record);
     await next();
   };
 }
 
 export interface HonoRateLimitOptions {
   /**
-   * Render the 429. The `X-RateLimit-Remaining` and `Retry-After` headers are
-   * still set by the middleware — the hook shapes the body only.
+   * Render the 429. The `X-RateLimit-*` and `Retry-After` headers are still set
+   * by the middleware — the hook shapes the body only.
    */
   onLimited?: (c: Context, result: RateLimitResult) => Response;
 }
 
 export function honoRateLimit(
   limiter: SlidingWindowRateLimiter,
-  keyFn?: (c: Context) => string,
+  keyFn?: (c: Context) => RateLimitKey,
   opts?: HonoRateLimitOptions,
 ): MiddlewareHandler {
   return async (c, next) => {
-    const key = keyFn ? keyFn(c) : clientIp(c);
-    const r = await limiter.check(key);
+    const { key, max } = resolveRateLimitKey(keyFn ? keyFn(c) : clientIp(c));
+    const r = await limiter.check(key, max === undefined ? {} : { max });
+    c.header("X-RateLimit-Limit", String(r.limit));
     c.header("X-RateLimit-Remaining", String(r.remaining));
     if (!r.allowed) {
       c.header("Retry-After", String(Math.max(0, Math.ceil((r.resetAt - Date.now()) / 1000))));

@@ -11,6 +11,27 @@ export interface RateLimitResult {
   remaining: number;
   /** Epoch ms when the oldest in-window hit ages out (when the window frees up). */
   resetAt: number;
+  /**
+   * The cap actually applied to THIS check — the per-check `max` override when
+   * one was passed, otherwise the limiter's default. `remaining` is
+   * uninterpretable without it (remaining of *what*?), and with per-route caps
+   * the answer varies per request, so the result is the only place that can
+   * report it honestly.
+   */
+  limit: number;
+}
+
+/**
+ * What an adapter's `keyFn` may return. A bare string is the bucket key and
+ * uses the limiter's default cap; the object form adds a per-request `max`, so
+ * ONE limiter can enforce different caps per route (admin 600/min, write
+ * 300/min) instead of forcing a limiter instance per cap.
+ */
+export type RateLimitKey = string | { key: string; max?: number };
+
+/** Normalise either `keyFn` return shape. */
+export function resolveRateLimitKey(k: RateLimitKey): { key: string; max?: number } {
+  return typeof k === "string" ? { key: k } : k;
 }
 
 export interface RateLimitStore {
@@ -96,6 +117,7 @@ export class SlidingWindowRateLimiter {
       allowed: count <= max,
       remaining: Math.max(0, max - count),
       resetAt: (oldest ?? now) + this.windowMs,
+      limit: max,
     };
   }
 

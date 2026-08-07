@@ -23,6 +23,8 @@ export {
 export {
   SlidingWindowRateLimiter,
   MemoryRateLimitStore,
+  resolveRateLimitKey,
   type RateLimitStore,
   type RateLimitResult,
+  type RateLimitKey,
 } from "./rate-limit";

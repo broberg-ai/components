@@ -135,6 +135,41 @@ caller which.
 > loopback-bound service with no proxy in front that means **every caller shares
 > one bucket** — pass a `keyFn` that keys on the token/record id instead.
 
+### Different caps per route, one limiter (v0.3.0)
+
+`keyFn` may return `{ key, max }` instead of a bare string, so a single limiter
+enforces a different cap per route — you do not need a limiter instance per cap:
+
+```ts
+app.use("/admin/*", honoRateLimit(limiter, (c) => ({ key: tokenId(c), max: 600 })));
+app.use("/write/*", honoRateLimit(limiter, (c) => ({ key: tokenId(c), max: 300 })));
+```
+
+Both adapters set **`X-RateLimit-Limit`** as well as `X-RateLimit-Remaining` —
+`Limit` reports the *effective* cap for that request (the per-route `max` when
+one applies), because a remaining count you can't interpret is not much use.
+`RateLimitResult.limit` carries the same number if you drive the limiter directly.
+
+### What reaches your handler (v0.3.0)
+
+By default the **whole** looked-up record is what `c.set(contextKey, …)` stores
+(Hono) and what arrives as the handler's 2nd argument (Next) — including
+whatever your storage row carries, such as a `hash` column. A hash is not a
+usable credential, so this is not a credential leak, but it is more than a
+handler needs, and one `c.json(caller)` later it becomes a response body.
+
+Pass `project` to choose the caller shape yourself:
+
+```ts
+honoApiKeyMiddleware({ lookup, project: (r) => ({ id: r.id, role: r.role }) });
+withApiKeyAuth(handler, { lookup, project: (r) => ({ id: r.id, role: r.role }) });
+```
+
+> **Adapter asymmetry, stated plainly:** the `onUnauthorized` / `onForbidden` /
+> `onLimited` hooks above exist on the **Hono** adapter only. The Next adapter
+> still emits the built-in string bodies. Filing an issue is the right move if
+> you need them there.
+
 `lookup(presented) => record | null` is yours: hash + DB/filesystem read, your storage, your tenancy. The package never sees your store.
 
 ## Boundaries (what it deliberately does NOT do)
