@@ -279,6 +279,21 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     description: 'Cloudflare global API key (37-hex)',
     regex: /\b[0-9a-f]{37}\b/g,
   },
+  {
+    // LAST on purpose: this is the only unprefixed shape in the list, so every
+    // anchored pattern above must get first refusal.
+    //
+    // Philips Hue v2 application key — 40 chars of [A-Za-z0-9-] with NO prefix,
+    // so there is nothing to anchor on. The negative lookahead is load-bearing,
+    // not decoration: a bare [A-Za-z0-9-]{40} also matches a GIT COMMIT SHA, and
+    // telemetry/error output is full of those. A redactor that eats commit
+    // hashes gets switched off within a week, after which it protects nothing.
+    // Hue keys are mixed-case; SHAs are lowercase hex — that asymmetry is the
+    // whole guard. (Pattern contributed + field-tested by beacon, F035.7.)
+    label: 'hue-application-key',
+    description: 'Philips Hue v2 application key (40 chars, no prefix)',
+    regex: /\b(?![0-9a-f]{40}\b)[A-Za-z0-9-]{40}\b/g,
+  },
 ];
 
 export interface RedactionFinding {

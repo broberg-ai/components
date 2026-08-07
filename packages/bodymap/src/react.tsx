@@ -279,9 +279,28 @@ function shapeEl(s: Shape, props: Record<string, unknown>) {
 
 // ---- one-time style injection (no external CSS; theme via CSS variables) -----
 
+/**
+ * Map a palette onto the root element's CSS custom properties, so a consumer's
+ * colours reach the panel chrome and not just the body. Only keys the consumer
+ * actually set are emitted — everything else falls through to the stylesheet's
+ * (AA-safe) defaults. (F052.19)
+ */
+function chromeStyle(palette?: BodymapPalette): React.CSSProperties | undefined {
+  if (!palette) return undefined;
+  const ui = palette.ui ?? {};
+  const vars: Record<string, string> = { "--bmap-accent": palette.selected };
+  if (ui.text) vars["--bmap-ink"] = ui.text;
+  if (ui.mutedText) vars["--bmap-muted"] = ui.mutedText;
+  if (ui.panelBg) vars["--bmap-panel"] = ui.panelBg;
+  if (ui.border) vars["--bmap-line"] = ui.border;
+  if (ui.badgeBg) vars["--bmap-badge-bg"] = ui.badgeBg;
+  if (ui.danger) vars["--bmap-danger"] = ui.danger;
+  return vars as React.CSSProperties;
+}
+
 const STYLE_ID = "broberg-bodymap-styles";
 const STYLE = `
-.bmap{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-panel:#fff;--bmap-ink:#1e293b;--bmap-muted:#64748b;
+.bmap{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-panel:#fff;--bmap-ink:#1e293b;--bmap-muted:#475569;--bmap-badge-bg:#f1f5f9;--bmap-danger:#dc2626;
   display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
 .bmap__stage{display:flex;flex-direction:column;gap:10px;flex:0 1 340px;min-width:0;max-width:360px}
 .bmap__bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -307,7 +326,7 @@ const STYLE = `
 .bmap__panel--empty{color:var(--bmap-muted);font-size:13.5px}
 .bmap__ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
 .bmap__ph b{font-size:16px}
-.bmap__code{font:11px ui-monospace,monospace;color:var(--bmap-muted);background:#f1f5f9;border-radius:6px;padding:2px 7px}
+.bmap__code{font:11px ui-monospace,monospace;color:var(--bmap-muted);background:var(--bmap-badge-bg);border-radius:6px;padding:2px 7px}
 .bmap__lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bmap-muted);margin:0 0 7px}
 .bmap__scale{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .bmap__i{font:inherit;font-size:14px;font-weight:600;width:38px;height:38px;border-radius:9px;border:1px solid var(--bmap-line);background:#fff;color:var(--bmap-ink);cursor:pointer;transition:border-color .1s,background .1s,transform .1s}
@@ -319,11 +338,11 @@ const STYLE = `
 .bmap__chip:hover{border-color:var(--bmap-accent);color:var(--bmap-accent)}
 .bmap__chip:active{transform:scale(.96)}
 .bmap__chip--on{background:var(--bmap-ink);border-color:var(--bmap-ink);color:#fff}
-.bmap__rm{font:inherit;font-size:14px;font-weight:600;border:1px solid #f6c9c9;background:#fff;color:#ef4444;border-radius:9px;padding:10px 15px;cursor:pointer;transition:.1s}
+.bmap__rm{font:inherit;font-size:14px;font-weight:600;border:1px solid #f6c9c9;background:#fff;color:var(--bmap-danger);border-radius:9px;padding:10px 15px;cursor:pointer;transition:.1s}
 .bmap__rm:hover{background:#fef2f2}
 .bmap__rm:active{transform:scale(.97)}
 .bmap__i:focus-visible,.bmap__chip:focus-visible,.bmap__vbtn:focus-visible,.bmap__rm:focus-visible,.bmap__zoom button:focus-visible{outline:2px solid var(--bmap-accent);outline-offset:2px}
-.bmapc{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-ink:#1e293b;--bmap-muted:#64748b;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
+.bmapc{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-ink:#1e293b;--bmap-muted:#475569;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
 .bmapc__bodies{display:flex;gap:14px;flex-wrap:wrap}
 .bmapc__fig{flex:1 1 150px;min-width:130px;max-width:220px;margin:0;text-align:center}
 .bmapc__cap{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#556274;margin-bottom:6px}
@@ -515,8 +534,9 @@ export function BodyMap({
   const region: BodyRegion | undefined = selected ? REGIONS.find((r) => r.key === selected) : undefined;
   const current = selected ? pointOf(selected) : undefined;
   const rootCls = ["bmap", className].filter(Boolean).join(" ");
-  // palette.selected drives the focus/selected stroke via --bmap-accent.
-  const rootStyle = palette ? ({ "--bmap-accent": palette.selected } as React.CSSProperties) : undefined;
+  // palette.selected drives the focus/selected stroke via --bmap-accent;
+  // palette.ui drives the panel chrome (F052.19).
+  const rootStyle = chromeStyle(palette);
   const ariaFor = (r: BodyRegion, marked?: PainReport[number], interactive = true): string => {
     if (marked) return L.ariaMarked(nameOf(r.key), marked.intensity, marked.type ? L.qualities[marked.type] : undefined);
     return interactive ? L.ariaUnmarked(nameOf(r.key)) : nameOf(r.key);
@@ -721,7 +741,7 @@ export function BodyMapCompare({
   const [view, setView] = useState<BodyView2D>(defaultView);
   const L = resolveLabels(locale, labels);
   const nameOf = (k: string) => L.regions[k] ?? getRegion(k)?.label ?? k;
-  const rootStyle = palette ? ({ "--bmap-accent": palette.selected } as React.CSSProperties) : undefined;
+  const rootStyle = chromeStyle(palette);
 
   const keys = Array.from(new Set([...before, ...after].map((p) => p.region)));
   const changes = keys

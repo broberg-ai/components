@@ -172,6 +172,51 @@ export interface BodymapPalette {
   heat: { low: string; mid: string; high: string };
   /** Optional per-region base-colour overrides (region key → colour). */
   regions?: Record<string, string>;
+  /**
+   * Optional panel-chrome colours (the selection panel, labels, hint box) —
+   * NOT the body itself. All optional; anything omitted falls back to
+   * {@link defaultUi}. A palette that only themed the body was half a palette:
+   * a consumer passing brand colours still got hardcoded chrome. (F052.19)
+   */
+  ui?: BodymapUiColors;
+}
+
+/** Panel-chrome colours. Every default is WCAG-AA (>=4.5:1) on its own background. */
+export interface BodymapUiColors {
+  /** Primary text (headings, values). */
+  text?: string;
+  /** Secondary text — section labels, the empty-state hint. */
+  mutedText?: string;
+  /** Panel background. */
+  panelBg?: string;
+  /** Panel + control borders. */
+  border?: string;
+  /** Background behind the region-code badge. */
+  badgeBg?: string;
+  /** The destructive action (remove a marked region). */
+  danger?: string;
+}
+
+/**
+ * Default panel chrome. Contrast against `panelBg` (#fff), asserted by
+ * `test/contrast.test.ts`:
+ *   text       #1e293b  14.8:1
+ *   mutedText  #475569   7.6:1  (was #94a3b8 at 2.56:1 — WCAG AA failure)
+ *   danger     #dc2626   4.8:1  (was #ef4444 at 3.76:1 — WCAG AA failure)
+ * `mutedText` on `badgeBg` (#f1f5f9) is 6.9:1 (was #64748b at 4.34:1).
+ */
+export const defaultUi: Required<BodymapUiColors> = {
+  text: "#1e293b",
+  mutedText: "#475569",
+  panelBg: "#fff",
+  border: "#e2e8f0",
+  badgeBg: "#f1f5f9",
+  danger: "#dc2626",
+};
+
+/** Resolve a palette's chrome colours, filling every gap from {@link defaultUi}. */
+export function uiColors(palette?: BodymapPalette): Required<BodymapUiColors> {
+  return { ...defaultUi, ...(palette?.ui ?? {}) };
 }
 
 /** The fleet default palette. Override any field per consumer. */

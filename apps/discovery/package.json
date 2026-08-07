@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun run --hot server.ts",
     "start": "bun run server.ts",
-    "test": "vitest run",
+    "test": "node ../../scripts/check-signature-drift.mjs && vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

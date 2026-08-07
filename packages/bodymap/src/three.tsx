@@ -27,6 +27,7 @@ import {
   heatFor,
   baseColorFor,
   defaultPalette,
+  uiColors,
   type BodymapPalette,
   type PainReport,
   type PainType,
@@ -139,6 +140,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
     locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
     autoRotate = true, canvasHeight = "60vh", showRegionCode = true, className,
   } = props;
+
+  // Panel chrome — consumer palette wins, AA-safe defaults fill every gap. (F052.19)
+  const chrome = uiColors(palette);
 
   const L = mergeLabels(locale, labels);
   const UI = { ...(locale === "en" ? UI_EN : UI_DA), ...ui };
@@ -403,29 +407,29 @@ export function BodyMap3D(props: BodyMap3DProps) {
         )}
         <div style={{ flex: "1 1 300px", minWidth: 260 }}>
           {region ? (
-            <div style={{ border: "1px solid #e2e8f0", borderRadius: 14, padding: 16, background: "#fff" }}>
+            <div style={{ border: `1px solid ${chrome.border}`, borderRadius: 14, padding: 16, background: chrome.panelBg }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <b style={{ fontSize: 16 }}>{nameOf(region.key)}</b>
                 {showRegionCode && (
-                  <span data-testid="bodymap3d-region-code" style={{ font: "11px ui-monospace, monospace", color: "#64748b", background: "#f1f5f9", borderRadius: 6, padding: "2px 7px" }}>{region.code}{region.side ? " · " + region.side : ""}</span>
+                  <span data-testid="bodymap3d-region-code" style={{ font: "11px ui-monospace, monospace", color: chrome.mutedText, background: chrome.badgeBg, borderRadius: 6, padding: "2px 7px" }}>{region.code}{region.side ? " · " + region.side : ""}</span>
                 )}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 7 }}>{L.intensity}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.intensity}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
                 {Array.from({ length: 11 }, (_, i) => (
                   <button key={i} data-testid={`bodymap3d-intensity-${i}`} onClick={() => setPain(region.key, i, current?.type)} style={{ ...btn, display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 30, height: 30, padding: 0, background: current?.intensity === i ? "#0e8f8a" : "#fff", color: current?.intensity === i ? "#fff" : "#1e293b" }}>{i}</button>
                 ))}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 7 }}>{L.quality}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.quality}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
                 {PAIN_TYPES.map((t) => (
                   <button key={t} data-testid={`bodymap3d-type-${t}`} onClick={() => setPain(region.key, current?.intensity ?? 5, t)} style={{ ...btn, borderRadius: 999, padding: "6px 12px", background: current?.type === t ? "#1e293b" : "#fff", color: current?.type === t ? "#fff" : "#64748b" }}>{L.qualities[t] ?? t}</button>
                 ))}
               </div>
-              {current && <button data-testid="bodymap3d-remove" onClick={() => removePain(region.key)} style={{ ...btn, color: "#ef4444", borderColor: "#f6c9c9" }}>{L.remove}</button>}
+              {current && <button data-testid="bodymap3d-remove" onClick={() => removePain(region.key)} style={{ ...btn, color: chrome.danger, borderColor: "#f6c9c9" }}>{L.remove}</button>}
             </div>
           ) : showEmptyHint ? (
-            <div data-testid="bodymap3d-empty" style={{ border: "1px solid #e2e8f0", borderRadius: 14, padding: 16, background: "#fff", color: "#94a3b8", fontSize: 13.5 }}>{UI.hoverHint}</div>
+            <div data-testid="bodymap3d-empty" style={{ border: `1px solid ${chrome.border}`, borderRadius: 14, padding: 16, background: chrome.panelBg, color: chrome.mutedText, fontSize: 13.5 }}>{UI.hoverHint}</div>
           ) : null}
         </div>
       </div>

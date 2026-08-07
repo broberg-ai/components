@@ -77,6 +77,12 @@ export function registerMcpServerTools<Ctx = unknown>(
   const getContext = contextResolver(opts);
 
   for (const tool of tools) {
+    // The SDK converts the shape itself on this path, with the same silent
+    // empty-schema failure mode. Convert once up front purely so the guard in
+    // toToolListEntry throws at REGISTRATION time rather than shipping a
+    // schema-less tool to the client.
+    if (!tool.inputJsonSchema) toToolListEntry(tool);
+
     server.tool(
       tool.name,
       tool.description,

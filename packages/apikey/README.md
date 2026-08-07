@@ -98,6 +98,43 @@ import { withApiKeyAuth, nextRateLimit } from "@broberg/apikey/next";
 export const POST = withApiKeyAuth(async (req, record) => Response.json({ ok: true }), { lookup });
 ```
 
+### Your error contract, not ours (v0.2.0)
+
+The default bodies are `{ error: "missing_api_key" }` etc. — a **string**. If your
+API answers something else (e.g. `{ error: { code, message } }`, which a machine
+client can switch on), render it yourself instead of rewriting the middleware:
+
+```ts
+app.use("/api/*", honoApiKeyMiddleware({
+  lookup,
+  authorize,
+  onUnauthorized: (c, reason) =>            // reason: "missing" | "invalid"
+    c.json({ error: { code: `unauthorized_${reason}` } }, 401),
+  onForbidden: (c, record) =>
+    c.json({ error: { code: "forbidden", at: record.id } }, 403),
+}));
+
+app.use("/api/*", honoRateLimit(limiter, keyFn, {
+  onLimited: (c, r) => c.json({ error: { code: "rate_limited", retryAt: r.resetAt } }, 429),
+}));
+```
+
+The middleware still decides **what** happened; the hook only decides how it is
+written down. Status codes and the `X-RateLimit-Remaining` / `Retry-After`
+headers are unchanged. Omit the hooks and the responses are byte-identical to
+v0.1.1.
+
+`reason` is worth acting on: **401** means *"I don't know who you are"* (no
+token, unknown token, just-revoked) and is fixed by fetching a token; **403**
+means *"I know exactly who you are, and this isn't yours"* and is fixed by
+requesting a different role. The response is the only thing that tells the
+caller which.
+
+> **Rate-limit bucket key.** With no `keyFn`, the limiter keys on
+> `x-forwarded-for`, falling back to `"unknown"` when the header is absent. On a
+> loopback-bound service with no proxy in front that means **every caller shares
+> one bucket** — pass a `keyFn` that keys on the token/record id instead.
+
 `lookup(presented) => record | null` is yours: hash + DB/filesystem read, your storage, your tenancy. The package never sees your store.
 
 ## Boundaries (what it deliberately does NOT do)

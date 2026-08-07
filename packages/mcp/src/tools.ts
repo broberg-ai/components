@@ -31,6 +31,54 @@ export function imageResult(data: string, mimeType: string): ToolResult {
   return { content: [{ type: "image", data, mimeType }] };
 }
 
+/**
+ * Thrown when a non-empty input shape converts to a JSON Schema with no
+ * properties. Without this, such a tool reaches the MCP client declaring NO
+ * inputs: the model then guesses arguments and nothing validates them, while
+ * the server starts, the tool lists and the call "succeeds". A guard that
+ * cannot fire looks exactly like a guard that passes — so we fail loudly
+ * instead. (Reported by beacon: `zod-to-json-schema@3` returns an empty
+ * envelope, without throwing, for a Zod 4 object.)
+ */
+export class EmptyInputSchemaError extends Error {
+  constructor(public readonly toolName: string) {
+    super(
+      `Tool "${toolName}": input shape is non-empty but converted to a JSON Schema ` +
+        `with no properties. This usually means the installed zod major version is ` +
+        `not supported by the converter. Pass \`inputJsonSchema\` on the tool def to ` +
+        `bypass conversion, or align the zod version.`,
+    );
+    this.name = "EmptyInputSchemaError";
+  }
+}
+
+/**
+ * Convert a raw Zod shape to JSON Schema, supporting both zod majors.
+ *
+ * Zod 4 emits draft-2020-12 itself via `z.toJSONSchema()` — exactly what MCP
+ * wants. Zod 3 has no such method, so we keep `zod-to-json-schema` for it.
+ * `zod-to-json-schema@3` cannot read Zod 4's internal form and returns an empty
+ * envelope *without throwing*, which is the silent failure the guard below
+ * exists to make impossible.
+ */
+function toInputJsonSchema(shape: RawShape, toolName: string): Record<string, unknown> {
+  const obj = z.object(shape);
+  const zAny = z as unknown as { toJSONSchema?: (s: unknown) => Record<string, unknown> };
+
+  const schema =
+    typeof zAny.toJSONSchema === "function"
+      ? zAny.toJSONSchema(obj)
+      : (zodToJsonSchema(obj, { $refStrategy: "none" }) as Record<string, unknown>);
+
+  // An empty shape legitimately yields no properties (a tool taking no args).
+  // A NON-empty shape that yields none is always a conversion failure.
+  const props = schema?.properties as Record<string, unknown> | undefined;
+  if (Object.keys(shape).length > 0 && (!props || Object.keys(props).length === 0)) {
+    throw new EmptyInputSchemaError(toolName);
+  }
+  return schema;
+}
+
 /** Low-level ListTools entry — the raw shape converted to JSON Schema. */
 export function toToolListEntry(tool: AnyToolDef<any>): {
   name: string;
@@ -40,9 +88,7 @@ export function toToolListEntry(tool: AnyToolDef<any>): {
   return {
     name: tool.name,
     description: tool.description,
-    inputSchema: zodToJsonSchema(z.object(tool.inputSchema), {
-      $refStrategy: "none",
-    }) as Record<string, unknown>,
+    inputSchema: tool.inputJsonSchema ?? toInputJsonSchema(tool.inputSchema, tool.name),
   };
 }
 

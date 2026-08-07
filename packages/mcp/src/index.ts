@@ -20,7 +20,14 @@ export type {
   EmbeddedResource,
 } from "./types";
 
-export { defineTool, imageResult, dispatchTool, toToolListEntry, ToolNotFoundError } from "./tools";
+export {
+  defineTool,
+  imageResult,
+  dispatchTool,
+  toToolListEntry,
+  ToolNotFoundError,
+  EmptyInputSchemaError,
+} from "./tools";
 export type { DispatchOptions } from "./tools";
 
 export { validateBearerKey, hasScope, parseBearer } from "./auth";

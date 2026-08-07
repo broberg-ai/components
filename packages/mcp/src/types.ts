@@ -93,6 +93,13 @@ export interface ToolDef<Shape extends RawShape = RawShape, Ctx = unknown> {
   /** optional per-tool required scopes (AND) */
   scopes?: string[];
   inputSchema: Shape;
+  /**
+   * Escape hatch: a ready-made JSON Schema for this tool's input. When set, the
+   * Zod → JSON Schema conversion is skipped entirely and this is emitted
+   * verbatim. Use it when you already hold a JSON Schema (e.g. produced by
+   * `z.toJSONSchema()` yourself, or by something that is not Zod at all).
+   */
+  inputJsonSchema?: Record<string, unknown>;
   handler: (
     input: z.infer<z.ZodObject<Shape>>,
     context: ToolContext<Ctx>,
@@ -111,6 +118,7 @@ export interface AnyToolDef<Ctx = unknown> {
   kind?: ToolKind;
   scopes?: string[];
   inputSchema: RawShape;
+  inputJsonSchema?: Record<string, unknown>;
   handler: (
     input: any,
     context: ToolContext<Ctx>,

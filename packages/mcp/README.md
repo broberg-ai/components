@@ -18,9 +18,18 @@ npm i @broberg/mcp @modelcontextprotocol/sdk zod
 - **Auth** *(composable, all resolve to one `Principal`)*: `validateBearerKey` + `hasScope` (static, timing-safe) · `resolve3TierAuth` (API-key → session → bootstrap cascade, host callbacks) · `@broberg/mcp/oauth` (OAuth 2.1 PKCE via the SDK's `mcpAuthRouter`).
 - **One typed `defineTool` registry** drives BOTH the low-level `Server` and the high-level `McpServer` from a single definition — with a `kind` write-guard, optional per-tool `scopes` (AND), a uniform `{ content, isError }` envelope, arg-validation, and an audit hook. Kills the per-repo switch / JSON-schema / coercion boilerplate.
 
-> **zod is a peer dependency, pinned to `^3`.** better-auth pulls zod4 while the
-> MCP SDK peers zod3; two SDK copies → incompatible `Server<>` types → `as any`.
-> Locking a single zod major here is the fix — dedupe zod3 in your consumer.
+> **Peers you must install yourself.** `@modelcontextprotocol/sdk` (`>=1.12`) is a
+> **required** peer and is *not* installed automatically — a missing one shows up
+> only when the server fails to boot. `express` + `jose` are optional (OAuth only).
+
+> **zod `^3 || ^4` (since 0.5.0).** Both majors work: on zod 4 the toolkit uses
+> zod's own `z.toJSONSchema()` (draft-2020-12, what MCP wants); on zod 3 it uses
+> `zod-to-json-schema`. Still **dedupe to a single zod major** in your consumer —
+> better-auth pulls zod4 while older MCP SDKs peer zod3, and two SDK copies give
+> incompatible `Server<>` types. If a shape ever fails to convert, the toolkit
+> now **throws `EmptyInputSchemaError`** instead of quietly registering a tool
+> with no declared inputs; `inputJsonSchema` on a tool def bypasses conversion
+> entirely if you already hold a JSON Schema.
 
 ## Define tools once
 

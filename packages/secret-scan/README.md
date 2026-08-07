@@ -103,6 +103,14 @@ regexes — most-specific first so attribution is correct:
   secrets are caught only via the `labeled-hex-secret` name-context rule.
 - **Order is API** — specific patterns run before generic ones (`sk-ant-` before
   `sk-`); a test asserts it.
+- **`hue-application-key` is the one unprefixed shape, and it runs LAST.** A Hue
+  v2 key is 40 chars of `[A-Za-z0-9-]` with nothing to anchor on, so the regex
+  carries a negative lookahead — `\b(?![0-9a-f]{40}\b)[A-Za-z0-9-]{40}\b` — that
+  excludes **git commit SHAs**. This is not an optimisation: telemetry and error
+  output are full of SHAs, and a redactor that mangles commit hashes gets turned
+  off within a week, after which it protects nothing. Hue keys are mixed-case,
+  SHAs are lowercase hex. Do not "simplify" the lookahead away; `test/hue-key.test.ts`
+  asserts real SHAs stay untouched, standalone and in prose.
 
 ## API
 

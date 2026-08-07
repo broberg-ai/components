@@ -1,15 +1,21 @@
 {
   "name": "@broberg/mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Genuinely-reusable MCP-server toolkit for the broberg.ai fleet: composable transports (stdio + Streamable-HTTP + SSE), composable auth (static Bearer, hashed 3-tier, OAuth 2.1 PKCE), and one typed defineTool registry (kind write-guard + per-tool scopes + uniform envelope + audit) that drives both the low-level Server and high-level McpServer paths. Owns the plumbing, never your domain tools.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "bin", "README.md"],
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": { "broberg-mcp": "./bin/mcp.mjs" },
+  "bin": {
+    "broberg-mcp": "./bin/mcp.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -29,18 +35,22 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
+    "test": "vitest run && vitest run -c vitest.zod4.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "@modelcontextprotocol/sdk": ">=1.12",
     "express": "^5",
     "jose": "^5 || ^6",
-    "zod": "^3"
+    "zod": "^3 || ^4"
   },
   "peerDependenciesMeta": {
-    "express": { "optional": true },
-    "jose": { "optional": true }
+    "express": {
+      "optional": true
+    },
+    "jose": {
+      "optional": true
+    }
   },
   "dependencies": {
     "zod-to-json-schema": "^3.23.5"
@@ -54,7 +64,8 @@
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zod4": "npm:zod@^4.4.3"
   },
   "keywords": [
     "mcp",
@@ -71,5 +82,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/mcp"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }
