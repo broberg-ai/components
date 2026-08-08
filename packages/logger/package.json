@@ -1,0 +1,72 @@
+{
+  "name": "@broberg/logger",
+  "version": "0.1.0",
+  "description": "Fleet server logging that cannot leak a secret: four levels, one-line JSON in production or readable text locally, env-driven level, nesting child bindings \u2014 and every message and metadata value run through @broberg/secret-scan before it leaves the process. Never throws. Node/Bun/edge, one dependency.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./hono": {
+      "types": "./dist/hono.d.ts",
+      "import": "./dist/hono.js",
+      "require": "./dist/hono.cjs"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsup && node verify-exports.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench": "node bench/redaction.mjs"
+  },
+  "dependencies": {
+    "@broberg/secret-scan": "^0.1.8"
+  },
+  "peerDependencies": {
+    "hono": "^4"
+  },
+  "peerDependenciesMeta": {
+    "hono": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "hono": "^4.6.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "logger",
+    "logging",
+    "structured logging",
+    "json logs",
+    "server log",
+    "redaction",
+    "secret redaction",
+    "pino alternative",
+    "bun",
+    "edge",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/logger"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
