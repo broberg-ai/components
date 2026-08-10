@@ -277,10 +277,29 @@ async function execStep(
       return { detail: step.target != null ? describeTarget(step.target) : `${step.ms}ms`, resolved_via: layer };
     }
     case 'assert': {
-      // step.js is a JS EXPRESSION evaluated in page context; truthy = pass.
-      const result = await page.evaluate(step.js);
-      if (!result) throw new Error(`assert failed (falsy): ${step.js}`);
-      return { detail: step.js };
+      // F064 — `page.evaluate(string)` evaluated the body as an EXPRESSION and
+      // `if (!result)` treated every object as truthy, so `{ pass:false }` — the
+      // documented form — could NEVER fail, and `return …` was a SyntaxError.
+      // Measured by cardmem against this engine (#19259). Now evaluated in-page
+      // by evalAssertBody, which distinguishes three outcomes.
+      const out = await page.evaluate(evalAssertBody, step.js);
+
+      if (out.kind === 'syntax') {
+        throw new Error(`assert body is not valid JavaScript (${out.message}): ${step.js}`);
+      }
+      // A throw is not a verdict — say what exploded rather than calling it false.
+      if (out.kind === 'threw') {
+        throw new Error(`assert threw (${out.message}): ${step.js}`);
+      }
+      if (!out.value) {
+        // The author's own words when they used { pass, detail }.
+        throw new Error(
+          out.detail
+            ? `assert failed (${out.detail}): ${step.js}`
+            : `assert failed (falsy): ${step.js}`,
+        );
+      }
+      return { detail: out.detail ?? step.js };
     }
     case 'expectText': {
       const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectText' });
@@ -430,4 +449,65 @@ function safeUrl(page: Page): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** The three things an assert body can do. A verdict, an explosion, or nothing at all. */
+export type AssertOutcome =
+  | { kind: 'syntax'; message: string }
+  | { kind: 'threw'; message: string }
+  | { kind: 'value'; value: boolean; detail?: string };
+
+/**
+ * Compile + run an assert body INSIDE the page, and report which of three
+ * things happened. (F064 — ported from cardmem's sealed `evalAssertBody`.)
+ *
+ * Serialised into the page by `page.evaluate(evalAssertBody, body)`, so the
+ * compile, the run, and the `detail` stringification all happen page-side and
+ * only a plain object crosses the boundary.
+ *
+ * Two wrappers, in order:
+ *   1. expression — `x === y`, the common form
+ *   2. block      — `return x === y`, which the docs also teach
+ * Both async, so `await` works in either.
+ */
+export function evalAssertBody(b: string): Promise<AssertOutcome> {
+  let fn: (() => Promise<unknown>) | null = null;
+  let syntax = '';
+  try {
+    fn = new Function(`return (async () => (${b}))()`) as () => Promise<unknown>;
+  } catch {
+    try {
+      fn = new Function(`return (async () => { ${b} })()`) as () => Promise<unknown>;
+    } catch (e2) {
+      syntax = e2 instanceof Error ? e2.message : String(e2);
+    }
+  }
+  if (!fn) return Promise.resolve({ kind: 'syntax', message: syntax });
+
+  return fn().then(
+    (raw: unknown): AssertOutcome => {
+      // The object form is HONOURED, not banned: read `.pass` when the value
+      // carries one, keep bare-truthy behaviour otherwise (a querySelector
+      // Element is a legitimate assert today and must keep working).
+      if (raw !== null && typeof raw === 'object' && 'pass' in (raw as Record<string, unknown>)) {
+        const r = raw as { pass?: unknown; detail?: unknown };
+        let detail: string | undefined;
+        if (r.detail !== undefined && r.detail !== null) {
+          // Stringify HERE: a DOM node in `detail` would fail structured-clone
+          // and turn a working assert into a mystery evaluate error.
+          try {
+            detail = typeof r.detail === 'string' ? r.detail : JSON.stringify(r.detail);
+          } catch {
+            detail = String(r.detail);
+          }
+        }
+        return { kind: 'value', value: !!r.pass, ...(detail ? { detail } : {}) };
+      }
+      return { kind: 'value', value: !!raw };
+    },
+    (e: unknown): AssertOutcome => ({
+      kind: 'threw',
+      message: e instanceof Error ? e.message : String(e),
+    }),
+  );
 }

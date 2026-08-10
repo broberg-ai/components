@@ -26,6 +26,11 @@ export {
   plannedLayers,
   resolveTarget,
   isEditableElement,
+  // F064 — exported for the SAME reason as isEditableElement: the local daemon
+  // and the cloud runner must share ONE definition of what an assert means.
+  // Two copies is how the false green got in.
+  evalAssertBody,
+  type AssertOutcome,
   type FlowOptions,
   type FlowResult,
   type FlowStepReport,
