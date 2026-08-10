@@ -158,19 +158,30 @@ const rankPackages = (ql: string) =>
 // or by a verbatim, in-order phrase — so "fastly negative-cache" found the npm
 // group and "negative-cache fastly" found nothing. Adding a word REMOVED results,
 // and an empty answer from this endpoint is read fleet-wide as "we don't have
-// that". Third rule, purely additive: a query of ≥2 tokens matches when EVERY
-// token appears in the full text as a whole word. AND (not any) keeps precision;
-// word-boundary matching keeps the "dark" ≠ "ship-dark" guarantee; and leaving
-// single-token queries alone is what stops a search for "mail" pulling in every
-// platform whose tips mention mail in passing.
-const platformMatch = (full: string, curated: string, ql: string): boolean => {
+// that".
+//
+// Third rule, purely additive: a query of ≥2 tokens matches when EVERY token
+// appears as a whole word inside ONE SEGMENT — a single tip, or the notes, or the
+// curated fields. Not merely somewhere in the group.
+//
+// The per-segment part is load-bearing, and the existing "dark" ≠ "ship-dark"
+// test is what proved it: AND across the whole group let "dark" (from
+// "ship-dark" in one platform's notes) pair with "mode" (from "preview-mode" in
+// an unrelated tip) and drag Resend into a search for dark mode. A tip is the
+// unit of meaning; two words in two different sentences are a coincidence.
+// Single-token queries stay untouched — they already reach tip text via the
+// substring rule, and loosening them is what would pull every platform whose
+// tips mention mail in passing into a search for "mail".
+const platformMatch = (full: string, curated: string, ql: string, segments: string[] = [full]): boolean => {
   if (full.toLowerCase().includes(ql)) return true;
   const words = new Set(curated.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
   const queryTokens = tokenize(ql);
   if (queryTokens.some((t) => words.has(t))) return true;
   if (queryTokens.length < 2) return false;
-  const fullWords = new Set(full.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-  return queryTokens.every((t) => fullWords.has(t));
+  return segments.some((seg) => {
+    const segWords = new Set(seg.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+    return queryTokens.every((t) => segWords.has(t));
+  });
 };
 
 // Landing page = the live dashboard (same single source). node:fs so it works
@@ -332,6 +343,9 @@ app.get("/api/search", (c) => {
         `${p.name} ${p.role} ${p.notes ?? ""} ${(p.tips ?? []).map((t) => t.t).join(" ")} ${(p.kw ?? []).join(" ")}`,
         `${p.name} ${p.role} ${(p.kw ?? []).join(" ")}`,
         ql,
+        // Segments for the multi-token rule: each tip stands alone, so two words
+        // from two unrelated sentences cannot combine into a match.
+        [`${p.name} ${p.role} ${(p.kw ?? []).join(" ")}`, p.notes ?? "", ...(p.tips ?? []).map((t) => t.t)],
       ),
     ),
   });

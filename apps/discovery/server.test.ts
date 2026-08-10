@@ -202,10 +202,16 @@ describe("Discovery API", () => {
     expect(await infraIds("negative-cache fastly")).toContain("npm"); // SAME WORDS, reordered
   });
 
-  it("words spread across DIFFERENT tips of one group still match it", async () => {
-    // 'caret' + 'minor' sit in the semver-0x tip; 'oidc' is a different npm tip.
-    expect(await infraIds("caret minor")).toContain("npm");
-    expect(await infraIds("oidc caret")).toContain("npm");
+  it("all tokens must land in ONE segment — a tip, the notes, or the curated fields", async () => {
+    expect(await infraIds("caret minor")).toContain("npm"); // both in the semver-0x tip
+    expect(await infraIds("oidc caret")).toContain("npm"); // both in the curated kw list
+
+    // The case that forced the per-segment rule, caught by the 'dark' ≠ 'ship-dark'
+    // guard below: matching AND across a whole group let "dark" (from "ship-dark"
+    // in one platform's notes) pair with "mode" (from "preview-mode" in an
+    // unrelated email tip) and drag Resend into a search for dark mode. Two words
+    // in two different sentences are a coincidence, not a topic.
+    expect(await infraIds("dark mode")).not.toContain("resend");
   });
 
   it("precision holds — every token must be present, as a WORD", async () => {
