@@ -229,7 +229,7 @@ export const INFRA = [
   },
   {
     id: "npm", name: "npm / OIDC publishing", role: "How every @broberg/* package ships — token-free OIDC + provenance",
-    kw: ["npm","publish","publishing","package","registry","oidc","provenance","trusted publisher","release","tag"],
+    kw: ["npm","publish","publishing","package","registry","oidc","provenance","trusted publisher","release","tag","semver","caret","version pin","pin","dependency drift","version drift","bump","0.x"],
     region: "—",
     notes: "All @broberg/* packages publish to npm via GitHub Actions OIDC Trusted Publishing — no NPM_TOKEN in CI, with provenance. Each package has a Trusted Publisher (repo + workflow filename) at npmjs.com and a tag-prefixed job in .github/workflows/publish.yml; v0.1.0 of a brand-new name is bootstrap-published by hand (a token in a temp gitignored .npmrc, never committed), then every release after runs token-free on a tag push. Mind the read-after-publish lag and the lightweight-tag trap below.",
     tips: [

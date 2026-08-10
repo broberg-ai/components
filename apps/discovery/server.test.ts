@@ -186,6 +186,36 @@ describe("Discovery API", () => {
     expect(body.infra.length).toBe(0);
   });
 
+  // F038.5 — measured live 2026-08-10: adding a word REMOVED results. Tip text was
+  // reachable only as a verbatim, in-order phrase, so `fastly negative-cache` found
+  // the npm group and `negative-cache fastly` found nothing. Silence from this
+  // endpoint is read fleet-wide as "we don't have that", and the next thing that
+  // happens is a repo hand-rolls a duplicate.
+  const infraIds = async (q: string) => {
+    const body = await (await app.request(`/api/search?q=${encodeURIComponent(q)}`)).json();
+    return (body.infra as { id: string }[]).map((p) => p.id);
+  };
+
+  it("a multi-word query reaches TIP TEXT regardless of word order", async () => {
+    expect(await infraIds("fastly")).toContain("npm"); // 1 token: already worked
+    expect(await infraIds("fastly negative-cache")).toContain("npm"); // verbatim: already worked
+    expect(await infraIds("negative-cache fastly")).toContain("npm"); // SAME WORDS, reordered
+  });
+
+  it("words spread across DIFFERENT tips of one group still match it", async () => {
+    // 'caret' + 'minor' sit in the semver-0x tip; 'oidc' is a different npm tip.
+    expect(await infraIds("caret minor")).toContain("npm");
+    expect(await infraIds("oidc caret")).toContain("npm");
+  });
+
+  it("precision holds — every token must be present, as a WORD", async () => {
+    // A group with only ONE of the two words must not match on that alone …
+    expect(await infraIds("fastly kubernetes")).not.toContain("npm");
+    // … and a token must not substring-hit a longer word (the 'dark' ≠ 'ship-dark'
+    // rule above, restated for the multi-token path).
+    expect(await infraIds("cach fastl")).not.toContain("npm");
+  });
+
   it("exposes keywords/aliases on components for discoverability", async () => {
     const mail = await (await app.request("/api/components/F005")).json();
     expect(Array.isArray(mail.keywords)).toBe(true);

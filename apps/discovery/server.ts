@@ -154,10 +154,23 @@ const rankPackages = (ql: string) =>
 // TOKEN only matches the CURATED fields (name/role/aliases) as a whole word — so a
 // stray word from a phrase ("dark" in "dark mode") can't drag in an unrelated
 // platform by substring-hitting its long-form notes (e.g. "ship-dark").
+// F038.5: those two rules together left TIP TEXT reachable only by a single word
+// or by a verbatim, in-order phrase — so "fastly negative-cache" found the npm
+// group and "negative-cache fastly" found nothing. Adding a word REMOVED results,
+// and an empty answer from this endpoint is read fleet-wide as "we don't have
+// that". Third rule, purely additive: a query of ≥2 tokens matches when EVERY
+// token appears in the full text as a whole word. AND (not any) keeps precision;
+// word-boundary matching keeps the "dark" ≠ "ship-dark" guarantee; and leaving
+// single-token queries alone is what stops a search for "mail" pulling in every
+// platform whose tips mention mail in passing.
 const platformMatch = (full: string, curated: string, ql: string): boolean => {
   if (full.toLowerCase().includes(ql)) return true;
   const words = new Set(curated.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-  return tokenize(ql).some((t) => words.has(t));
+  const queryTokens = tokenize(ql);
+  if (queryTokens.some((t) => words.has(t))) return true;
+  if (queryTokens.length < 2) return false;
+  const fullWords = new Set(full.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  return queryTokens.every((t) => fullWords.has(t));
 };
 
 // Landing page = the live dashboard (same single source). node:fs so it works
