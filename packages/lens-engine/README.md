@@ -253,6 +253,12 @@ missing node — the assert is thin but real. The genuinely empty ones fire work
 
 > ### ⚠️ Upgrading from 0.5.x — `AssertOutcome` gained a member
 >
+> **Who this is for:** repos with `lens-engine` in `node_modules` — i.e. anyone
+> who *embeds* the engine. **Not** the much larger set that drives Lens as a
+> service through the cardmem daemon or MCP: they only ever see the finished
+> `status` field, and are unaffected at any version. The two groups are easy to
+> confuse — one repo ran 144 Lens runs without ever having had the package.
+>
 > `AssertOutcome` is now a **four**-way union. If you switch on `kind` or read
 > `.value`, handle `no-verdict` explicitly:
 >
