@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { createLogger } from "@broberg/logger";
+import { requestLogger, errorLogger } from "@broberg/logger/hono";
 // Single source of truth — shared with scripts/build-inventory.mjs.
 import { DATA, FLEET, MODEL, INFRA, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
@@ -249,7 +251,16 @@ const manifest = () => ({
   },
 });
 
+// F063 consumer #1. Redaction is on by default; note it is PATTERN-based, so it
+// catches a leaked key or token but NOT a value marked only by its field name
+// (see the package README) — this service logs routes and timings, not bodies.
+const log = createLogger({ name: "discovery", pretty: process.env.NODE_ENV !== "production" });
+
 const app = new Hono();
+// Before cors/routes so a request is logged even when a later middleware rejects it.
+// /health is skipped: Fly probes it constantly and it would drown the real traffic.
+app.use("*", requestLogger(log, { skip: (c) => c.req.path === "/health" }));
+app.onError(errorLogger(log));
 app.use("/api/*", cors()); // public read-only catalogue — any repo/browser may query
 app.use("/", cors());
 

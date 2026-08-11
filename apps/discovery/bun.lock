@@ -5,6 +5,7 @@
     "": {
       "name": "@broberg/discovery-app",
       "dependencies": {
+        "@broberg/logger": "^0.1.1",
         "@libsql/client": "^0.17.3",
         "hono": "^4.6.14",
       },
@@ -16,6 +17,10 @@
     },
   },
   "packages": {
+    "@broberg/logger": ["@broberg/logger@0.1.1", "", { "dependencies": { "@broberg/secret-scan": "^0.1.8" }, "peerDependencies": { "hono": "^4" }, "optionalPeers": ["hono"] }, "sha512-6JsYGfPLuO4CdKuEda+21722+JjsLTJ+cz5mE82FPiRzpbkcL75MGKrePiNv3+dHIG+ORmgcfO7GLFMUSrX9Ig=="],
+
+    "@broberg/secret-scan": ["@broberg/secret-scan@0.1.8", "", {}, "sha512-tmtVyPvpDzQAkzpycOMhg0VOktsZY2gsOe6jpvazh97o1FyGAeyhUQOpRteKl5JlA7onLk1q/neqvM4qRT7U/w=="],
+
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.21.5", "", { "os": "aix", "cpu": "ppc64" }, "sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ=="],
 
     "@esbuild/android-arm": ["@esbuild/android-arm@0.21.5", "", { "os": "android", "cpu": "arm" }, "sha512-vCPvzSjpPHEi1siZdlvAlsPxXl7WbOVUBBAowWug4rJHb68Ox8KualB+1ocNvT5fjv6wpkX6o/iEpbDrf68zcg=="],
