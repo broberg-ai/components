@@ -1,7 +1,30 @@
 # @broberg/logger
 
-Server logging for the broberg.ai fleet. Four levels, one shape, and **a secret
-cannot reach the log by accident**.
+Server logging for the broberg.ai fleet. Four levels, one shape, and **a
+credential that LOOKS like a credential is redacted before the line is written**.
+
+> **Read the limit before you rely on it.** Redaction is **pattern**-based (~38
+> patterns via `@broberg/secret-scan`): API keys, tokens, JWTs, connection
+> strings — anything with a recognisable shape. It does **not** redact by field
+> name. Measured, on the published 0.1.0:
+>
+> ```
+> { token: "sk-proj-AbCd…" }   → "token": "[REDACTED:openai-api-key]"
+> { gh:    "ghp_AbCd…"     }   → "gh":    "[REDACTED:github-token]"
+> { auth:  "Bearer eyJ…"   }   → "auth":  "Bearer [REDACTED:jwt]"
+>
+> { password: "hemmelig123" }  → "password": "hemmelig123"      ← NOT redacted
+> { apiKey:   "kort"        }  → "apiKey":   "kort"             ← NOT redacted
+> ```
+>
+> A user password, a PIN, a national ID — anything whose only marker is the key
+> it sits under — passes straight through. **Do not log a request body and
+> assume this catches it.** Key-name redaction is tracked as a gap; until it
+> ships, pick the fields you log.
+>
+> This paragraph replaced the sentence "a secret cannot reach the log by
+> accident", which promised more than the mechanism delivers. A guarantee is
+> exactly why someone stops checking, so an over-stated one is worse than none.
 
 ```bash
 npm i @broberg/logger
