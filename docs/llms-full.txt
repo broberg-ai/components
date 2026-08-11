@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- Every one of the 109 tips, inline: https://discovery.broberg.ai/llms-full.txt
+- Every one of the 116 tips, inline: https://discovery.broberg.ai/llms-full.txt
 
 ## Secrets Vault — flådens delte krypterede secret-store
 
@@ -28,7 +28,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (47)
+## Packages by category (48)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.3.1 — The design-token foundation every surface inherits. `npm i @broberg/theme`
@@ -41,13 +41,13 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
 - **@broberg/cron** v0.1.0 — The fleet's typed self-service client for cronjobs.webhouse.net. `npm i @broberg/cron`
 - **@broberg/webpush** v0.1.1 — The fleet's storage-agnostic Web Push primitive. `npm i @broberg/webpush`
-- **@broberg/mcp** v0.4.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
-- **@broberg/secret-scan** v0.1.7 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
+- **@broberg/mcp** v0.5.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
+- **@broberg/secret-scan** v0.1.8 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
 - **@broberg/lens** v0.1.3 — A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem…. `npm i @broberg/lens`
 
 ### L1 — Identity (who the user is)
 - **@broberg/auth** v0.1.2 — Thin fleet wrapper around Better Auth. `npm i @broberg/auth`
-- **@broberg/apikey** v0.1.1 — The fleet's inbound API-key primitives. `npm i @broberg/apikey`
+- **@broberg/apikey** v0.3.1 — The fleet's inbound API-key primitives. `npm i @broberg/apikey`
 - **@broberg/event-log** v0.1.0 — A GDPR-aware event and activity log. `npm i @broberg/event-log`
 - **@broberg/gravatar** v0.1.0 — Isomorphic Gravatar helper (SHA-256 via crypto.subtle) + initials fallback. `npm i @broberg/gravatar`
 - **@broberg/consent-cookie** v0.1.0 — A consent and cookie banner. `npm i @broberg/consent-cookie`
@@ -63,9 +63,9 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/mail-core** v0.1.0 — Branded HTML email shell + primitives (renderShell, heading/paragraph/cta/factBox/signOff, CID logo attachment). `npm i @broberg/mail-core`
 - **@broberg/speech-dictionary** v0.1.1 — Fleet STT vocabulary + correction primitive. `npm i @broberg/speech-dictionary`
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
-- **@broberg/lens-engine** v0.4.1 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
+- **@broberg/lens-engine** v0.4.2 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
-- **@broberg/bodymap** v0.2.4 — Interactive body pain-map. `npm i @broberg/bodymap`
+- **@broberg/bodymap** v0.2.5 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.2.0 — The fleet's one Stripe chokepoint. `npm i @broberg/stripe`
 - **@broberg/pwa** v0.2.2 — The fleet's PWA primitive. `npm i @broberg/pwa`
 - **@broberg/forms-turnstile** v0.1.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
@@ -75,10 +75,11 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/soundkit** v0.1.0 — SoundKit. `npm i @broberg/soundkit`
 - **@broberg/deploy-core** v0.1.0 — The fleet's shared deploy execution layer. `npm i @broberg/deploy-core`
 - **@broberg/changelog** (planned) — Auto product-changelog from git history. `npm i @broberg/changelog`
+- **@broberg/email-shell** (planned) — NOT A PACKAGE YET. `npm i @broberg/email-shell`
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.1.0 — The fleet Data SDK. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.25.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@broberg/ai-sdk** v0.27.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
 - **@upmetrics/sdk** v0.3.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
@@ -87,9 +88,10 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/cms-inline-edit** v0.4.14 — Click-to-edit widget for live @webhouse/cms-sites. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.16 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
-## Tips & tricks — every tip inline (109 across 14 platforms)
+## Tips & tricks — every tip inline (116 across 15 platforms)
 
-### Fly.io (24)
+### Fly.io (25)
+- **[build-stamp]** health.build — stamp the running commit on your health endpoint, and say how much to trust it. Convention (beacon, measured on their own service): GET /v1/health returns build:{ commit, dirty, source } where source is env (a deploy declared its sha, e.g. BUILD env var — declared, not observed) then git (the process runs from a work tree and git was asked — observed) then unknown (commit MUST be null). Five decisions, each one a trap somebody already hit: (1) read it ONCE at startup, never per request — the question is what the process was started from, and a git lookup per request answers about the tree as it is NOW, i.e. code the process never loaded; (2) UNTRACKED files count as dirty — the process runs what is on disk, and an uncommitted file is still one it could load; (3) never invent a sha — null plus source unknown, because a sha that looks like an answer is worse than no answer; (4) dirty is not decoration, it says how far to trust the sha: a true sha on a dirty tree describes code that is not running; (5) for the CONSUMER of the field — when comparing two sides (a page against the service that serves it), a dirty on EITHER side must make the comparison SILENT. A bundle is stamped when it is built, i.e. before the commit that contains it, so during ordinary work the shas disagree all day; warn on that and the warning is ignored within a week. Two CLEAN builds that disagree is the thing worth flagging. And say what a difference means: beacons service ran 732e4241 while HEAD was 637bae6, a real 48-hour drift — but that commit only touched CLAUDE.md, so the drift was harmless. A field that reports difference without significance becomes why is my service always red. _(beacon)_
 - **[region]** Region is ALWAYS arn (Stockholm). Set primary_region = "arn" — never US/Amsterdam. _(components)_
 - **[cost]** Idle-cheap services: auto_stop_machines = "stop" + auto_start_machines = true + min_machines_running = 0. Cold-start ~1s. _(components)_
 - **[deploy]** fly deploy --remote-only builds on Fly's builder — no local Docker daemon needed. _(components)_
@@ -130,7 +132,8 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **[r2-token]** R2 provisioning needs a token scoped Workers R2 Storage + User API Tokens Write (dns-mcp's CF_BOOTSTRAP_TOKEN, separate from CF_API_TOKEN). The ordinary DNS/zone-scoped CF_API_TOKEN CANNOT do R2 — you get an auth error. Don't waste time debugging the wrong token. _(buddy)_
 - **[r2-creds-secrecy]** Raw S3 creds from a scoped-token mint (access_key_id / secret / endpoint) go straight into the consumer's gitignored .env — NEVER over intercom or any chat surface. Treat them like any other secret. _(buddy)_
 
-### Resend (8)
+### Resend (9)
+- **[email-html]** Email HTML: use a hosted PNG for the logo rather than a data-URI. VERIFIED (xrt81, 2026-08-10): the hosted PNG renders, and it is the safer default whatever the cause — it works everywhere, it caches, and it can be swapped without resending the mail. REPORTED BUT NOT MEASURED: that Apple Mail blocks data:image/* when preview-mode is off. That claim originates in a sanneandersen code comment (site/src/lib/auth/email-templates.ts) and nobody in the fleet has yet sent a data-URI mail to a real Apple Mail account and watched it fail — treat it as a reason to prefer the hosted PNG, not as an established fact. Separately VERIFIED and unambiguous: mail clients do not resolve CSS variables, so a shared email template must take literal hex colours as ARGUMENTS and cannot consume @broberg/theme tokens — which is why a shared email-shell would ship the slot contract and the table skeleton but never the palette. _(xrt81 (data-URI claim: sanneandersen))_
 - **[reuse]** Use @broberg/mail — don't hand-roll a Resend client. createMailer({apiKey, from, allowlist}) keeps your own env-var names. _(components)_
 - **[domains]** Send only From a VERIFIED domain (Resend → Domains). An unverified From fails or tanks deliverability. _(components)_
 - **[safety]** Dev/preview: keep MAIL_LIVE off + an allowlist so test mail never reaches real users (fleet admins always pass). _(components)_
@@ -166,8 +169,10 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **[migration-not-applied]** A drizzle migration recorded in __drizzle_migrations is NOT proof the DDL landed. Verify BOTH the hash in the migrations table AND the actual effect (SELECT name FROM pragma_table_info('t') WHERE name='col'). A green migrate can leave the column absent. _(trail)_
 - **[drizzle-gotcha]** db.update().set() on bun:sqlite can SILENTLY drop a new column (value-independent, while sibling writes land) — workaround: a raw SQL UPDATE. Verify DB ground-truth via flyctl ssh, not the ORM return value. _(cardmem)_
 
-### npm / OIDC publishing (9)
+### npm / OIDC publishing (11)
+- **[inventory-freshness]** A release is not done when npm has the package — it is done when the shared inventory stops lying. Discovery cannot know it has become wrong; only the owner of the thing it describes can. THREE PRECEDENTS IN ONE WEEK (2026-08-05..11), all caught by the owner reporting back, none by anyone noticing: (1) an ai-sdk adoption note told every consumer to bump and set the key — correct for the version it described, and once cost-tracking became on-by-default it would have DOUBLE-COUNTED spend in production for any repo that already self-reported; (2) our entry said there was no EU route for video analysis, which was the honest answer on 09-08 and was contradicted by a shipped capability on 11-08; (3) a not-yet-live-verified caveat on the Vertex adapter stood from June until the blocking credentials quietly appeared. So when you publish, ask not only what does this ADD but WHAT DOES THIS MAKE FALSE — a note that was true when written is exactly the kind that survives for years. And verify against npm rather than a green workflow: the registry can lag a successful publish, so a green run is not proof the package can be installed. Owner-initiated, because the alternative is a consumer discovering it in production. AND THE HALF THAT MAKES IT ACTIONABLE (ai-sdk, after the same week): phrase a finding as a DATED MEASUREMENT, never as a state. There is no EU route for video analysis reads as permanent; measured 2026-08-10: no EU route carries its own expiry, so the next reader can see that something may have moved. That single difference is the mechanism behind all three stale notes above — the information was right, the FORM made it look permanent. It generalises well past inventories, to every answer sessions give each other: a state is forever, a measurement has a date. _(ai-sdk + components)_
 - **[oidc]** OIDC + --provenance REQUIRES a repository.url in package.json matching the GitHub repo, else npm 422s. (theme's first OIDC release hit exactly this.) _(components)_
+- **[semver-0x]** A caret on a 0.x version LOCKS THE MINOR: ^0.21.1 can never resolve 0.24.0 — caret only allows patch below 1.0. Every @broberg/* package is still 0.x, so a consumer that believes it follows along is frozen until someone bumps by hand. buddy found THREE different versions of @broberg/ai-sdk (^0.10.4 · ^0.21.1 · ^0.21.1) inside ONE monorepo, which produced a real type break the moment the files were touched. Audit workspace-wide (grep every package.json), not per-app — and note that a per-session Discovery enrollment reports only ONE version, so a split monorepo looks up to date. _(buddy)_
 - **[ci]** Do NOT set version: on pnpm/action-setup when the root package.json has a packageManager field — they conflict and the publish job fails. _(components)_
 - **[release-gotcha]** git push --follow-tags only pushes ANNOTATED tags. A lightweight git tag vX won't trigger a tag-gated publish workflow, so the release just doesn't happen. Use git tag -a … or push the tag explicitly (git push origin <tag>). _(ai-sdk)_
 - **[publish-timing]** Right after publish, npm view / npm i can 404 for minutes — Fastly negative-cache, NOT a failed publish. The publish success line is authoritative; verify npm view <pkg>@<version> before claiming live (each probe re-seeds the negative cache, so don't hammer it). _(ai-sdk)_
@@ -211,7 +216,9 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **[lens-touch]** Lens has NO native pinch gesture and synthetic TouchEvents don't reproduce iOS pinch reliably (esp. WebKit) → touch-gesture features (pinch-zoom) CANNOT be auto-verified; say 'device-test required' instead of claiming verified. Prove layout stability instead: assert getBoundingClientRect().height is identical before/after a swipe / panel-open. _(xrt81)_
 - **[next-cache-coherence]** Next.js runs MIDDLEWARE and /api/* ROUTE-HANDLERS as SEPARATE module instances → separate module-level state. A `let _cached` in a lib imported by both has TWO copies: a write via the route-handler is INVISIBLE to the middleware's copy until a shared signal re-checks. Symptom (cms, prod): a new site added via a route-handler returned 200 from the API but the middleware router 404'd ALL its pages until restart — looked like a routing bug, was cache-coherence. Fix: any module-level cache backing BOTH middleware AND route-handlers must invalidate on a SHARED signal — file mtime (cheap fs.stat per call) or explicit cross-call invalidation. NEVER cache forever. _(cms)_
 
-### AI / LLM providers (@broberg/ai-sdk) (4)
+### AI / LLM providers (@broberg/ai-sdk) (6)
+- **[eu-routing]** Using an EU MODEL is not the same as data staying in the EU — the ROUTE decides, and only the route. Measured by xrt81 (2026-08-10): their PII path sent { provider: openrouter, model: mistral/mistral-large-latest } — a Mistral model reached THROUGH OpenRouter, a US company. The model name read as compliance; the transfer out of the EU was still there, and it carried club photos (faces + EXIF geolocation) and members personal finances. Their own plan-doc had explicitly forbidden that route and the implementation did it anyway: their tenant-AI builder registered only openrouter+openai, so a provider:mistral route would have thrown, and they concluded the adapter did not exist. It did — mistralAdapter is exported in @broberg/ai-sdk 0.6.0, the version they were already running. Nobody checked. Three rules out of it: (1) put the PII-routing decision in ONE file that owns it, never per call-site; (2) when the EU key is absent do NOT silently fall back to the US route — log a warning that NAMES the exposure, so the hole sits in the log instead of behind a model name that sounds European; (3) verify the adapter exists by reading the package d.ts, not by inferring it from what your own factory happens to register. A provider:openrouter carrying a mistral/* model name reads as compliance in a code review and is not. TWO THINGS ai-sdk MEASURED when this was escalated (2026-08-10), both worth knowing before you route PII: (a) a MISSING EU key does NOT silently reroute — the Mistral adapter throws API key not set, and the SDK never picks another provider on its own, so the absence of a key is a hard failure rather than a quiet US transfer; (b) BUT a fallback chain the CALLER supplies (input.fallback) WILL route to whatever it names when the EU provider fails — so a fallback chain is a GDPR DECISION, not a robustness detail, and on a PII path it must be either EU-only or absent. And the reason this is worth a guard rather than only a tip: both the fleet CLAUDE.md and the consumers own plan-doc already forbade the openrouter route in writing. Both documents were right, and the code did something else for months without anyone being able to see it. _(xrt81)_
+- **[cost-tracking]** @broberg/ai-sdk cost-tracking is ON BY DEFAULT from 0.24.0, and adoption is PER-REPO + OPT-IN — there is no fleet-wide rollout (it was cancelled 2026-08-07 because a blanket set-the-key instruction springs two traps). Trap 1: a repo that ALREADY reports its own usage gets the SDK sink on top and double-counts every call in production, with no error anywhere — pass createAI({costSink: null}) there, and note the opt-out only exists from 0.26.0. Trap 2: test runners auto-load .env, so merely IMPORTING a module that holds a module-level createAI() POSTs invented usage into production telemetry — strip UPMETRICS_* in the runner by PREFIX (not a name list) and prove it with a control that can go red. _(ai-sdk + buddy)_
 - **[capability-probe]** $0 capability-probe: to check whether a model/capability is actually served in a region/project WITHOUT spending, POST an EMPTY {} body. A 400 INVALID_ARGUMENT 'Empty instances' means the model IS served (it failed validation BEFORE generating → free); a 403 means a setup gate (billing / API not enabled), not a missing capability. Confirmed Veo-3.x in 5 EU regions (europe-west1/3/4/9, europe-north1) + Azure TTS live for $0. Always settle capability cheaply before committing an adapter. _(ai-sdk)_
 - **[gcp-project-trap]** GCP 'two projects, same display name' trap: AI Studio AUTO-creates a hidden gen-lang-client-XXXX project BEHIND a Gemini API key — distinct from a self-made project with the same display name. Probing the wrong (empty, no-billing) one gives a misleading 403. Run `gcloud projects list` and use the BILLING-enabled project (gen-lang-client- prefix = AI Studio's). _(ai-sdk)_
 - **[tts-routing]** TTS/speech does NOT go through OpenRouter — it proxies only LLM chat/completions, no speech synthesis. Azure Neural TTS = Azure Speech (Cognitive Services): a separate SSML REST endpoint ({region}.tts.speech.microsoft.com/cognitiveservices/v1, header Ocp-Apim-Subscription-Key). EU-pin the region (swedencentral / westeurope) for GDPR — same discipline as BFL's api.eu. ai.tts is live in @broberg/ai-sdk (Azure adapter for EU neural Danish da-DK). _(ai-sdk)_
@@ -222,6 +229,9 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **[intercom-voicemail]** Intercom answering machine (buddy F177): an intercom to a SLEEPING/offline cc-session is no longer lost — it's enqueued durably (survives a buddycloud restart) and flushed on wake, chronologically, exactly-once. Fleet-design consequence: stop checking 'is the peer awake?' before ask_peer/announce — just send; buddy holds it until they wake. Slept ≥90s → it renders as a 'voicemail' card in the recipient's chat. _(buddy)_
 - **[search-history]** New fleet-wide MCP tool: search_history — full-text search (FTS5/BM25) over each edge's 'fermented' layer-2 dialog history, on the buddy channel. Complements trail_search: keyword-hit recall vs. trail's distilled/summarized knowledge. Live in already-running sessions after the next relaunch_fleet; new sessions get it from source automatically. _(buddy)_
 - **[file-piping]** New fleet-wide MCP tool: pipe_file (buddy F200) — move a FILE between edges or up to R2 without the bytes ever passing through a session's context. Two modes: (1) pipe_file({to_edge:'cb-ubuntu', path:'/abs/path.pdf'}) → lands in the target edge's ~/Downloads, sha256-verified both ends, never overwrites (collision → ' (1)' suffix), 25MB inline cap. (2) pipe_file({target:'assets', path:...}) → staged straight to R2 via a hub presigned PUT (NO size cap) → returns a short-TTL URL to hand to cardmem_create_asset({url}). Curl path also exists: POST 127.0.0.1:4123/api/pipe/send. Not an npm package (daemon routes + MCP tool on the buddy channel). Use it instead of base64-ing a file through chat or a one-off scp. Live in running sessions after the next relaunch_fleet. _(buddy)_
+
+### Document generation (PDF) (1)
+- **[pdf-fonts]** pdf-lib standard fonts are WinAnsi-encoded, so ONE emoji anywhere in the content THROWS mid-render — æøå are fine, ⭐ and 🍽️ are not. Because it fails halfway through drawing, it presents as a layout/renderer bug rather than a character-set bug. Filter non-WinAnsi characters before drawing, or embed a Unicode TTF via fontkit if you genuinely need the glyphs. _(xrt81)_
 
 ### Native macOS/iOS apps (Swift — codesign, entitlements, TCC) (1)
 - **[hardened-runtime-entitlements]** Hardened Runtime + missing entitlement = SILENT permission denial, no TCC prompt ever shown. Symptom (Trail Ambient, Swift menubar app): AVCaptureDevice.requestAccess(for:.audio) returned with no dialog, no crash, and the app never appeared in System Settings › Privacy › Microphone. Root cause: signed with `codesign --options runtime` (Hardened Runtime) but no `--entitlements` plist — under Hardened Runtime, mic access requires `com.apple.security.device.audio-input` IN THE SIGNATURE ITSELF. `NSMicrophoneUsageDescription` in Info.plist is necessary but NOT sufficient on its own — without the entitlement, macOS denies access before it ever asks. Fix: sign with `codesign --options runtime --entitlements <plist> ...` where the plist sets `com.apple.security.device.audio-input = true` (camera = `com.apple.security.device.camera`; Screen Recording is TCC-only, no entitlement exists for it). ALWAYS verify post-build with `codesign -d --entitlements - <App>` — an empty entitlements block alongside `flags=0x10000(runtime)` in `codesign -d` output is exactly this trap. Cost Trail ~1h to diagnose. _(trail)_
