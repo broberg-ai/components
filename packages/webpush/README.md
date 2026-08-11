@@ -94,11 +94,21 @@ of these handlers. Use the classic build instead — no import, no export:
 ```js
 // public/sw.js
 importScripts('/sw.global.js');   // listeners are attached for you
+
+// Changing a default? Use configure() — never add a second listener.
+BrobergWebPush.configure({ defaultTitle: 'Notification' });
+
 // …keep your own non-push logic here.
 ```
 
-It also exposes `self.BrobergWebPush = { handlePush, handleNotificationClick, createPushHandler }`
-if you would rather wire them yourself.
+**`configure()` replaces what the single registered listener calls.** That is the
+whole point of it: the file attaches exactly ONE `push` listener for the lifetime
+of the worker, so configuring cannot produce a duplicate. Calling
+`createPushHandler()` yourself and registering *that* re-opens the trap — you
+would then have this file's handler and yours, both calling `showNotification`.
+
+It also exposes `self.BrobergWebPush = { configure, createPushHandler, handlePush, handleNotificationClick }`
+for tests and for anyone deliberately wiring things by hand.
 
 > ### ⚠️ DELETE YOUR OWN `push` HANDLER WHEN YOU ADOPT THIS
 >
@@ -106,6 +116,21 @@ if you would rather wire them yourself.
 > yours — it runs *alongside* it, and **two handlers both calling
 > `showNotification` produce two banners per push.** It will hit you exactly
 > when you believe you are cleaning up. Remove yours in the same change.
+>
+> **"Your own" includes one you did not write.** A handler inherited from a PWA
+> template, or registered by another package, counts and is the harder case —
+> there is no error, only two banners. Before you adopt, grep everything that
+> ends up in your worker:
+>
+> ```bash
+> grep -rn "addEventListener('push'\|addEventListener(\"push\"" src public
+> ```
+>
+> **On `skipWaiting: false`** (serwist/next-pwa default in several fleet repos):
+> a new worker *waits* rather than reloading someone mid-action, so the worker
+> handling a push may be the OLD one until the user updates. Two versions of the
+> handler live side by side for a while — harmless in itself, but it means a
+> change to titles, badges or click targets does not land for everyone at once.
 
 ### Configuring the defaults
 

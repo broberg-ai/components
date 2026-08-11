@@ -149,9 +149,55 @@ describe('dist/sw.global.js — the file an unbundled service worker can use', (
     new Function('self', built())(fakeSelf);
 
     const api = fakeSelf.BrobergWebPush as Record<string, unknown>;
-    expect(Object.keys(api).sort()).toEqual(['createPushHandler', 'handleNotificationClick', 'handlePush']);
+    // Pinned deliberately: this is the file's public surface, and a global
+    // object that quietly grows or loses a key is a contract change nobody sees.
+    // It did its job — adding `configure` in 0.2.1 turned it red.
+    expect(Object.keys(api).sort()).toEqual([
+      'configure',
+      'createPushHandler',
+      'handleNotificationClick',
+      'handlePush',
+    ]);
     expect(typeof api.handlePush).toBe('function');
     expect(listeners.sort()).toEqual(['notificationclick', 'push']);
+  });
+
+  it('configure() REPLACES the handler — it does not add a second listener', () => {
+    // The defect cardmem found in the published 0.2.0: the file registered
+    // handlePush outright AND exposed createPushHandler, so anyone who wanted to
+    // configure anything had to add their own listener — and then BOTH ran. Two
+    // banners, both of them ours, which "delete your own handler" did not cover.
+    // Delegation makes the duplicate impossible to express rather than merely
+    // discouraged.
+    const listeners: string[] = [];
+    const fakeSelf: Record<string, unknown> = { addEventListener: (t: string) => listeners.push(t) };
+    new Function('self', built())(fakeSelf);
+
+    const api = fakeSelf.BrobergWebPush as { configure: (o: unknown) => void };
+    api.configure({ defaultTitle: 'Cardmem' });
+    api.configure({ defaultTitle: 'Andet' });
+
+    expect(listeners.filter((t) => t === 'push')).toHaveLength(1);
+  });
+
+  it('after configure(), the ONE registered listener uses the new options', async () => {
+    const show = installSelf();
+    const captured: Record<string, (e: unknown) => void> = {};
+    const fakeSelf: Record<string, unknown> = {
+      addEventListener: (t: string, fn: (e: unknown) => void) => { captured[t] = fn; },
+      registration: { showNotification: show },
+      navigator: {},
+    };
+    new Function('self', built())(fakeSelf);
+    (fakeSelf.BrobergWebPush as { configure: (o: unknown) => void }).configure({ defaultTitle: 'Cardmem' });
+
+    let waited: Waited;
+    captured.push!({
+      data: { json: () => ({ body: 'ingen titel' }) },
+      waitUntil: (p: Promise<unknown>) => { waited = p; },
+    });
+    await waited;
+    expect(show).toHaveBeenCalledWith('Cardmem', expect.anything());
   });
 
   it('the handler inside the built file behaves like the source one', async () => {
