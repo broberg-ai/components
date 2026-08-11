@@ -1,6 +1,14 @@
 app = "broberg-discovery"
 primary_region = "arn"
 
+# Read by exactly one thing in this app: @broberg/logger's `pretty` flag. Unset,
+# the server emitted the human-readable format in production — fine to read, but
+# not queryable by a log tool, which is most of the reason to use a logger rather
+# than console.log. Verified before setting it that nothing else in server.ts or
+# the installed package branches on NODE_ENV.
+[env]
+  NODE_ENV = "production"
+
 [http_service]
   internal_port = 8080
   force_https = true
