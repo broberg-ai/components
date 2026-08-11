@@ -13,6 +13,28 @@ requires the PWA be installed to the home screen.
 The package **never touches your database.** You fetch subscriptions, gate on the
 user's prefs, persist history, and prune the dead endpoints `send()` returns.
 
+> ### Prerequisite: a secure context. Check this before you plan anything.
+>
+> A service worker cannot be registered outside a **secure context**, and no part
+> of Web Push works without one. That means:
+>
+> | origin | works |
+> | --- | --- |
+> | `https://…` | yes |
+> | `http://localhost` · `http://127.0.0.1` | yes — treated as trustworthy |
+> | **`http://192.168.x.x`** · any bare LAN IP | **no** |
+> | `http://` anything else | no |
+>
+> The LAN row is the one that surprises people. A dev server you reach from your
+> own machine on `localhost` registers fine; **the same server reached from a
+> phone on the same wifi does not**, because the phone uses the IP. So a
+> LAN-only tool with no domain is excluded from Web Push entirely — not by this
+> package, by the platform — and no amount of configuration changes it. The fix
+> is an HTTPS origin (a tunnel, a real hostname with a cert), not a flag.
+>
+> Raised by torrent-search-api, who reach their tool at `192.168.x.x:7734` from
+> an iPhone and would otherwise have found this out halfway through building.
+
 ## Server
 
 ```ts
