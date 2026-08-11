@@ -76,6 +76,13 @@ function binaryFormat(buf) {
   // false positive in a hygiene check is what makes someone switch it off, or
   // add an exception — and the exception is then where a real NUL can hide.
   if (m4 === '%PDF') return 'pdf';
+  if (m4.startsWith('ID3')) return 'mp3';
+  // Raw MPEG frame-sync — an mp3 with NO ID3 tag, which is what Azure TTS and
+  // most streaming endpoints return. Filed by ai-sdk, whose ten committed voice
+  // samples were all reported as suspicious text files by a list that had ID3
+  // and stopped there. 11 bits of sync (FF Ex/Fx) rather than a fixed byte pair,
+  // so it covers MPEG-1/2/2.5 at any layer.
+  if (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return 'mpeg-audio';
   // OLE2 compound file — every .doc/.xls/.ppt saved before 2007, plus a lot of
   // exported assets. Filed by xrt81 after three of their song documents came
   // back as false positives.

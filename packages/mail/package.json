@@ -1,11 +1,14 @@
 {
   "name": "@broberg/mail",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The fleet's thin Resend send primitive — one dependency-free way to send transactional mail (raw REST, runs in Node/Bun/edge), with a dev kill-switch + recipient allowlist so test sends never reach real users and a typed {ok,id?,error?} return that never throws.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,6 +17,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./webhook": {
+      "types": "./dist/webhook.d.ts",
+      "import": "./dist/webhook.js",
+      "require": "./dist/webhook.cjs"
     }
   },
   "scripts": {
@@ -40,5 +48,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/mail"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

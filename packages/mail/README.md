@@ -97,3 +97,52 @@ const mailer = createMailer({ apiKey, from: "noreply@webhouse.dk", mailId: "CM-3
 
 Owned + published by [`broberg-ai/components`](https://github.com/broberg-ai/components)
 (epic **F005**). MIT.
+
+## Delivery webhook (v0.4.0) — the send response cannot tell you it arrived
+
+`send()` succeeding means the provider **accepted** the mail. Whether it landed
+only ever appears on the webhook stream:
+
+```ts
+import { handleMailWebhook } from "@broberg/mail/webhook";
+
+app.post("/api/mail/webhook", async (c) => {
+  const raw = await c.req.text();          // RAW body — see the warning below
+  const { status, body } = await handleMailWebhook(raw, c.req.raw.headers, {
+    secret: process.env.RESEND_WEBHOOK_SECRET,
+    onEvent: (e) => db.insert(deliveries).values({
+      providerId: e.providerId, to: e.to[0], type: e.type, bounceType: e.bounceType, at: e.at,
+    }),
+  });
+  return c.json(body, status);
+});
+```
+
+`e.providerId` is the same id a successful `send()` returned, so a delivery joins
+straight to the send that produced it.
+
+**Why this exists.** A bounced onboarding mail looks exactly like a delivered one
+the recipient ignored. One means *fix the address and resend*, the other means
+*leave them alone* — and without the stream you either nag people who got it or
+abandon people who didn't. `bounceType` is carried through for the same reason: a
+hard bounce and a soft one call for opposite actions.
+
+> **⚠️ Pass the RAW body.** A body that was JSON-parsed and re-stringified will
+> not verify — key order and whitespace both change the signature — and the
+> failure looks exactly like a wrong secret.
+
+**Verification is not optional and cannot be skipped by accident.** With no
+secret, every request is rejected (`no_secret`); the endpoint never runs
+unverified. An open webhook is a write-surface where anyone can assert that
+anything was delivered, which is *worse than having no delivery data*, because it
+looks like evidence. Failures return a **reason** rather than a bare false —
+`missing_headers`, `timestamp_out_of_tolerance`, `no_signature_match` — and reach
+`onIgnored` so a misconfigured endpoint is visible instead of quietly silent.
+
+Also handled: replay (timestamps outside ±5 min are rejected, in **both**
+directions), secret rotation (several signatures in the header, any one may
+match), and an unknown event type, which returns `null` from `parseMailEvent`
+rather than being reshaped into a type we do model.
+
+`verifyWebhook` and `parseMailEvent` are exported separately if you want to wire
+your own handler. Zero dependencies — `node:crypto` only.
