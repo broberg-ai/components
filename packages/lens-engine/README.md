@@ -185,6 +185,37 @@ function network(target: string | Page, opts?: NetworkOptions): Promise<NetworkR
 // + resolveSelector, resolveViewport, getBrowser, closeBrowser, armIdleTimer, and all Zod schemas
 ```
 
+### v0.5.0 — fail at boot when the browser is missing
+
+If you bake browsers into an image (a Docker/Fly deploy rather than a dev
+machine), call this once at startup:
+
+```ts
+import { assertBrowserAvailable } from '@broberg/lens-engine';
+assertBrowserAvailable(); // throws if the Chromium build Playwright expects is absent
+```
+
+It resolves `chromium.executablePath()` and stats it — no launch, no network —
+and throws with the expected path plus `PLAYWRIGHT_BROWSERS_PATH`, which are the
+two lines that actually diagnose it. `getBrowser()` calls it too, so you get the
+clear error either way; calling it yourself just moves the failure from *the
+first capture in production* to *a failed deploy*.
+
+**Why a path check and not a version check.** Playwright encodes the browser
+revision in the path (`…/ms-playwright/chromium-1228/…`), so this is exact where
+a version compare is a proxy. It avoids a false alarm when two Playwright
+versions share one revision, and — the one that matters — it catches the case a
+version compare cannot see: the version matching while the browser is *gone*,
+because a base image changed and the package did not.
+
+**Note for image builders:** `playwright` is an ordinary dependency here, not a
+peer, deliberately. Making it a peer was tried and measured: pnpm auto-installs
+peers by default, so an undeclared peer produced no warning at all and silently
+resolved a *newer* Playwright than the one baked into the image — worse than the
+problem it was meant to solve. A Playwright bump in this package is still a
+breaking change for you; it ships in its own minor (a caret on `0.x` locks the
+minor, so you are never upgraded into one by accident).
+
 **Runtime deps:** `playwright`, `zod`, `@broberg/ai-sdk` (vision only), and — for the
 readers — `jsdom` + `@mozilla/readability` + `turndown`. MIT · part of the
 [`@broberg/*`](https://github.com/broberg-ai/components) shared-library family.

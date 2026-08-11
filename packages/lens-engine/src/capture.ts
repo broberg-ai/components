@@ -11,6 +11,7 @@
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { applyStorageState } from './mint';
 import type { CaptureBody, CaptureMode, StorageState } from './schema';
 
@@ -34,8 +35,70 @@ const DEVICE_PRESETS: Record<string, { width: number; height: number }> = {
 let _browser: Promise<Browser> | null = null;
 let _idleTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * F065 — pure half, so the message is testable without moving a browser.
+ *
+ * Returns null when the browser is present, else the full error message.
+ *
+ * WHY THE PATH AND NOT THE VERSION (cardmem, who bakes browsers into an image):
+ * Playwright encodes the browser REVISION in the executable path
+ * (…/ms-playwright/chromium-1228/…), so an existence check is an EXACT
+ * predicate where a version compare is only a proxy. It wins both ways:
+ *   · no false alarm — two Playwright versions often share one revision, and an
+ *     alarm that cries wrong is switched off within a week;
+ *   · no false approval — the version can MATCH while the browser is absent
+ *     (a base image changed and the package did not). A version compare says
+ *     "fine" and the first capture fails anyway. This sees it.
+ * The version belongs in the MESSAGE as diagnostics, never in the predicate.
+ */
+export function browserMissingMessage(input: {
+  executablePath: string | null;
+  exists: boolean;
+  browsersPath?: string;
+  resolveError?: string;
+}): string | null {
+  if (!input.resolveError && input.executablePath && input.exists) return null;
+  const where = `  PLAYWRIGHT_BROWSERS_PATH=${input.browsersPath ?? '(unset)'}`;
+  if (input.resolveError) {
+    return `@broberg/lens-engine: Playwright cannot resolve a Chromium build — it is not installed.\n  ${input.resolveError}\n${where}\n  Fix: run \`npx playwright install chromium\`, or point PLAYWRIGHT_BROWSERS_PATH at the image's browser dir.`;
+  }
+  return `@broberg/lens-engine: the Chromium build Playwright expects is not on disk.\n  expected: ${input.executablePath}\n${where}\n  Fix: run \`npx playwright install chromium\`, or align the browsers baked into the image with this package's Playwright version.`;
+}
+
+/**
+ * Throw NOW if the browser this engine will launch is absent — so a bad image
+ * fails at boot (a failed deploy) instead of at the first capture (a failed
+ * user action in production). Cheap: resolves a path, stats it, launches
+ * nothing. Safe to call at startup.
+ *
+ * Throwing rather than warning is deliberate. The "a hard failure also stops
+ * harmless mismatches" argument holds against a version compare, where harmless
+ * mismatch is a real category. There is no harmless version of the browser is
+ * not there — the first capture fails regardless. And a warning with exit 0
+ * scrolls past in a Docker build, which makes it documentation, not a signal.
+ */
+export function assertBrowserAvailable(): void {
+  let executablePath: string | null = null;
+  let resolveError: string | undefined;
+  try {
+    executablePath = chromium.executablePath();
+  } catch (err) {
+    resolveError = err instanceof Error ? err.message : String(err);
+  }
+  const message = browserMissingMessage({
+    executablePath,
+    exists: executablePath ? existsSync(executablePath) : false,
+    browsersPath: process.env.PLAYWRIGHT_BROWSERS_PATH,
+    resolveError,
+  });
+  if (message) throw new Error(message);
+}
+
 export async function getBrowser(): Promise<Browser> {
   if (!_browser) {
+    // On by default, no flag: a protection you must remember to enable only
+    // protects the people who did not need it.
+    assertBrowserAvailable();
     _browser = chromium
       .launch({ headless: true, args: ['--disable-dev-shm-usage', '--no-sandbox'] })
       .catch((err) => {

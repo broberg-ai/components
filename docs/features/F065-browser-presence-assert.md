@@ -109,4 +109,3 @@ week, used deliberately.
 - F064 — the previous lens-engine defect; same consumer, same week
 - The rule this instantiates: *the absence of a warning looks like approval* —
   here in package metadata rather than in code
-"

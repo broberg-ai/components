@@ -11,6 +11,11 @@ export {
   closeBrowser,
   getBrowser,
   armIdleTimer,
+  // F065 — call at boot to fail a bad image as a failed DEPLOY rather than as a
+  // failed capture in production. getBrowser() calls it too, so it is on by
+  // default; the export exists so a consumer can fail fast before serving.
+  assertBrowserAvailable,
+  browserMissingMessage,
   resolveViewport,
   resolveSelector,
   resolveStorageState,
