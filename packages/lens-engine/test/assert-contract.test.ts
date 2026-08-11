@@ -19,7 +19,10 @@ import { evalAssertBody, type AssertOutcome } from '../src/flow';
 
 /** What the flow step does with an outcome, mirrored so the mapping is asserted too. */
 function verdict(out: AssertOutcome): 'pass' | 'fail' {
-  if (out.kind === 'syntax' || out.kind === 'threw') return 'fail';
+  // F066 added 'no-verdict'. It maps to fail here because these tests only ask
+  // pass-or-not; the distinct ERROR message it produces is asserted in
+  // assert-no-verdict.test.ts, which is where that behaviour belongs.
+  if (out.kind === 'syntax' || out.kind === 'threw' || out.kind === 'no-verdict') return 'fail';
   return out.value ? 'pass' : 'fail';
 }
 
@@ -59,10 +62,16 @@ describe('the { pass, detail } form is honoured, not banned', () => {
     expect((out as { detail?: string }).detail).toContain('rows');
   });
 
-  it('a truthy object WITHOUT pass still passes — existing asserts are not broken', async () => {
+  it('a NON-PLAIN truthy object without pass still passes — existing asserts are not broken', async () => {
     // The shape `document.querySelector('#x')` returns. Banning objects would
     // have broken working asserts in order to fix broken ones.
-    const out = await evalAssertBody('({tagName:"BODY"})');
+    //
+    // F066 NOTE: this test used to use `({tagName:"BODY"})` as a stand-in for an
+    // Element — and that stand-in is a PLAIN object, which is exactly the shape
+    // F066 now rejects. The approximation was the whole problem: it shares no
+    // prototype with the thing it stood for. A class instance has a prototype
+    // chain like a real Element does; the real-Element case is asserted below.
+    const out = await evalAssertBody('new (class Elementish { constructor(){ this.tagName = "BODY" } })()');
     expect(out).toEqual({ kind: 'value', value: true });
   });
 

@@ -1,0 +1,54 @@
+cardmem — assert bodies on the AFFECTED (flow/manuscript) path that return an
+object whose first key is NOT `pass`. Real population for components F066.
+unique bodies: 17
+
+### key=text   site=.flow.steps[].js
+const h1=document.querySelector('[data-testid=reader-root] h1'); const cs=getComputedStyle(h1); return {text:h1.textContent, fontFamily:cs.fontFamily, fontSize:cs.fontSize, fontWeight:cs.fontWeight, letterSpacing:cs.letterSpacing};
+
+### key=status   site=.flow.steps[].js
+fetch('/api/seti/lsd/rules?edge=m1',{credentials:'include'}).then(r=>r.text().then(t=>({status:r.status,body:t.slice(0,1800)}))).then(o=>{document.title='RULES::'+JSON.stringify(o);return true})
+
+### key=s   site=.flow.steps[].js
+fetch('/api/seti/lsd/rules?edge=m1',{credentials:'include'}).then(r=>r.text().then(t=>({s:r.status,t}))).then(o=>{const d=document.createElement('pre');d.style.cssText='position:fixed;inset:0;z-index:99999;background:#fff;color:#000;font:11px/1.5 monospace;white-space:pre-wrap;word-break:break-all;padding:16px;margin:0;overflow:hidden';d.textContent='STATUS '+o.s+'\n'+(()=>{try{return JSON.stringify(JSON.parse(o.t),null,1)}catch{return o.t}})().slice(0,4500);document.body.appendChild(d);return true})
+
+### key=found   site=.flow.steps[].js
+fetch('/api/seti/lsd/rules?edge=m1',{credentials:'include'}).then(r=>r.json()).then(d=>{const rule=(d.rules||[]).find(x=>x.name&&x.name.includes('Lens self-test'));if(!rule)return{found:false};return fetch('/api/seti/lsd/rules/'+encodeURIComponent(rule.id)+'?edge=m1',{method:'DELETE',credentials:'include'}).then(r=>r.text().then(t=>({found:true,id:rule.id,status:r.status,body:t.slice(0,600)})))}).then(o=>{const d=document.createElement('pre');d.style.cssText='position:fixed;inset:0;z-index:99999;background:#fff;color:#000;font:13px monospace;white-space:pre-wrap;padding:16px';d.textContent=JSON.stringify(o,null,2);document.body.appendChild(d);return true})
+
+### key=sec   site=.flow.steps[].js
+(()=>{const errs=[...document.querySelectorAll('.settings-error')].map(e=>({sec:e.closest('[data-testid]')?.getAttribute('data-testid'),txt:(e.textContent||'').slice(0,120)}));document.title='ERRS::'+JSON.stringify(errs);return true})()
+
+### key=ps   site=.flow.steps[].js
+window.__done?true:(window.__done=true,fetch('/api/seti/lsd/rules?edge=m1',{method:'POST',headers:{'content-type':'application/json'},credentials:'include',body:JSON.stringify({name:'Lag-probe3 (delete me)',pattern:'CARDMEM-LAG-PROBE3-NEVER-MATCHES',source:'pane',mode:'highlight',delivery:'send_keys',cooldownMs:300000,maxRetries:0,enabled:true})}).then(r=>r.text().then(t=>({ps:r.status,pb:t.slice(0,300)}))).then(post=>{let id=null;try{const j=JSON.parse(post.pb);id=(j.rule&&j.rule.id)||j.id||null}catch{}if(!id)return{post};return fetch('/api/seti/lsd/rules/'+encodeURIComponent(id)+'?edge=m1',{method:'DELETE',credentials:'include'}).then(r=>r.text().then(t=>({ds:r.status,db:t.slice(0,200)}))).then(del=>fetch('/api/seti/lsd/rules?edge=m1',{credentials:'include',cache:'no-store'}).then(r=>r.json()).then(d=>({post,del,id,stillThere:(d.rules||[]).some(x=>x.id===id),total:(d.rules||[]).length})))}).then(out=>{const el=document.createElement('pre');el.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff;color:#000;font:13px monospace;white-space:pre-wrap;padding:14px;margin:0;border-bottom:3px solid #00c';el.textContent=JSON.stringify(out,null,1);document.body.appendChild(el);window.__out=out;return true}))
+
+### key=ps   site=.flow.steps[].js
+(()=>{if(window.__kick)return true;window.__kick=true;fetch('/api/seti/lsd/rules?edge=m1',{method:'POST',headers:{'content-type':'application/json'},credentials:'include',body:JSON.stringify({name:'Lag-probe4 (delete me)',pattern:'CARDMEM-LAG-PROBE4-NEVER-MATCHES',source:'pane',mode:'highlight',delivery:'send_keys',cooldownMs:300000,maxRetries:0,enabled:true})}).then(r=>r.text().then(t=>({ps:r.status,pb:t}))).then(post=>{let id=null;try{const j=JSON.parse(post.pb);id=(j.rule&&j.rule.id)||j.id||null}catch{}if(!id){document.title='OUT::'+JSON.stringify({ps:post.ps,pb:post.pb.slice(0,200)});return}return fetch('/api/seti/lsd/rules/'+encodeURIComponent(id)+'?edge=m1',{method:'DELETE',credentials:'include'}).then(r=>({ds:r.status})).then(del=>fetch('/api/seti/lsd/rules?edge=m1',{credentials:'include',cache:'no-store'}).then(r=>r.json()).then(d=>{document.title='OUT::'+JSON.stringify({ps:post.ps,ds:del.ds,still:(d.rules||[]).some(x=>x.id===id)})})).then(()=>fetch('/api/seti/lsd/rules?edge=m1',{credentials:'include',cache:'no-store'}).then(r=>r.json()).then(d=>Promise.all(((d.rules||[]).filter(x=>(x.name||'').startsWith('Lag-probe'))).map(x=>fetch('/api/seti/lsd/rules/'+encodeURIComponent(x.id)+'?edge=m1',{method:'DELETE',credentials:'include'})))))});return true})()
+
+### key=(none found)   site=.flow.steps[].js
+const nodes=[...document.querySelectorAll('[data-testid^="universe-node-"]')];const ids=nodes.map(n=>n.getAttribute('data-testid'));const comp=document.querySelector('[data-testid="universe-node-components"]');const cardmem=document.querySelector('[data-testid="universe-node-cardmem"]');const allA=nodes.every(n=>n.tagName==='A');const detail={count:nodes.length,ids,allAnchors:allA,tags:[...new Set(nodes.map(n=>n.tagName))],componentsPresent:!!comp,componentsHref:comp?comp.getAttribute('href'):null,componentsTarget:comp?comp.getAttribute('target'):null,cardmemAbsent:!cardmem};const pass=nodes.length===10&&!!comp&&!cardmem&&allA&&/discovery\.broberg\.ai/.test(comp?.getAttribute('href')||'');return{pass,detail};
+
+### key=(none found)   site=.flow.steps[].js
+const comp=document.querySelector('[data-testid="universe-node-components"]');const nodes=[...document.querySelectorAll('[data-testid^="universe-node-"]')];const customers=nodes.filter(n=>n.getAttribute('href')==='#cases');const infra=nodes.filter(n=>{const h=n.getAttribute('href')||'';return h!=='#cases';});const detail={componentsHref:comp?comp.getAttribute('href'):null,componentsTarget:comp?comp.getAttribute('target'):null,customerCount:customers.length,infraCount:infra.length,customerIds:customers.map(n=>n.getAttribute('data-testid'))};const pass=!!comp&&/discovery\.broberg\.ai/.test(comp.getAttribute('href')||'')&&comp.getAttribute('target')==='_blank'&&customers.length>=1;return{pass,detail};
+
+### key=(none found)   site=.flow.steps[].js
+const node=document.querySelector('[data-testid="universe-node-components"]');if(!node)return false;const svg=node.ownerSVGElement;if(!svg||!svg.setCurrentTime)return false;const dot=node.querySelector('circle');const text=node.querySelector('text');if(!dot||!text)return false;svg.pauseAnimations();const P=104;const ts=[0,P/4,P/2,3*P/4,P];const s=ts.map(t=>{svg.setCurrentTime(t);const m=text.getScreenCTM();const angle=Math.atan2(m.b,m.a)*180/Math.PI;const db=dot.getBoundingClientRect(),tb=text.getBoundingClientRect();return{angle,dx:(tb.left+tb.width/2)-(db.left+db.width/2),dy:(tb.top+tb.height/2)-(db.top+db.height/2)};});const up=s.every(x=>{const a=((x.angle%360)+360)%360;return a<3||a>357;});const sp=a=>Math.max(...a)-Math.min(...a);const weld=sp(s.map(x=>x.dx))<4&&sp(s.map(x=>x.dy))<4;return up&&weld;
+
+### key=(none found)   site=.flow.steps[].js
+const node=document.querySelector('a[data-testid^="universe-node-"][href="#cases"]');if(!node)return false;const svg=node.ownerSVGElement;if(!svg||!svg.setCurrentTime)return false;const dot=node.querySelector('circle');const text=node.querySelector('text');if(!dot||!text)return false;svg.pauseAnimations();const P=64;const ts=[0,P/4,P/2,3*P/4,P];const s=ts.map(t=>{svg.setCurrentTime(t);const m=text.getScreenCTM();const angle=Math.atan2(m.b,m.a)*180/Math.PI;const db=dot.getBoundingClientRect(),tb=text.getBoundingClientRect();return{angle,dx:(tb.left+tb.width/2)-(db.left+db.width/2),dy:(tb.top+tb.height/2)-(db.top+db.height/2)};});const up=s.every(x=>{const a=((x.angle%360)+360)%360;return a<3||a>357;});const sp=a=>Math.max(...a)-Math.min(...a);const weld=sp(s.map(x=>x.dx))<4&&sp(s.map(x=>x.dy))<4;return up&&weld;
+
+### key=dx   site=.flow.steps[].js
+const n=document.querySelector('a[data-testid^="universe-node-"][href="#cases"]');const svg=n.ownerSVGElement;const d=n.querySelector('circle');const t=n.querySelector('text');if(!d||!t)return false;svg.pauseAnimations();const P=64;const s=[0,P/4,P/2,3*P/4,P].map(tt=>{svg.setCurrentTime(tt);const db=d.getBoundingClientRect(),tb=t.getBoundingClientRect();return{dx:(tb.left+tb.width/2)-(db.left+db.width/2),dy:(tb.top+tb.height/2)-(db.top+db.height/2)};});const sp=a=>Math.max(...a)-Math.min(...a);return sp(s.map(x=>x.dx))<4&&sp(s.map(x=>x.dy))<4;
+
+### key=dx   site=.flow.steps[].js
+const n=document.querySelector('a[data-testid^="universe-node-"][href="#cases"]');const svg=n.ownerSVGElement,d=n.querySelector('circle'),t=n.querySelector('text');svg.pauseAnimations();const P=64;const s=[0,P/4,P/2,3*P/4,P].map(tt=>{svg.setCurrentTime(tt);const db=d.getBoundingClientRect(),tb=t.getBoundingClientRect();return{dx:(tb.left+tb.width/2)-(db.left+db.width/2),dy:(tb.top+tb.height/2)-(db.top+db.height/2)};});const sp=a=>Math.max(...a)-Math.min(...a);return sp(s.map(x=>x.dx))<4&&sp(s.map(x=>x.dy))<4;
+
+### key=dx   site=.flow.steps[].js
+const n=document.querySelector('[data-testid^="universe-node-"][data-scroll="cases"]');const svg=n.ownerSVGElement,d=n.querySelector('circle'),t=n.querySelector('text');svg.pauseAnimations();const P=64;const s=[0,P/4,P/2,3*P/4,P].map(tt=>{svg.setCurrentTime(tt);const db=d.getBoundingClientRect(),tb=t.getBoundingClientRect();return{dx:(tb.left+tb.width/2)-(db.left+db.width/2),dy:(tb.top+tb.height/2)-(db.top+db.height/2)};});const sp=a=>Math.max(...a)-Math.min(...a);return sp(s.map(x=>x.dx))<4&&sp(s.map(x=>x.dy))<4;
+
+### key=__status   site=.flow.steps[].js
+window.__seti=undefined;fetch('/api/seti/v1/usage',{credentials:'include'}).then(r=>r.json().then(j=>({__status:r.status,...j})).catch(()=>({__status:r.status}))).then(j=>{window.__seti=j}).catch(e=>{window.__seti={__err:String(e)}});return true;
+
+### key=__s   site=.flow.steps[].js
+window.__f508=undefined;fetch('/api/seti/lsd/flags?edge=m1&ids=508',{credentials:'include'}).then(r=>r.json().then(j=>({__s:r.status,...j})).catch(()=>({__s:r.status}))).then(j=>{window.__f508=j}).catch(e=>{window.__f508={__e:String(e)}});return true;
+
+### key=picker_left   site=.flow.steps[].js
+const pop=document.querySelector('[data-testid="session-tab-picker"]').getBoundingClientRect(); const sb=document.querySelector('[data-testid="sidebar-root"]')?.getBoundingClientRect(); const sbRight=sb?sb.right:0; const behind = pop.left < sbRight; return {picker_left: Math.round(pop.left), sidebar_right: Math.round(sbRight), behind};

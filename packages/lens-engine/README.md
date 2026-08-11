@@ -216,6 +216,38 @@ problem it was meant to solve. A Playwright bump in this package is still a
 breaking change for you; it ships in its own minor (a caret on `0.x` locks the
 minor, so you are never upgraded into one by accident).
 
+### v0.6.0 — an assert that returns a bag of data asserted nothing
+
+An assert body may return a boolean, or `{ pass, detail }`. As of 0.6.0 a **plain
+object with no `pass` key** is a hard error instead of a silent pass:
+
+```ts
+{ action: 'assert', js: "return { passed: drawer.open, detail: '…' }" }
+// ✗ assert returned an object with no 'pass' key (got: passed, detail)
+//   — did you mean { pass }? Return a boolean, or { pass, detail }
+
+{ action: 'assert', js: 'return {}' }
+// ✗ assert returned an empty object, so nothing was asserted — this is usually
+//   a template that was never filled in.
+```
+
+Before this, no `pass` key meant bare-truthy, so `{passed:…}` `{ok:…}`
+`{found:…}` — any near-miss on the verdict key — was **green forever, whatever
+the page did**. Measured in two months of real fleet history: the worst example
+computed the answer and then handed it back as a data field
+(`return {picker_left, sidebar_right, behind}`) without ever using it as the
+verdict. That form is more dangerous than a bare `true`, because it looks
+careful and no reviewer stops at it.
+
+**Narrow by design.** The discriminator is the prototype, so only *plain* objects
+are rejected. A DOM Element, an array, a `Date`, a `Map`, a class instance — all
+still pass bare-truthy, which is why `assert: document.querySelector('#drawer.open')`
+keeps working. `{pass:false}` remains an ordinary assert *failure*, not an error.
+
+**Not covered:** a body ending in a literal `return true` is still green whatever
+happened. No engine can see the difference between that and a real verdict —
+that one is on the author.
+
 **Runtime deps:** `playwright`, `zod`, `@broberg/ai-sdk` (vision only), and — for the
 readers — `jsdom` + `@mozilla/readability` + `turndown`. MIT · part of the
 [`@broberg/*`](https://github.com/broberg-ai/components) shared-library family.

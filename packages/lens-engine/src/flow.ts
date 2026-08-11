@@ -291,6 +291,18 @@ async function execStep(
       if (out.kind === 'threw') {
         throw new Error(`assert threw (${out.message}): ${step.js}`);
       }
+      // F066 — an object that carries no verdict. Two different mistakes, so two
+      // different sentences: naming the keys turns this into a one-line fix,
+      // while a generic "invalid assert" would just make people guess.
+      if (out.kind === 'no-verdict') {
+        throw new Error(
+          out.keys.length
+            ? `assert returned an object with no 'pass' key (got: ${out.keys.join(', ')}) — did you mean { pass }? ` +
+              `Return a boolean, or { pass, detail }: ${step.js}`
+            : `assert returned an empty object, so nothing was asserted — this is usually a template that was never ` +
+              `filled in. Return a boolean, or { pass, detail }: ${step.js}`,
+        );
+      }
       if (!out.value) {
         // The author's own words when they used { pass, detail }.
         throw new Error(
@@ -451,11 +463,17 @@ function safeUrl(page: Page): string | undefined {
   }
 }
 
-/** The three things an assert body can do. A verdict, an explosion, or nothing at all. */
+/**
+ * The four things an assert body can do. A verdict, an explosion, nothing at
+ * all — or (F066) a plain object that LOOKS like a verdict and is not one.
+ */
 export type AssertOutcome =
   | { kind: 'syntax'; message: string }
   | { kind: 'threw'; message: string }
-  | { kind: 'value'; value: boolean; detail?: string };
+  | { kind: 'value'; value: boolean; detail?: string }
+  /** A plain object carrying no `pass` key: the author asserted nothing. `keys`
+   *  is what it DID carry — empty for `{}`, which is a different mistake. */
+  | { kind: 'no-verdict'; keys: string[] };
 
 /**
  * Compile + run an assert body INSIDE the page, and report which of three
@@ -502,6 +520,17 @@ export function evalAssertBody(b: string): Promise<AssertOutcome> {
           }
         }
         return { kind: 'value', value: !!r.pass, ...(detail ? { detail } : {}) };
+      }
+      // F066 — a PLAIN object with no `pass` asserted nothing, and bare-truthy
+      // made it green forever. `{passed:…}` `{ok:…}` `{found:…}` are all this.
+      // The prototype is the discriminator: an Element, an array, a Date or a
+      // class instance is not a plain object, so the fallback below still covers
+      // `assert: document.querySelector('#x')`, which is why it exists.
+      if (raw !== null && typeof raw === 'object') {
+        const proto = Object.getPrototypeOf(raw);
+        if (proto === Object.prototype || proto === null) {
+          return { kind: 'no-verdict', keys: Object.keys(raw as Record<string, unknown>) };
+        }
       }
       return { kind: 'value', value: !!raw };
     },
