@@ -246,7 +246,30 @@ keeps working. `{pass:false}` remains an ordinary assert *failure*, not an error
 
 **Not covered:** a body ending in a literal `return true` is still green whatever
 happened. No engine can see the difference between that and a real verdict —
-that one is on the author.
+that one is on the author. (Measured caveat: `return true` is only *vacuous*
+when it stands alone. If the chain above it can throw — a dead `fetch`, a
+missing node — the assert is thin but real. The genuinely empty ones fire work
+**without awaiting it** and return before the answer arrives.)
+
+> ### ⚠️ Upgrading from 0.5.x — `AssertOutcome` gained a member
+>
+> `AssertOutcome` is now a **four**-way union. If you switch on `kind` or read
+> `.value`, handle `no-verdict` explicitly:
+>
+> ```ts
+> if (out.kind === 'no-verdict') fail(noVerdictMessage(out.keys, body));
+> ```
+>
+> TypeScript catches this at compile time. **Plain JS does not** — `out.value` is
+> `undefined` on a `no-verdict`, which is falsy, so the assert fails *with no
+> explanation* and the named message never reaches the author. That throws away
+> the entire point of the release. Reported by cardmem, whose typecheck caught it
+> on both of their call-sites.
+>
+> `noVerdictMessage(keys, body?)` is exported (0.6.1) so there is **one**
+> definition of those two sentences — rebuild them by hand in a consumer and the
+> engine's wording and yours drift apart, which is the same mistake as two copies
+> of the verdict logic.
 
 **Runtime deps:** `playwright`, `zod`, `@broberg/ai-sdk` (vision only), and — for the
 readers — `jsdom` + `@mozilla/readability` + `turndown`. MIT · part of the

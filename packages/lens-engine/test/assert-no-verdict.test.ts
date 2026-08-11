@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { evalAssertBody, type AssertOutcome } from '../src/flow';
+import { evalAssertBody, noVerdictMessage, type AssertOutcome } from '../src/flow';
 
 /**
  * F066 — an assert that returns a plain object with no `pass` key asserted
@@ -53,6 +53,37 @@ describe('a plain object with no `pass` key is not a verdict', () => {
       expect(out.kind).toBe('no-verdict');
       expect((out as { keys: string[] }).keys).toEqual([]);
     }
+  });
+});
+
+describe('noVerdictMessage — ONE definition of the two sentences (0.6.1)', () => {
+  // cardmem surfaces this outcome on their daemon flow-path AND their verify
+  // path, and had rebuilt the wording by hand in both. Two copies of a message
+  // drift exactly like the two copies of the verdict logic that caused F064.
+  it('names the keys, in order, and suggests `pass`', () => {
+    const m = noVerdictMessage(['found', 'id']);
+    expect(m).toContain('found, id');
+    expect(m).toContain('did you mean { pass }');
+  });
+
+  it('the empty case is a DIFFERENT sentence and never suggests a rename', () => {
+    const m = noVerdictMessage([]);
+    expect(m).toContain('nothing was asserted');
+    expect(m).toContain('template that was never filled in');
+    expect(m).not.toContain('did you mean');
+  });
+
+  it('appends the offending body only when one is supplied', () => {
+    expect(noVerdictMessage(['a'], 'return {a:1}')).toContain('return {a:1}');
+    expect(noVerdictMessage(['a'])).not.toContain(':  ');
+  });
+
+  it('is what runFlow actually throws — not a parallel copy', async () => {
+    // The point of exporting it. If runFlow ever stops calling this, the string
+    // it throws and the string a consumer prints part ways silently.
+    const out = await evalAssertBody('return { passed: true }');
+    expect(out.kind).toBe('no-verdict');
+    expect(noVerdictMessage((out as { keys: string[] }).keys)).toContain('passed');
   });
 });
 

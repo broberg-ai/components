@@ -295,13 +295,7 @@ async function execStep(
       // different sentences: naming the keys turns this into a one-line fix,
       // while a generic "invalid assert" would just make people guess.
       if (out.kind === 'no-verdict') {
-        throw new Error(
-          out.keys.length
-            ? `assert returned an object with no 'pass' key (got: ${out.keys.join(', ')}) — did you mean { pass }? ` +
-              `Return a boolean, or { pass, detail }: ${step.js}`
-            : `assert returned an empty object, so nothing was asserted — this is usually a template that was never ` +
-              `filled in. Return a boolean, or { pass, detail }: ${step.js}`,
-        );
+        throw new Error(noVerdictMessage(out.keys, step.js));
       }
       if (!out.value) {
         // The author's own words when they used { pass, detail }.
@@ -474,6 +468,25 @@ export type AssertOutcome =
   /** A plain object carrying no `pass` key: the author asserted nothing. `keys`
    *  is what it DID carry — empty for `{}`, which is a different mistake. */
   | { kind: 'no-verdict'; keys: string[] };
+
+/**
+ * The sentence a `no-verdict` outcome deserves. Exported (0.6.1) because the
+ * cardmem daemon and the cloud runner both surface this outcome on their own
+ * paths, and they had each rebuilt the wording by hand — two copies of the
+ * message, which is the same shape of mistake as the two copies of the verdict
+ * logic that produced F064 in the first place. One definition, every caller.
+ *
+ * Naming the keys is the half that does the work: with them it is a one-line
+ * fix, without them the author guesses.
+ */
+export function noVerdictMessage(keys: string[], body?: string): string {
+  const tail = body ? `: ${body}` : '';
+  return keys.length
+    ? `assert returned an object with no 'pass' key (got: ${keys.join(', ')}) — did you mean { pass }? ` +
+        `Return a boolean, or { pass, detail }${tail}`
+    : `assert returned an empty object, so nothing was asserted — this is usually a template that was never ` +
+        `filled in. Return a boolean, or { pass, detail }${tail}`;
+}
 
 /**
  * Compile + run an assert body INSIDE the page, and report which of three

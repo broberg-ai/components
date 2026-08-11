@@ -35,6 +35,10 @@ export {
   // and the cloud runner must share ONE definition of what an assert means.
   // Two copies is how the false green got in.
   evalAssertBody,
+  // F066/0.6.1 — filed by cardmem, who had rebuilt these two sentences by hand
+  // on both of their paths. Two copies of a message drift exactly like two
+  // copies of a verdict do.
+  noVerdictMessage,
   type AssertOutcome,
   type FlowOptions,
   type FlowResult,
