@@ -17,6 +17,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
 
+      # A raw NUL byte makes grep/rg skip a text file SILENTLY (no match, exit 1,
+      # no error), so every grep-based sweep over it is falsely green. This job
+      # already runs on every push, so the guard lives here rather than in a
+      # workflow of its own. Found in our own coverage.ts on 2026-08-11.
+      - name: No raw NUL bytes in tracked text files
+        run: bun scripts/check-no-raw-nul.mjs
+
       - name: Regenerate the surfaces from the single source
         run: |
           bun scripts/build-inventory.mjs
