@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { existsSync } from 'node:fs';
+import { chromium } from 'playwright';
+import { describe, expect, it } from 'vitest';
 import { assertBrowserAvailable, browserMissingMessage } from '../src/capture';
 
 /**
@@ -81,7 +83,18 @@ describe('browserMissingMessage — the predicate is the PATH, not the version',
 });
 
 describe('assertBrowserAvailable', () => {
-  it('passes here, where the browser IS installed', () => {
-    expect(() => assertBrowserAvailable()).not.toThrow();
+  it('agrees with the actual filesystem, whichever machine this runs on', () => {
+    // NOT "passes here" — that assumed a browser, and CI has none, so the first
+    // version of this test failed the release job. Asserting agreement instead
+    // is both more honest and stronger: on a dev machine it proves the guard
+    // does not cry wolf, and on CI it exercises the throw against a genuinely
+    // absent browser rather than a mocked one.
+    const path = chromium.executablePath();
+    if (existsSync(path)) {
+      expect(() => assertBrowserAvailable()).not.toThrow();
+    } else {
+      expect(() => assertBrowserAvailable()).toThrow(/not on disk/);
+      expect(() => assertBrowserAvailable()).toThrow(path.split('/').slice(-3, -2)[0]!);
+    }
   });
 });
