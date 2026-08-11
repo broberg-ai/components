@@ -93,10 +93,40 @@ export class SetiClient {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs ?? this.inputTimeoutMs),
       });
-      const json = (await res.json().catch(() => ({}))) as Partial<SetiInputResult>;
-      return { ok: !!json.ok, edgeConnected: !!json.edgeConnected, error: json.error };
+
+      // An HTTP error is not a refusal. A 502 from a proxy, or a 500 after the
+      // line was already injected, tells us the server did not get to answer —
+      // not that it said no. Reporting that as `rejected` is the same lie in a
+      // different place.
+      if (!res.ok) {
+        return { ok: false, outcome: "unconfirmed", edgeConnected: false, error: `http_${res.status}` };
+      }
+
+      let json: Partial<SetiInputResult> | null = null;
+      try {
+        json = (await res.json()) as Partial<SetiInputResult>;
+      } catch {
+        json = null;
+      }
+      // 200 with a body we cannot read is also a missing verdict, not a no.
+      if (!json || typeof json.ok !== "boolean") {
+        return { ok: false, outcome: "unconfirmed", edgeConnected: false, error: "no_verdict" };
+      }
+
+      // The only two places a real verdict can come from.
+      return json.ok
+        ? { ok: true, outcome: "delivered", edgeConnected: !!json.edgeConnected, error: json.error }
+        : { ok: false, outcome: "rejected", edgeConnected: !!json.edgeConnected, error: json.error };
     } catch (err) {
-      return { ok: false, edgeConnected: false, error: err instanceof Error ? err.message : "send_failed" };
+      // Timeout, abort, DNS, connection reset — every one of them means the same
+      // thing to us: we never heard back. We do not know that the edge failed to
+      // inject the message, so we must not say it did.
+      return {
+        ok: false,
+        outcome: "unconfirmed",
+        edgeConnected: false,
+        error: err instanceof Error ? err.message : "send_failed",
+      };
     }
   }
 

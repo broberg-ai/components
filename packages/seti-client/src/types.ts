@@ -38,8 +38,29 @@ export const SETI_KEYS = [
 ] as const;
 export type SetiKey = (typeof SETI_KEYS)[number];
 
+/**
+ * What the client actually KNOWS about a send. A timeout is a measurement, not a
+ * fact about delivery: the client saying "not sent" only ever means "no receipt
+ * within my budget", and the edge may have injected the message anyway.
+ *
+ * - `delivered`   the server gave a verdict and it was yes.
+ * - `rejected`    the server gave a verdict and it was no. Safe to surface as a
+ *                 failure, and safe to retry — nothing was written.
+ * - `unconfirmed` no verdict reached us: we stopped waiting, the network broke,
+ *                 or the server answered without saying. The message may well
+ *                 have arrived. **Do not auto-retry** — POST /input is not
+ *                 idempotent, so a retry is how a false "not sent" becomes a
+ *                 real duplicate.
+ */
+export type SetiSendOutcome = "delivered" | "rejected" | "unconfirmed";
+
 export interface SetiInputResult {
+  /** True only for `delivered`. Unchanged in meaning, so existing callers keep
+   *  working — but a caller that shows a failure on `!ok` is showing one for
+   *  `unconfirmed` too, which is the case worth rendering differently. */
   ok: boolean;
+  /** What we know, as opposed to what we assume. See SetiSendOutcome. */
+  outcome: SetiSendOutcome;
   edgeConnected: boolean;
   error?: string;
 }

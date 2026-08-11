@@ -175,8 +175,12 @@ export function SetiChat(props: SetiChatProps) {
     setSending(true);
     setNotice(null);
     const res = await client.sendText(props.edge, props.session, text);
-    if (res.ok) {
+    if (res.outcome === "delivered") {
       setText(""); // only clear when actually delivered — text survives failures
+    } else if (res.outcome === "unconfirmed") {
+      // The message may well have arrived. Telling the user it was not sent is
+      // how they end up sending it twice, and /input is not idempotent.
+      setNotice("Uvist om den nåede frem — tjek terminalen før du sender igen");
     } else {
       setNotice("Ikke leveret — din tekst er bevaret");
     }

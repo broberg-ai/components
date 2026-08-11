@@ -7,6 +7,7 @@ export {
   type SetiKey,
   type SetiRemoteSession,
   type SetiRoster,
+  type SetiSendOutcome,
   type SetiStreamHandle,
   type SetiStreamHandlers,
   type SetiStreamState,

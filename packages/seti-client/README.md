@@ -45,6 +45,35 @@ stream.close();
 “Start a task” on a headless SET and chatting with an interactive SETI are the
 same call — `sendText` — because both are tmux cc sessions on the edge.
 
+### A timeout is a measurement, not a fact about delivery (0.4.0)
+
+`sendText` / `sendKey` return an **`outcome`** alongside `ok`, because "it
+failed" and "I stopped waiting" are different things and only one of them is
+safe to retry:
+
+| `outcome` | what it means | retry? |
+| --- | --- | --- |
+| `delivered` | the server gave a verdict and it was yes | n/a |
+| `rejected` | the server gave a verdict and it was no — **nothing was written** | yes, safely |
+| `unconfirmed` | no verdict reached us: we hit our budget, the network broke, or the server answered without saying | **no — not automatically** |
+
+```ts
+const res = await client.sendText(edge, session, text);
+if (res.outcome === "delivered") clearInput();
+else if (res.outcome === "unconfirmed") warn("Uvist om den nåede frem — tjek før du sender igen");
+else warn(`Afvist: ${res.error}`);
+```
+
+**Why `unconfirmed` must not be auto-retried:** `POST /input` is not idempotent.
+An abort ends the *client's* wait; the edge may still inject the line. So a
+retry is exactly how a false "not sent" becomes a real duplicate — which is the
+bug this replaces. Christian saw "not sent" five times in a row on a single
+message that had, in fact, arrived every time.
+
+`ok` is unchanged and is `true` **only** for `delivered`, so nothing breaks. But
+note that a UI branching on `!ok` shows a failure for `unconfirmed` too — that
+is the case worth rendering differently, and `<SetiChat>` now does.
+
 `FrameAccumulator` solves alt-screen scrollback: cc renders on the terminal
 alt-screen (tmux keeps no scrollback), so every frame is a full window snapshot;
 the accumulator overlap-merges successive frames into a growing dialogue history

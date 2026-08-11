@@ -31,7 +31,7 @@ describe("SetiClient", () => {
     }) as unknown as typeof fetch;
     const c = new SetiClient({ baseUrl: "/api/seti", fetch: f });
     const res = await c.sendText("e1", "cc", "hej");
-    expect(res).toEqual({ ok: true, edgeConnected: true, error: undefined });
+    expect(res).toEqual({ ok: true, outcome: "delivered", edgeConnected: true, error: undefined });
   });
 
   it("sendText includes origin in the body when given, omits it otherwise", async () => {
@@ -171,4 +171,100 @@ describe("SetiClient", () => {
     expect(calls).toBeGreaterThanOrEqual(2);
     expect(states).toContain("reconnecting");
   }, 10_000);
+});
+
+/**
+ * F069.1 — a send that timed out must not be reported as a send that failed.
+ *
+ * ONE harness, every world, deliberately: two subset checks are not one covering
+ * check, and the whole point of this feature is that the outcomes are
+ * DISTINGUISHABLE from each other. Proving each in its own bespoke setup would
+ * prove three things separately and the distinction not at all.
+ */
+describe("send outcome — what the client knows vs what it assumes", () => {
+  const send = (behaviour: unknown, timeoutMs?: number) =>
+    new SetiClient({
+      baseUrl: "/api/seti",
+      fetch: behaviour as typeof fetch,
+      inputTimeoutMs: timeoutMs,
+    }).sendText("e1", "cc", "hej", timeoutMs ? { timeoutMs } : undefined);
+
+  const answers = (body: unknown, status = 200) =>
+    async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
+
+  const rejectsWith = (err: unknown) => async () => {
+    throw err;
+  };
+
+  /** Never resolves; rejects only when the client's own AbortSignal fires. This
+   *  is the real wiring, not a stand-in for it — the case Christian hit five
+   *  times in a row goes through exactly this path. */
+  const hangs = () =>
+    (async (_url: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      })) as unknown as typeof fetch;
+
+  it("a verdict of yes is 'delivered'", async () => {
+    expect(await send(answers({ ok: true, edgeConnected: true }))).toMatchObject({
+      ok: true,
+      outcome: "delivered",
+    });
+  });
+
+  it("a verdict of no is 'rejected' — the server decided, so nothing was written", async () => {
+    expect(await send(answers({ ok: false, edgeConnected: true, error: "no_such_session" }))).toMatchObject({
+      ok: false,
+      outcome: "rejected",
+      error: "no_such_session",
+    });
+  });
+
+  it("the client's OWN timeout is 'unconfirmed', never 'rejected'", async () => {
+    // 20 ms budget against a fetch that never answers: the abort comes from
+    // AbortSignal.timeout inside input(), so this exercises the shipped path.
+    const res = await send(hangs(), 20);
+    expect(res.outcome).toBe("unconfirmed");
+    expect(res.ok).toBe(false);
+  });
+
+  it("a network failure is 'unconfirmed' — we did not hear a refusal, so we must not claim one", async () => {
+    expect(await send(rejectsWith(new TypeError("fetch failed")))).toMatchObject({
+      outcome: "unconfirmed",
+    });
+  });
+
+  it("an HTTP error is 'unconfirmed' — a 502 is a missing answer, not a no", async () => {
+    expect(await send(answers({}, 502))).toMatchObject({ outcome: "unconfirmed", error: "http_502" });
+  });
+
+  it("200 with an unreadable body is 'unconfirmed', not a silent failure", async () => {
+    expect(await send(answers("<html>proxy</html>"))).toMatchObject({
+      outcome: "unconfirmed",
+      error: "no_verdict",
+    });
+  });
+
+  it("ok is true IF AND ONLY IF outcome is 'delivered' — no consumer changes behaviour", async () => {
+    const worlds = [
+      answers({ ok: true, edgeConnected: true }),
+      answers({ ok: false }),
+      answers({}, 502),
+      answers("not json"),
+      rejectsWith(new TypeError("fetch failed")),
+    ];
+    for (const world of worlds) {
+      const res = await send(world);
+      expect(res.ok).toBe(res.outcome === "delivered");
+    }
+  });
+
+  it("the three outcomes are actually DISTINGUISHABLE — without this the rest can all pass on one constant", async () => {
+    const seen = new Set([
+      (await send(answers({ ok: true }))).outcome,
+      (await send(answers({ ok: false }))).outcome,
+      (await send(hangs(), 20)).outcome,
+    ]);
+    expect(seen).toEqual(new Set(["delivered", "rejected", "unconfirmed"]));
+  });
 });
