@@ -17,17 +17,41 @@
 //   `/usr/bin/grep`, `command grep` and `rg` ALL find the match. Only the shim
 //   every agent reaches for by default goes blind, and it does so with no error.
 //
-// AND THE PROPERTY IS NOT "CONTAINS A NUL". That was one instance of the class,
-// and naming the guard after it made the guard miss the rest. `-I` also skips
-// anything that is not valid UTF-8 — so a Danish text file saved as latin-1
-// (`ø` as the single byte 0xF8, no NUL anywhere) is invisible to every cc
-// session's grep. Measured: same three tools, same split. In a fleet whose repos
+// AND "CONTAINS A NUL" IS ONLY HALF THE CLASS. The shim is ugrep, and ugrep's
+// -I calls a file binary if it is not valid UTF-8 — not only if it holds a NUL.
+// So a Danish text file saved as latin-1 (`ø` as the single byte 0xF8, no NUL
+// anywhere) is invisible to every cc session's grep too. In a fleet whose repos
 // are full of Danish strings, legacy exports and CSVs from Danish systems, that
-// is the larger half of the class, and the original guard passed all of it.
+// is the likelier half, and a NUL-only guard passes all of it.
 //
-// So the predicate here is the union — NUL **or** invalid UTF-8 — because the
-// question is not "is this byte suspicious" but "will the tool we search with
-// pretend this file does not exist".
+// -I IS NOT ONE BEHAVIOUR. It means different things in different programs, and
+// that is why two sessions measured this and got opposite answers — both were
+// right about their own binary. Full matrix on this machine, ugrep 7.5.0,
+// LANG=da_DK.UTF-8, pattern on a line of its own and on the bad line, same
+// result either way:
+//
+//                      grep(shim)   /usr/bin/grep   grep -I   LC_ALL=C   rg
+//   NUL byte           MISSES       1               MISSES    1          1
+//   latin-1, no NUL    MISSES       1               1         1          1
+//
+// GNU/BSD -I keys on NUL alone; ugrep -I keys on UTF-8 validity as well. Hence
+// the predicate here is the UNION — NUL **or** invalid UTF-8. Building it on
+// UTF-8 validity alone would exempt the very file we started from, because a
+// NUL is perfectly valid UTF-8 (U+0000 is a legal code point, measured: the NUL
+// file decodes cleanly and is still invisible). Two ways to get this wrong, and
+// each looks like the fix for the other.
+//
+// WHO IS ACTUALLY EXPOSED — worth stating, so nobody audits the wrong thing:
+// this is the INTERACTIVE session's reflex, not the pipeline. CI jobs, shell
+// scripts and hooks that call the system grep were never affected. The blind
+// spot is in the chat window.
+//
+// TO VERIFY A NEGATIVE RESULT, USE `rg` — not `command grep`. That was the first
+// advice and it is not safe: on a Mac with Homebrew's ugrep first in PATH, the
+// plain `grep` a session bypasses the shim to reach IS ugrep, so the fallback
+// has the exact property it was meant to escape. A recommendation cannot see
+// which binary is in front on someone else's machine. `rg` found every case in
+// every cell of the matrix above; `grep -a` also works on a known GNU/BSD grep.
 //
 // Found in components within minutes of cardmem describing the class:
 // packages/lens-engine/src/coverage.ts assigned a group-key separator as a
