@@ -1,6 +1,6 @@
 {
   "name": "@broberg/webpush",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Storage-agnostic Web Push (PWA) core for the broberg.ai fleet — a VAPID sender that returns dead endpoints to prune + shapes a declarative + classic payload, browser subscribe/unsubscribe/badge helpers, and service-worker handlers. Web Push only (VAPID · PushManager · PWAs), NOT native APNs/FCM. The package never touches your database.",
   "type": "module",
   "license": "MIT",
@@ -32,6 +32,9 @@
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js",
       "require": "./dist/types.cjs"
+    },
+    "./sw.global": {
+      "default": "./dist/sw.global.js"
     }
   },
   "scripts": {

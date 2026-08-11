@@ -70,11 +70,64 @@ syncBadge(await fetchUnseenCount());
 
 ## Service worker
 
+If your `sw.js` goes through a bundler:
+
 ```js
 import { handlePush, handleNotificationClick } from '@broberg/webpush/sw';
 self.addEventListener('push', handlePush);
 self.addEventListener('notificationclick', handleNotificationClick);
 ```
+
+### If your service worker is a static file in `public/` (v0.2.0)
+
+It is served straight to the browser, never reaches the bundler, and **cannot
+import from `node_modules`.** That is why two repos ended up hand-writing copies
+of these handlers. Use the classic build instead — no import, no export:
+
+```jsonc
+// package.json — copy it next to your worker at build time
+"scripts": {
+  "prebuild": "cp node_modules/@broberg/webpush/dist/sw.global.js public/"
+}
+```
+
+```js
+// public/sw.js
+importScripts('/sw.global.js');   // listeners are attached for you
+// …keep your own non-push logic here.
+```
+
+It also exposes `self.BrobergWebPush = { handlePush, handleNotificationClick, createPushHandler }`
+if you would rather wire them yourself.
+
+> ### ⚠️ DELETE YOUR OWN `push` HANDLER WHEN YOU ADOPT THIS
+>
+> `addEventListener` is **additive**. This file's listener does not replace
+> yours — it runs *alongside* it, and **two handlers both calling
+> `showNotification` produce two banners per push.** It will hit you exactly
+> when you believe you are cleaning up. Remove yours in the same change.
+
+### Configuring the defaults
+
+`handlePush` works with no configuration. When you need to change something —
+most often the title, because `'Notifikation'` is Danish and your product may
+not be — build your own listener instead of copying the file:
+
+```js
+import { createPushHandler } from '@broberg/webpush/sw';
+self.addEventListener('push', createPushHandler({ defaultTitle: 'Notification' }));
+```
+
+| option | default | what it does |
+| --- | --- | --- |
+| `defaultTitle` | `'Notifikation'` | title when the payload carries none |
+| `defaultNavigate` | `'/'` | where a tap goes when the payload names no destination — without it a tap opens *nothing* |
+| `badgeOnVisible` | `true` | sync the OS badge on a **visible** push too, so the number moves when the message arrives rather than when it is read elsewhere |
+
+All three default to the working value on purpose. A fix that ships behind a
+flag reaches only the people who read changelogs — which is the people who did
+not need it. If you send no `badge` in a payload, `badgeOnVisible` cannot affect
+you; there is a test that proves exactly that rather than asserting it.
 
 ## What you still own
 
