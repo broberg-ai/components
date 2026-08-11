@@ -38,7 +38,15 @@ export function handlePush(event: PushEvent): void {
     const nav = (self as any).navigator as
       | { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> }
       | undefined;
-    event.waitUntil(Promise.resolve(count > 0 ? nav?.setAppBadge?.(count) : nav?.clearAppBadge?.()));
+    // The `?.` guards a MISSING API; it does nothing about a REJECTING one.
+    // setAppBadge rejects on engines that expose it but refuse it (unsupported
+    // display mode, permission), and a rejected promise handed to waitUntil
+    // fails the push event — so a badge that cannot be set would discard the
+    // whole delivery. Filed against this package by cardmem, whose hand-written
+    // copy caught it with `.catch(() => {})` where the package did not.
+    event.waitUntil(
+      Promise.resolve(count > 0 ? nav?.setAppBadge?.(count) : nav?.clearAppBadge?.()).catch(() => {}),
+    );
     return;
   }
   const n = data.notification ?? data;
