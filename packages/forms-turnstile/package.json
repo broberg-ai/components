@@ -1,11 +1,14 @@
 {
   "name": "@broberg/forms-turnstile",
-  "version": "0.1.0",
-  "description": "Spam-protected public form primitives for the broberg.ai fleet: honeypot detection, an in-process IP rate limiter, and Cloudflare Turnstile server-side verification. Headless core + a Preact widget hook + a Hono middleware.",
+  "version": "0.2.0",
+  "description": "Spam-protected public form primitives for the broberg.ai fleet: honeypot detection, an in-process IP rate limiter, and Cloudflare Turnstile server-side verification. Headless core + a widget hook for React and Preact + a Hono middleware.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,6 +28,11 @@
       "import": "./dist/preact.js",
       "require": "./dist/preact.cjs"
     },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
     "./hono": {
       "types": "./dist/hono.d.ts",
       "import": "./dist/hono.js",
@@ -32,17 +40,25 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node add-use-client.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "hono": ">=4",
-    "preact": ">=10.0.0"
+    "preact": ">=10.0.0",
+    "react": ">=18"
   },
   "peerDependenciesMeta": {
-    "hono": { "optional": true },
-    "preact": { "optional": true }
+    "hono": {
+      "optional": true
+    },
+    "preact": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
@@ -50,7 +66,9 @@
     "preact": "^10.23.0",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "react": "^19.0.0",
+    "@types/react": "^19.0.0"
   },
   "keywords": [
     "turnstile",
@@ -62,6 +80,7 @@
     "forms",
     "hono",
     "preact",
+    "react",
     "broberg"
   ],
   "repository": {
@@ -69,5 +88,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/forms-turnstile"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

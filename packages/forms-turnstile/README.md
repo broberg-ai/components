@@ -47,27 +47,65 @@ Cloudflare's official **always-pass** test keys — safe to commit, safe default
 app.get("/config", (c) => c.json(getSitekeyResponse(env.TURNSTILE_SITE_KEY)));
 ```
 
-## Preact adapter (`@broberg/forms-turnstile/preact`)
+## Widget hook — React (`/react`) or Preact (`/preact`)
 
-Lazy-loads the Turnstile script (cached + deduped) and renders the widget once a site key is available.
+Lazy-loads the Turnstile script (cached + deduped) and renders the widget once a
+site key is available. **Both adapters are the same implementation** — they
+differ only in which package the hooks come from, so a fix reaches both.
 
 ```tsx
-import { useTurnstile } from "@broberg/forms-turnstile/preact";
+import { useTurnstile } from "@broberg/forms-turnstile/react";   // or /preact
 
 function ContactForm() {
-  const { widgetRef, token, reset } = useTurnstile(siteKey); // siteKey: string | null while /config loads
+  const { widgetRef, token, status, error, reset } = useTurnstile(siteKey);
 
   return (
     <form onSubmit={onSubmit}>
       {/* ...fields... */}
       <div ref={widgetRef} data-testid="contact-form-captcha" />
-      <button type="submit" disabled={!token}>Send</button>
+      <button type="submit" disabled={status !== "solved"}>Send</button>
+      {status === "failed" && <p role="alert">Spam-tjekket kunne ikke indlæses. {error}</p>}
     </form>
   );
 }
 ```
 
-Call `reset()` after a failed submit to let the user solve the challenge again.
+`siteKey` may be `null`/`undefined` while a runtime `/config` fetch is in
+flight — that reads as `loading`.
+
+### Gate the submit button on `status`, not on `token` (v0.2.0)
+
+| `status` | meaning |
+| --- | --- |
+| `loading` | no site key yet, or the script is still loading |
+| `ready` | the widget is up and waiting for the user |
+| `solved` | `token` is valid — this is the only state you should submit in |
+| `failed` | it will not work without intervention; `error` says why |
+
+**Why this matters.** Before v0.2.0 the hook exposed only `token`, and an empty
+token had two causes: *the user has not solved it yet*, and *this will never
+work*. A form gating on `!token` therefore showed a submit button that never
+enabled, with nothing anywhere saying why. Turnstile is blocked by ordinary
+privacy extensions often enough that this is a normal user's experience, not an
+edge case.
+
+Three distinct paths used to end in that same silence — a script that failed to
+load, a script that **loaded** while `window.turnstile` never appeared, and a
+`widgetRef` that was never attached. All three now end in `failed` with a
+distinct `error`. Raised by fd-sundhed, who found the first of the three by
+reading the tarball.
+
+`reset()` returns a solved widget to `ready`. It will **not** move a `failed`
+widget out of `failed` — resetting a widget that never loaded cannot repair it,
+and laundering that into a hopeful state would erase the only evidence of the
+real problem.
+
+### React notes
+
+`react` is an optional peer (`>=18`). The bundle carries `"use client"`, so a
+Next.js App Router project can import it from a client component without
+marking anything extra — and only the React bundles carry it; `/server` and
+`/hono` stay server-safe.
 
 ## Hono middleware (`@broberg/forms-turnstile/hono`)
 

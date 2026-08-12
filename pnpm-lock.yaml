@@ -193,12 +193,18 @@ importers:
       '@types/node':
         specifier: ^22.7.0
         version: 22.19.20
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
       hono:
         specifier: ^4.6.0
         version: 4.12.25
       preact:
         specifier: ^10.23.0
         version: 10.29.2
+      react:
+        specifier: ^19.0.0
+        version: 19.2.7
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
