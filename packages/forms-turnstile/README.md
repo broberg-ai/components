@@ -31,6 +31,17 @@ The individual checks are exported too (`isHoneypotTriggered`, `isRateLimited`, 
 
 **Rate limiter caveat:** in-process only (a `Map`, swept lazily) — protects a single-instance deployment (Fly single machine, one Bun worker) but each instance has its own counters, so it does **not** protect multi-instance/serverless. For a shared, pluggable-store limiter (Turso/Redis-backed), reach for `@broberg/apikey`'s `SlidingWindowRateLimiter` instead.
 
+> **Measure your instance count, then write it next to the constant.** With N
+> instances the effective ceiling is `maxPerHour × N`, not `maxPerHour` — so the
+> number in your code is a lie for whoever reads it next unless the comment says
+> so. `flyctl scale show -a <app>` answers it in one line. fd-sundhed measured 2
+> machines against `maxPerHour: 5` and documented the real limit as 10 **at the
+> constant**, not in a commit message, which is the right place for it.
+>
+> This is a brake on repetition, not a door. Honeypot and Turnstile carry the
+> protection; if the rate limit is the layer you are relying on, you need a
+> shared store.
+
 ### Local dev / CI — no real keys needed
 
 ```ts
@@ -38,6 +49,24 @@ import { TURNSTILE_TEST_SITE_KEY, TURNSTILE_TEST_SECRET_KEY } from "@broberg/for
 ```
 
 Cloudflare's official **always-pass** test keys — safe to commit, safe default so the flow works end-to-end without a real Turnstile widget.
+
+> #### ⚠️ Do not E2E-assert the *unsolved* state against the test keys
+>
+> They solve **almost instantly**. So a check like *"the submit button is
+> disabled before the user solves the challenge"* is racing the widget: the
+> state you are trying to prove exists for under a second.
+>
+> fd-sundhed hit this on adoption — the same assertion passed on one page and
+> failed on the other, **not because the app behaved differently, but because
+> the assert raced**. They deleted the check rather than adding a wait, which is
+> the right call: a test that passes or fails on timing proves nothing in either
+> direction. It is not a flaky test, it is a test of a state the test keys do not
+> hold still for.
+>
+> Assert the states that persist instead — `solved` after solving, `failed` with
+> its `error` when you block the script. And note this trap is one *we* built,
+> by shipping always-pass keys as the default: the convenience and the race are
+> the same feature.
 
 ### Runtime site-key delivery
 

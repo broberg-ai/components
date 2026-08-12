@@ -1,6 +1,6 @@
 {
   "name": "@broberg/forms-turnstile",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Spam-protected public form primitives for the broberg.ai fleet: honeypot detection, an in-process IP rate limiter, and Cloudflare Turnstile server-side verification. Headless core + a widget hook for React and Preact + a Hono middleware.",
   "type": "module",
   "license": "MIT",
