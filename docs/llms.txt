@@ -68,7 +68,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/bodymap** v0.2.5 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.2.0 — The fleet's one Stripe chokepoint. `npm i @broberg/stripe`
 - **@broberg/pwa** v0.2.2 — The fleet's PWA primitive. `npm i @broberg/pwa`
-- **@broberg/forms-turnstile** v0.2.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
+- **@broberg/forms-turnstile** v0.2.1 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
 - **@broberg/logger** v0.1.1 — Structured server logging for the fleet. `npm i @broberg/logger`
 - **@broberg/http** v0.1.0 — Framework-free, zero-dep HTTP header/response primitives for Node/Bun/edge. `npm i @broberg/http`
 - **@broberg/seti-client** v0.4.0 — The SETI streaming-chat client. `npm i @broberg/seti-client`
