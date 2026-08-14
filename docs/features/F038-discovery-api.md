@@ -60,3 +60,60 @@ Build API on `broberg-discovery.fly.dev` → verify endpoints → request CNAME 
 
 ## Note — components gains a runtime
 components has been npm-only (OIDC publish, no runtime service). F038 adds its first hosted service. Kept deliberately minimal: read-only, stateless (no DB; inventory compiled into the image), public, idle-cheap (Fly autostop) — so it stays low-maintenance and doesn't compromise the OIDC-publish posture (no secrets in the publish path).
+
+## F038.6 — Discovery serves a snapshot of the past, and nothing says so
+
+Found 2026-08-14 while shipping `@broberg/secret-scan` 0.2.0. Measured against
+the live API, not inferred:
+
+| package | live on discovery.broberg.ai | actually on npm |
+| --- | --- | --- |
+| `@broberg/webpush` | 0.2.1 | **0.3.1** |
+| `@broberg/forms-turnstile` | 0.1.0 | **0.2.1** |
+| `@broberg/seti-client` | 0.3.2 | **0.4.0** |
+| `@broberg/secret-scan` | 0.1.8 | **0.2.0** |
+
+`flyctl status`: last deployed **2026-08-11**, three days earlier.
+
+### Why this is structural, not a forgotten step
+
+`inventory-fresh.yml` guards that the *committed* snapshots match
+`scripts/inventory-data.mjs`, and it is green. But prod regenerates its data **at
+Docker build time**, and **no workflow deploys the app.** So the gate proves the
+repo is self-consistent while the thing the fleet actually reads keeps serving
+whatever was true at the last manual `flyctl deploy`. A green check and a stale
+site, at the same time, with no signal separating them.
+
+The damage is not cosmetic. Every repo's CLAUDE.md tells sessions to consult
+Discovery **before** building, and `cardmem_session_start` hands each repo a
+`discovery_reuse` gap computed from this data. For three days that gap pointed at
+`@broberg/webpush` **0.2.1** — the version whose guessed icon path renders
+nothing on iOS, silently, and cost xrt81 a full day (F067.3). We were actively
+recommending the broken version to the fleet.
+
+Same failure family as the rest of this week, and worth naming: **a stale answer
+and a correct answer are indistinguishable at the point of use.** Nobody reading
+`0.2.1` can tell it is three days old.
+
+### Scope
+
+- Deploy `broberg-discovery` automatically when `main` changes anything the
+  served data is built from — at minimum `scripts/inventory-data.mjs`,
+  `scripts/build-*.mjs`, `apps/discovery/**`. Reuse the repo's own
+  `fly-server-deploy.yml` (F033.7) rather than writing a second deploy path.
+- Gate the deploy on the existing test job — never deploy past a red test.
+- **Prove the freshness rather than trusting the deploy.** After deploying, read
+  a version back from the live API and compare it to the source. That is the
+  check that would have caught this; a deploy step reporting success would not.
+
+### Non-goals
+
+- Not a rewrite of how the data is generated — the single source stays
+  `scripts/inventory-data.mjs`.
+- Not a scheduled/cron refresh. The trigger is a change landing, not the clock;
+  a nightly job would still leave a full day of wrong answers standing.
+
+### Note
+
+The deploy action itself is Christian's call under the harness contract. This
+card automates it so that decision is made once rather than every time.
