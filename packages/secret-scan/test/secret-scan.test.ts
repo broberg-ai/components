@@ -45,6 +45,8 @@ describe("redactSecrets — provider samples redacted to the right label", () =>
       expect(r.redacted).not.toContain(sample);
       expect(r.redacted).toContain(`[REDACTED:${label}]`);
       expect(r.findings.map((f) => f.label)).toContain(label);
+      // F035.8 — the format axis, asserted for every pattern rather than assumed.
+      expect(r.findings.find((f) => f.label === label)?.confidence).toBe("format");
     });
   }
 

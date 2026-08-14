@@ -90,3 +90,89 @@ function classify(value: string, opts?: RedactOptions): ClassifyResult | null;
 - `opts.extraPatterns` honoured, canonical attribution still wins.
 - Calling `classify` does not corrupt a subsequent `redactSecrets`/`hasSecret` (no `lastIndex` bleed) — asserted.
 - `@broberg/secret-scan` v0.1.7 on npm with the new export + type; README documents `classify`.
+
+## F035.8 — Announced secrets: when the label is the only evidence (v0.2.0)
+
+Filed by **buddy** after cardmem found a plaintext password as the **first line
+of an ingested mail** and `redactSecrets()` passed it through unchanged. Every
+pattern in this package matches a key *format* — the value identifies itself.
+`Adgangskode: hunter2` has no format at all; the value is arbitrary human text
+and the only signal is the word someone wrote next to it.
+
+Verified against the published **0.1.8 before any code was written**: all seven
+announced forms passed through untouched while format detection still worked. So
+the tests are a real red, not a suite fitted to an implementation.
+
+### The measurement that decided the default
+
+The card's noise numbers describe a *generic* label+separator+value pattern. They
+are not a measurement of what we shipped, so the shipped pattern was measured on
+its own — **2026-08-14, 548 tracked files, 544 readable as text**, containing
+essentially no real secrets:
+
+| pattern | matches (all noise) |
+| --- | --- |
+| generic label+sep+value (from the card) | 305 → 202 after refining |
+| **shipped narrow vocabulary** | **97** |
+| shipped + template/env-reference guard | **97** — the guard changed nothing |
+| shipped + min-value-length 6 | 82 |
+
+Per label: `secret` **61**, `api key` **33**, `password` **4**, every Danish
+label **0**. So 94 of the 97 are the two words that are also ordinary
+**identifiers in source code** (`secret: config.secret`, `apiKey: Record<…>`).
+
+That reframes the result. It is not merely "the pattern is noisy" — **its
+precision depends entirely on the corpus**. In an inbound mail body
+`Adgangskode:` is a strong signal; in a TypeScript file it is a variable name.
+The package cannot know which it is looking at; only the caller can. **That** is
+why the decision belongs to the caller and the default cannot be on — the
+opposite of this repo's usual defaults-ON stance (webpush F067.1, lens-engine
+F065).
+
+The template/env-reference guard (`${FOO}`, `<your-key>`) was written, measured,
+and **deleted**: 97 → 97. It would have shipped as plausible-looking dead weight.
+
+### Design decisions
+
+- **`confidence: 'format' | 'announced'`** on every finding, so a consumer can
+  weigh a shape-match differently from a label-claim.
+- **The announced pass runs LAST** and refuses a value that is already a
+  redaction marker, so `API key: sk-ant-…` keeps its specific
+  `anthropic-api-key` attribution instead of flattening to a generic label.
+- **The announcing label is kept** in the output — `Adgangskode:
+  [REDACTED:announced-secret]` — so a human or model reading the redacted text
+  can still tell what was removed.
+- **`hasSecret` honours `opts.announced`.** Without this, a caller who passes the
+  new option and is told `false` gets a confident wrong answer rather than a
+  missing feature — the failure class this repo keeps being bitten by.
+- **`hasAnnouncedSecret(text)` is a boolean with no redaction built**, because
+  buddy's use is to REFUSE: for untrusted inbound text heading to a model, a
+  false positive costs a slightly worse classification and a false negative costs
+  a leak. That is the better half of this feature and it came from the consumer.
+- **Not shipped:** buddy's own regex (3–32 alphanumerics alone on a first line),
+  which they flagged themselves — it matches `Hej`, `Tak`, `FYI`. Harmless where
+  a non-match cuts nothing, dangerous in anything that redacts.
+
+### Mutation evidence (four distinct red patterns)
+
+A mutation that reddens everything only proves the suite runs; different
+patterns prove it discriminates.
+
+| mutation | red |
+| --- | --- |
+| drop the announced pass | **9** — only the `{announced:true}` block |
+| force announced ON by default | **2** — only the default-off tests |
+| `hasAnnouncedSecret` always true | **2** — the prose case + empty input |
+| `hasSecret` ignores the option | **2** — the code-file case + the honours-option test |
+
+### F035.8 Acceptance criteria
+
+1. Findings carry `confidence`; asserted for **every** pattern in the existing
+   sample loop, not a representative few.
+2. Default off, proven by a test that fails if the default flips.
+3. All seven verified forms redact under `{ announced: true }`.
+4. `hasAnnouncedSecret(text)` returns a boolean without building a redaction.
+5. Format detection unaffected; specific attribution survives an announcing line.
+6. The measured number, its date and its corpus size are in the README.
+7. buddy's case proven both ways — the mail line fires, the prose does not.
+8. Mutation-proven with distinct red patterns (table above).

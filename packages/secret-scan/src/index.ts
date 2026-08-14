@@ -296,9 +296,22 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   },
 ];
 
+/**
+ * WHY a finding was flagged — the two detection axes this package has.
+ *
+ * `format`   the VALUE carries the signal: `sk-ant-…`, `ghp_…`, `AKIA…`. Shape
+ *            alone identifies it, so it is safe to run on anything.
+ * `announced` the LABEL carries the signal: `Adgangskode: hunter2`. The value is
+ *            arbitrary human text with no shape to match, so the only evidence
+ *            is that someone wrote the word "password" next to it.
+ */
+export type SecretConfidence = 'format' | 'announced';
+
 export interface RedactionFinding {
   label: string;
   count: number;
+  /** which axis matched — see SecretConfidence. */
+  confidence: SecretConfidence;
 }
 
 export interface RedactionResult {
@@ -314,7 +327,47 @@ export interface RedactOptions {
    * attribution wins). Backs a future self-service "paste a key → detector" UI.
    */
   extraPatterns?: SecretPattern[];
+  /**
+   * Also detect ANNOUNCED secrets — `Adgangskode: hunter2` — where the label is
+   * the only evidence. **Off by default, and it must stay that way.** See
+   * ANNOUNCED_LABEL for the measurement that decided it.
+   */
+  announced?: boolean;
 }
+
+/** Marker label for a secret detected by its announcing label rather than shape. */
+export const ANNOUNCED_LABEL = 'announced-secret';
+
+/**
+ * Label + separator + value. The label list is deliberately short and concrete;
+ * this is not a general "looks like config" detector.
+ *
+ * WHY THIS IS OPT-IN, MEASURED RATHER THAN GUESSED. Over this repo on
+ * 2026-08-14 — 548 tracked files, 544 readable as text, containing essentially
+ * no real secrets — this exact regex matched **97 times**, and every one was
+ * noise. Per label: `secret` 61, `api key` 33, `password` 4, and every Danish
+ * label 0. So 94 of the 97 are the two words that are also ordinary IDENTIFIERS
+ * in source code (`secret: config.secret`, `apiKey: Record<…>`).
+ *
+ * That is the real finding, and it is sharper than "the pattern is noisy": its
+ * precision depends entirely on WHAT IS BEING SCANNED. In an inbound mail body
+ * — buddy's actual case — `Adgangskode:` is a strong signal. In a TypeScript
+ * file it is a variable name. **The package cannot know which corpus it is
+ * looking at; only the caller can.** So the caller makes the decision, and the
+ * default cannot be on. (This is the opposite of this repo's usual defaults-ON
+ * stance — webpush F067.1, lens-engine F065 — and the numbers above are why.)
+ *
+ * A broader label+separator+value pattern measured 305 on the same corpus, and
+ * refining it only reached 202 — no amount of tuning makes a generic version
+ * safe. A template/env-reference guard (`${FOO}`, `<your-key>`) was written and
+ * then dropped: it changed the count by exactly 0, because the noise here is
+ * identifiers, not templates.
+ *
+ * The value must not already be a redaction marker, so this can run AFTER the
+ * format pass without flattening its more specific attribution.
+ */
+const ANNOUNCED_SECRET =
+  /(\b(?:adgangskode|kodeord|hemmelighed|password|passwd|api[ -]?key|apinøgle|secret|kode|pwd)\s*[:=]\s*)(?!\[REDACTED:)\S+/gi;
 
 /** Replacement marker for a redacted secret. */
 export const redactionMarker = (label: string): string => `[REDACTED:${label}]`;
@@ -339,13 +392,51 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
       count++;
       return redactionMarker(p.label);
     });
-    if (count > 0) findings.push({ label: p.label, count });
+    if (count > 0) findings.push({ label: p.label, count, confidence: 'format' });
+  }
+  // Announced runs LAST, and only on request. Order is not cosmetic: the format
+  // pass has already replaced everything it recognises, and this regex refuses a
+  // value that is already a marker — so `API key: sk-ant-…` keeps its specific
+  // `anthropic-api-key` attribution instead of being flattened to a generic one.
+  // The announcing label itself is KEPT in the output; only the value goes, so
+  // the redacted text still reads `Adgangskode: [REDACTED:announced-secret]` and
+  // a human or model reading it can still tell what was removed.
+  if (opts?.announced) {
+    let count = 0;
+    const redactedAnnounced = redacted.replace(ANNOUNCED_SECRET, (_match, prefix: string) => {
+      count++;
+      return prefix + redactionMarker(ANNOUNCED_LABEL);
+    });
+    if (count > 0) {
+      redacted = redactedAnnounced;
+      findings.push({ label: ANNOUNCED_LABEL, count, confidence: 'announced' });
+    }
   }
   return { redacted, findings };
 }
 
-/** True if `text` contains at least one detectable secret. */
+/**
+ * True if `text` announces a credential by label — `Adgangskode: hunter2` —
+ * without building a redaction. Cheap enough to run on every inbound message.
+ *
+ * This exists because for untrusted inbound text heading to a model, the right
+ * response is often to REFUSE rather than redact: a false positive costs a
+ * slightly worse classification, a false negative costs a leak. That use needs a
+ * boolean, not a redactor. (buddy's reasoning, F035.8.)
+ */
+export function hasAnnouncedSecret(text: string): boolean {
+  if (!text) return false;
+  ANNOUNCED_SECRET.lastIndex = 0;
+  return ANNOUNCED_SECRET.test(text);
+}
+
+/**
+ * True if `text` contains at least one detectable secret. Honours
+ * `opts.announced` — a caller who asks for the announced axis and is told
+ * `false` must be able to believe it.
+ */
 export function hasSecret(text: string, opts?: RedactOptions): boolean {
+  if (opts?.announced && hasAnnouncedSecret(text)) return true;
   return patternsFor(opts).some((p) => {
     p.regex.lastIndex = 0;
     return p.regex.test(text);
