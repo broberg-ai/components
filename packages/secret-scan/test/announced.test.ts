@@ -17,7 +17,10 @@ const SEVEN_FORMS: Array<[name: string, text: string, secret: string]> = [
   ["equals separator with spaces", "kodeord = abc123", "abc123"],
   ["two-word label", "API key: xyz789abc", "xyz789abc"],
   ["no-space equals", "password=Sommer2026!", "Sommer2026!"],
-  ["mid-sentence", "Her er min kode: TopHemmelig1", "TopHemmelig1"],
+  // Was "Her er min kode: …" until 0.4.0, when bare `kode` was removed — see the
+  // Danish-corpus block below. The PROPERTY under test is mid-sentence
+  // detection, not that one word, so it keeps its slot with a credential word.
+  ["mid-sentence", "Her er min adgangskode: TopHemmelig1", "TopHemmelig1"],
   [
     "mail-shaped body",
     "Hej Christian\n\nAdgangskode: hunter2\n\nVenlig hilsen\nEn kunde",
@@ -167,6 +170,43 @@ describe("scanned[] — which question did this call ask? (v0.3.0)", () => {
   it("empty input returns the same shape — a blank body must not change the contract", () => {
     expect(redactSecrets("").scanned).toEqual(["format"]);
     expect(redactSecrets("", { announced: true }).scanned).toEqual(["format", "announced"]);
+  });
+});
+
+describe("bare `kode` is Danish for SOURCE CODE, not a credential (v0.4.0)", () => {
+  // Filed by buddy from 82,662 lines of real Danish transcription. Two reasons
+  // it went, and the second is the one that settled it:
+  //  (a) the credential words are `kodeord` / `adgangskode`;
+  //  (b) the old behaviour was decided by a HYPHEN — `\b` meant `Landekode:`
+  //      never matched while `QR-kode:` did.
+  it("does not fire on ordinary Danish technical prose", () => {
+    for (const t of [
+      "Det er min kode: se linje 40",
+      "Kode: const x = 1",
+      "Merge-kode: konflikten er løst",
+      "- Det er edge-kode: den kører på cb-ubuntu",
+      "QR-kode: scan den",
+    ]) {
+      expect(hasAnnouncedSecret(t), t).toBe(false);
+    }
+  });
+
+  it("the compounds that already passed still pass — no regression on the accidental half", () => {
+    for (const t of ["Landekode: DK", "Postkode: 9492", "Fejlkode: 500", "Rabatkode: SOMMER"]) {
+      expect(hasAnnouncedSecret(t), t).toBe(false);
+    }
+  });
+
+  it("the real Danish credential words still fire", () => {
+    expect(hasAnnouncedSecret("kodeord = abc123")).toBe(true);
+    expect(hasAnnouncedSecret("Adgangskode: hunter2")).toBe(true);
+    expect(hasAnnouncedSecret("Her er min adgangskode: TopHemmelig1")).toBe(true);
+  });
+
+  it("THE COST, pinned so it stays a decision: `min kode: hunter2` is now MISSED", () => {
+    // Not an oversight. If this ever flips back, it should flip deliberately and
+    // this test is what makes that visible rather than silent.
+    expect(hasAnnouncedSecret("Her er min kode: hunter2")).toBe(false);
   });
 });
 

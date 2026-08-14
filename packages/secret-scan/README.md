@@ -125,6 +125,29 @@ tempting-but-wrong version: a bare "3–32 alphanumerics on the first line" rege
 matches `Hej`, `Tak` and `FYI`. Harmless where a non-match costs nothing,
 dangerous in anything that redacts.
 
+### Bare `kode` is not in the list (v0.4.0)
+
+**In Danish, `kode` mostly means SOURCE CODE.** The credential words are
+`kodeord` and `adgangskode`, and both are still matched. Until 0.4.0 the bare
+form was included and fired on ordinary technical prose — measured by buddy over
+**82,662 lines of real Danish transcription**:
+
+```
+"Det er min kode: se linje 40"      "Kode: const x = 1"
+"Merge-kode: konflikten er løst"    "QR-kode: scan den"
+```
+
+And the old behaviour was **arbitrary**, which is what settled it: `\b` meant
+`Landekode:` / `Postkode:` / `Fejlkode:` never matched (no word boundary inside
+the word) while `QR-kode:` did (a hyphen *is* one). Whether a compound got
+flagged came down to whether someone happened to type a hyphen.
+
+**The cost, stated rather than hidden:** `Her er min kode: hunter2` is no longer
+detected, and that is a real Danish way to announce a password. Deliberate — a
+token that means "source code" half the time is noise in every corpus, not just
+buddy's. There is a test pinning the miss, so if it ever comes back it comes back
+as a decision. Need it? File it; don't re-add it locally.
+
 **A label needs something to follow it.** `Password:` on its own is `false`; the
 value must actually be there. buddy found this the sharp way after adopting
 0.2.0 — their own patch keyed on *label + separator* and flagged an ordinary
@@ -246,6 +269,17 @@ function hasAnnouncedSecret(text: string): boolean;              // the refuse-p
 function classify(value: string, opts?: RedactOptions): ClassifyResult | null; // single-token type detection
 function redactionMarker(label: string): string; // `[REDACTED:${label}]`
 ```
+
+## Upgrading to 0.4.0
+
+Two changes from buddy, measured against a real Danish corpus and their own DB:
+
+- **Added** `whsec_` (Stripe webhook signing secret) to the format axis. Clean
+  gap, no trade-off — they found real ones sitting in plaintext because their
+  scrub runs the format axis only, so a prefixed secret we miss is a secret
+  nobody catches.
+- **Removed** bare `kode` from the announced axis (see above). If you relied on
+  it, `kodeord` and `adgangskode` still work.
 
 ## Upgrading to 0.3.0
 

@@ -137,6 +137,16 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\b[rs]k_live_[A-Za-z0-9]{20,}/g,
   },
   {
+    // Filed by buddy, who found REAL ones sitting in plaintext in their own
+    // transcription DB. Their scrub deliberately runs the format axis ONLY, so a
+    // prefixed secret we do not match is a secret nobody catches — a precise
+    // prefix is the only route that helps them. Zero false-positive risk: the
+    // literal `whsec_` does not occur by accident.
+    label: 'stripe-webhook-secret',
+    description: 'Stripe webhook signing secret (whsec_…)',
+    regex: /\bwhsec_[A-Za-z0-9+/=_-]{20,}/g,
+  },
+  {
     // Resend (re_…). Lookahead requires a digit in the body so we don't redact
     // long snake_case identifiers like re_compute_the_thing.
     label: 'resend-api-key',
@@ -390,9 +400,27 @@ export const ANNOUNCED_LABEL = 'announced-secret';
  *
  * The value must not already be a redaction marker, so this can run AFTER the
  * format pass without flattening its more specific attribution.
+ *
+ * NOT IN THE LIST, AND DELIBERATELY (v0.4.0): bare `kode`. **In Danish, `kode`
+ * mostly means SOURCE CODE** — the credential words are `kodeord` and
+ * `adgangskode`, both still matched. Until 0.4.0 the bare form was included and
+ * fired on ordinary technical prose; measured by buddy over 82,662 lines of real
+ * Danish transcription: "Det er min kode: se linje 40" · "Kode: const x = 1" ·
+ * "Merge-kode: konflikten er løst" · "QR-kode: scan den".
+ *
+ * And the behaviour was ARBITRARY, which is the part that settled it: `\b` meant
+ * `Landekode:` / `Postkode:` / `Fejlkode:` never matched (no word boundary inside
+ * the word) while `QR-kode:` did (a hyphen IS one). Whether a compound was
+ * flagged came down to whether someone happened to type a hyphen.
+ *
+ * THE COST, stated rather than hidden: `Her er min kode: hunter2` is no longer
+ * detected, and that is a real Danish way to announce a password. Deliberate — a
+ * token that means "source code" half the time is noise in every corpus, not
+ * just buddy's. If you need it back, file it; do not re-add it locally.
  */
 const ANNOUNCED_SECRET =
-  /(\b(?:adgangskode|kodeord|hemmelighed|password|passwd|api[ -]?key|apinøgle|secret|kode|pwd)\s*[:=]\s*)(?!\[REDACTED:)\S+/gi;
+  /(\b(?:adgangskode|kodeord|hemmelighed|password|passwd|api[ -]?key|apinøgle|secret|pwd)\s*[:=]\s*)(?!\[REDACTED:)\S+/gi;
+
 
 /** Replacement marker for a redacted secret. */
 export const redactionMarker = (label: string): string => `[REDACTED:${label}]`;

@@ -362,3 +362,32 @@ describe("v0.1.6 — DeepSeek API key (sk- + 32 hex; field-anchored fallback)", 
     expect(r.findings.map((f) => f.label)).not.toContain("deepseek-api-key");
   });
 });
+
+describe("v0.4.0 — Stripe webhook signing secret (whsec_)", () => {
+  // Filed by buddy, who found REAL ones in plaintext in their own transcription
+  // DB. Their scrub runs the FORMAT axis only (announced would shred Danish
+  // prose about source code), so a prefixed secret this package does not match
+  // is a secret nobody catches.
+  const secret = "whsec_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Qr";
+
+  it("redacts it, with the right label", () => {
+    const r = redactSecrets(`Signing secret: ${secret}`);
+    expect(r.redacted).not.toContain(secret);
+    expect(r.redacted).toContain("[REDACTED:stripe-webhook-secret]");
+    expect(r.findings.find((f) => f.label === "stripe-webhook-secret")?.confidence).toBe("format");
+  });
+
+  it("classify() names it", () => {
+    expect(classify(secret)?.label).toBe("stripe-webhook-secret");
+  });
+
+  it("does not collide with the sk_live_/rk_live_ pattern", () => {
+    expect(classify("sk_live_" + "g".repeat(24))?.label).toBe("stripe-secret-key");
+  });
+
+  it("leaves benign whsec-ish prose alone", () => {
+    for (const t of ["whsec_ is the prefix", "see whsec_short", "the whsec format"]) {
+      expect(hasSecret(t), t).toBe(false);
+    }
+  });
+});
