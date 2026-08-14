@@ -187,7 +187,13 @@ self.addEventListener('push', createPushHandler({ defaultTitle: 'Notification' }
 > and the delivery all reported success. An in-worker probe is what finally
 > proved the push had *arrived* (`bytes:355`) and simply was not displayed.
 >
-> **So a Mac that works proves nothing about a phone.** Check your own path:
+> **So a Mac that works proves nothing about a phone — and ARRIVAL proves
+> nothing about DISPLAY.** That second half is xrt81's, and it is the sharper
+> one: their in-worker probe was the right instrument, it answered honestly, and
+> it still did not answer the question they needed. "It arrived" and "it was
+> shown" are two claims, and every layer they could see reported only the first.
+>
+> Check your own path:
 >
 > ```bash
 > curl -sI https://your.app/icons/icon-192.png | grep -i content-type
