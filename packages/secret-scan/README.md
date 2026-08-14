@@ -38,7 +38,24 @@ and never blocks the write — the surrounding knowledge survives.
 >
 > There are **two detection axes** and only the format one is on by default.
 > `findings: []` here does not mean "clean" — it means the announced axis was
-> never examined, and those two are indistinguishable from the return value.
+> never examined.
+>
+> **Since 0.3.0 you can check that instead of remembering it.** Every result
+> carries `scanned` — which axes the call actually examined:
+>
+> ```ts
+> redactSecrets("Adgangskode: hunter2").scanned              // ["format"]
+> redactSecrets(body, { announced: true }).scanned           // ["format", "announced"]
+>
+> const r = redactSecrets(body, { announced: true });
+> if (!r.scanned.includes("announced")) throw new Error("announced axis not scanned");
+> ```
+>
+> It is computed from the **options**, not from what was found, so a clean scan
+> and an unscanned one never look alike. **Honest limit:** this does not
+> *prevent* the mistake — someone who forgets the flag can equally forget to
+> check `scanned`. It makes the mistake **detectable** rather than merely
+> documented, which is the difference between a check and an agreement.
 >
 > Gating untrusted inbound text? Use **`hasAnnouncedSecret(text)`**, or pass
 > `{ announced: true }`. Do not treat an empty `findings` as safe.
@@ -213,7 +230,11 @@ regexes — most-specific first so attribution is correct:
 interface SecretPattern { label: string; description: string; regex: RegExp; }
 type SecretConfidence = "format" | "announced";
 interface RedactionFinding { label: string; count: number; confidence: SecretConfidence; }
-interface RedactionResult { redacted: string; findings: RedactionFinding[]; }
+interface RedactionResult {
+  redacted: string;
+  findings: RedactionFinding[];
+  scanned: readonly SecretConfidence[];   // 0.3.0 — which axes were examined
+}
 interface RedactOptions { extraPatterns?: SecretPattern[]; announced?: boolean; }
 interface ClassifyResult { label: string; description: string; }
 
@@ -225,5 +246,14 @@ function hasAnnouncedSecret(text: string): boolean;              // the refuse-p
 function classify(value: string, opts?: RedactOptions): ClassifyResult | null; // single-token type detection
 function redactionMarker(label: string): string; // `[REDACTED:${label}]`
 ```
+
+## Upgrading to 0.3.0
+
+`RedactionResult` gained a required `scanned` field. Additive for anyone reading
+`redacted` / `findings` — **but a deep-equality assertion on the whole result
+object will fail**, e.g. `expect(redactSecrets("")).toEqual({ redacted: "", findings: [] })`.
+That is exactly the one test in this package's own suite that broke, and it was
+kept as a whole-object compare rather than loosened, because it is the only
+thing that shows a consumer what they will feel.
 
 MIT · part of the [`@broberg/*`](https://github.com/broberg-ai/components) shared-library family.

@@ -124,7 +124,10 @@ describe("api shape", () => {
     expect(r.findings).toEqual([]);
   });
   it("empty input is handled", () => {
-    expect(redactSecrets("")).toEqual({ redacted: "", findings: [] });
+    // v0.3.0 added `scanned`, which broke this exact assertion — worth keeping
+    // as a whole-object compare rather than loosening it, because it is the one
+    // thing in the suite that proves what a deep-equality consumer would feel.
+    expect(redactSecrets("")).toEqual({ redacted: "", findings: [], scanned: ["format"] });
   });
   it("counts repeated secrets", () => {
     const k = "sk-ant-api03-" + "A".repeat(40);

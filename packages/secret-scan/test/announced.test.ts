@@ -133,6 +133,43 @@ describe("hasAnnouncedSecret — buddy's refuse-path, proven both ways", () => {
   });
 });
 
+describe("scanned[] — which question did this call ask? (v0.3.0)", () => {
+  it("THE PAIR THAT USED TO BE INDISTINGUISHABLE", () => {
+    // Both return findings: []. Before 0.3.0 nothing in the return value said
+    // that the first one never examined the announced axis, so a caller could
+    // read "clean" off a password it had simply not looked for.
+    const missedIt = redactSecrets("Adgangskode: hunter2");
+    const genuinelyClean = redactSecrets("Hej, intet at se her", { announced: true });
+
+    expect(missedIt.findings).toEqual([]);
+    expect(genuinelyClean.findings).toEqual([]); // identical so far…
+
+    expect(missedIt.scanned).not.toContain("announced"); // …and now separable
+    expect(genuinelyClean.scanned).toContain("announced");
+  });
+
+  it("reports ['format'] with no options and both axes with the flag", () => {
+    expect(redactSecrets("x").scanned).toEqual(["format"]);
+    expect(redactSecrets("x", { announced: true }).scanned).toEqual(["format", "announced"]);
+  });
+
+  it("is computed from the OPTIONS, so a dirty body and a clean one agree", () => {
+    // It answers "what did we look for", never "what did we find" — otherwise a
+    // caller could not tell a clean scan from an unscanned one, which is the
+    // whole point.
+    const dirty = redactSecrets("Adgangskode: hunter2", { announced: true });
+    const clean = redactSecrets("nothing here", { announced: true });
+    expect(dirty.scanned).toEqual(clean.scanned);
+    expect(dirty.findings.length).toBeGreaterThan(0);
+    expect(clean.findings).toEqual([]);
+  });
+
+  it("empty input returns the same shape — a blank body must not change the contract", () => {
+    expect(redactSecrets("").scanned).toEqual(["format"]);
+    expect(redactSecrets("", { announced: true }).scanned).toEqual(["format", "announced"]);
+  });
+});
+
 describe("boundaries — a label alone is not a secret, but a wrapped line still is", () => {
   it("a label with a separator but NO value does not fire", () => {
     // buddy surfaced this after adopting 0.2.0: their own patch keyed on

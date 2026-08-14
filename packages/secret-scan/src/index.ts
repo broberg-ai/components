@@ -317,8 +317,33 @@ export interface RedactionFinding {
 export interface RedactionResult {
   /** input with every secret replaced by `[REDACTED:<label>]` */
   redacted: string;
-  /** per-pattern counts of what was redacted (empty = clean) */
+  /** per-pattern counts of what was redacted (empty = nothing found ON THE AXES IN `scanned`) */
   findings: RedactionFinding[];
+  /**
+   * Which axes this call actually EXAMINED — always `['format']`, plus
+   * `'announced'` when `opts.announced` was set.
+   *
+   * It exists because `findings: []` alone cannot tell you which question was
+   * asked. `redactSecrets("Adgangskode: hunter2")` and `redactSecrets("hello")`
+   * both return an empty `findings`, and until 0.3.0 nothing in the return value
+   * distinguished "we found nothing" from "we never looked there".
+   *
+   * A caller that must be sure can now ASSERT rather than trust the docs:
+   *
+   * ```ts
+   * const r = redactSecrets(body, { announced: true });
+   * if (!r.scanned.includes('announced')) throw new Error('announced axis not scanned');
+   * ```
+   *
+   * Note the honest limit: this does not PREVENT the mistake — someone who
+   * forgets the flag can equally forget to check this. It makes the mistake
+   * *detectable* instead of merely documented, which is the difference between a
+   * check and an agreement. Filed by buddy, who had just declined the same
+   * "we'll agree to label things" fix from another session on the grounds that
+   * an agreement holds only until the first person forgets it, and said it would
+   * be cheap to use that argument in one direction and not the other.
+   */
+  scanned: readonly SecretConfidence[];
 }
 
 export interface RedactOptions {
@@ -398,7 +423,14 @@ function patternsFor(opts?: RedactOptions): SecretPattern[] {
  * interchangeable, one of which is only complete with a flag.
  */
 export function redactSecrets(text: string, opts?: RedactOptions): RedactionResult {
-  if (!text) return { redacted: text, findings: [] };
+  // Computed from the OPTIONS, not from what was found — so it answers "which
+  // question did this call ask?" identically on empty, clean and dirty input.
+  // The empty-text path returns it too, deliberately: a caller asserting on
+  // `scanned` must not get a different shape just because the body was blank.
+  const scanned: readonly SecretConfidence[] = opts?.announced
+    ? ['format', 'announced']
+    : ['format'];
+  if (!text) return { redacted: text, findings: [], scanned };
   let redacted = text;
   const findings: RedactionFinding[] = [];
   for (const p of patternsFor(opts)) {
@@ -427,7 +459,7 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
       findings.push({ label: ANNOUNCED_LABEL, count, confidence: 'announced' });
     }
   }
-  return { redacted, findings };
+  return { redacted, findings, scanned };
 }
 
 /**
