@@ -170,6 +170,58 @@ self.addEventListener('push', createPushHandler({ defaultTitle: 'Notification' }
 | `defaultTitle` | `'Notifikation'` | title when the payload carries none |
 | `defaultNavigate` | `'/'` | where a tap goes when the payload names no destination — without it a tap opens *nothing* |
 | `badgeOnVisible` | `true` | sync the OS badge on a **visible** push too, so the number moves when the message arrives rather than when it is read elsewhere |
+| `defaultIcon` | *(none)* | icon when the payload carries none. **No default on purpose** — see below |
+| `defaultBadgeIcon` | *(none)* | the small monochrome image, when the payload carries none |
+
+> ### ⚠️ An icon URL that returns HTML renders NOTHING on iOS — silently (v0.3.0)
+>
+> Until 0.3.0 this package **guessed** `/icon-192.png` for both the icon and the
+> badge, and the badge could not be overridden at all. xrt81 lost a full day to
+> it. Their icons live under `/icons/`, so the guessed path fell through to their
+> SPA's catch-all and returned `index.html` — **200 OK, `content-type: text/html`**.
+>
+> A notification whose icon resolves to an HTML document **is not rendered at
+> all on iOS/Safari**, and nothing reports it. Chrome on a Mac renders the same
+> notification without an icon — so their Mac "worked" all day while the iPhone
+> stayed silent, and it looked like a phone problem. The server, Apple's `201`
+> and the delivery all reported success. An in-worker probe is what finally
+> proved the push had *arrived* (`bytes:355`) and simply was not displayed.
+>
+> **So a Mac that works proves nothing about a phone.** Check your own path:
+>
+> ```bash
+> curl -sI https://your.app/icons/icon-192.png | grep -i content-type
+> #   image/png   → good
+> #   text/html   → your notifications are invisible on iOS
+> ```
+>
+> 0.3.0 emits **no** `icon`/`badge` key unless you supply one. The browser then
+> uses its own — visibly imperfect, never invisible. Guessing turned a cosmetic
+> omission into total silent failure on the platform where push matters most.
+
+**Payload fields:** `icon` (unchanged) and **`badgeIcon`** for the small
+monochrome image. It is deliberately *not* called `badge` — that field already
+means the OS app-badge **count**, and an image and a number cannot share a name.
+
+### Cold start no longer reports a subscribed user as unsubscribed (v0.3.0)
+
+`subscribeToPush` waited for the service worker (`ready`) while `getSubscription`
+asked for it immediately (`getRegistration`), which answers `undefined` while the
+worker is still starting. Two functions answering the same question two ways —
+so on every cold start a subscribed user's settings UI showed **off**. xrt81's
+owner switched it back on and they went hunting a subscribe bug that did not
+exist. A wrong *no* sends the debugging somewhere else.
+
+`unsubscribeFromPush` was quietly broken by the same thing: it goes through
+`getSubscription`, so an unsubscribe during a cold start no-opped and returned
+`null` — the toggle went off and **the server was never told to forget the
+endpoint**, so the pushes kept coming.
+
+Both now share `resolveRegistration()`, exported if you need it. It waits for a
+starting worker but is **bounded** (`REGISTRATION_TIMEOUT_MS`, 3 s) and returns
+`null` rather than hanging — because `ready` never resolves when no worker is
+registered at all, and trading a wrong answer for *no* answer would have been
+worse.
 
 All three default to the working value on purpose. A fix that ships behind a
 flag reaches only the people who read changelogs — which is the people who did

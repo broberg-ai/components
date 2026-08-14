@@ -15,14 +15,18 @@ type PushPayload = {
   body?: string;
   navigate?: string;
   icon?: string;
+  /**
+   * The small monochrome image beside the notification (the Notification API's
+   * `badge`). NOT the number — `badge` below is already the OS app-badge COUNT,
+   * and the two would collide under one name.
+   */
+  badgeIcon?: string;
   tag?: string;
   /** Silent (data-only) push: set the OS badge, show NO banner. */
   silent?: boolean;
   app_badge?: number;
   badge?: number;
 };
-
-const DEFAULT_ICON = '/icon-192.png';
 
 /** F067 — what a push handler may be configured with. Every one of these
  *  defaults to the SAFE-AND-ON value: a fix that ships behind a flag reaches
@@ -40,9 +44,34 @@ export interface PushHandlerOptions {
   /** Sync the OS badge on a VISIBLE push too, not only a silent one. Off, the
    *  number on the icon only moves when the message is read somewhere else. */
   badgeOnVisible?: boolean;
+  /**
+   * Icon when the payload carries none. **No default** — see below.
+   */
+  defaultIcon?: string;
+  /**
+   * Small monochrome image when the payload carries none. **No default.**
+   *
+   * THIS PACKAGE USED TO GUESS '/icon-192.png' FOR BOTH, and the badge could
+   * not even be overridden. xrt81 lost a full day to it: their icons live under
+   * /icons/, so the guessed path hit their SPA's catch-all and returned
+   * index.html — 200 OK, content-type text/html, 1587 bytes.
+   *
+   * **A notification whose icon URL resolves to an HTML document is not
+   * rendered AT ALL on iOS/Safari, silently.** Chrome on a Mac renders it
+   * without an icon, so their Mac "worked" all day while the iPhone showed
+   * nothing — and every layer reported success, including Apple's 201. Their
+   * own in-worker probe is what proved the push had ARRIVED (bytes:355) and was
+   * simply not displayed.
+   *
+   * So the default is now to emit NO icon key at all rather than a path we hope
+   * exists. The browser then uses its own — visibly imperfect, never invisible.
+   * Guessing turned a cosmetic omission into total silent failure on the one
+   * platform where push matters most.
+   */
+  defaultBadgeIcon?: string;
 }
 
-const DEFAULTS: Required<PushHandlerOptions> = {
+const DEFAULTS: Required<Pick<PushHandlerOptions, 'defaultTitle' | 'defaultNavigate' | 'badgeOnVisible'>> = {
   defaultTitle: 'Notifikation',
   defaultNavigate: '/',
   badgeOnVisible: true,
@@ -89,10 +118,16 @@ export function createPushHandler(options: PushHandlerOptions = {}): (event: Pus
     const n = data.notification ?? data;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const reg = (self as any).registration as ServiceWorkerRegistration;
+    // Payload wins over configuration, configuration wins over nothing — and
+    // "nothing" means the KEY IS ABSENT, not an empty string. An empty string is
+    // a URL that resolves to the page itself, which is the same HTML-document
+    // failure by another route.
+    const icon = data.icon || o.defaultIcon;
+    const badgeIcon = data.badgeIcon || o.defaultBadgeIcon;
     const show = reg.showNotification(n.title || o.defaultTitle, {
       body: n.body || '',
-      icon: data.icon || DEFAULT_ICON,
-      badge: DEFAULT_ICON,
+      ...(icon ? { icon } : {}),
+      ...(badgeIcon ? { badge: badgeIcon } : {}),
       tag: data.tag,
       data: { navigate: n.navigate ?? o.defaultNavigate },
     });
