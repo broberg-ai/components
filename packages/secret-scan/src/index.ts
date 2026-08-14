@@ -381,6 +381,21 @@ function patternsFor(opts?: RedactOptions): SecretPattern[] {
 /**
  * Scan `text` and replace every detected secret with its redaction marker.
  * Pure: clean input returns byte-identical (`findings: []`).
+ *
+ * ⚠️ **This does NOT catch an announced secret unless you pass
+ * `{ announced: true }`.** `redactSecrets("Adgangskode: hunter2")` returns the
+ * password untouched with `findings: []` — which is indistinguishable from
+ * "this text is clean", because the announced axis was never examined.
+ *
+ * The two axes are separate and only one is on by default (see
+ * SecretConfidence). If you are gating untrusted inbound text, reach for
+ * `hasAnnouncedSecret()` — or pass the flag. Do not assume an empty `findings`
+ * means safe.
+ *
+ * Filed by buddy, who nearly reported this package as behaving wrongly: their
+ * probe used the defaults and so could not see the axis they were testing. The
+ * behaviour is right; the NAMES are the trap — two functions that sound
+ * interchangeable, one of which is only complete with a flag.
  */
 export function redactSecrets(text: string, opts?: RedactOptions): RedactionResult {
   if (!text) return { redacted: text, findings: [] };

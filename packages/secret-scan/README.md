@@ -29,6 +29,25 @@ hasSecret("nothing here"); // false
 with `findings: []`. It replaces every detected secret with `[REDACTED:<label>]`
 and never blocks the write — the surrounding knowledge survives.
 
+> ### ⚠️ `redactSecrets(text)` does **not** catch an announced secret
+>
+> ```ts
+> redactSecrets("Adgangskode: hunter2")
+> // → { redacted: "Adgangskode: hunter2", findings: [] }   ← password intact
+> ```
+>
+> There are **two detection axes** and only the format one is on by default.
+> `findings: []` here does not mean "clean" — it means the announced axis was
+> never examined, and those two are indistinguishable from the return value.
+>
+> Gating untrusted inbound text? Use **`hasAnnouncedSecret(text)`**, or pass
+> `{ announced: true }`. Do not treat an empty `findings` as safe.
+>
+> buddy came within one message of reporting this package as broken: their probe
+> used the defaults, so it could not see the axis they were testing. The
+> behaviour is correct — the **names** are the trap. Two functions that sound
+> interchangeable, one of which is only complete with a flag.
+
 ## Announced secrets — when the label is the only evidence (v0.2.0, opt-in)
 
 `Adgangskode: hunter2` has **no format to match.** Everything above recognises a
