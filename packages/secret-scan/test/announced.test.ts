@@ -132,3 +132,28 @@ describe("hasAnnouncedSecret — buddy's refuse-path, proven both ways", () => {
     expect(hasAnnouncedSecret("   \n  ")).toBe(false);
   });
 });
+
+describe("boundaries — a label alone is not a secret, but a wrapped line still is", () => {
+  it("a label with a separator but NO value does not fire", () => {
+    // buddy surfaced this after adopting 0.2.0: their own patch keyed on
+    // label+separator and flagged an ordinary mail, while this one requires
+    // something to actually FOLLOW. That is the difference between a guard and
+    // a noise source, and it deserves to be a named property rather than a
+    // side-effect of `\S+`.
+    expect(hasAnnouncedSecret("Password:")).toBe(false);
+    expect(hasAnnouncedSecret("Password: ")).toBe(false);
+    expect(hasAnnouncedSecret("Adgangskode:\n")).toBe(false);
+  });
+
+  it("a value on the NEXT line still counts — mail wraps, secrets do not stop being secrets", () => {
+    // The deliberate cost of that: `\s*` crosses a newline, so a line ending in
+    // `password:` followed by a paragraph redacts that paragraph's first word.
+    // Kept on purpose — the split-line form is a real mail shape, and the damage
+    // is one visibly-marked word, not a silent miss.
+    expect(hasAnnouncedSecret("Adgangskode:\nhunter2")).toBe(true);
+    const r = redactSecrets("Adgangskode:\nhunter2", { announced: true });
+    expect(r.redacted).toBe(`Adgangskode:\n[REDACTED:${ANNOUNCED_LABEL}]`);
+    // the newline survives — it is inside the kept prefix, not eaten by the match
+    expect(r.redacted).toContain("\n");
+  });
+});

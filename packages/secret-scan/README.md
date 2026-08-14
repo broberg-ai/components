@@ -89,6 +89,18 @@ tempting-but-wrong version: a bare "3–32 alphanumerics on the first line" rege
 matches `Hej`, `Tak` and `FYI`. Harmless where a non-match costs nothing,
 dangerous in anything that redacts.
 
+**A label needs something to follow it.** `Password:` on its own is `false`; the
+value must actually be there. buddy found this the sharp way after adopting
+0.2.0 — their own patch keyed on *label + separator* and flagged an ordinary
+mail that merely said "I forgot my password". That is the line between a guard
+and a noise source.
+
+**A value on the next line still counts.** `Adgangskode:\nhunter2` fires, because
+mail wraps and a wrapped secret is still a secret. The deliberate cost: a line
+ending in `password:` followed by a paragraph will redact that paragraph's first
+word. One visibly-marked word, never a silent miss — and both halves are tested,
+so neither is an accident of the regex.
+
 **Detection order is load-bearing.** The announced pass runs *last* and refuses a
 value that is already a redaction marker, so `API key: sk-ant-…` still redacts as
 `anthropic-api-key` rather than flattening to a generic `announced-secret`.
