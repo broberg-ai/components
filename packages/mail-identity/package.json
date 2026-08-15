@@ -1,0 +1,57 @@
+{
+  "name": "@broberg/mail-identity",
+  "version": "0.1.0",
+  "description": "Is this inbound mail provably from who the From: field claims? Reads addresses and Authentication-Results the way the grammar does, not the way a regex does. Four pure functions, zero dependencies, no I/O. It owns WHAT AN ADDRESS IS and WHAT THE AUTH HEADER SAYS — never what a match MEANS.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "email",
+    "mail",
+    "inbound",
+    "sender",
+    "identity",
+    "spoofing",
+    "impersonation",
+    "authentication-results",
+    "dmarc",
+    "dkim",
+    "spf",
+    "rfc8601",
+    "rfc5322",
+    "plus-addressing",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/mail-identity"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
