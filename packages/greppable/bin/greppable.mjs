@@ -32,6 +32,23 @@ if (report.skipped.length) {
       `A file nobody read is not a file that greps clean:`,
   );
   for (const s of report.skipped) console.error(`  ${s}`);
+  // Two different problems needing two different actions, split because a
+  // reader who cannot tell them apart cannot act (fd-sundhed, on 0.1.0): a file
+  // we FAILED TO READ is a bug or a permissions problem, while a NON-REGULAR
+  // entry is something committed that is not a file — usually a stray gitlink.
+  const unreadable = report.skipped.filter((s) => !s.includes("not a regular file")).length;
+  const notFiles = report.skipped.length - unreadable;
+  if (unreadable) {
+    console.error(
+      `  → ${unreadable} could not be READ. That is a bug or a permission problem, not your repo's fault.`,
+    );
+  }
+  if (notFiles) {
+    console.error(
+      `  → ${notFiles} are tracked but are NOT regular files (symlink / submodule / stray gitlink). ` +
+        `Remove them from the index, or point them at something real.`,
+    );
+  }
   process.exit(1);
 }
 

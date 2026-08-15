@@ -134,3 +134,42 @@ describe("the predicates in isolation", () => {
     expect(nonTextRatio(PNG_1x1)).toBeGreaterThan(0.1);
   });
 });
+
+describe("non-ASCII filenames (fd-sundhed, against 0.1.0)", () => {
+  // git's default core.quotepath=true C-QUOTES any path with a non-ASCII byte,
+  // INCLUDING the surrounding double quotes — so `git ls-files` returned the
+  // literal string "…/Blå.eps" (quotes and backslash escapes and all) and lstat
+  // on that is ENOENT while the file sits on disk. RED against 0.1.0.
+  //
+  // Their measurement killed the plausible explanation: one of the two failing
+  // files was NFD on disk and the other NFC, and BOTH failed — so Unicode
+  // normalisation could not be the cause.
+  it("a file with æøå in its NAME is scanned, not reported as unreadable", () => {
+    const dir = repo({
+      "logo-Blå.txt": "helt almindelig tekst\n",
+      "rapport-Ø.md": "# overskrift\n",
+      "plain.ts": "const a = 1;\n",
+    });
+    const r = checkGreppable({ cwd: dir });
+
+    expect(r.skipped).toEqual([]);
+    expect(r.scanned).toBe(3);
+    expect(r.tracked).toBe(3);
+    expect(r.coverageGap).toBe(0);
+    expect(r.offenders).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+
+  it("a non-ASCII name does not hide a REAL offender behind it", () => {
+    // The dangerous version of the same bug: if the path cannot be read, a file
+    // that genuinely is grep-invisible is reported as "unreadable" instead of as
+    // an offender — a different error, sending the reader somewhere else.
+    const dir = repo({ "data-Blå.ts": 'const s = "a\0b";\n' });
+    const r = checkGreppable({ cwd: dir });
+
+    expect(r.skipped).toEqual([]);
+    expect(r.offenders).toHaveLength(1);
+    expect(r.offenders[0]!.file).toContain("Bl");
+    expect(r.offenders[0]!.kind).toBe("nul");
+  });
+});

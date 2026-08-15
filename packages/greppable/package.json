@@ -1,6 +1,6 @@
 {
   "name": "@broberg/greppable",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Find the tracked text files your grep silently skips. A cc session's grep is ugrep with -I: on a file with a NUL byte or invalid UTF-8 it prints nothing and exits 1, so every grep-based sweep over that file is falsely green. Zero deps, one bin, runs in any CI.",
   "type": "module",
   "license": "MIT",

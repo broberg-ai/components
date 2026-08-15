@@ -242,9 +242,29 @@ export interface CheckGreppableOptions {
  */
 export function checkGreppable(options: CheckGreppableOptions = {}): GreppableReport {
   const cwd = options.cwd ?? process.cwd();
-  const tracked = execFileSync("git", ["ls-files"], { cwd, maxBuffer: 64 * 1024 * 1024 })
+  // `-z` + split on NUL, NOT newline. Filed by fd-sundhed against 0.1.0 with a
+  // complete correlation: 1130 tracked files, exactly 2 with a non-ASCII name,
+  // exactly those 2 failed.
+  //
+  // git's default `core.quotepath=true` C-QUOTES any path containing a non-ASCII
+  // byte — INCLUDING the surrounding double quotes. So a Danish filename came
+  // back as the literal 15-character-longer string
+  //     "pitch/…/AAK_logo_RGB_Bl\303\245.eps"
+  // and lstat on that (quotes and backslashes and all) is ENOENT while the file
+  // sits happily on disk.
+  //
+  // It was NOT a normalisation problem, which was their first hypothesis and
+  // would have been mine: one of the two files is NFD on disk and the other NFC,
+  // and BOTH failed — so normalisation cannot be the cause. The measurement
+  // killed the plausible explanation.
+  //
+  // `-z` is the stronger fix rather than `-c core.quotepath=false`: it also
+  // survives a filename containing a newline, which no amount of quoting config
+  // helps with. In a Danish fleet a path with æ/ø/å is the norm, not an edge
+  // case, so this made the package unable to complete a clean run on most repos.
+  const tracked = execFileSync("git", ["ls-files", "-z"], { cwd, maxBuffer: 64 * 1024 * 1024 })
     .toString()
-    .split("\n")
+    .split("\0")
     .filter(Boolean);
 
   let scanned = 0;
