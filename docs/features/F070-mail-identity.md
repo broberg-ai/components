@@ -144,6 +144,49 @@ out of seti-client's `ok:false` (F069.1), `scanned` split "found nothing" from
 "never looked" in secret-scan 0.3.0, and now this. **When one answer is
 collapsing two different facts, split them and make the caller choose.**
 
+#### Precedence is security-bearing, not cosmetic
+
+buddy built `conflicted` and found the ordering rule by doing it:
+
+```
+dkim=pass; dkim=fail; dmarc=fail    →  fail,  NOT conflicted
+```
+
+**An unambiguous fail beats a conflict.** A method where *no* verdict passed is
+stronger evidence than a disagreement somewhere else. Get the order wrong and a
+genuine, unambiguous rejection is downgraded to "cannot determine" — which a
+consumer with a lenient policy then lets through.
+
+### 4b. The trap the fourth outcome creates AT EVERY CONSUMER
+
+This is the most important thing in the whole file, and it is about the
+*consumers*, not the package. buddy hit it while adding the outcome they had just
+argued for:
+
+> `conflicted` first fell into the **`no-verdict` branch**, because that branch
+> was the `default`. And the `no-verdict` branch **accepts the owner's own
+> address** — a genuine self-sent mail has no verdict (case 5). So an injected
+> verdict would have become the owner's instruction: **yesterday's hole,
+> reopened by their own cleanup**, and no test of the *reader* would have caught
+> it.
+
+Two rules follow, and the README must carry both:
+
+1. **The permissive outcome must never be the `default` branch.** A new outcome
+   silently lands in `default`, and if `default` is the accepting one, adding an
+   outcome *widens* the gate. This is a design rule for consumers, not for us.
+2. **The guard belongs on the DECISION, not on the reader.** Testing that
+   `readAuthResults` returns `'conflicted'` proves nothing about what the
+   consumer *does* with it. The test that matters asserts the resulting
+   *authorisation* — buddy's is: conflicted still yields `auth-failed` AND
+   `isOwnerForward` says no. Mutation-proven: delete the policy line and exactly
+   that test goes red.
+
+And **export the outcome union type**, so a consumer's fixtures bind to it rather
+than to a hand-copied list. buddy lost a typecheck to exactly that — their RFC
+fixture table used a hand-written list of outcomes, so it could not know about the
+new one, and `bun test` does not typecheck.
+
 ### 5. A missing verdict is not a pass
 
 Three outcomes, never two. And the inversion that makes it matter: a genuine
