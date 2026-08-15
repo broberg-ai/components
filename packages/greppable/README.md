@@ -9,6 +9,38 @@ npx @broberg/greppable
 Exit 0 and one line if every tracked file is searchable. Exit 1, with the paths
 and byte offsets, if any is not.
 
+
+## Running it offline (no `npx`, no network)
+
+`npx --yes @broberg/greppable` fetches on every run, which puts a network call
+inside a check that is otherwise entirely local. Filed by torrent-search-api,
+whose suite runs offline on a laptop that is regularly without a connection — a
+fair reason not to adopt, and it needed an answer rather than a shrug.
+
+Install once and run the local binary:
+
+```bash
+npm i -D @broberg/greppable
+```
+
+```jsonc
+// package.json
+"scripts": { "gate:greppable": "greppable" }
+```
+
+Or call it from a test you already run, which also gets you the structured
+report instead of an exit code:
+
+```ts
+import { checkGreppable } from "@broberg/greppable";
+
+const r = checkGreppable();
+expect(r.ok).toBe(true);   // false on offenders, unreadable files,
+                           // a coverage gap, OR zero files scanned
+```
+
+Zero runtime dependencies, so the install adds nothing but this package.
+
 ## The defect
 
 In a cc session `grep` is **not** `/usr/bin/grep`. It is a bash function the

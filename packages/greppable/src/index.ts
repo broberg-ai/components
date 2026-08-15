@@ -76,9 +76,12 @@ export interface GreppableReport {
   /** tracked - scanned - skipped. Non-zero means the run cannot account for
    *  every file, so "0 offenders" cannot be trusted from it. */
   coverageGap: number;
-  /** True only when every tracked file was accounted for AND none is invisible.
-   *  A run with a coverage gap or an unreadable file is NOT ok, even with zero
-   *  offenders — that is the exact failure this package exists to expose. */
+  /** True only when every tracked file was accounted for, at least one file was
+   *  actually READ, and none is invisible. A run with a coverage gap, an
+   *  unreadable file, or ZERO files scanned is NOT ok even with zero offenders —
+   *  that is the exact failure this package exists to expose. The `scanned > 0`
+   *  clause is separate on purpose: the coverage sum alone holds on an empty
+   *  list (0 + 0 === 0), so it cannot catch a run that never looked. */
   ok: boolean;
 }
 
@@ -315,6 +318,19 @@ export function checkGreppable(options: CheckGreppableOptions = {}): GreppableRe
     exempt,
     offenders,
     coverageGap,
-    ok: offenders.length === 0 && skipped.length === 0 && coverageGap === 0,
+    // `scanned > 0` is a SEPARATE condition, not a nicety — filed by
+    // torrent-search-api, who sharpened our own rule against us. The coverage
+    // sum alone still holds on an EMPTY file list (0 + 0 === 0), so a run that
+    // read nothing at all reported "0 findings" and exited 0. Measured on 0.1.1:
+    //
+    //   scanned 0 of 0 tracked files
+    //   Every tracked text file is searchable by a cc-session grep.   exit 0
+    //
+    // The overwhelmingly likely cause is a wrong cwd or a directory git does not
+    // track — i.e. exactly when a confident all-clear is most wrong. A green
+    // check that never looked is worse than no check, because it closes the
+    // question. That is this package's own thesis, and it was sitting inside it.
+    ok:
+      offenders.length === 0 && skipped.length === 0 && coverageGap === 0 && scanned > 0,
   };
 }

@@ -4,7 +4,56 @@
 // and get the same verdict.
 import { checkGreppable } from "../dist/index.js";
 
-const report = checkGreppable();
+// Unknown flags used to be ignored SILENTLY, so `--cwd /somewhere` ran against
+// the CURRENT directory instead — a confident answer about the wrong repo, which
+// is this package's own failure class in its own front door. Filed by sanne and
+// by our own dogfooding. There are no options; say so and stop.
+const args = process.argv.slice(2);
+if (args.length) {
+  const wantsHelp = args.some((a) => a === "-h" || a === "--help");
+  const stream = wantsHelp ? console.log : console.error;
+  stream("greppable — is every tracked text file searchable by a cc-session grep?");
+  stream("");
+  stream("  Usage: greppable            (run from the repo root, no arguments)");
+  stream("");
+  stream("  It takes NO options. Directory comes from the current working");
+  stream("  directory; use the checkGreppable({ cwd }) library call to point it");
+  stream("  elsewhere.");
+  if (!wantsHelp) {
+    console.error("");
+    console.error(`::error::unknown argument(s): ${args.join(" ")} — refusing to run.`);
+    console.error("Ignoring them would answer confidently about a directory you did not ask for.");
+    process.exit(2);
+  }
+  process.exit(0);
+}
+
+let report;
+try {
+  report = checkGreppable();
+} catch (err) {
+  // Outside a git repo this used to throw a raw Node stack with a byte-array
+  // dump. The reader needs one sentence, not a core dump.
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/not a git repository/i.test(msg)) {
+    console.error("::error::not a git repository — greppable asks git which files are tracked.");
+    console.error("Run it from the root of a git repo.");
+    process.exit(2);
+  }
+  console.error(`::error::could not list tracked files: ${msg.split("\n")[0]}`);
+  process.exit(2);
+}
+
+// A run that read NOTHING must not report clean (torrent-search-api). The
+// coverage sum holds on an empty list, so this is its own check.
+if (report.scanned === 0) {
+  console.error(
+    `::error::read 0 files (${report.tracked} tracked) — refusing to report clean. ` +
+      `A green check that never looked is worse than no check, because it closes the question.`,
+  );
+  console.error("Most likely: run from a directory git does not track, or an empty repo.");
+  process.exit(1);
+}
 
 console.log(`scanned ${report.scanned} of ${report.tracked} tracked files`);
 

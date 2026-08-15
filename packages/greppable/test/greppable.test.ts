@@ -173,3 +173,33 @@ describe("non-ASCII filenames (fd-sundhed, against 0.1.0)", () => {
     expect(r.offenders[0]!.kind).toBe("nul");
   });
 });
+
+describe("a run that read NOTHING must not report clean (torrent-search-api)", () => {
+  // They sharpened our own rule against us. `scanned + skipped === tracked`
+  // holds on an EMPTY list (0 + 0 === 0), so the coverage invariant cannot catch
+  // a run that never looked. Measured on 0.1.1: "scanned 0 of 0 tracked files /
+  // Every tracked text file is searchable" and exit 0.
+  it("an empty repo is NOT ok", () => {
+    // Built without the `repo()` helper on purpose: git refuses to commit an
+    // empty tree, and `git ls-files` answers fine on an initialised repo with no
+    // commits — which is exactly the state under test.
+    const dir = mkdtempSync(join(tmpdir(), "greppable-empty-"));
+    dirs.push(dir);
+    execFileSync("git", ["init", "-q"], { cwd: dir });
+    const r = checkGreppable({ cwd: dir });
+
+    expect(r.tracked).toBe(0);
+    expect(r.scanned).toBe(0);
+    expect(r.coverageGap).toBe(0); // the old invariant is still satisfied…
+    expect(r.offenders).toEqual([]);
+    expect(r.ok).toBe(false); // …and this is what it could never say
+  });
+
+  it("a repo with files IS ok — so the new clause did not just break everything", () => {
+    // The negative control. Without it, `ok: false` would satisfy the test above.
+    const dir = repo({ "a.ts": "const a = 1;\n" });
+    const r = checkGreppable({ cwd: dir });
+    expect(r.scanned).toBe(1);
+    expect(r.ok).toBe(true);
+  });
+});
