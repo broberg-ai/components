@@ -125,11 +125,36 @@ requiring `'pass'` would reject precisely the mail the feature exists for.
 Newline + tab continuation, and no space after `;`. An allowlist that is too
 narrow rejects genuine mail — the opposite error, and equally expensive.
 
-## Prior art
+## Prior art — and two warnings buddy filed against their own code
 
-buddy's tested implementation: `apps/server/src/mail/sender-proof.ts` (+ 92
-tests). Offered for verbatim adoption, rewrite, or refusal. Start from their
-cases regardless; the cases are the asset.
+buddy's implementation: `apps/server/src/mail/sender-proof.ts` (+ 92 tests).
+Offered for verbatim adoption, rewrite, or refusal. Start from their **cases**
+regardless; the cases are the asset. But take both caveats, in their words:
+
+> **"De 92 tests er IKKE 92 beviser."** Several were green this morning while
+> the code was broken — they used only well-formed headers, so the sample space
+> contained **no case where the difference between a verdict and an attribute
+> that looks like one could show itself.** The guard was not broken; it answered
+> correctly a narrower question than the one it was used for.
+
+Same failure family as everything else this week. **Do not take 92 as coverage.**
+
+> **"Nul kaldesteder."** Their implementation is not wired to anything in
+> production. No real mail has ever passed through it.
+
+### That second one inverts a requirement
+
+It means the package will be adopted by a consumer that has **never run it
+against real mail**. Their 92 tests prove it *rejects forgeries*; nothing proves
+it *accepts genuine mail* — and case 6 (folded headers) is exactly that error,
+the expensive opposite.
+
+So **cardmem's 11 call-sites are not merely the riskiest migration — they are the
+fleet's only source of real-traffic evidence for this package.** Their
+before/after comparison is not just a safety check on their side; it is the only
+thing that will ever demonstrate the accept-path works on mail that actually
+arrived. F070.2 says so explicitly, because a reader would otherwise assume the
+92 tests already covered it.
 
 ## Rollout
 
