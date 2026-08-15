@@ -103,15 +103,46 @@ The first fix was `(?<![\w.-])`. Swept over the whole printable character set:
 **Sweep the entire character set in the test, not a hand-written list.** buddy's
 hand-list of 9 found 3 of the 27.
 
-### 4. Duplicate injection
+### 4. Duplicate injection — and why it needs a FOURTH outcome
 
 ```
 "dmarc=pass; …; dmarc=fail"   → first-wins gave PASS
 ```
 
-**Fail closed on DISAGREEMENT.** But a *repeated agreeing* verdict must still
-pass — a relay may legitimately repeat itself, and reading that as tampering
-blocks real mail.
+Fail closed on DISAGREEMENT. A *repeated agreeing* verdict must still pass — a
+relay may legitimately repeat itself, and reading that as tampering blocks real
+mail.
+
+**But buddy then found the case that breaks a simple fail-closed rule, and I
+verified it against the RFC text myself** (fetched from rfc-editor.org, not
+recalled). RFC 8601 **Appendix B.6**, *"Service Provided, Multi-tiered
+Authentication Done"* — the standard's own example of normal operation:
+
+```
+Authentication-Results: example.com;
+      dkim=pass reason="good signature"
+        header.i=@mail-router.example.net;
+      dkim=fail reason="bad signature"
+        header.i=@newyork.example.com
+```
+
+Two signatures, one good, one bad, in one header. **Syntactically identical to
+the duplicate-injection attack.** Not distinguishable by reading the header.
+
+So fail-closed condemns an RFC-documented legal case. That is a defensible
+*policy* — buddy's, where the outcome is "no wake" rather than lost mail — but
+**a shared package must not make it silently on every consumer's behalf.** That
+is the non-goal above: a consumer inheriting a policy it cannot see.
+
+**Resolution: a fourth outcome, `'conflicted'`.** The package reports that
+verdicts for one method disagreed; the caller decides what that means. buddy maps
+it to fail in one explicit line. A consumer that understands multi-tiered auth
+can look at the qualifiers.
+
+This is the third time this week the same fix has been right: `unconfirmed` split
+out of seti-client's `ok:false` (F069.1), `scanned` split "found nothing" from
+"never looked" in secret-scan 0.3.0, and now this. **When one answer is
+collapsing two different facts, split them and make the caller choose.**
 
 ### 5. A missing verdict is not a pass
 
@@ -155,6 +186,23 @@ before/after comparison is not just a safety check on their side; it is the only
 thing that will ever demonstrate the accept-path works on mail that actually
 arrived. F070.2 says so explicitly, because a reader would otherwise assume the
 92 tests already covered it.
+
+### And "build the accept side from the RFC" does not rescue it
+
+That was my instruction, and buddy disproved it. **Measured, and re-measured here
+independently against the RFC text: `dmarc=` appears ZERO times in RFC 8601** —
+only as a bibliography reference. The standard's examples use spf, dkim, auth and
+an invented `foo` method.
+
+So if the package requires a **dmarc** verdict to say "proven" (and it should —
+dmarc is the only one that binds the `From:` field to what passed), then **every
+single RFC example yields `no-verdict`.** The RFC can exercise the *reject* path
+and the *syntax* — folding, separators, comments, multiple methods, which is
+genuinely valuable for the parser — but it contributes **zero positive controls**
+for the accept path.
+
+Which sharpens the earlier point rather than replacing it: cardmem's 11 are not
+just the best source of accept-path evidence, they are now the **only** one.
 
 ## Rollout
 
