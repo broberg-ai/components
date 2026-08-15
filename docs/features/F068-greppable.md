@@ -84,3 +84,43 @@ and a thin bin that formats + sets the exit code. Zero dependencies:
 - `-I` is not one behaviour. GNU/BSD `grep -I` keys on NUL alone; ugrep `-I`
   keys on UTF-8 validity too. The union covers both, which is why the guard does
   not need to know which binary a given machine has.
+
+## F068.2 — "N of N" is self-reported at both ends
+
+Filed by **how** on 2026-08-15, after they nearly reported a false finding and
+checked instead.
+
+Their 0.1.0 run said `34 of 34`, their 0.1.1 run said `35 of 35`, and they first
+read it as 0.1.0 having dropped a file out of its own denominator — exactly the
+failure class this package exists for. It was not: a hook had committed a
+scaffold file between the two runs. They verified by re-running **both** versions
+afterwards, and both then said `35 of 35`.
+
+**The finding survives the false alarm**, and it is the useful half:
+
+> `N of N` is self-reported in both halves, so a lost file looks exactly like a
+> complete scan. The diff between two runs is not evidence of a loss — and a real
+> loss cannot be seen without comparing against an independent count.
+
+Today `tracked` is our own parse of `git ls-files -z`. The coverage invariant
+(`scanned + skipped === tracked`) compares our count against **our own reading**,
+so it holds perfectly even if the reading itself dropped something. That is a
+number that can only agree with itself, in the one package whose entire argument
+is that a green result must be able to disagree.
+
+### Scope
+
+Cross-check `tracked` against a **second, differently-derived** count from git and
+report both, so the two sources can disagree loudly instead of looking identical.
+A line-based `git ls-files | wc -l` differs from the NUL-split count exactly when
+a filename contains a newline — narrow, but it is a real independent signal, and
+"they agreed" then means something.
+
+Print the count and its provenance on the **success** line too, not only on
+failure (sanne's rule: *a tool must state the extent of what it did NOT look at,
+or 0 findings is not an acquittal*).
+
+### Not in scope
+
+Re-deriving the file list without git. The point is a second *view* of the same
+truth, not a second truth.
