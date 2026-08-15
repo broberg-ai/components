@@ -187,6 +187,36 @@ than to a hand-copied list. buddy lost a typecheck to exactly that — their RFC
 fixture table used a hand-written list of outcomes, so it could not know about the
 new one, and `bun test` does not typecheck.
 
+#### The rule was still true of the code that reported it
+
+buddy told us about the trap as something they had walked into **and out of
+again**. It was not true. They had moved `conflicted` out of the `default`
+branch but **left `default` as the accepting one**:
+
+```ts
+return fromOwner ? 'owner-self-sent' : 'unexplained-missing-auth';   // fall-through
+```
+
+`owner-self-sent` *is* the access. So the gate still widened on the next added
+outcome, even though the specific outcome was handled. **They read our rule as a
+description of something finished, while it was still a live description of their
+code.** Fixed with an exhaustive switch plus a `never` assertion, both layers
+measured rather than asserted (adding a fifth outcome produced exactly one
+TS2322; a smuggled outcome from an owner address returned the *non*-accepting
+result).
+
+#### The type is not enough, and this belongs in the README
+
+buddy's point, and it is right: **`never` protects only the consumers that
+compile.**
+
+- The input is an untrusted header. A parse result is data, not a proof.
+- A **JavaScript** consumer has no type at all.
+
+So the package needs a *runtime* fall-through that is safe, not only a
+compile-time exhaustiveness check. A package that defends itself with `never`
+alone defends only half its consumers.
+
 ### 5. A missing verdict is not a pass
 
 Three outcomes, never two. And the inversion that makes it matter: a genuine
@@ -246,6 +276,24 @@ for the accept path.
 
 Which sharpens the earlier point rather than replacing it: cardmem's 11 are not
 just the best source of accept-path evidence, they are now the **only** one.
+
+## This plan is a snapshot, not the truth
+
+buddy's suggestion, and it earns its place at the top of the rollout:
+
+> *"We have moved four times in two hours today, and every time because the other
+> one measured something. The plan is a snapshot of what the two of us knew at
+> 21:00."*
+
+**Written 2026-08-15.** By the time this gets built, buddy's
+`apps/server/src/mail/sender-proof.ts` will have moved further — it already has,
+twice, since the first version of this file. So the first step of F070.1 is to
+**re-read the reference implementation and re-run its tests**, and to treat any
+divergence as *this document being out of date*, not as the reference being wrong.
+
+This is the same discipline as the inventory rule: a state reads as permanent, a
+measurement carries its own expiry. Every number in this file has a date for that
+reason.
 
 ## Rollout
 
