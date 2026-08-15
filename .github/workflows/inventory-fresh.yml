@@ -23,8 +23,13 @@ jobs:
       # NUL byte and any non-UTF-8 encoding trigger it, so a Danish file saved as
       # latin-1 is invisible too. This job already runs on every push, so the
       # guard lives here rather than in a workflow of its own.
+      # F068.1 — the published package, not the local script, so this repo is its
+      # own first consumer and a break in what the fleet installs shows up here
+      # rather than only in someone else's repo. Pinned exactly: a guard that
+      # silently changed its predicate under us is the failure this package exists
+      # to prevent.
       - name: Every tracked text file is greppable
-        run: bun scripts/check-greppable.mjs
+        run: npx --yes @broberg/greppable@0.1.0
 
       - name: Regenerate the surfaces from the single source
         run: |
