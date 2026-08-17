@@ -17,7 +17,7 @@
 //     "does it work with everything installed" (it always does); it asks "is the
 //     manifest telling the truth", which is the actual claim being made.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -64,6 +64,32 @@ let failures = 0;
 try {
   execFileSync("npm", ["init", "-y"], { cwd: dir, stdio: "ignore" });
   execFileSync("npm", ["pkg", "set", "type=module"], { cwd: dir, stdio: "ignore" });
+
+  // THE LOCKFILE MUST BE BUILT HERE, NEVER INHERITED OR FROZEN.
+  //
+  // Raised by torrent-search-api after it nearly cost them a false bug report
+  // against this package: they measured @better-auth/passkey still present after
+  // `bun remove` + `bun install --frozen-lockfile`, and were one message away
+  // from telling us the 0.2.0 release was broken. It was their lockfile — the
+  // remove took the entry out of package.json and left the resolution in
+  // bun.lock, and --frozen-lockfile faithfully installed what the stale file
+  // asked for. `rm -rf node_modules bun.lock && bun install` → gone, 142 → 111
+  // packages.
+  //
+  // So: a frozen lockfile PROVES NOTHING about what a package requires. It is a
+  // replay of a file that may be out of date. This guard resolves from scratch
+  // in an empty directory precisely so its answer is about the PACKAGE and not
+  // about someone's history — and that property is asserted rather than left to
+  // whoever next "optimises" this by caching the directory.
+  for (const lock of ["package-lock.json", "bun.lock", "bun.lockb", "pnpm-lock.yaml", "yarn.lock"]) {
+    if (existsSync(join(dir, lock))) {
+      throw new Error(
+        `${lock} exists before install — this check must resolve from scratch. ` +
+          `A replayed lockfile answers "what did we install last time", not "what does this package require".`,
+      );
+    }
+  }
+
   execFileSync("npm", ["i", "--no-audit", "--no-fund", join(HERE, tarball), ...required], {
     cwd: dir,
     stdio: "pipe",
