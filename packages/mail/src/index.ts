@@ -99,8 +99,47 @@ export interface MailerConfig {
   mailId?: string;
 }
 
+/**
+ * What a mailer will ACTUALLY do, resolved once at creation.
+ *
+ *   live            delivers to any recipient
+ *   allowlist-only  a key is present, but `live` was not opted into — only the
+ *                   allowlist + fleet admins are reachable
+ *   disabled        the kill-switch is on; every send is a no-op
+ *   no-key          no Resend key; every send is a no-op (ship-dark)
+ *
+ * ONE field, carrying the reason, because THREE different conditions stop this
+ * package from delivering and all three return the same success-shaped
+ * `{ ok: true, skipped: true }`. A boolean `live` readback would let a consumer
+ * write
+ *
+ *     if (isProd && !mailer.live) throw new Error("gate closed")
+ *
+ * and have it PASS on a mailer with no API key at all — a false green inside the
+ * readback added to prevent false greens. With one field there is exactly one
+ * thing to assert on and no way to assert the wrong one.
+ *
+ * Precedence follows what happens at SEND time rather than what reads nicely:
+ * `no-key` and `disabled` beat `live`, because send() returns early on both
+ * before the allowlist gate is ever consulted.
+ */
+export type DeliveryMode = "live" | "allowlist-only" | "disabled" | "no-key";
+
 export interface Mailer {
   send(message: MailMessage): Promise<MailResult>;
+  /**
+   * What this mailer resolved to at creation. Assert it at boot:
+   *
+   *     if (isProd && mailer.mode !== "live")
+   *       throw new Error(`mail gate is closed in production: ${mailer.mode}`);
+   *
+   * A test proves your gate LOGIC; only a startup check catches an environment
+   * that lies about itself — a renamed base image, an overridden variable, a
+   * typo in NODE_ENV. Filed by cms, who set `live` explicitly (the right thing)
+   * and thereby opted out of the creation-time warning, which only fires when
+   * `live` was left undefined.
+   */
+  readonly mode: DeliveryMode;
 }
 
 const list = (v: string | string[] | undefined): string[] =>
@@ -181,7 +220,18 @@ export function createMailer(config: MailerConfig = {}): Mailer {
     );
   }
 
+  // Resolved ONCE, here, in the same order send() short-circuits in — so the
+  // readback describes the observable outcome rather than restating the config.
+  const mode: DeliveryMode = config.disabled
+    ? "disabled"
+    : !config.apiKey
+      ? "no-key"
+      : live
+        ? "live"
+        : "allowlist-only";
+
   return {
+    mode,
     async send(message: MailMessage): Promise<MailResult> {
       // Dev kill-switch / ship-dark: never crash a flow when mail is off.
       if (config.disabled || !config.apiKey) {

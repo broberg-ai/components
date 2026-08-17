@@ -87,9 +87,48 @@ const mailer = createMailer({ apiKey, from: "noreply@webhouse.dk", mailId: "CM-3
 - **Idempotent**: a body already carrying the token is not double-stamped.
 - Absent `mailId` ⇒ no footer (backward compatible).
 
+## `mailer.mode` (v0.5.0) — assert at boot what the gate actually resolved to
+
+```ts
+const mailer = createMailer({ apiKey, live: isProd });
+
+if (isProd && mailer.mode !== "live") {
+  throw new Error(`mail gate is closed in production: ${mailer.mode}`);
+}
+```
+
+`mode` is `"live" | "allowlist-only" | "disabled" | "no-key"`, resolved **once at
+creation**.
+
+**Why you need it even with a test.** A test proves your gate *logic*. Only a
+startup check catches an **environment that lies** — a renamed base image, an
+overridden variable, a typo in `NODE_ENV`. Filed by a repo doing exactly the
+right thing: they set `live` explicitly, which is what v0.3.0 asks for, and
+thereby opted out of the creation-time warning (it only fires when `live` is left
+`undefined`). Their gate then hung on one env var with nothing checking it.
+
+**Derive "am I deployed" from something you do not control.** The same consumer's
+first attempt read *"are we in production?"* from `NODE_ENV` — the very value
+that opens the gate — so the complaint branch was unreachable and could never
+fire. They found it only when they tried to write the test that proves it
+complains. Prefer a platform-injected signal (`FLY_APP_NAME`, `K_SERVICE`,
+`DYNO`) that survives exactly the drift you are hunting.
+
+**Why one field and not a boolean `live`.** Three separate conditions stop this
+package from delivering — `live: false`, `disabled: true`, and a missing
+`apiKey` — and all three return the same success-shaped `{ ok: true, skipped: true }`.
+A `live`-only readback would let you write `if (isProd && !mailer.live) throw`
+and have it **pass** over a mailer with no API key at all. One field carrying the
+reason means there is exactly one thing to assert on and no way to assert the
+wrong one.
+
+Precedence follows what happens at send time, not what reads nicely: `no-key` and
+`disabled` beat `live`, because `send()` returns early on both before the
+allowlist gate is consulted.
+
 ## API
 
-- `createMailer(config?) → Mailer`
+- `createMailer(config?) → Mailer` — the returned mailer carries `.mode` (above)
 - `createMailerFromEnv(overrides?) → Mailer`
 - `mailAllowed(to, { live?, allowlist? }) → boolean` — the pure recipient gate.
 - `buildFrom(name, address) → "name <address>"`
