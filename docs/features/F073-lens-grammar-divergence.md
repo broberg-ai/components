@@ -81,6 +81,68 @@ The residue that looks like a genuine gap:
   assert a resulting state.
 - **`drag` / `conditional` / `loop` (0 runs)** — real machinery, no demand yet.
 
+## The verdict table — settled, 15/15
+
+Measured by cardmem against the daemon's implementation and this engine's
+`targetSchema`, then closed verb by verb. **The hypothesis above was right, and
+by more than it predicted:** the ask is two verbs, not fifteen.
+
+| verdict | verbs | runs |
+|---|---|---:|
+| **ALIAS** — the engine already expresses it | `clickSelector` `fillSelector` `clear` `check` `uncheck` `uploadFile` | 272 |
+| **GAP** — genuinely missing | `waitForUrl` `expectAbsent` | 232 |
+| **DAEMON-ONLY** — do not port | `inspect` `autocomplete` `capture` `drag` `loop` `conditional` `waitForBuild` | 13 |
+
+*(Figures are runs-carrying-that-verb and total 517 across 419 affected runs — a
+single run may carry several. The original acceptance criterion asked them to sum
+to 419, which was the wrong unit and my error, not the audit's.)*
+
+`targetSchema` is `string | LocateSpec`, and a bare string is taken as a CSS
+selector — so `{action:'click', target:'#save'}` **is** `clickSelector`. That one
+fact answers 203 runs.
+
+The two real gaps, with the closest existing step and why it falls short:
+
+- **`waitForUrl` (126)** — `waitFor{target,ms}` can address an element or a
+  duration. There is no way to say *the page navigated to X*, which is how every
+  login proves it landed.
+- **`expectAbsent` (106)** — `expectVisible` has no negative, and this is not a
+  negation: it must **wait for** absence. Expressible via `assert{js}`, but that
+  is an escape hatch rather than a verb, and it loses the failure message.
+
+### Two findings from the audit that outlived it
+
+**The 15th verb had no verdict, and nobody noticed.** The first table returned 14
+of 15 — `waitForBuild` simply fell out. It surfaced only by diffing the audit
+against the verb list it was answering, which is why the acceptance criterion
+demands a verdict for *every* item rather than a convincing summary. A list that
+quietly shrinks is how the original defect shipped.
+
+**Judging it separately changed the answer.** `waitForBuild` (a step) and
+`wait_for_build` (a body key) are one underscore apart and got **opposite**
+verdicts. They are different mechanisms wearing the same word: the body key gates
+the whole run before step 0 (6 real calls), the step is that same poll placed
+mid-flow (0 calls). Measured, the step takes a URL string and a `fetchImpl` — no
+`Page`, no browser anywhere — and polls an app's health endpoint for a build
+marker on a 180s deploy-scale timeout. So the honest conclusion is that **neither
+belongs in the engine**, and only one belongs in cardmem's `.extend()`. Judged
+together, one of the two would have been wrong.
+
+### Case-sensitivity: the hazard does not exist
+
+An earlier report held that the daemon accepts both `clickselector` and
+`clickSelector`, which would have forced any alias map to normalise. Re-measured,
+it does not: the lowercase forms live only in the **prose manuscript parser**,
+which lowercases before matching and returns camelCase, so everything downstream
+is camelCase-only. **An alias map can assume one spelling per verb.**
+
+Worth recording *how* the wrong claim was produced, because it is the third
+variant of one failure in a single day: `grep -oE "case '[a-zA-Z]+'"` over one
+file, sorted unique, two spellings read as *accepts both*. The grep could not see
+that the hits sat in different functions at different layers — a parser and an
+executor. The first two variants were the wrong **file** and the wrong
+**question**; this one was the right file at the wrong **resolution**.
+
 ## Non-goals
 
 - **Completing the enum.** cardmem asked for exactly this — *"I would rather you
@@ -96,14 +158,27 @@ The residue that looks like a genuine gap:
 
 ## Rollout
 
-1. **F073.1 — audit**: for each of the 15 verbs, decide alias / gap / decline,
-   with the engine equivalent written down where one exists. Confirm the
-   alias hypothesis with cardmem against their real request bodies before any
-   code.
-2. Implement the genuine gaps in the engine, highest count first
-   (`waitForUrl`, `expectAbsent`, `check`/`uncheck`).
-3. Alias map in `@broberg/lens-client`, case-insensitive — cardmem reports the
-   daemon accepts both `clickselector` and `clickSelector`, so a case-sensitive
-   map would miss half the corpus.
-4. Only then extend `flowStepSchema`, one verb per implemented case.
+1. **F073.1 — audit.** ~~Decide alias / gap / decline for each of the 15 verbs.~~
+   **Done, 15/15** — see the verdict table above. The corpus half is measured:
+   every `clickSelector`/`fillSelector` argument the fleet has ever sent (224
+   calls, 115 unique selectors) run through this engine's own `resolveSelector`,
+   114 unchanged. **Still open:** the runnable equivalents — an ALIAS verdict
+   executed in a real browser rather than derived from a type signature — which
+   is blocked on `apps/lens-cloud` being bumped off 0.6.1.
+2. Implement the two genuine gaps in the engine: **`waitForUrl`** then
+   **`expectAbsent`**. (`check`/`uncheck` came back ALIAS, so they are out.)
+3. Alias map in `@broberg/lens-client`, **camelCase only** — the case hazard was
+   re-measured and does not exist (see above), so the map does not need to
+   normalise. Note that lens-client holds a THIRD hand-written copy of the step
+   union and is already behind: it is missing `expectEditable`, shipped in
+   engine v0.4.0. Fixing the copy without sealing it just resets the clock.
+4. Only then extend `flowStepSchema`, one verb per implemented `case` — never a
+   verb ahead of its implementation, which is the non-goal above and the reason
+   this epic exists at all.
 5. Publish, and tell cardmem the migration is real with the verb table attached.
+
+One migration hazard that belongs to neither the verbs nor the schema: a target
+string that is a bare tag name (`body`, `main`, `form`, `h1`) is silently
+rewritten to a `data-testid` selector and matches nothing. Filed as **F071.2**;
+it is the 115th of the 115 selectors above, and it will bite exactly one flow in
+the corpus on migration day unless it lands first.
