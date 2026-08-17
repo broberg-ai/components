@@ -16,15 +16,37 @@ through `@broberg/mail`, and per-stack mount helpers (Hono + Next).
 ## Install
 
 ```bash
-pnpm add @broberg/auth better-auth drizzle-orm
-# optional, per method you enable:
-pnpm add @broberg/mail            # magic-link delivery
-pnpm add @better-auth/passkey     # passkey / WebAuthn
+pnpm add @broberg/auth better-auth
 ```
 
-`better-auth` is a **peer** so your server wrapper and `better-auth/client` on the frontend
-share one pinned version. `@broberg/mail`, `@better-auth/passkey`, `hono` and `next` are
-**optional** peers — install only what you use.
+**That is the whole cost of the core.** `better-auth` is the only required peer —
+it is a peer so your server wrapper and `better-auth/client` on the frontend share
+one pinned version.
+
+Everything else is per-entry, and you pay for it only when you import that entry:
+
+| import | also install |
+| --- | --- |
+| `@broberg/auth` | — |
+| `@broberg/auth/hono` | `hono` |
+| `@broberg/auth/next` | `next` |
+| `@broberg/auth/passkey` | `@better-auth/passkey` |
+| `@broberg/auth/drizzle` | `drizzle-orm` |
+
+Magic-link needs `@broberg/mail` at runtime, but only as a **type** at build — it
+never enters the import graph.
+
+That table is not documentation, it is **data**: it lives in `package.json`
+(`entryPeers`), and CI packs the tarball into an empty project and imports every
+entry with exactly those peers. If an entry ever costs more than its row says,
+the build fails.
+
+> **0.1.x could not be installed as advertised.** This README already said
+> *"install only what you use"*, `peerDependenciesMeta` already said `optional:
+> true` — and the core entry statically imported `@better-auth/passkey` and (via
+> the Drizzle adapter) `drizzle-orm`, so the module would not load without both.
+> The claim was written in two places and true in neither, and nothing checked
+> that the manifest and the code agreed. See **Versioning** for the 0.2.0 move.
 
 ## Usage
 
@@ -134,3 +156,28 @@ createAuth({
 
 Auth is prod-critical — **exact-pin** `@broberg/auth` (and `better-auth`) in production
 consumers. Published from `broberg-ai/components` via OIDC Trusted Publishing.
+
+### 0.2.0 — two moves, both one line
+
+The optional peers left the core import graph, so the package installs as
+advertised. Two imports moved:
+
+```diff
+- import { drizzle } from "@broberg/auth";
++ import { drizzle } from "@broberg/auth/drizzle";
+```
+
+```diff
+- createAuth({ database, passkey: { rpID, rpName } })
++ import { buildPasskeyPlugin } from "@broberg/auth/passkey";
++ createAuth({ database, plugins: [buildPasskeyPlugin({ rpID, rpName })] })
+```
+
+`config.passkey` was **removed** rather than left as a no-op. Silently not
+registering a sign-in method you asked for is worse than a compile error telling
+you where it went — the whole point of the package is that a method is absent only
+when you did not configure it.
+
+`passkeyConfigured()` and `configuredMethods()` are unchanged: they answer
+*"should I render this button"*, which you know regardless of where the plugin was
+built.

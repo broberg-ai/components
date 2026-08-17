@@ -1,11 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { memoryAdapter } from "better-auth/adapters/memory";
-import {
-  createAuth,
-  pruneSocials,
-  FLEET_SOCIAL_PROVIDERS,
-  drizzle,
-} from "../src/index.js";
+import { createAuth, pruneSocials, FLEET_SOCIAL_PROVIDERS } from "../src/index.js";
+// F008.9 — drizzle is a SUBPATH now: importing it from the core entry is what
+// dragged drizzle-orm into every consumer's install.
+import { drizzle } from "../src/drizzle.js";
 
 /** An in-memory Better Auth database so the wrapper's own logic (not a real DB)
  *  is what's under test. */

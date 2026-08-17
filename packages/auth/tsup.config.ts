@@ -25,6 +25,26 @@ export default defineConfig([
     external: SHARED_EXTERNAL,
   },
   {
+    // F008.9 — passkey lives behind its own subpath so @better-auth/passkey is
+    // NOT in the core import graph. A consumer without passkeys never needs it.
+    entry: { passkey: "src/passkey.ts" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    external: SHARED_EXTERNAL,
+  },
+  {
+    // F008.9 — same reason: the Drizzle adapter pulls drizzle-orm, and a
+    // consumer on bun:sqlite must not be forced to install it.
+    entry: { drizzle: "src/drizzle.ts" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    external: SHARED_EXTERNAL,
+  },
+  {
     // Stack B (Hono) mount helper — no next import.
     entry: { hono: "src/hono.ts" },
     format: ["esm", "cjs"],

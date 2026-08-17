@@ -1,12 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { Hono } from "hono";
 import { memoryAdapter } from "better-auth/adapters/memory";
-import {
-  createAuth,
-  createTypedAuth,
-  buildMagicLinkPlugin,
-  buildPasskeyPlugin,
-} from "../src/index.js";
+import { createAuth, createTypedAuth, buildMagicLinkPlugin } from "../src/index.js";
+import { buildPasskeyPlugin } from "../src/passkey.js"; // F008.9 — subpath
 import { mountAuth, getSession } from "../src/hono.js";
 import { toNextHandler } from "../src/next.js";
 

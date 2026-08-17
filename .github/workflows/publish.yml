@@ -985,6 +985,18 @@ jobs:
         working-directory: packages/auth
         run: pnpm test
 
+      # F008.9 — the guard that should have existed before 0.1.2 shipped. It packs
+      # the tarball, installs it in an EMPTY project with only the peers the
+      # manifest calls REQUIRED, and imports every entry in the exports map with
+      # exactly the peers that entry declares it costs. 0.1.2 was unloadable
+      # without two peers it called optional; nothing in the pipeline noticed,
+      # because every test ran in a workspace where everything was installed.
+      # Runs BEFORE the publish steps so a package that cannot be installed is
+      # never published.
+      - name: Guard — installs and imports with only its declared peers
+        working-directory: packages/auth
+        run: node verify-clean-install.mjs
+
       - name: Guard — tag matches package.json version
         if: startsWith(github.ref, 'refs/tags/auth-v')
         working-directory: packages/auth

@@ -1,6 +1,6 @@
 {
   "name": "@broberg/auth",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Thin fleet wrapper around Better Auth — one createAuth() for email+password, magic-link (via @broberg/mail), social login (Google/Apple/GitHub/Microsoft/LinkedIn/Facebook) and passkey/WebAuthn, with dark-ship provider guards and Hono + Next mount helpers. Runs in your own app/DB — no external service.",
   "type": "module",
   "license": "MIT",
@@ -27,12 +27,23 @@
       "types": "./dist/next.d.ts",
       "import": "./dist/next.js",
       "require": "./dist/next.cjs"
+    },
+    "./passkey": {
+      "types": "./dist/passkey.d.ts",
+      "import": "./dist/passkey.js",
+      "require": "./dist/passkey.cjs"
+    },
+    "./drizzle": {
+      "types": "./dist/drizzle.d.ts",
+      "import": "./dist/drizzle.js",
+      "require": "./dist/drizzle.cjs"
     }
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:clean-install": "node verify-clean-install.mjs"
   },
   "peerDependencies": {
     "better-auth": ">=1.6.0",
@@ -87,5 +98,20 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "entryPeers": {
+    ".": [],
+    "./hono": [
+      "hono"
+    ],
+    "./next": [
+      "next"
+    ],
+    "./passkey": [
+      "@better-auth/passkey"
+    ],
+    "./drizzle": [
+      "drizzle-orm"
+    ]
   }
 }

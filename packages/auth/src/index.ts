@@ -1,7 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { buildMagicLinkPlugin, type MagicLinkConfig } from "./magic-link.js";
-import { buildPasskeyPlugin, type PasskeyConfig } from "./passkey.js";
 
 /**
  * @broberg/auth — a thin, opinionated wrapper around Better Auth.
@@ -44,8 +42,6 @@ export interface AuthConfig {
   /** Enable magic-link sign-in, delivered through @broberg/mail. Omitted when
    *  unset (dark-ship) — no magic-link endpoints register without a mailer. */
   magicLink?: MagicLinkConfig;
-  /** Enable passkey / WebAuthn sign-in. Omitted when unset (dark-ship). */
-  passkey?: PasskeyConfig;
   /**
    * Social providers, keyed exactly as Better Auth expects. Each entry may be
    * `undefined` — such providers are DARK-SHIPPED (omitted, not registered).
@@ -56,10 +52,6 @@ export interface AuthConfig {
   /** Escape hatch: extra BetterAuthOptions merged last, for reaching Better Auth directly. */
   extend?: Partial<BetterAuthOptions>;
 }
-
-/** Re-export Better Auth's Drizzle adapter so a consumer wires their DB in one
- *  line: `database: drizzle(db, { provider: "sqlite" })`. */
-export const drizzle = drizzleAdapter;
 
 /** A social-provider entry is "configured" when it carries a truthy clientId —
  *  the universal minimum across all six providers. Incomplete entries dark-ship. */
@@ -91,7 +83,6 @@ export function buildAuthOptions(config: AuthConfig): BetterAuthOptions {
   const socialProviders = pruneSocials(config.socials);
   const plugins = [...(config.plugins ?? [])];
   if (config.magicLink) plugins.push(buildMagicLinkPlugin(config.magicLink));
-  if (config.passkey) plugins.push(buildPasskeyPlugin(config.passkey));
   return {
     database: config.database,
     ...(config.baseURL ? { baseURL: config.baseURL } : {}),
@@ -156,7 +147,6 @@ export {
   type MagicLinkConfig,
 } from "./magic-link.js";
 
-export { buildPasskeyPlugin, type PasskeyConfig } from "./passkey.js";
 
 export {
   googleConfigured,
