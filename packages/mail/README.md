@@ -108,11 +108,30 @@ thereby opted out of the creation-time warning (it only fires when `live` is lef
 `undefined`). Their gate then hung on one env var with nothing checking it.
 
 **Derive "am I deployed" from something you do not control.** The same consumer's
-first attempt read *"are we in production?"* from `NODE_ENV` — the very value
-that opens the gate — so the complaint branch was unreachable and could never
-fire. They found it only when they tried to write the test that proves it
-complains. Prefer a platform-injected signal (`FLY_APP_NAME`, `K_SERVICE`,
-`DYNO`) that survives exactly the drift you are hunting.
+first attempt read *"are we in production?"* from `NODE_ENV` — **the very value
+that opens the gate**. So the check read
+
+```ts
+NODE_ENV === "production" || isMailLive()   // can never be false
+```
+
+The complaint branch was not *hard* to reach, it was **unreachable**: the
+condition and the gate consulted the same variable, so no environment could make
+it fire. That is why you cannot find this by reading the code — it looks
+perfectly sensible. They found it only when they sat down to write the test that
+proves it complains, and could not construct a state where it did. **Trying to
+write the failing test is the reliable way to detect this whole class.**
+
+Prefer a platform-injected signal (`FLY_APP_NAME`, `K_SERVICE`, `DYNO`) that
+survives exactly the drift you are hunting.
+
+**Multi-tenant: read `mode` per send, not once at boot.** If each tenant resolves
+its own API key at send time, key presence is *not* a boot property and your
+startup check cannot know it — asserting it there would be false precision. Check
+the platform signal against your own config at boot, and read `mailer.mode` per
+mailer when you send. That second half catches **the one tenant whose key fell
+out** — the only failure here that hits a single customer instead of all of them,
+and the hardest to notice precisely because everyone else is fine.
 
 **Why one field and not a boolean `live`.** Three separate conditions stop this
 package from delivering — `live: false`, `disabled: true`, and a missing
