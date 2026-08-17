@@ -214,10 +214,30 @@ async function resolveUploadFile(f: UploadFile): Promise<{ name: string; mimeTyp
   return { name: f.name, mimeType: f.mimeType ?? 'application/octet-stream', buffer };
 }
 
+/** How long ONE step may take: its own `timeout_ms` wins, then the flow's, then
+ *  the built-in 30s.
+ *
+ *  Exported because this precedence is the contract, and because the way it
+ *  breaks is silent — F074.51's consumer asked for 1000ms, got "Timeout 15000ms
+ *  exceeded", and storeform spent two days believing Google Play Console was
+ *  slow. A test that only checks "we passed the argument somewhere" would have
+ *  been green throughout that. */
+export function resolveStepTimeout(
+  step: { timeout_ms?: number },
+  flow: { timeout_ms?: number },
+): number {
+  return step.timeout_ms ?? flow.timeout_ms ?? DEFAULT_TIMEOUT_MS;
+}
+
 /** Execute one step. Returns detail + optional PNG (screenshot steps) + the
  *  locator layer that resolved the target. Throws on failure — the caller records
- *  it + stops the flow. */
-async function execStep(
+ *  it + stops the flow.
+ *
+ *  Exported (F071.1) so the timeout can be proven to REACH Playwright without a
+ *  browser: a test drives it with a fake Page and reads the options each locator
+ *  call actually received. That is the boundary where F074.51 lost the value, so
+ *  it is the boundary worth asserting on. */
+export async function execStep(
   page: Page,
   step: FlowStep,
   baseUrl: string,
@@ -353,7 +373,16 @@ async function execStep(
  *  storageState), stop on the first failure with a pinned screenshot. Storage is
  *  the caller's job — each report's `png` is uploaded by the consumer. */
 export async function runFlow(body: FlowOptions): Promise<FlowResult> {
-  const timeoutMs = DEFAULT_TIMEOUT_MS;
+  // The inlet (F071.1). The timeout was already threaded end-to-end to every
+  // Playwright call below; this line was a `const` and there was no way in, so
+  // every step ran on 30s whatever the caller asked for.
+  //
+  // Resolved THROUGH resolveStepTimeout rather than by repeating `?? DEFAULT`
+  // here. Writing the rule twice is how the two Lens runners drifted apart in
+  // the first place, and the mutation pass proved the point: with a second copy,
+  // reverting this line broke the implicit lead navigation and NOT ONE TEST
+  // NOTICED. One definition, one thing to get wrong.
+  const timeoutMs = resolveStepTimeout({}, body);
   const viewport = resolveViewport(body);
 
   // Resolve storageState BEFORE launching so a resolver failure is a clean error.
@@ -412,7 +441,7 @@ export async function runFlow(body: FlowOptions): Promise<FlowResult> {
       const step = body.steps[i]!;
       const started = Date.now();
       try {
-        const out = await execStep(page, step, body.base_url, timeoutMs);
+        const out = await execStep(page, step, body.base_url, resolveStepTimeout(step, body));
         steps.push({
           index: i,
           action: step.action,

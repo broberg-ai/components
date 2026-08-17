@@ -130,26 +130,52 @@ export type Target = z.infer<typeof targetSchema>;
 /** Wait gate for a `goto` step: a CSS selector/testid (string) or ms (number). */
 const gotoWaitSchema = z.union([z.number().int().min(0).max(60_000), z.string().min(1)]);
 
+/** How long one step may take before it fails.
+ *
+ *  MINIMUM IS 1, NOT 0, and that is deliberate. Playwright reads `timeout: 0` as
+ *  "disable the timeout" — so a caller writing `timeout_ms: 0`, who plainly means
+ *  *fail immediately*, would get *wait forever* instead. Accepting it would be a
+ *  fresh instance of the exact defect this field exists to close: you ask for one
+ *  thing and silently get its opposite. A whole-flow deadline is the right tool
+ *  for "no per-step limit", and it is deliberately not in this release. */
+const timeoutMsSchema = z.number().int().min(1).max(60_000);
+
+/** Every step is built through here, so both grammar-wide properties are applied
+ *  in ONE place a new action cannot forget:
+ *
+ *   · `.strict()` — an unknown key is REFUSED, by name, instead of deleted. Zod's
+ *     default is `.strip()`, which nobody chose for this grammar, which is exactly
+ *     why nobody caught it. A missing capability fails visibly; an ignored field
+ *     lies (cardmem's formulation, and the reason this whole story exists).
+ *   · `timeout_ms` — the per-step override. The timeout was already threaded all
+ *     the way to Playwright; only the inlet was missing.
+ *
+ *  A 14th action added below gets both for free; adding one WITHOUT them means
+ *  bypassing this function, and test/strict-schema.test.ts reads the union's own
+ *  members and fails if any is not strict. */
+const step = <T extends z.ZodRawShape>(shape: T) =>
+  z.object({ ...shape, timeout_ms: timeoutMsSchema.optional() }).strict();
+
 export const flowStepSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('goto'), url: z.string().min(1), waitFor: gotoWaitSchema.optional() }),
-  z.object({ action: z.literal('click'), target: targetSchema }),
-  z.object({ action: z.literal('fill'), target: targetSchema, value: z.string() }),
+  step({ action: z.literal('goto'), url: z.string().min(1), waitFor: gotoWaitSchema.optional() }),
+  step({ action: z.literal('click'), target: targetSchema }),
+  step({ action: z.literal('fill'), target: targetSchema, value: z.string() }),
   // `type` presses keys sequentially (real keydown/input) — robust for controlled
   // inputs where a direct value-set (`fill`) doesn't register a framework onInput.
-  z.object({ action: z.literal('type'), target: targetSchema, text: z.string() }),
-  z.object({ action: z.literal('press'), key: z.string().min(1), target: targetSchema.optional() }),
-  z.object({ action: z.literal('select'), target: targetSchema, value: z.string() }),
-  z.object({ action: z.literal('upload'), target: targetSchema, files: z.array(uploadFileSchema).min(1) }),
-  z.object({
+  step({ action: z.literal('type'), target: targetSchema, text: z.string() }),
+  step({ action: z.literal('press'), key: z.string().min(1), target: targetSchema.optional() }),
+  step({ action: z.literal('select'), target: targetSchema, value: z.string() }),
+  step({ action: z.literal('upload'), target: targetSchema, files: z.array(uploadFileSchema).min(1) }),
+  step({
     action: z.literal('waitFor'),
     target: targetSchema.optional(),
     ms: z.number().int().min(0).max(60_000).optional(),
   }),
-  z.object({ action: z.literal('assert'), js: z.string().min(1) }),
-  z.object({ action: z.literal('expectText'), target: targetSchema, text: z.string().min(1) }),
-  z.object({ action: z.literal('expectVisible'), target: targetSchema }),
-  z.object({ action: z.literal('expectEditable'), target: targetSchema }),
-  z.object({
+  step({ action: z.literal('assert'), js: z.string().min(1) }),
+  step({ action: z.literal('expectText'), target: targetSchema, text: z.string().min(1) }),
+  step({ action: z.literal('expectVisible'), target: targetSchema }),
+  step({ action: z.literal('expectEditable'), target: targetSchema }),
+  step({
     action: z.literal('screenshot'),
     name: z.string().min(1).optional(),
     mode: captureModeSchema.optional(),
@@ -158,19 +184,37 @@ export const flowStepSchema = z.discriminatedUnion('action', [
 ]);
 export type FlowStep = z.infer<typeof flowStepSchema>;
 
-export const flowBodySchema = z.object({
-  /** Optional run label (echoed back for the caller's logs). */
-  name: z.string().min(1).optional(),
-  /** Absolute base; a step's relative `url` resolves against this. */
-  base_url: z.string().url(),
-  viewport: viewportSchema.optional(),
-  device: z.string().min(1).optional(),
-  /** Pre-resolved storageState (object form); the engine's runFlow() also accepts
-   *  an async resolver here. */
-  storageState: storageStateSchema.optional(),
-  /** Hint that this flow mutates real target state (e.g. a store submission) —
-   *  echoed back; the engine does not gate on it (the caller owns that policy). */
-  mutates: z.boolean().optional(),
-  steps: z.array(flowStepSchema).min(1).max(100),
-});
+export const flowBodySchema = z
+  .object({
+    /** Optional run label (echoed back for the caller's logs). */
+    name: z.string().min(1).optional(),
+    /** Absolute base; a step's relative `url` resolves against this. */
+    base_url: z.string().url(),
+    viewport: viewportSchema.optional(),
+    device: z.string().min(1).optional(),
+    /** Pre-resolved storageState (object form); the engine's runFlow() also accepts
+     *  an async resolver here. */
+    storageState: storageStateSchema.optional(),
+    /** Hint that this flow mutates real target state (e.g. a store submission) —
+     *  echoed back; the engine does not gate on it (the caller owns that policy). */
+    mutates: z.boolean().optional(),
+    /** Default step timeout for the whole flow. A step's own `timeout_ms` wins;
+     *  with neither set, the built-in 30s applies. */
+    timeout_ms: timeoutMsSchema.optional(),
+    steps: z.array(flowStepSchema).min(1).max(100),
+  })
+  // Strict here too — and the evidence for it is a real incident, not a
+  // principle. cardmem mined 1258 real request bodies from fleet transcripts:
+  // one flow sent `baseUrl` instead of `base_url`, the key was silently deleted,
+  // and the flow ran against the wrong origin. Three more singletons (`base`,
+  // `project`, `url`, `label`) are the same shape of bug.
+  //
+  // EXTENDING IS THE SUPPORTED WAY TO ADD YOUR OWN KEY, and it survives strict:
+  // `flowBodySchema.extend({ auth: … })` stays strict, admits `auth`, and still
+  // refuses junk (measured). That is how lens-cloud's 874 auth-carrying calls
+  // keep working, and it is where a consumer-owned field like cardmem's
+  // `wait_for_build` belongs — NOT here, because the engine does not implement
+  // it, and a schema that accepts a key nothing acts on is the very lie this
+  // release removes.
+  .strict();
 export type FlowBody = z.infer<typeof flowBodySchema>;

@@ -1377,6 +1377,15 @@ jobs:
         working-directory: packages/lens-engine
         run: pnpm test
 
+      # A green suite proves the tests RUN, not that they DISCRIMINATE. This
+      # breaks each decision in turn and fails if any goes unnoticed, or if two
+      # break the same set. It earned the slot on its first run: closing the
+      # timeout inlet again broke the implicit lead navigation and not one of
+      # 173 passing tests noticed (F071.1).
+      - name: Guard — mutations are caught, and caught distinctly
+        working-directory: packages/lens-engine
+        run: node test/mutations.mjs
+
       - name: Guard — tag matches package.json version
         if: startsWith(github.ref, 'refs/tags/lens-engine-v')
         working-directory: packages/lens-engine

@@ -39,6 +39,10 @@ export {
   // on both of their paths. Two copies of a message drift exactly like two
   // copies of a verdict do.
   noVerdictMessage,
+  // F071.1/0.7.0 — the per-step timeout precedence (step › flow › 30s). Exported
+  // so a consumer that builds its own runner resolves it the SAME way instead of
+  // rebuilding the rule, which is how the daemon and the engine drifted apart.
+  resolveStepTimeout,
   type AssertOutcome,
   type FlowOptions,
   type FlowResult,

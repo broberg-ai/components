@@ -82,7 +82,78 @@ DOM-miss fails cleanly — it never guesses.
 `goto · click · fill · type · press · select · upload · waitFor · assert ·
 expectText · expectVisible · expectEditable · screenshot`. Reuse the exported Zod
 schemas (`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`,
-`uploadFileSchema`, …) to validate at your own HTTP boundary.
+`uploadFileSchema`, …) to validate at your own HTTP boundary. Every step also
+accepts an optional `timeout_ms`, and **since v0.7.0 an unknown key is rejected
+rather than silently deleted** — see below.
+
+## v0.7.0 — unknown keys are now REJECTED, and `timeout_ms` finally works
+
+**Read this before upgrading: a flow that parses today can stop parsing.** That is
+the change, not a side effect.
+
+`flowBodySchema` and every member of `flowStepSchema` are now `.strict()`. Until
+0.6.1 they were Zod's default `.strip()`, which **deletes** an unknown key
+silently, before the engine ever sees it:
+
+```js
+// 0.6.1
+flowStepSchema.safeParse({ action:'click', target:'#save', timeout_ms:1000 })
+//  → ok: true,  data: { action:'click', target:'#save' }     ← the field is gone
+
+// 0.7.0
+//  → ok: false, "Unrecognized key(s) in object: 'timeout_ms'"
+```
+
+Nobody decided that behaviour, which is exactly why nobody caught it. cardmem's
+formulation, adopted here: **a missing capability fails visibly; an ignored field
+lies.** The migration is mechanical — the error names the key.
+
+**The evidence this is worth the break.** cardmem mined 1258 real request bodies
+from fleet session transcripts. One flow sent `baseUrl` instead of `base_url`;
+the key was deleted and the flow ran against the wrong origin. `base`, `project`,
+`url` and `label` are the same shape of bug. Every one is caught at the boundary
+now.
+
+**Adding your own key is supported — `.extend()` survives strict:**
+
+```ts
+const myBody = flowBodySchema.extend({ auth: myAuthSchema.optional() });
+myBody.safeParse({ …, auth })   // true  — your key is admitted
+myBody.safeParse({ …, junk: 1 }) // false — everything else still refused
+```
+
+That is how Cloud Lens's 874 `auth`-carrying calls keep working untouched, and it
+is where a **consumer-owned** field belongs. It does not belong in this schema:
+the engine would be promising a key nothing here acts on, which is the same lie
+in the other direction.
+
+### `timeout_ms` — per step, or per flow
+
+```ts
+runFlow({
+  base_url: 'https://example.com',
+  timeout_ms: 5_000,                                   // default for every step
+  steps: [
+    { action: 'goto', url: '/login' },
+    { action: 'click', target: '#save', timeout_ms: 1_000 },   // this one wins
+  ],
+});
+```
+
+**Step beats flow beats the built-in 30s.** With neither set, behaviour is
+unchanged. `resolveStepTimeout(step, flow)` is exported so a consumer running its
+own loop resolves it the same way instead of rebuilding the rule.
+
+The plumbing was already there — every Playwright call took the timeout; only the
+inlet was missing. And **the value you choose is the value that fails**: the
+motivating incident (cardmem F074.51) was a caller asking for 1000 ms and being
+told *"Timeout 15000ms exceeded"*, which cost storeform two days believing Google
+Play Console was slow.
+
+> **`timeout_ms: 0` is rejected.** Playwright reads `timeout: 0` as *disable the
+> timeout*, so a caller who means "fail immediately" would get "wait forever" —
+> the exact inversion this field exists to prevent. Minimum is 1; a whole-flow
+> deadline is a different mechanism and is not in this release.
 
 ## Assert a field is editable (v0.4.0) — prove click-to-edit worked
 
