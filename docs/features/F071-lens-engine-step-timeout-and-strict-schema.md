@@ -118,6 +118,58 @@ of real flows and can measure the blast radius in a way this repo cannot. A mino
 bump with a loud changelog entry, and the error names the offending field so the
 fix is mechanical.
 
+## F071.2 — a bare tag name is silently reinterpreted (found during F071.1's review)
+
+The same family, one layer further in, and found by the corpus check that F071.1's
+review demanded. cardmem ran **every** `clickSelector`/`fillSelector` argument the
+fleet has ever sent — 224 calls, 115 unique selectors — through this package's own
+`resolveSelector`, copied out of the shipped dist rather than retyped:
+
+```js
+const looksLikeCss = /[.#\[\]:>~+*()="' ]/.test(selector);
+return looksLikeCss ? selector : `[data-testid="${selector}"]`;
+```
+
+114 of 115 passed through unchanged. **One did not, and it is a class rather than
+a one-off:**
+
+```
+"body"  ->  [data-testid="body"]      matches nothing, and says nothing
+"main"  ->  [data-testid="main"]
+"form"  ->  [data-testid="form"]
+"h1"    ->  [data-testid="h1"]
+```
+
+Reproduced here against 0.7.0's dist before accepting it. A bare element selector
+carries no CSS punctuation, so the heuristic reads it as a test-id and rewrites
+it. The locator then matches zero elements — **not an error, just nothing** —
+which is the exact shape of everything else in this epic: the input is accepted,
+silently altered, and the failure arrives somewhere else wearing a different face.
+
+**The heuristic itself is not the thing to change.** `main` is a plausible
+`data-testid` value as well as a plausible tag, so no rule can read a bare string
+correctly every time. The ambiguity is inherent in the bare-string convenience,
+and `LocateSpec` already offers both explicit forms (`{ css }`, `{ testid }`).
+
+**What must change is the silence.** When a bare string was rewritten to a
+test-id selector and the locator finds nothing, the failure has to say which
+reading was taken and name the other one — turning a zero-match into a one-line
+fix instead of a hunt.
+
+Also worth recording, because it settles a worry rather than raising one: every
+Playwright selector-engine form in the corpus — `:has-text()`, `:visible`,
+`>> nth=3`, `text=`, `:nth-match()` — passes through untouched. Nothing to
+implement there.
+
+> **cardmem's method is the transferable part.** Their first pass used a
+> hand-written regex for "is this a Playwright dialect" and it was wrong in both
+> directions: a false positive on `[data-cms-richtext="true"]` (the substring
+> `text=` sits inside `richtext="true"`) and a false negative on
+> `:nth-match(.dp-trigger, 2)`. It was also answering the wrong question — *"is
+> this plain CSS"* rather than *"what does the engine DO with it"*. The only
+> correct instrument was our own shipped function, and it was sitting in
+> `node_modules` the whole time.
+
 ## Rollout
 
 1. `.strict()` + tests (RED first against today's silent-drop).
