@@ -92,10 +92,25 @@ const mailer = createMailer({ apiKey, from: "noreply@webhouse.dk", mailId: "CM-3
 ```ts
 const mailer = createMailer({ apiKey, live: isProd });
 
-if (isProd && mailer.mode !== "live") {
+if (isDeployed && mailer.mode !== "live") {
+  // throw ONLY if mail is the only way in — see below
   throw new Error(`mail gate is closed in production: ${mailer.mode}`);
 }
 ```
+
+**Throw or shout? It depends on whether mail is the ONLY way in.** Throwing is
+right when a dead mailer means nobody can sign in at all — a magic-link-only app
+is already down, and failing at boot makes that visible instead of mysterious.
+Throwing is *wrong* when mail is one feature among many: a consumer with password
+login beside magic link correctly refused this example, because crashing would
+turn a **degraded** service into a **dead** one over a mail setting. They log a
+loud line at startup instead. Pick the one that matches your blast radius; the
+snippet above is an illustration, not a recommendation.
+
+**Handle an unknown mode as unknown, never as live.** A lookup table beats a
+chain of ifs here, and the fall-through must be the non-accepting answer — the
+same rule as any other outcome union. Adding a fifth mode should never widen a
+gate by landing in a permissive `default`.
 
 `mode` is `"live" | "allowlist-only" | "disabled" | "no-key"`, resolved **once at
 creation**.
@@ -140,6 +155,23 @@ A `live`-only readback would let you write `if (isProd && !mailer.live) throw`
 and have it **pass** over a mailer with no API key at all. One field carrying the
 reason means there is exactly one thing to assert on and no way to assert the
 wrong one.
+
+This is not theoretical. The first consumer to adopt `mode` had already derived
+its own status from `RESEND_API_KEY` + `MAIL_LIVE`, and cross-checking it against
+the package found a mismatch in under an hour:
+
+```
+no key                  no-key           their derivation: dark              ✓
+key, MAIL_LIVE unset    allowlist-only   their derivation: allowlist-only    ✓
+key + MAIL_LIVE=1       live             their derivation: live              ✓
+MAIL_DISABLED=1         disabled         their derivation: LIVE              ✗
+```
+
+They did not know `MAIL_DISABLED` existed. Their gate asked two questions; three
+things stop a mail. Their own field would have reported **"live"** for a service
+sending nothing at all — the exact false green they had built it to prevent.
+**Read `mode`; do not re-derive it from env vars.** The package knows all three
+conditions and your derivation only knows the ones you remembered.
 
 Precedence follows what happens at send time, not what reads nicely: `no-key` and
 `disabled` beat `live`, because `send()` returns early on both before the
