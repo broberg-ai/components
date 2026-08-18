@@ -184,3 +184,59 @@ Two things to decide by measuring rather than by argument:
 **Non-goal: throwing.** The never-throws contract is load-bearing — `send()` is
 designed to be safe to `void` from inside a request handler, and consumers do.
 The fix is to make the failure *visible*, not to make it *fatal*.
+
+## F067.6 — a notification with no text is built, sent, accepted and shows nothing
+
+torrent-search-api, reporting their own bug after adopting 0.4.1. They had
+written the sender in Danish:
+
+```js
+buildPayload({ titel: 'Ny film', tekst: '…', url: '/film/42' })
+```
+
+Measured against 0.4.1's dist:
+
+```
+danske feltnavne  -> {"web_push":8030,"notification":{}}
+helt tomt objekt  -> {"web_push":8030,"notification":{}}
+```
+
+A structurally valid payload with **no content whatsoever**. It would be
+encrypted, POSTed, accepted with a 201, delivered to the device, and rendered as
+nothing. `sent` would count it. Every layer reports success.
+
+### The part that generalises
+
+**Their test survived four mutations.** In their words: the tests only looked at
+the answer from `send()`, never at the body that went over the wire — so the
+mutation *"swap to Danish field names"* came back **green**. It went red only
+once they parsed the sent payload and required that both the classic and the
+declarative form actually carried the text.
+
+> **A test that only reads the return value cannot see an empty message.**
+
+That is the same shape as this package's own falsely-green transport test
+(`p256dh: 'p'`, rejected during encryption before a socket was ever opened) and
+as `sent: 0` meaning two things. The instrument agreed with itself and disagreed
+with reality.
+
+### Why the package owns this and not the caller
+
+TypeScript rejects `{ titel }` — but only for consumers that compile.
+torrent-search-api is plain JS with no build step, and so are others. A package
+that defends itself with types alone defends half its consumers (the F070
+lesson, restated). And here the package can *see* the message is empty before it
+sends anything.
+
+### Scope
+
+`send()` refuses a message with no `title` and reports it as **`kind: 'payload'`**
+— the category that already means *stop, this is a code bug, retrying will not
+help* — without touching the network. The reason names the expected fields, so a
+consumer who wrote `titel` reads `title` in the error and the fix is one line.
+
+**Non-goals.** `buildPayload` stays a pure builder and keeps building whatever it
+is given; the gate belongs where delivery is attempted. `sendSilent` is untouched
+— it carries no title by design, which is the whole point of a silent badge
+update. And an empty `body` stays legal: a title-only notification is a real
+thing.
