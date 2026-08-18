@@ -138,6 +138,31 @@ number it existed to prove.
 non-trivial count SQL with app-specific filters, and a shared package that forces
 them to keep a second counter recreates the exact defect it was built to prevent.
 
+## What the number MEANS — the definition, not a note
+
+cardmem named this as the thing they will not give up, and it was not on the list
+I guessed:
+
+> *"vores badge tæller UÅBNEDE, ikke hele indbakke-backloggen. Badget er «ting
+> der har pushet dig som du ikke har åbnet» — ikke «alt du ikke har læst». Hvis
+> kernen kun kan tælle det ene, skal det være dette."*
+
+So it is the core's definition rather than a consumer preference:
+
+> **`unseenCount` is "things that pushed you and you have not opened" — never
+> "everything you have not read".**
+
+The two are easy to conflate and expensive to conflate. It is precisely the
+distinction xrt81's F074.27 fell on: the bell counted unopened notifications while
+a test route counted unread messages, sent `badge=0` — which is not "no badge"
+but *"remove the badge"* — and so deleted the number it existed to prove. A
+package whose whole purpose is one counting rule must state which rule, or the
+second implementation is free to pick the other one and nothing will fail.
+
+It also explains why muting belongs in the count and not only in the list: a kind
+you turned off did not "push you", so it cannot be a thing you have not opened,
+even though the row is real and belongs in the list.
+
 ## The seam
 
 **The core owns the choreography, not the query.** Every mutation recounts through
