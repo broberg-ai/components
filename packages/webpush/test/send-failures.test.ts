@@ -166,3 +166,65 @@ describe('the never-throws contract is sealed, not merely preserved', () => {
     expect(r.failed[0]!.kind).toBe('auth');
   });
 });
+
+describe('the boot readback — know before the first notification', () => {
+  // Asked for by torrent-search-api: they wanted to gate at startup rather than
+  // discover a broken config on the first push. Same reason @broberg/mail grew
+  // `mode`, and the same shape of answer.
+  const good = generateVapidKeys();
+
+  it('reports ready for a valid config', () => {
+    const s = createPushSender({ ...good, subject: 'mailto:cb@webhouse.dk' });
+    expect(s.status).toBe('ready');
+    expect(s.statusReason).toBeNull();
+  });
+
+  it('distinguishes NOT CONFIGURED from CONFIGURED WRONG', () => {
+    // Two states, not one boolean: 'no-keys' is what a deliberately dark-shipped
+    // environment looks like, 'invalid-keys' is always a bug. Collapsing them
+    // would make a misconfiguration indistinguishable from a feature you have
+    // simply not switched on.
+    expect(createPushSender({ subject: '', publicKey: '', privateKey: '' }).status).toBe('no-keys');
+    expect(
+      createPushSender({ subject: 'mailto:cb@webhouse.dk', publicKey: 'abc', privateKey: 'def' }).status,
+    ).toBe('invalid-keys');
+  });
+
+  it('a subject with no URL scheme is caught too', () => {
+    // web-push's own rule, not one of ours — a bare address is rejected.
+    const s = createPushSender({ ...good, subject: 'cb@webhouse.dk' });
+    expect(s.status).toBe('invalid-keys');
+    expect(s.statusReason).toContain('subject');
+  });
+
+  it('a broken config fails as auth, NOT as a transient blip', async () => {
+    // The defect this test exists for, measured before the fix: missing keys
+    // came back kind:'transient' with reason "No subject set in
+    // vapidDetails.subject." — telling the caller to RETRY the one thing that
+    // retrying can never fix.
+    const s = createPushSender({ subject: '', publicKey: '', privateKey: '' });
+    const r = await s.send([sub('a'), sub('b')], MSG);
+    expect(r.sent).toBe(0);
+    expect(r.dead).toEqual([]);
+    expect(r.failed.map((f) => f.kind)).toEqual(['auth', 'auth']);
+    expect(r.failed[0]!.statusCode).toBeNull();
+    expect(r.failed[0]!.reason).toBeTruthy();
+  });
+
+  it('…and it does not touch the network to find that out', async () => {
+    // Every subscription would fail identically, so attempting N requests only
+    // spends time to learn what was knowable at construction.
+    const s = createPushSender({ subject: '', publicKey: '', privateKey: '' });
+    const before = sendNotification.mock.calls.length;
+    await s.send([sub('a'), sub('b'), sub('c')], MSG);
+    expect(sendNotification.mock.calls.length).toBe(before);
+  });
+
+  it('NEGATIVE CONTROL: a ready sender still sends', async () => {
+    // Without this, short-circuiting EVERY send would satisfy the tests above.
+    const s = createPushSender({ ...good, subject: 'mailto:cb@webhouse.dk' });
+    const r = await s.send([sub('a')], MSG);
+    expect(r.sent).toBe(1);
+    expect(r.failed).toEqual([]);
+  });
+});

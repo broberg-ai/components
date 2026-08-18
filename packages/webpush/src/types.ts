@@ -61,9 +61,16 @@ export type SendFailureKind =
 /** One subscription's failure. Carries enough to act on rather than only a count. */
 export type SendFailure = {
   endpoint: string;
-  /** The HTTP status the push service gave, when there was one. Absent for a
-   *  transport-level failure (DNS/TLS/offline), which is the commonest kind. */
-  statusCode?: number;
+  /** The HTTP status the push service gave, or `null` when there was no HTTP
+   *  response at all — a transport failure (DNS/TLS/offline) or a configuration
+   *  fault caught before the request, which are the commonest kinds.
+   *
+   *  ALWAYS PRESENT, never absent, and `null` rather than `undefined` on purpose
+   *  (asked for by torrent-search-api): an absent key cannot be told apart from
+   *  a package version that has no such field, and a stable row shape is what
+   *  makes these loggable and diffable. `null` says *we know there was no
+   *  status*. Do not write `f.statusCode >= 500` without checking it first. */
+  statusCode: number | null;
   kind: SendFailureKind;
   /** The underlying error message, for logs. Never branch on this string —
    *  branch on `kind`. */
@@ -78,6 +85,10 @@ export type SendResult = {
   dead: string[];
   /** Sends that neither succeeded nor were gone (F067.5).
    *
+   *  ALWAYS AN ARRAY — empty on a clean run and on an empty send, never
+   *  `undefined`. That is a contract, not an artefact: a consumer may write
+   *  `result.failed.length` without a `?? []` anywhere.
+   *
    *  Before 0.4.0 these were swallowed entirely, so `{sent:0, dead:[]}` meant
    *  BOTH "nobody is subscribed" and "every single send failed" — measured
    *  byte-identical on 0.3.1. That mattered most where it hurt most: wrong VAPID
@@ -86,3 +97,19 @@ export type SendResult = {
    *  the window when the wiring is most likely to be wrong. */
   failed: SendFailure[];
 };
+
+/** Whether this sender can actually deliver, knowable at BOOT rather than on the
+ *  first notification (F067.5, asked for by torrent-search-api).
+ *
+ *  Three states and not a boolean, because two of them mean opposite things:
+ *  `no-keys` is what a deliberately dark-shipped environment looks like, while
+ *  `invalid-keys` is always a bug. Collapsing them would make a misconfiguration
+ *  indistinguishable from a feature you have not switched on yet — which is the
+ *  same failure this whole story is about, moved to boot time. */
+export type SenderStatus =
+  /** VAPID subject + keys validated by web-push's own rules. */
+  | 'ready'
+  /** Nothing configured. Expected when push ships dark; alarm in production. */
+  | 'no-keys'
+  /** Configured, but web-push rejects it. Always a bug — every send will fail. */
+  | 'invalid-keys';

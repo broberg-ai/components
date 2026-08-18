@@ -15,6 +15,7 @@ import type {
   SendResult,
   SendFailure,
   SendFailureKind,
+  SenderStatus,
 } from './types';
 
 export type { VapidConfig, PushSubscriptionJSON, PushMessage, SilentPushMessage, SendResult } from './types';
@@ -87,6 +88,35 @@ export function createPushSender(vapid: VapidConfig) {
     privateKey: vapid.privateKey,
   };
 
+  // Boot-time readback (F067.5). Asked for by torrent-search-api, who wanted to
+  // gate at startup rather than discover a broken config on the first
+  // notification — the same reason @broberg/mail grew `mode`.
+  //
+  // Validated with web-push's OWN getVapidHeaders rather than rules of my own:
+  // it checks subject, publicKey and privateKey exactly as a real send will, so
+  // the readback cannot disagree with the thing it predicts. setVapidDetails
+  // would validate too, but it mutates the shared web-push singleton, and a
+  // package has no business changing global state to answer a question.
+  const missing = !vapid.subject || !vapid.publicKey || !vapid.privateKey;
+  let status: SenderStatus = missing ? 'no-keys' : 'ready';
+  let statusReason: string | null = missing
+    ? 'VAPID subject, publicKey or privateKey is empty'
+    : null;
+  if (!missing) {
+    try {
+      webpush.getVapidHeaders(
+        'https://example.com',
+        vapid.subject,
+        vapid.publicKey,
+        vapid.privateKey,
+        'aes128gcm',
+      );
+    } catch (err) {
+      status = 'invalid-keys';
+      statusReason = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   /**
    * Fan a pre-built payload out to every subscription. Never throws — a per-
    * subscription failure is isolated; 404/410 ("gone") endpoints come back in
@@ -96,6 +126,25 @@ export function createPushSender(vapid: VapidConfig) {
     const dead: string[] = [];
     const failed: SendFailure[] = [];
     let sent = 0;
+
+    // A bad VAPID config fails EVERY subscription, permanently. Reported as
+    // `auth` and without touching the network — web-push would otherwise raise
+    // it as an ordinary error with no status code, which classified as
+    // `transient` and told the caller to RETRY the one thing retrying can never
+    // fix. Measured before this line existed: missing keys came back
+    // kind:'transient', reason:'No subject set in vapidDetails.subject.'
+    if (status !== 'ready') {
+      return {
+        sent: 0,
+        dead: [],
+        failed: subs.map((s) => ({
+          endpoint: s.endpoint,
+          statusCode: null,
+          kind: 'auth' as const,
+          reason: statusReason ?? 'push sender is not configured',
+        })),
+      };
+    }
     await Promise.all(
       subs.map(async (s) => {
         try {
@@ -115,7 +164,7 @@ export function createPushSender(vapid: VapidConfig) {
           // same object. Isolating a failure is not the same as hiding it.
           failed.push({
             endpoint: s.endpoint,
-            ...(code === undefined ? {} : { statusCode: code }),
+            statusCode: code ?? null,
             kind: classifyFailure(code),
             reason: err instanceof Error ? err.message : String(err),
           });
@@ -137,7 +186,18 @@ export function createPushSender(vapid: VapidConfig) {
   const sendSilent = (subs: PushSubscriptionJSON[], message: SilentPushMessage) =>
     fanOut(subs, buildSilentPayload(message));
 
-  return { send, sendSilent, buildPayload, buildSilentPayload, publicKey: vapid.publicKey };
+  return {
+    send,
+    sendSilent,
+    buildPayload,
+    buildSilentPayload,
+    publicKey: vapid.publicKey,
+    /** Can this sender actually deliver? Check it at BOOT:
+     *    if (isProd && sender.status !== 'ready') throw new Error(sender.statusReason!); */
+    status,
+    /** web-push's own words for why, or null when status is 'ready'. */
+    statusReason,
+  };
 }
 
 export type PushSender = ReturnType<typeof createPushSender>;

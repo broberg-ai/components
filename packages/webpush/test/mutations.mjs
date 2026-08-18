@@ -41,9 +41,24 @@ const MUTATIONS = [
     to: `  if (code === 401 || code === 403) return 'transient';`,
   },
   {
-    name: 'the status code is never carried',
-    from: `            ...(code === undefined ? {} : { statusCode: code }),`,
-    to: `            ...(code === undefined ? {} : {}),`,
+    name: 'the status code is absent instead of null',
+    from: `            statusCode: code ?? null,`,
+    to: `            statusCode: code as number,`,
+  },
+  {
+    name: 'a broken config is a transient blip again (the pre-fix behaviour)',
+    from: `          kind: 'auth' as const,`,
+    to: `          kind: 'transient' as const,`,
+  },
+  {
+    name: 'the config short-circuit is removed (every send hits the network)',
+    from: `    if (status !== 'ready') {`,
+    to: `    if (false as boolean) {`,
+  },
+  {
+    name: 'not-configured and configured-wrong collapse into one state',
+    from: `      status = 'invalid-keys';`,
+    to: `      status = 'no-keys';`,
   },
 ];
 

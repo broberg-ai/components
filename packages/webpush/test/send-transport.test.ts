@@ -36,7 +36,7 @@ describe('a real send to an unreachable host', () => {
     expect(r.sent).toBe(0);
     expect(r.dead).toEqual([]);
     expect(r.failed).toHaveLength(1);
-    expect(r.failed[0]!.statusCode).toBeUndefined();
+    expect(r.failed[0]!.statusCode).toBeNull();
     expect(r.failed[0]!.kind).toBe('transient');
     // Assert it is genuinely a CONNECTION failure, not an encryption one that
     // happens to look the same from the outside.

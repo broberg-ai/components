@@ -110,19 +110,50 @@ no sender, no-op.
 > | `payload` | 400, 413 | Stop. Fix the message; it is a code bug. |
 > | `transient` | 429, 5xx, DNS/TLS/offline, anything unrecognised | Retry later. |
 >
-> Each entry carries `endpoint`, `statusCode` (absent for a transport failure,
-> which is the commonest kind) and `reason` for logs. **Branch on `kind`, never on
-> `reason`.** Unrecognised codes fall to `transient` deliberately: an unknown
-> permanent fault then costs some wasted retries, where the opposite default would
-> silently stop retrying something that would have worked.
+> Each entry carries `endpoint`, `statusCode` and `reason`. **Branch on `kind`,
+> never on `reason`.** Unrecognised codes fall to `transient` deliberately: an
+> unknown permanent fault then costs some wasted retries, where the opposite
+> default would silently stop retrying something that would have worked.
+>
+> **Two shape guarantees, both asked for by a consumer and both worth relying on:**
+> `failed` is ALWAYS an array — empty on a clean run and on an empty send, never
+> `undefined`, so `result.failed.length` needs no `?? []`. And `statusCode` is
+> ALWAYS PRESENT, `null` when there was no HTTP response at all (a transport
+> failure, or a config fault caught before the request). `null` rather than an
+> absent key, because an absent key cannot be told apart from a package version
+> that has no such field. Do not write `f.statusCode >= 500` without checking it.
 >
 > `sent` and `dead` are unchanged, so a caller that ignores `failed` is exactly as
 > correct as it was — and exactly as blind. **`send()` still never throws**; that
 > contract is load-bearing and sealed by a test. A failure is made *visible*, not
 > *fatal*.
 >
+> ### Know at boot, not at the first notification
+>
+> ```ts
+> const sender = createPushSender({ subject, publicKey, privateKey });
+>
+> if (sender.status !== 'ready') {
+>   // 'no-keys'      — nothing configured. Expected when push ships dark.
+>   // 'invalid-keys' — configured, and web-push rejects it. Always a bug.
+>   console.warn('push not sending:', sender.statusReason);
+> }
+> ```
+>
+> Three states rather than a boolean, because two of them mean opposite things: a
+> dark-shipped environment and a broken deploy must not look alike. The check uses
+> **web-push's own validation**, so the readback cannot disagree with the send it
+> predicts.
+>
+> A sender that is not `ready` short-circuits: every subscription comes back as
+> `kind: 'auth'` **without touching the network**. Before 0.4.0 a missing subject
+> surfaced as `kind:'transient'` — telling the caller to retry the one thing
+> retrying can never fix.
+>
 > Raised by torrent-search-api, who asked whether this package had a trap of the
-> `MAIL_LIVE` family instead of waiting to be bitten by one.
+> `MAIL_LIVE` family instead of waiting to be bitten by one — and who then found
+> the "always with" claim above contradicting its own example, and asked for the
+> boot readback.
 
 ## Client
 
