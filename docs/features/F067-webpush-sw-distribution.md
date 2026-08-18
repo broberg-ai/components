@@ -240,3 +240,61 @@ is given; the gate belongs where delivery is attempted. `sendSilent` is untouche
 — it carries no title by design, which is the whole point of a silent badge
 update. And an empty `body` stays legal: a title-only notification is a real
 thing.
+
+## F067.7 — the last blind stretch: Apple accepted it, but did a phone ever show it?
+
+**Status: interim. Scope is deliberately open — the design waits on a measurement
+that is currently running.** Written now because the context is live, not because
+the answer is known.
+
+Offered by xrt81, who are the only consumers running this on real iPhones in
+production, and who have already built a temporary version of it: a receipt
+listener in the service worker that reported *ARRIVED ON DEVICE*.
+
+### What we can and cannot see today
+
+After 0.4.x the send path is observable end to end — right up to the push
+service's `201`. What no layer reports is the part after that:
+
+```
+send() → encrypt → POST → Apple accepts (201) → ??? → phone → a human's eye
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                                    still invisible
+```
+
+**That gap is exactly where F067.3 lived.** An icon URL answering `text/html`
+made the notification render *nothing at all* on iOS — silently. The push had
+provably arrived (`bytes:355`); it simply was not displayed. Every instrument we
+own said success, and it cost xrt81 a full day.
+
+So this is not a nice-to-have observability feature. It is the one remaining
+place in this package where a total failure is indistinguishable from a success,
+which is the defect class the whole F067 line has been closing.
+
+### Open questions — to answer with data, not argument
+
+1. **What does a receipt actually assert?** *Delivered to the worker* and
+   *displayed to the user* are different claims, and the second is the one that
+   was wrong in F067.3. A receipt that only proves the first would recreate the
+   bug at a new layer — the package's own recurring failure.
+2. **Where does it POST to?** The package is storage-agnostic and touches no
+   database; a receipt needs an endpoint. That may make this a consumer-owned
+   piece with a package-supplied helper rather than a package feature.
+3. **What does it cost?** A receipt on every push doubles the request count and
+   adds a write per notification. On a club of 13 that is nothing; the shape has
+   to be honest about where it stops being nothing.
+4. **Opt-in, certainly — but at which end?** Sender, worker, or both.
+5. **Does it survive the thing it exists to catch?** A worker that fails to
+   render also has to still send the receipt, or the signal disappears exactly
+   when it matters.
+
+### Sequencing — deliberately not now
+
+xrt81's week-long measurement (13 subscriptions / 9 members / 11 iOS, logging
+`kind` + `reason`) is running. It may well change what a receipt should carry: if
+`kind` turns out to be the wrong cut, or `reason` texts are not stable enough to
+group on, that lands in the same design.
+
+**So: no design until their numbers are in.** Building it first would be guessing
+at the shape of a thing we are two weeks from being able to measure — and this
+package has spent four releases learning what guessing costs.
