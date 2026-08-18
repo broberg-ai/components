@@ -3,19 +3,14 @@
 // the /llms.txt AI map (llmstxt.org standard) + /llms-full.txt. No hand-maintained copy.
 //
 //   node scripts/build-onboarding.mjs   → writes docs/onboarding.html
-import { DATA, INFRA, npmUrl } from "./inventory-data.mjs";
+import { DATA, INFRA, npmUrl, oneLiner } from "./inventory-data.mjs";
 import { writeFileSync } from "node:fs";
 
 const esc = (s) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// One-liner = the first sentence of the description (before ". " or " — ").
-const oneLiner = (c) => {
-  const d = String(c.desc ?? c.nm ?? "").replace(/\s+/g, " ").trim();
-  const cut = d.search(/\.\s|\s—\s/);
-  const s = cut > 0 ? d.slice(0, cut) : d;
-  return s.length > 150 ? s.slice(0, 147) + "…" : s;
-};
+// One-liner now lives in inventory-data.mjs (F038.7) — the "Just shipped"
+// hero card must serve the identical string, so there is exactly one definition.
 
 // ---- aggregation (also feeds the /llms.txt map) ----
 const categories = DATA.map((L) => ({

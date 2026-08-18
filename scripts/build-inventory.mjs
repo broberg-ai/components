@@ -7,7 +7,8 @@
 // component's facts + a "what it is" blurb. The page dogfoods @broberg/theme tokens.
 
 import { writeFileSync } from "node:fs";
-import { M, MODEL, EFFORT, DATA, FLEET, INFRA, npmUrl, repoUrl } from "./inventory-data.mjs";
+import { M, MODEL, EFFORT, DATA, FLEET, INFRA, npmUrl, repoUrl, oneLiner } from "./inventory-data.mjs";
+import { fetchLatestReleases } from "./npm-latest.mjs";
 
 
 let total=0, ship=0, grad=0, mv=0;
@@ -367,6 +368,42 @@ const infraHtml = `<section class="infra">
 const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" stroke="#34d399" stroke-width="2" opacity="1"><path d="M16 16 8 8M16 16 24 8M16 16 8 24M16 16 24 24"/><rect x="4" y="4" width="8" height="8" rx="2.2"/><rect x="20" y="4" width="8" height="8" rx="2.2"/><rect x="4" y="20" width="8" height="8" rx="2.2"/><rect x="20" y="20" width="8" height="8" rx="2.2"/></g><circle cx="16" cy="16" r="3.2" fill="#34d399"/></svg>`;
 const FAVICON = "data:image/svg+xml;base64," + Buffer.from(FAVICON_SVG).toString("base64");
 
+const esc = (v) =>
+  String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// ── F038.7 — "Just shipped", asked rather than remembered ────────────────────
+// This block used to be literal HTML naming @broberg/stripe v0.2.0. It was six
+// weeks and four releases out of date, and nothing could have told us: a
+// hardcoded value cannot report that it has gone stale.
+const SHIPPED_PKGS = DATA.flatMap((L) => L.items ?? [])
+  .filter((it) => it.s === "shipped" && String(it.pkg ?? "").startsWith("@broberg/"));
+
+const releases = await fetchLatestReleases(SHIPPED_PKGS.map((it) => it.pkg));
+const newest = releases[0];
+const featured = SHIPPED_PKGS.find((it) => it.pkg === newest.pkg);
+if (!featured) throw new Error(`newest published package ${newest.pkg} is not in the roster`);
+
+// The version shown is NPM'S, not the roster's — the registry is what a consumer
+// installs from, and the two disagreed twice on 2026-08-18 alone.
+const FEATURED = {
+  name: featured.nm,
+  pkg: newest.pkg,
+  version: newest.version,
+  // Byte-identical to what /ai and llms.txt serve for this package (one definition).
+  line: oneLiner(featured),
+};
+
+// Report-only, never a silent rewrite: a version is npm's to state, a description
+// is the owner's. Both drifts this repo has hit were caught by someone LOOKING.
+const drifted = SHIPPED_PKGS
+  .map((it) => ({ it, r: releases.find((r) => r.pkg === it.pkg) }))
+  .filter(({ it, r }) => r && it.ver !== r.version);
+if (drifted.length) {
+  console.warn(`\n  ${drifted.length} roster row(s) name a version npm does not serve as latest:`);
+  for (const { it, r } of drifted) console.warn(`    ${it.pkg.padEnd(30)} roster ${it.ver}  ->  npm ${r.version}`);
+  console.warn("");
+}
+
 const HTML = `<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -399,10 +436,10 @@ const HTML = `<!doctype html>
     <section class="featured">
       <div>
         <div class="ttl">🆕 Just shipped</div>
-        <h2>Stripe payments — one fleet chokepoint</h2>
-        <div class="pkg">@broberg/stripe · v0.2.0 · Connect checkout + webhook route factory · dark-ship client · fee calc · raw-body constructEvent · source: sanneandersen</div>
+        <h2>${esc(FEATURED.name)}</h2>
+        <div class="pkg">${esc(FEATURED.pkg)} · v${esc(FEATURED.version)} · ${esc(FEATURED.line)}</div>
       </div>
-      <div class="cmd"><span class="p">$</span> npm i @broberg/stripe stripe</div>
+      <div class="cmd"><span class="p">$</span> npm i ${esc(FEATURED.pkg)}</div>
     </section>
     <div class="controls">
       <div class="fil" id="f-layer"><span class="lbl">Layer</span>${layerChips}</div>
