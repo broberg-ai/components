@@ -36,6 +36,21 @@ export type PushMessage = {
  *  other (closed) PWA devices count their badge down without showing anything.
  *  Deliberately carries no title/body and is NOT sent as declarative Web Push, so
  *  Safari 18.4+ does not auto-render it; the classic SW handler calls setAppBadge. */
+/** INVARIANT: `sendSilent` MUST NEVER acquire the title requirement that `send`
+ *  has (F067.6).
+ *
+ *  Written as a rule rather than left as an absence, at xrt81's request, because
+ *  it is an easy thing to "tidy up" later in good faith: the two paths look
+ *  almost identical and one of them validates a title. A silent push carries no
+ *  title BY DESIGN — it exists to move the OS app-badge with no banner, which is
+ *  how a phone lying closed counts its badge down after you read the message on
+ *  a Mac.
+ *
+ *  Gate it and badge sync dies silently on every device: a total failure that
+ *  reports success, i.e. exactly the defect this epic has spent four releases
+ *  removing, reintroduced by a tidy-up. A negative-control test and the mutation
+ *  "the silent path is gated on a title too" both go red if anyone does it. This
+ *  comment is so the next reader knows it was a decision, not an oversight. */
 export type SilentPushMessage = {
   /** The app-badge count to set (0 clears the badge). */
   badge: number;
