@@ -121,7 +121,7 @@ describe('the caller can branch without parsing a message string', () => {
 describe('nothing that worked before behaves differently', () => {
   it('a successful send still increments sent, and only sent', async () => {
     const r = await sender.send([sub('a'), sub('b')], MSG);
-    expect(r).toEqual({ sent: 2, dead: [], failed: [] });
+    expect(r).toEqual({ sent: 2, dead: [], failed: [], allFailed: false });
   });
 
   it('404/410 still land in dead — and NOT in failed', async () => {
@@ -138,7 +138,7 @@ describe('nothing that worked before behaves differently', () => {
   it('NEGATIVE CONTROL: an empty send reports no failure', async () => {
     // Without this, "always append a failure" would satisfy every test above —
     // and a phantom failure on every quiet day is noise that stops being read.
-    expect(await sender.send([], MSG)).toEqual({ sent: 0, dead: [], failed: [] });
+    expect(await sender.send([], MSG)).toEqual({ sent: 0, dead: [], failed: [], allFailed: false });
   });
 
   it('a mixed batch splits three ways', async () => {
@@ -226,5 +226,57 @@ describe('the boot readback — know before the first notification', () => {
     const r = await s.send([sub('a')], MSG);
     expect(r.sent).toBe(1);
     expect(r.failed).toEqual([]);
+  });
+});
+
+describe('allFailed — the alarm, and the deletion foot-gun it guards', () => {
+  // Raised by xrt81. Every consumer already has the habit `dead` → delete the
+  // rows, and "failed" reads like "did not work, clean up". But with wrong VAPID
+  // keys `failed` is EVERY subscriber — so one typo in a secret would delete an
+  // app's whole push table, and fixing the key afterwards would not bring them
+  // back: every user would have to re-subscribe on every device.
+  //
+  // The contract (documented on both fields) is that ONLY `dead` may be deleted
+  // from. `allFailed` exists so the thing you actually alarm on is one boolean
+  // rather than a reduction each consumer writes for themselves.
+  const good = generateVapidKeys();
+
+  it('is true when a wrong config kills every subscription', async () => {
+    const s = createPushSender({ subject: '', publicKey: '', privateKey: '' });
+    const r = await s.send([sub('a'), sub('b')], MSG);
+    expect(r.allFailed).toBe(true);
+  });
+
+  it('is true when every send fails at the push service', async () => {
+    queue(500, 500);
+    const r = await sender.send([sub('a'), sub('b')], MSG);
+    expect(r.allFailed).toBe(true);
+  });
+
+  it('NEGATIVE CONTROL — an empty send is not an outage', async () => {
+    // Without this, `failed.length === sent` would make a quiet day alarm.
+    expect((await sender.send([], MSG)).allFailed).toBe(false);
+  });
+
+  it('NEGATIVE CONTROL — a batch of gone endpoints is churn, not an outage', async () => {
+    // This is the one that matters: 410s are the ordinary lifecycle of a push
+    // subscription, and alarming on them would train people to ignore the alarm.
+    queue(410, 410);
+    const r = await sender.send([sub('a'), sub('b')], MSG);
+    expect(r.dead).toHaveLength(2);
+    expect(r.allFailed).toBe(false);
+  });
+
+  it('NEGATIVE CONTROL — one success is enough to make it false', async () => {
+    queue(null, 500);
+    const r = await sender.send([sub('ok'), sub('bad')], MSG);
+    expect(r.sent).toBe(1);
+    expect(r.failed).toHaveLength(1);
+    expect(r.allFailed).toBe(false);
+  });
+
+  it('a fully successful send is not an outage', async () => {
+    const s = createPushSender({ ...good, subject: 'mailto:cb@webhouse.dk' });
+    expect((await s.send([sub('a')], MSG)).allFailed).toBe(false);
   });
 });

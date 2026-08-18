@@ -92,17 +92,32 @@ no sender, no-op.
 > at zero subscribers, so the reading looks normal during precisely the window
 > when the wiring is most likely to be wrong.
 >
-> `SendResult` now carries `failed`:
+> ### ⛔ Only `dead` may be deleted from. Never `failed`.
+>
+> Read this before you write the handler. Every consumer already has the habit
+> *`dead` → delete the rows*, and **failed** reads like *did not work, clean up* —
+> but when the VAPID keys are wrong, `failed` is **every subscriber you have**. One
+> typo in a secret would delete an app's entire push table, and fixing the key
+> afterwards would not bring them back: every user would have to re-subscribe, on
+> every device. `dead` is churn; `failed` is for logging, alarming and retrying.
+>
+> *(Raised by xrt81, who run this on real iPhones in production.)*
 >
 > ```ts
-> const { sent, dead, failed } = await sender.send(subs, msg);
+> const { sent, dead, failed, allFailed } = await sender.send(subs, msg);
 >
-> for (const e of dead) await db.deleteSubscription(e);   // ordinary churn
+> for (const e of dead) await db.deleteSubscription(e);   // churn — the ONLY delete
 >
-> if (failed.some((f) => f.kind === 'auth')) {
->   // Your VAPID config is wrong. Retrying will not help — alarm on this.
+> if (allFailed) {
+>   // Nothing got through and nothing was merely gone. In practice this is what
+>   // a wrong VAPID key looks like from the outside. Alarm; do not delete.
 > }
 > ```
+>
+> `allFailed` is true only when something was attempted and none of it landed —
+> an empty send is not an outage, and a batch of 410s is ordinary lifecycle, not a
+> failure. It exists so the thing you alarm on is one boolean rather than a
+> reduction every consumer writes for themselves.
 >
 > | `kind` | statuses | what to do |
 > | --- | --- | --- |

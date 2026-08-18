@@ -47,13 +47,23 @@ const MUTATIONS = [
   },
   {
     name: 'a broken config is a transient blip again (the pre-fix behaviour)',
-    from: `          kind: 'auth' as const,`,
-    to: `          kind: 'transient' as const,`,
+    from: `        kind: 'auth' as const,`,
+    to: `        kind: 'transient' as const,`,
   },
   {
     name: 'the config short-circuit is removed (every send hits the network)',
     from: `    if (status !== 'ready') {`,
     to: `    if (false as boolean) {`,
+  },
+  {
+    name: 'allFailed alarms on ordinary 410 churn',
+    from: `allFailed: failed.length > 0 && sent === 0 && dead.length === 0 };`,
+    to: `allFailed: sent === 0 };`,
+  },
+  {
+    name: 'a wrong config no longer raises allFailed',
+    from: `      return { sent: 0, dead: [], failed: failures, allFailed: failures.length > 0 };`,
+    to: `      return { sent: 0, dead: [], failed: failures, allFailed: false };`,
   },
   {
     name: 'not-configured and configured-wrong collapse into one state',

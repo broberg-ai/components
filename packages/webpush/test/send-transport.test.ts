@@ -52,7 +52,7 @@ describe('a real send to an unreachable host', () => {
     // this were {"sent":0,"dead":[]} and deeply equal.
     const quiet = await sender.send([], { title: 't', body: 'b' });
     const broken = await sender.send([unreachable], { title: 't', body: 'b' });
-    expect(quiet).toEqual({ sent: 0, dead: [], failed: [] });
+    expect(quiet).toEqual({ sent: 0, dead: [], failed: [], allFailed: false });
     expect(broken).not.toEqual(quiet);
   });
 });

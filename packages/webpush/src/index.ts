@@ -134,16 +134,13 @@ export function createPushSender(vapid: VapidConfig) {
     // fix. Measured before this line existed: missing keys came back
     // kind:'transient', reason:'No subject set in vapidDetails.subject.'
     if (status !== 'ready') {
-      return {
-        sent: 0,
-        dead: [],
-        failed: subs.map((s) => ({
-          endpoint: s.endpoint,
-          statusCode: null,
-          kind: 'auth' as const,
-          reason: statusReason ?? 'push sender is not configured',
-        })),
-      };
+      const failures = subs.map((s) => ({
+        endpoint: s.endpoint,
+        statusCode: null,
+        kind: 'auth' as const,
+        reason: statusReason ?? 'push sender is not configured',
+      }));
+      return { sent: 0, dead: [], failed: failures, allFailed: failures.length > 0 };
     }
     await Promise.all(
       subs.map(async (s) => {
@@ -171,7 +168,9 @@ export function createPushSender(vapid: VapidConfig) {
         }
       }),
     );
-    return { sent, dead, failed };
+    // Something was attempted, nothing got through, and nothing was merely
+    // gone. An empty send is not an outage, and a batch of 410s is churn.
+    return { sent, dead, failed, allFailed: failed.length > 0 && sent === 0 && dead.length === 0 };
   }
 
   /** Send a visible notification (declarative + classic) to every subscription. */

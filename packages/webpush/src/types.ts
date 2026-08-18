@@ -80,10 +80,21 @@ export type SendFailure = {
 export type SendResult = {
   /** How many subscriptions accepted the push. */
   sent: number;
-  /** Endpoints that returned 404/410 (gone) — the caller should prune these.
-   *  Ordinary churn, not a fault: a gone endpoint is a row to delete. */
+  /** Endpoints that returned 404/410 (gone).
+   *
+   *  THE ONLY LIST YOU MAY DELETE FROM. A gone endpoint is ordinary churn — the
+   *  browser threw the subscription away and it will never work again, so the
+   *  row is dead weight. Prune these after every send. */
   dead: string[];
   /** Sends that neither succeeded nor were gone (F067.5).
+   *
+   *  NEVER DELETE THESE. They are for logging, alarming and retrying. Raised by
+   *  xrt81, and it is the most expensive mistake this field makes available:
+   *  every consumer already has the habit `dead` → delete the rows, and "failed"
+   *  reads like "did not work, clean up". But when the VAPID keys are wrong,
+   *  `failed` is EVERY subscriber — so one typo in a secret would delete an
+   *  app's entire push table, and fixing the key afterwards would not bring them
+   *  back. Every user would have to re-subscribe, on every device.
    *
    *  ALWAYS AN ARRAY — empty on a clean run and on an empty send, never
    *  `undefined`. That is a contract, not an artefact: a consumer may write
@@ -96,6 +107,15 @@ export type SendResult = {
    *  starts at zero subscribers, so the reading looks normal during precisely
    *  the window when the wiring is most likely to be wrong. */
   failed: SendFailure[];
+  /** Every subscription failed, and none was merely gone.
+   *
+   *  The thing you actually want to alarm on, as one boolean rather than a
+   *  reduction each consumer writes for themselves (xrt81's request). True only
+   *  when something was attempted: an empty send is not a total failure, and a
+   *  batch where every endpoint was simply 410-gone is churn, not an outage.
+   *
+   *  In practice this is what a wrong VAPID key looks like from the outside. */
+  allFailed: boolean;
 };
 
 /** Whether this sender can actually deliver, knowable at BOOT rather than on the
