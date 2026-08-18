@@ -262,11 +262,34 @@ is trying to avoid, moved one layer out, and just as silent.
 1. **Pruning.** xrt81 has ~11,000 rows/year coming and calls its absence a gap;
    cardmem never prunes and warned against designing a TTL from an assumption they
    have one. Needs its own story, with xrt81's numbers as the input.
-2. **`navigate IS NOT NULL` in the count.** xrt81 requires it (a notification with
-   no destination can never be cleared); cardmem does not (they fall back to
-   `navigate ?p=<slug>`). Under "the store owns the query" both are expressible —
-   but it is worth one shared sentence of guidance, because xrt81's reasoning
-   generalises and cardmem's fallback may not survive their legacy rows.
+2. ~~**`navigate IS NOT NULL` in the count.**~~ **Settled — and the measurement
+   weakened the argument that raised it.** xrt81 ran the two filters separately
+   across all 30 members:
+
+   ```
+   cost of `navigate IS NOT NULL`:  0 rows   (across ALL 30 members)
+   cost of the mute exclusion:      3 rows   (one member)
+   ```
+
+   **The destination filter removes nothing in production today**, because the
+   guard effectively lives with the *writers*: none of their ten kinds writes a
+   notification without a destination. It is a **backstop, not a working filter**
+   — cheap, and it catches the day someone adds a kind with nowhere to go, but it
+   is not a number that can carry a contract. **v0.1.0's argument must not be
+   built on it.** Recorded because xrt81 volunteered it against their own
+   recommendation from the day before.
+
+   Their sentence, adopted as the shared guidance:
+
+   > **"Count a notification only if there is somewhere the user can go that
+   > CLEARS it. Whether the destination is stored on the row or derived does not
+   > matter — but if it cannot be derived, the row must fall OUT of the count
+   > rather than count with a link that clears nothing: a number no action can
+   > remove teaches people to ignore it."**
+
+   It covers cardmem's derived `?p=<slug>` (derived is fine) *and* their legacy
+   risk (a slug that no longer resolves yields a link that clears nothing, so it
+   must not count).
 3. ~~**One measurement to take up** — the muted-kind exclusion, the load-bearing
    divergence.~~ **Measured on cardmem's production, 2026-08-18:**
 
@@ -287,9 +310,32 @@ is trying to avoid, moved one layer out, and just as silent.
    **Their own limit on it, kept because it bounds what was proved:** only 2 users
    on all of production have a prefs row, and both mute exactly `review`. So the
    exclusion is proven to *work*, on one muted kind for one user. Nothing is proven
-   about several simultaneous mutes or the other six kinds. **When xrt81's data is
-   measured, ask for the distribution, not a yes/no** — a single differing user is
-   enough to settle the design and not enough to describe the shape.
+   about several simultaneous mutes or the other six kinds.
+
+   **xrt81, measured the same day — and the finding is that they do NOT close that
+   gap:**
+
+   ```
+   members total                30
+   with a prefs row              1     <- not 14
+   with >=1 mute                 1
+   with SEVERAL simultaneous mutes   0  <- still unmeasured across ALL THREE
+
+   ra@agat.dk   mutes=[chatAll]   raw=3 -> after_navigate=3 -> final=0
+   ```
+
+   100% of that member's badge, same direction as cardmem's 50→1 — and n=1 again.
+
+   > **Two independent measurements of the SAME narrow shape are not two proofs.
+   > They are one proof, twice.** (xrt81's words, and they are right.) One user,
+   > one muted kind, zero multi-mutes — on both systems. So the core's contract
+   > currently rests on the exclusion being **right in principle**, not on its
+   > having been measured broadly. A later reader must not mistake corroboration
+   > for coverage.
+
+   xrt81 have filed **F079** for their adoption, carrying *parity after a
+   preference change* as an explicit AC. That is the measurement that will
+   actually widen the shape, and it arrives with their migration, not before.
 
 ## Rollout
 
