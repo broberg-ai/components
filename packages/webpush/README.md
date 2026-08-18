@@ -125,6 +125,14 @@ no sender, no-op.
 > wrong. A batch is a whole user base at once and churn never stops, so that is a
 > coincidence waiting rather than a rare one. The question is *did anything get
 > through*, not *was the batch pristine*.
+>
+> **`allFailed` now also fires on YOUR OWN code bug, not just on ours or Apple's.**
+> A message with no `title` (below) refuses every subscription as
+> `kind: 'payload'` with `sent: 0` — which is `allFailed: true`, and rightly so: a
+> blank notification to everyone *is* a total outage. But it means the first
+> `allFailed` alarm you ever see may be a bug in your sender, not a push service
+> having a bad day. Read `failed[0].kind` before you conclude anything about
+> Apple. *(Raised by torrent-search-api.)*
 
 > ### ⚠️ A message with no `title` is refused (v0.5.0)
 >
