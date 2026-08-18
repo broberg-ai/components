@@ -114,3 +114,73 @@ No new dependency: the classic build is a tsup format, not a bundler step.
   visible immediately), then xrt81 (a fresh setup that has never seen one land —
   the honest test of whether the recipe is usable by someone without cardmem's
   code in front of them).
+
+## F067.5 — `sent: 0` cannot tell "nobody subscribed" from "every send failed"
+
+Found by **torrent-search-api**, who did not report a bug: they asked whether the
+package had a trap of the `MAIL_LIVE` family — *something that returns ok without
+actually delivering*. It does.
+
+Measured against `dist/` at 0.3.1, with a real VAPID keypair and an unreachable
+endpoint standing in for any non-`404/410` failure:
+
+```
+0 subscribers        -> {"sent":0,"dead":[]}
+1 failing subscriber -> {"sent":0,"dead":[]}
+```
+
+**Byte-identical**, for two situations that could not be more different. The
+first is nothing to do; the second is a delivery failure affecting every
+recipient.
+
+`fanOut` isolates per-subscription failures so a push can never break the
+caller's request path — which is right, and stays. But the isolation currently
+goes one step further than it should: only `404`/`410` survive into `dead`, and
+**every other status is swallowed with no trace at all**. `SendResult` has two
+fields and there is nowhere for a failure to go.
+
+### Why this is the expensive kind
+
+The statuses that vanish are the ones you most need to see:
+
+- **`401` / `403` — the VAPID keys are wrong.** Not transient, not partial:
+  *every* push fails, forever, and the sender reports `sent: 0` exactly as it
+  would on a quiet day. A misconfigured deploy is indistinguishable from an app
+  nobody has subscribed to yet.
+- **`5xx` / network / TLS** — the push service is down or unreachable. Worth
+  retrying; today it is unknowable.
+- **`413`** — payload too large. A code fix, silently discarded.
+
+And the failure is shaped to hide: a new PWA legitimately *starts* with zero
+subscribers, so `sent: 0` reads as normal during exactly the window when the
+wiring is most likely to be wrong.
+
+> This is the same defect the fleet has been pulling out all week, one layer
+> along: **an answer that collapses two different facts.** `@broberg/mail` grew
+> `mode` because three conditions all returned `{ok:true, skipped:true}`;
+> `@broberg/seti-client` grew a third outcome because a timeout is a measurement
+> and not a fact about delivery; `lens-engine` grew `no-verdict` because the
+> absence of an answer was being read as one. Here, the absence of a *failure*
+> is being read as the absence of *work*.
+
+### The shape of the fix
+
+`SendResult` gains `failed` — the sends that neither succeeded nor were gone —
+carrying enough to act on: endpoint, status code where there was one, and a
+reason. `sent` and `dead` keep their current meaning, so no consumer breaks; a
+caller that ignores the new field is exactly as correct as it is today.
+
+Two things to decide by measuring rather than by argument:
+
+- **Whether a permanent config failure (`401`/`403`) deserves to be separable
+  from a transient one.** They call for opposite responses — one is "fix your
+  deploy", the other is "retry later" — and a caller that cannot tell them apart
+  will either retry forever or alarm on a blip.
+- **Whether a sender with subscriptions and a 100% failure rate should be able
+  to say so loudly.** A boot-time readback in the shape of `mailer.mode` does not
+  fit (there is nothing to check until you actually send), so the signal has to
+  live in the result.
+
+**Non-goal: throwing.** The never-throws contract is load-bearing — `send()` is
+designed to be safe to `void` from inside a request handler, and consumers do.
+The fix is to make the failure *visible*, not to make it *fatal*.
