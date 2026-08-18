@@ -47,8 +47,8 @@ const MUTATIONS = [
   },
   {
     name: 'a broken config is a transient blip again (the pre-fix behaviour)',
-    from: `        kind: 'auth' as const,`,
-    to: `        kind: 'transient' as const,`,
+    from: `      return refuseAll(subs, 'auth', statusReason ?? 'push sender is not configured');`,
+    to: `      return refuseAll(subs, 'transient', statusReason ?? 'push sender is not configured');`,
   },
   {
     name: 'the config short-circuit is removed (every send hits the network)',
@@ -57,18 +57,39 @@ const MUTATIONS = [
   },
   {
     name: 'allFailed alarms on ordinary 410 churn',
-    from: `allFailed: failed.length > 0 && sent === 0 && dead.length === 0 };`,
-    to: `allFailed: sent === 0 };`,
+    from: `    return { sent, dead, failed, allFailed: failed.length > 0 && sent === 0 };`,
+    to: `    return { sent, dead, failed, allFailed: sent === 0 };`,
   },
   {
     name: 'a wrong config no longer raises allFailed',
-    from: `      return { sent: 0, dead: [], failed: failures, allFailed: failures.length > 0 };`,
-    to: `      return { sent: 0, dead: [], failed: failures, allFailed: false };`,
+    from: `    return { sent: 0, dead: [], failed, allFailed: failed.length > 0 };`,
+    to: `    return { sent: 0, dead: [], failed, allFailed: false };`,
   },
   {
     name: 'not-configured and configured-wrong collapse into one state',
     from: `      status = 'invalid-keys';`,
     to: `      status = 'no-keys';`,
+  },
+  {
+    name: 'the empty-message gate is removed',
+    from: `    if (typeof message?.title !== 'string' || message.title.trim() === '') {`,
+    to: `    if (false as boolean) {`,
+  },
+  {
+    name: 'the silent path is gated on a title too',
+    from: `  const sendSilent = (subs: PushSubscriptionJSON[], message: SilentPushMessage) =>
+    fanOut(subs, buildSilentPayload(message));`,
+    to: `  const sendSilent = (subs: PushSubscriptionJSON[], message: SilentPushMessage) =>
+    refuseAll(subs, 'payload', 'no title') && Promise.resolve(refuseAll(subs, 'payload', 'no title'));`,
+  },
+  {
+    name: 'the declarative form loses the text (classic still carries it)',
+    from: `    notification: {
+      title: m.title,
+      body: m.body,`,
+    to: `    notification: {
+      title: undefined,
+      body: undefined,`,
   },
 ];
 

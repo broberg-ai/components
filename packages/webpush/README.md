@@ -114,10 +114,43 @@ no sender, no-op.
 > }
 > ```
 >
-> `allFailed` is true only when something was attempted and none of it landed —
-> an empty send is not an outage, and a batch of 410s is ordinary lifecycle, not a
-> failure. It exists so the thing you alarm on is one boolean rather than a
-> reduction every consumer writes for themselves.
+> `allFailed` is `failed.length > 0 && sent === 0` — something was attempted and
+> none of it landed. An empty send is not an outage, and pure churn stays quiet
+> because a batch of 410s carries no failures at all.
+>
+> **It deliberately does NOT require `dead` to be empty.** The first version did,
+> and xrt81 measured what that costs on a real fleet: 13 subscriptions, 2 handsets
+> replaced (410) and 11 failing on auth gave `allFailed: false` — a total outage,
+> silent again, on exactly the day someone gets a new phone *and* the key is
+> wrong. A batch is a whole user base at once and churn never stops, so that is a
+> coincidence waiting rather than a rare one. The question is *did anything get
+> through*, not *was the batch pristine*.
+
+> ### ⚠️ A message with no `title` is refused (v0.5.0)
+>
+> Send a message whose `title` is missing or blank and you get
+> `kind: 'payload'` for every subscription, with no network call — instead of a
+> notification that **arrives, renders blank, and errors nowhere**.
+>
+> ```js
+> // Reported by torrent-search-api against their own sender:
+> buildPayload({ titel: 'Ny film', tekst: '…', url: '/x' })
+> // -> {"web_push":8030,"notification":{}}     structurally valid, no content
+> ```
+>
+> Encrypted, POSTed, accepted with a 201, delivered, rendered as nothing — and
+> counted in `sent`. TypeScript rejects `{ titel }`, but only for consumers who
+> compile, and plenty of the fleet is plain JS with no build step.
+>
+> An empty `body` is still legal (a title-only notification is a real thing), and
+> `sendSilent()` is untouched — it carries no title by design. `buildPayload`
+> remains a pure builder; the gate lives where delivery is attempted.
+>
+> **And the lesson from how it was found is worth more than the rule.** Their test
+> suite survived four mutations of this bug, because it only ever asserted on the
+> answer from `send()` — never on the body that went over the wire. *A test that
+> only reads the return value cannot see an empty message.* This package's suite
+> had the same blind spot and now asserts the wire payload directly.
 >
 > | `kind` | statuses | what to do |
 > | --- | --- | --- |

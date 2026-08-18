@@ -136,6 +136,17 @@ export function createPushSender(vapid: VapidConfig) {
    * subscription failure is isolated; 404/410 ("gone") endpoints come back in
    * `dead` for the caller to prune. Safe to `void` from inside a request handler.
    */
+  /** Refuse every subscription without attempting delivery — for faults we can
+   *  see before the request, where all of them would fail identically. */
+  function refuseAll(
+    subs: PushSubscriptionJSON[],
+    kind: SendFailureKind,
+    reason: string,
+  ): SendResult {
+    const failed = subs.map((s) => ({ endpoint: s.endpoint, statusCode: null, kind, reason }));
+    return { sent: 0, dead: [], failed, allFailed: failed.length > 0 };
+  }
+
   async function fanOut(subs: PushSubscriptionJSON[], payload: string): Promise<SendResult> {
     const dead: string[] = [];
     const failed: SendFailure[] = [];
@@ -148,13 +159,7 @@ export function createPushSender(vapid: VapidConfig) {
     // fix. Measured before this line existed: missing keys came back
     // kind:'transient', reason:'No subject set in vapidDetails.subject.'
     if (status !== 'ready') {
-      const failures = subs.map((s) => ({
-        endpoint: s.endpoint,
-        statusCode: null,
-        kind: 'auth' as const,
-        reason: statusReason ?? 'push sender is not configured',
-      }));
-      return { sent: 0, dead: [], failed: failures, allFailed: failures.length > 0 };
+      return refuseAll(subs, 'auth', statusReason ?? 'push sender is not configured');
     }
     await Promise.all(
       subs.map(async (s) => {
@@ -184,12 +189,47 @@ export function createPushSender(vapid: VapidConfig) {
     );
     // Something was attempted, nothing got through, and nothing was merely
     // gone. An empty send is not an outage, and a batch of 410s is churn.
-    return { sent, dead, failed, allFailed: failed.length > 0 && sent === 0 && dead.length === 0 };
+    // NO `&& dead.length === 0` HERE. That clause was the first version and it
+    // was wrong: one replaced phone in the batch switched the alarm off. xrt81
+    // measured it on their own fleet — 13 subscriptions, 2 handsets replaced
+    // (410) and 11 failing on auth gave allFailed:false, so a total outage went
+    // silent again on exactly the day someone gets a new phone AND the key is
+    // wrong. A batch is a whole club at once and churn happens constantly, so
+    // that is a coincidence waiting rather than a rare one.
+    //
+    // The question is "did ANYTHING get through", not "was the batch pristine".
+    // Pure churn still stays quiet, because it carries no failures at all.
+    return { sent, dead, failed, allFailed: failed.length > 0 && sent === 0 };
   }
 
   /** Send a visible notification (declarative + classic) to every subscription. */
-  const send = (subs: PushSubscriptionJSON[], message: PushMessage) =>
-    fanOut(subs, buildPayload(message));
+  const send = (subs: PushSubscriptionJSON[], message: PushMessage): Promise<SendResult> => {
+    // A notification with no text is built, encrypted, accepted with a 201,
+    // delivered — and rendered as NOTHING, while `sent` counts it and every
+    // layer reports success (F067.6). Reported by torrent-search-api, whose
+    // sender used Danish field names: buildPayload({titel, tekst, url}) emits
+    // {"web_push":8030,"notification":{}}.
+    //
+    // TypeScript already rejects that — but only for consumers who compile, and
+    // plenty of the fleet is plain JS with no build step. A package that
+    // defends itself with types alone defends half its consumers.
+    //
+    // NOTE THE BOUNDARY, so nobody mistakes it for complete: with ZERO
+    // subscriptions there is no row to attach a failure to, so the mistake is
+    // invisible on that call. Nothing was lost either — there was nobody to
+    // deliver to — and it surfaces on the first real subscriber.
+    if (typeof message?.title !== 'string' || message.title.trim() === '') {
+      return Promise.resolve(
+        refuseAll(
+          subs,
+          'payload',
+          'message has no `title` — a notification with no text is delivered and renders blank. ' +
+            'Expected fields: title, body, navigate, badge, icon, tag',
+        ),
+      );
+    }
+    return fanOut(subs, buildPayload(message));
+  };
 
   /**
    * Send a SILENT, banner-less badge update — for cross-device read-sync (a

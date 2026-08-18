@@ -48,7 +48,7 @@ vi.mock('web-push', async () => {
 });
 
 import webpushPkg from 'web-push';
-import { createPushSender, generateVapidKeys } from '../src/index.js';
+import { buildPayload, createPushSender, generateVapidKeys } from '../src/index.js';
 
 const { WebPushError } = webpushPkg as unknown as {
   WebPushError: new (m: string, s: number, h: unknown, b: string, e: string) => Error;
@@ -278,5 +278,107 @@ describe('allFailed — the alarm, and the deletion foot-gun it guards', () => {
   it('a fully successful send is not an outage', async () => {
     const s = createPushSender({ ...good, subject: 'mailto:cb@webhouse.dk' });
     expect((await s.send([sub('a')], MSG)).allFailed).toBe(false);
+  });
+});
+
+describe('a message with no text must not be delivered as an empty notification', () => {
+  // Reported by torrent-search-api against their OWN code after adopting 0.4.1:
+  // they had written the sender in Danish, buildPayload({ titel, tekst, url }).
+  // Measured on 0.4.1's dist:
+  //
+  //   {"web_push":8030,"notification":{}}
+  //
+  // Structurally valid, no content. Encrypted, POSTed, accepted with a 201,
+  // delivered, rendered as nothing — and counted in `sent`. Every layer reports
+  // success. TypeScript rejects { titel }, but only for consumers that compile,
+  // and they are plain JS with no build step.
+  const danish = { titel: 'Ny film', tekst: 'Dune er landet', url: '/film/42' } as unknown as typeof MSG;
+
+  it('is refused as a payload fault, naming the field that was missing', async () => {
+    const r = await sender.send([sub('a')], danish);
+    expect(r.sent).toBe(0);
+    expect(r.failed).toHaveLength(1);
+    expect(r.failed[0]!.kind).toBe('payload');
+    // Naming the field is what turns a rejection into a one-line fix.
+    expect(r.failed[0]!.reason).toContain('title');
+  });
+
+  it('costs no network call — it is knowable before the request', async () => {
+    const before = sendNotification.mock.calls.length;
+    await sender.send([sub('a'), sub('b')], danish);
+    expect(sendNotification.mock.calls.length).toBe(before);
+  });
+
+  it('THE WIRE BODY carries the text in BOTH forms — the blind spot that let this ship', async () => {
+    // torrent-search-api's own lesson, applied to our suite: their tests looked
+    // only at the answer from send() and never at the body that went over the
+    // wire, so the mutation "swap to Danish field names" came back GREEN and
+    // survived four rounds. A test that only reads the return value cannot see
+    // an empty message.
+    sendNotification.mockClear();
+    await sender.send([sub('a')], { title: 'Ny film', body: 'Dune er landet' });
+    const calls = sendNotification.mock.calls as unknown as unknown[][];
+    const wire = JSON.parse(String(calls[0]![1]));
+    // Declarative (Safari 18.4+ renders this with no service worker at all)…
+    expect(wire.notification.title).toBe('Ny film');
+    expect(wire.notification.body).toBe('Dune er landet');
+    // …and the classic flat fields a hand-written SW handler reads.
+    expect(wire.title).toBe('Ny film');
+    expect(wire.body).toBe('Dune er landet');
+  });
+
+  it('NEGATIVE CONTROL: a title with an empty body is legal and still sends', async () => {
+    // A title-only notification is a real thing. Rejecting it would be a
+    // different bug wearing this fix's clothes.
+    const r = await sender.send([sub('a')], { title: 'Ny film', body: '' });
+    expect(r.sent).toBe(1);
+    expect(r.failed).toEqual([]);
+  });
+
+  it('NEGATIVE CONTROL: sendSilent is untouched — it carries no title by design', async () => {
+    // Gating the silent path on a title would break the badge update entirely,
+    // which is the whole point of it.
+    const r = await sender.sendSilent([sub('a')], { badge: 3 });
+    expect(r.sent).toBe(1);
+    expect(r.failed).toEqual([]);
+  });
+
+  it('buildPayload stays a pure builder', async () => {
+    // The gate belongs where delivery is attempted, not in the builder — a
+    // consumer composing payloads deliberately must not be blocked.
+    expect(JSON.parse(buildPayload(danish))).toEqual({ web_push: 8030, notification: {} });
+  });
+});
+
+describe('allFailed survives ordinary churn in the same batch (xrt81, measured on their fleet)', () => {
+  it('a total outage still alarms when some handsets were replaced', async () => {
+    // THE SCENARIO THEY MEASURED: 13 subscriptions, 2 phones replaced (410) and
+    // 11 failing on auth. The first version of allFailed carried
+    // `&& dead.length === 0`, so one dead endpoint switched the alarm off and
+    // the outage went silent again — on exactly the day someone gets a new
+    // phone AND the key is wrong. A batch is a whole club at once, and churn
+    // happens constantly, so that is a coincidence waiting rather than a rare one.
+    queue(410, 410, 401, 401, 401);
+    const r = await sender.send([sub('a'), sub('b'), sub('c'), sub('d'), sub('e')], MSG);
+    expect(r.sent).toBe(0);
+    expect(r.dead).toHaveLength(2);
+    expect(r.failed).toHaveLength(3);
+    expect(r.allFailed).toBe(true);
+  });
+
+  it('…and pure churn is still silent', async () => {
+    // The control that made the wrong clause look right. It holds without it:
+    // a batch of nothing but gone endpoints carries no failures at all.
+    queue(410, 410);
+    const r = await sender.send([sub('a'), sub('b')], MSG);
+    expect(r.failed).toEqual([]);
+    expect(r.allFailed).toBe(false);
+  });
+
+  it('…and one delivery is still enough to stay silent', async () => {
+    queue(null, 410, 401);
+    const r = await sender.send([sub('a'), sub('b'), sub('c')], MSG);
+    expect(r.sent).toBe(1);
+    expect(r.allFailed).toBe(false);
   });
 });
