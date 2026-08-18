@@ -75,6 +75,55 @@ self.addEventListener('push', handlePush); // visible + silent both handled
 Ship-dark: hold `createPushSender` behind a "VAPID env present?" check — no keys,
 no sender, no-op.
 
+> ### ⚠️ `sent: 0` used to mean two different things (fixed in v0.4.0)
+>
+> Until 0.4.0, `send()` returned `{ sent, dead }` and quietly discarded every
+> failure that was not a `404`/`410`. Measured on 0.3.1:
+>
+> ```
+> 0 subscribers        -> {"sent":0,"dead":[]}
+> 1 failing subscriber -> {"sent":0,"dead":[]}
+> ```
+>
+> **Byte-identical**, for "nothing to do" and "every single send failed." The
+> statuses that vanished were the ones you most need: `401`/`403` means the VAPID
+> credentials are wrong, so *every* push fails and every future one will too —
+> reported exactly as a quiet day is reported. And a new PWA legitimately starts
+> at zero subscribers, so the reading looks normal during precisely the window
+> when the wiring is most likely to be wrong.
+>
+> `SendResult` now carries `failed`:
+>
+> ```ts
+> const { sent, dead, failed } = await sender.send(subs, msg);
+>
+> for (const e of dead) await db.deleteSubscription(e);   // ordinary churn
+>
+> if (failed.some((f) => f.kind === 'auth')) {
+>   // Your VAPID config is wrong. Retrying will not help — alarm on this.
+> }
+> ```
+>
+> | `kind` | statuses | what to do |
+> | --- | --- | --- |
+> | `auth` | 401, 403 | Stop. Fix the VAPID credentials — every send is failing. |
+> | `payload` | 400, 413 | Stop. Fix the message; it is a code bug. |
+> | `transient` | 429, 5xx, DNS/TLS/offline, anything unrecognised | Retry later. |
+>
+> Each entry carries `endpoint`, `statusCode` (absent for a transport failure,
+> which is the commonest kind) and `reason` for logs. **Branch on `kind`, never on
+> `reason`.** Unrecognised codes fall to `transient` deliberately: an unknown
+> permanent fault then costs some wasted retries, where the opposite default would
+> silently stop retrying something that would have worked.
+>
+> `sent` and `dead` are unchanged, so a caller that ignores `failed` is exactly as
+> correct as it was — and exactly as blind. **`send()` still never throws**; that
+> contract is load-bearing and sealed by a test. A failure is made *visible*, not
+> *fatal*.
+>
+> Raised by torrent-search-api, who asked whether this package had a trap of the
+> `MAIL_LIVE` family instead of waiting to be bitten by one.
+
 ## Client
 
 ```ts

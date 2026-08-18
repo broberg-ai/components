@@ -13,6 +13,8 @@ import type {
   PushMessage,
   SilentPushMessage,
   SendResult,
+  SendFailure,
+  SendFailureKind,
 } from './types';
 
 export type { VapidConfig, PushSubscriptionJSON, PushMessage, SilentPushMessage, SendResult } from './types';
@@ -58,6 +60,23 @@ export function buildSilentPayload(m: SilentPushMessage): string {
 }
 
 /**
+ * Which of the three actionable shapes a failure has.
+ *
+ * UNRECOGNISED CODES FALL TO `transient` DELIBERATELY, and the trade is worth
+ * stating: an unknown permanent fault will be retried for a while, which costs
+ * some wasted calls. The opposite default would silently stop retrying
+ * something that would have worked. `statusCode` is always carried, so a caller
+ * who needs more than the three buckets can still read the number.
+ */
+function classifyFailure(code: number | undefined): SendFailureKind {
+  if (code === 401 || code === 403) return 'auth';
+  if (code === 400 || code === 413) return 'payload';
+  // 429 and 5xx are explicitly retryable; so is a transport failure, which has
+  // no status at all and is the commonest kind (DNS, TLS, offline).
+  return 'transient';
+}
+
+/**
  * Create a sender bound to your VAPID config. Returns `.send()` / `.sendSilent()`
  * plus the public key (hand it to the browser for subscribe()).
  */
@@ -75,6 +94,7 @@ export function createPushSender(vapid: VapidConfig) {
    */
   async function fanOut(subs: PushSubscriptionJSON[], payload: string): Promise<SendResult> {
     const dead: string[] = [];
+    const failed: SendFailure[] = [];
     let sent = 0;
     await Promise.all(
       subs.map(async (s) => {
@@ -85,12 +105,24 @@ export function createPushSender(vapid: VapidConfig) {
           sent += 1;
         } catch (err) {
           const code = (err as { statusCode?: number }).statusCode;
-          if (code === 404 || code === 410) dead.push(s.endpoint);
-          // any other error is swallowed — push must never break the caller
+          if (code === 404 || code === 410) {
+            dead.push(s.endpoint);
+            return;
+          }
+          // Everything else USED to be swallowed here (F067.5). It never threw —
+          // that part was right and stays — but it also left no trace, so a
+          // total delivery failure and an empty subscriber list returned the
+          // same object. Isolating a failure is not the same as hiding it.
+          failed.push({
+            endpoint: s.endpoint,
+            ...(code === undefined ? {} : { statusCode: code }),
+            kind: classifyFailure(code),
+            reason: err instanceof Error ? err.message : String(err),
+          });
         }
       }),
     );
-    return { sent, dead };
+    return { sent, dead, failed };
   }
 
   /** Send a visible notification (declarative + classic) to every subscription. */

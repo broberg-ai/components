@@ -43,9 +43,46 @@ export type SilentPushMessage = {
   tag?: string;
 };
 
+/** Why a send failed, in the only three shapes that call for different action.
+ *
+ *  Split rather than collapsed into a boolean because the responses are
+ *  opposites: `auth` means stop retrying and fix the deploy, `payload` means
+ *  stop retrying and fix the code, `transient` means try again later. A caller
+ *  that cannot tell them apart either retries forever or alarms on a blip. */
+export type SendFailureKind =
+  /** 401/403 — the VAPID credentials are wrong. NOT partial and NOT transient:
+   *  every push fails, and every future one will too, until the config changes. */
+  | 'auth'
+  /** 400/413 — the request or payload is malformed/too large. A code fix. */
+  | 'payload'
+  /** 429, 5xx, network, TLS, timeouts, and anything unrecognised. Retryable. */
+  | 'transient';
+
+/** One subscription's failure. Carries enough to act on rather than only a count. */
+export type SendFailure = {
+  endpoint: string;
+  /** The HTTP status the push service gave, when there was one. Absent for a
+   *  transport-level failure (DNS/TLS/offline), which is the commonest kind. */
+  statusCode?: number;
+  kind: SendFailureKind;
+  /** The underlying error message, for logs. Never branch on this string —
+   *  branch on `kind`. */
+  reason: string;
+};
+
 export type SendResult = {
   /** How many subscriptions accepted the push. */
   sent: number;
-  /** Endpoints that returned 404/410 (gone) — the caller should prune these. */
+  /** Endpoints that returned 404/410 (gone) — the caller should prune these.
+   *  Ordinary churn, not a fault: a gone endpoint is a row to delete. */
   dead: string[];
+  /** Sends that neither succeeded nor were gone (F067.5).
+   *
+   *  Before 0.4.0 these were swallowed entirely, so `{sent:0, dead:[]}` meant
+   *  BOTH "nobody is subscribed" and "every single send failed" — measured
+   *  byte-identical on 0.3.1. That mattered most where it hurt most: wrong VAPID
+   *  keys report exactly what a quiet day reports, and a new PWA legitimately
+   *  starts at zero subscribers, so the reading looks normal during precisely
+   *  the window when the wiring is most likely to be wrong. */
+  failed: SendFailure[];
 };

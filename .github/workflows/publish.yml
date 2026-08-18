@@ -796,6 +796,13 @@ jobs:
         working-directory: packages/webpush
         run: pnpm test
 
+      # A green suite proves the tests RUN, not that they DISCRIMINATE. This
+      # breaks each decision in turn and fails if any goes unnoticed, or if two
+      # break the same set (F067.5).
+      - name: Guard — mutations are caught, and caught distinctly
+        working-directory: packages/webpush
+        run: node test/mutations.mjs
+
       - name: Guard — tag matches package.json version
         if: startsWith(github.ref, 'refs/tags/webpush-v')
         working-directory: packages/webpush
