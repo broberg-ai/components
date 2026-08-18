@@ -153,6 +153,37 @@ export function resolveSelector(selector: string): string {
   return looksLikeCss ? selector : `[data-testid="${selector}"]`;
 }
 
+/** HTML element names that carry no CSS punctuation, and are therefore read by
+ *  `resolveSelector` above as data-testid VALUES.
+ *
+ *  This list EXPLAINS a miss; it never DECIDES a resolution (F071.2). Making the
+ *  heuristic tag-aware would trade one silent miss for another — `main` is as
+ *  plausible a data-testid as it is a tag — and would break every consumer whose
+ *  testid happens to be an element name. So the ambiguity stays; only the
+ *  silence goes. */
+const BARE_TAG_NAMES = new Set([
+  'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio',
+  'b', 'base', 'bdi', 'bdo', 'blockquote', 'body', 'br', 'button',
+  'canvas', 'caption', 'cite', 'code', 'col', 'colgroup',
+  'data', 'datalist', 'dd', 'del', 'details', 'dfn', 'dialog', 'div', 'dl', 'dt',
+  'em', 'embed', 'fieldset', 'figcaption', 'figure', 'footer', 'form',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'hr', 'html',
+  'i', 'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'legend', 'li', 'link',
+  'main', 'map', 'mark', 'menu', 'meta', 'meter', 'nav', 'noscript',
+  'object', 'ol', 'optgroup', 'option', 'output',
+  'p', 'param', 'picture', 'pre', 'progress',
+  'q', 'rp', 'rt', 'ruby', 's', 'samp', 'script', 'search', 'section', 'select',
+  'slot', 'small', 'source', 'span', 'strong', 'style', 'sub', 'summary', 'sup', 'svg',
+  'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time',
+  'title', 'tr', 'track', 'u', 'ul', 'var', 'video', 'wbr',
+]);
+
+/** True when a target string is an HTML element name — i.e. when the testid
+ *  reading `resolveSelector` took is very likely not the one intended. */
+export function isBareTagName(selector: string): boolean {
+  return BARE_TAG_NAMES.has(selector.trim().toLowerCase());
+}
+
 /** A pre-resolved storageState, OR an async resolver the engine awaits (the
  *  consumer's mint-fetch lives behind this — the engine stays auth-agnostic). */
 export type StorageStateInput = StorageState | (() => StorageState | Promise<StorageState>);

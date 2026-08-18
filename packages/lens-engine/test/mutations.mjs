@@ -17,6 +17,7 @@ import { join } from 'node:path';
 const HERE = new URL('../', import.meta.url).pathname;
 const SCHEMA = join(HERE, 'src/schema.ts');
 const FLOW = join(HERE, 'src/flow.ts');
+const CAPTURE = join(HERE, 'src/capture.ts');
 
 const MUTATIONS = [
   {
@@ -48,6 +49,30 @@ const MUTATIONS = [
     file: SCHEMA,
     from: "const timeoutMsSchema = z.number().int().min(1).max(60_000);",
     to: "const timeoutMsSchema = z.number().int().min(0).max(60_000);",
+  },
+  // F071.2 — the two halves of the bare-tag fix, and they must redden DIFFERENT
+  // sets. Removing the hint restores the silence the story exists to end;
+  // teaching the heuristic about tag names would end the silence too, by
+  // breaking every consumer whose data-testid IS an element name.
+  {
+    name: 'the bare-tag hint is removed (back to the silence)',
+    file: FLOW,
+    from: "  if (!isBareTagName(original)) return null;",
+    to: "  if (!isBareTagName(original)) return null;\n  return null;",
+  },
+  {
+    name: 'the heuristic is taught tag names (silent miss traded for a breaking change)',
+    file: CAPTURE,
+    from: "  const looksLikeCss = /[.#\\[\\]:>~+*()=\"' ]/.test(selector);\n  return looksLikeCss ? selector : `[data-testid=\"${selector}\"]`;",
+    to: "  const looksLikeCss = /[.#\\[\\]:>~+*()=\"' ]/.test(selector);\n  return looksLikeCss || isBareTagName(selector) ? selector : `[data-testid=\"${selector}\"]`;",
+  },
+  // The hint must stay conditional on a REAL zero-match. Attaching it to every
+  // failure of a tag-named target makes it noise, and noise stops being read.
+  {
+    name: 'the hint fires without checking the match count',
+    file: FLOW,
+    from: "  if (count !== 0) return err;",
+    to: "  if (count === -2) return err;",
   },
 ];
 

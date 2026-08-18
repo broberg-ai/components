@@ -77,6 +77,34 @@ dark**: `visionEnabled()` is `false` unless both `LENS_VISION_ENABLED` and a
 provider key (`MISTRAL_API_KEY` / `OPENROUTER_API_KEY`) are set. A vision-only
 DOM-miss fails cleanly — it never guesses.
 
+### The bare-string form is ambiguous, on purpose
+
+A `target` string with no CSS punctuation is read as a **`data-testid` value**,
+not as a selector — so `"save-button"` becomes `[data-testid="save-button"]`.
+That convenience has one consequence worth knowing before it costs you an hour:
+
+```
+"save-button"  →  [data-testid="save-button"]     ← what you wanted
+"#save"        →  #save                            ← untouched, it has punctuation
+"body"         →  [data-testid="body"]             ← NOT the <body> element
+```
+
+A bare **element name** (`body`, `main`, `form`, `h1`, `section`, `table`, …)
+carries no punctuation either, so it takes the test-id reading too. This is not a
+bug that was fixed — it is a property of the shorthand, and it cannot be resolved
+by a smarter rule: `main` is as plausible a test id as it is a tag name, so any
+rule that got one right would get the other wrong.
+
+**Use the explicit forms when it matters** — `{ css: "body" }` for the element,
+`{ testid: "body" }` for the test id. Both are unambiguous and neither is
+rewritten.
+
+Since **0.7.1**, when a rewritten element name resolves to nothing the failure
+says so, names the selector it used, and names the alternative — instead of a
+bare `Timeout 30000ms exceeded` about a locator you never wrote. The hint is
+attached **only** when the target really matched zero elements, so a genuine
+test-id miss and a slow-but-present element never collect it.
+
 ## Flow step grammar (frozen, Zod-validated)
 
 `goto · click · fill · type · press · select · upload · waitFor · assert ·

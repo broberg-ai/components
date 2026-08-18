@@ -18,6 +18,8 @@ export {
   browserMissingMessage,
   resolveViewport,
   resolveSelector,
+  // F071.2 — explains a zero-match; never decides a resolution.
+  isBareTagName,
   resolveStorageState,
   settle,
   takeShot,
@@ -30,6 +32,8 @@ export {
   runFlow,
   plannedLayers,
   resolveTarget,
+  // F071.2 — the one failure whose cause is invisible in its own message.
+  selectorMissHint,
   isEditableElement,
   // F064 — exported for the SAME reason as isEditableElement: the local daemon
   // and the cloud runner must share ONE definition of what an assert means.

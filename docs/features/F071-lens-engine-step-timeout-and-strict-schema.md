@@ -156,6 +156,56 @@ test-id selector and the locator finds nothing, the failure has to say which
 reading was taken and name the other one — turning a zero-match into a one-line
 fix instead of a hunt.
 
+**Shipped in 0.7.1.** `selectorMissHint(original)` returns the sentence, or
+`null` when it would be noise, and `execStep` attaches it to a step failure only
+when the locator really did resolve to zero elements:
+
+```
+locator.click: Timeout 30000ms exceeded.
+waiting for locator('[data-testid="body"]')
+
+"body" has no CSS punctuation, so it was read as a data-testid VALUE and resolved
+to [data-testid="body"] — which matched nothing. "body" is also an HTML element
+name: if you meant the element, pass { css: "body" }; if you meant the test id,
+that element does not exist yet.
+```
+
+The element-name list explains a miss; it never decides a resolution. That
+distinction is the whole story — a mutation that moves the list into
+`resolveSelector` is in the pass precisely because it *looks* like the same fix
+and is a breaking change for anyone whose test id is an element name.
+
+### The acceptance criterion that could not be met as written
+
+AC#6 asked for two mutations with **non-overlapping** red sets — hint-removal
+reddening only the hint tests, heuristic-change reddening only the pins.
+Measured, the second set strictly contains the first:
+
+```
+hint removed        →  9 red
+heuristic changed   → 11 red   (the same 9, plus 2)
+shared              →  9
+only-heuristic      →  the two resolveSelector pins for "body" and "main"
+only-hint           →  (empty)
+```
+
+**That is not a gap in the tests; it is a property of the code.** The hint is
+downstream of the heuristic — teach `resolveSelector` about tag names and nothing
+is rewritten, so there is nothing left to hint about and the hint tests fail too.
+No test of the hint can be independent of the rule it explains.
+
+What the criterion was reaching for *is* satisfied: the suite tells the two
+decisions apart, because the two pins redden for one mutation and not the other.
+The wrong unit here is the same error as F073's *"the verdicts must sum to 419"*
+— a plausible-sounding number written before the thing was measured. Recorded
+rather than quietly re-scoped.
+
+A third mutation carries the property the other two cannot: dropping the
+zero-match check (`if (count !== 0) return err`) reddens exactly one test — the
+tag-named target that **exists** and failed for another reason. That is the
+control that keeps the hint from becoming noise attached to every failure, and it
+is genuinely orthogonal to both others.
+
 Also worth recording, because it settles a worry rather than raising one: every
 Playwright selector-engine form in the corpus — `:has-text()`, `:visible`,
 `>> nth=3`, `text=`, `:nth-match()` — passes through untouched. Nothing to

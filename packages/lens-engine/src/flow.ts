@@ -18,6 +18,7 @@ import {
   armIdleTimer,
   getBrowser,
   resolveSelector,
+  isBareTagName,
   resolveStorageState,
   resolveViewport,
   settle,
@@ -238,6 +239,54 @@ export function resolveStepTimeout(
  *  call actually received. That is the boundary where F074.51 lost the value, so
  *  it is the boundary worth asserting on. */
 export async function execStep(
+  page: Page,
+  step: FlowStep,
+  baseUrl: string,
+  timeoutMs: number,
+): Promise<{ detail?: string; png?: Buffer; resolved_via?: string }> {
+  try {
+    return await runStep(page, step, baseUrl, timeoutMs);
+  } catch (err) {
+    throw await withSelectorMissHint(page, step, err);
+  }
+}
+
+/** The message a zero-match on a rewritten bare tag name deserves, or null when
+ *  the hint would be noise.
+ *
+ *  Two conditions, and BOTH matter (F071.2). The string must actually have been
+ *  rewritten — `#save` was taken at face value and needs no explanation — and it
+ *  must be an element name, because a genuine testid miss that collected this
+ *  hint would attach it to every failed lookup in the fleet, and a hint that
+ *  fires always is a hint nobody reads. */
+export function selectorMissHint(original: string): string | null {
+  const resolved = resolveSelector(original);
+  if (resolved === original) return null;
+  if (!isBareTagName(original)) return null;
+  return (
+    `"${original}" has no CSS punctuation, so it was read as a data-testid VALUE and resolved to ` +
+    `${resolved} — which matched nothing. "${original}" is also an HTML element name: if you meant ` +
+    `the element, pass { css: "${original}" }; if you meant the test id, that element does not exist yet.`
+  );
+}
+
+/** Attach the hint to a step failure, and only when the locator really did match
+ *  nothing — a click that failed because the element was covered, disabled or
+ *  slow must not collect an explanation about test ids. */
+async function withSelectorMissHint(page: Page, step: FlowStep, err: unknown): Promise<unknown> {
+  const target = (step as { target?: unknown }).target;
+  if (typeof target !== 'string') return err;
+  const hint = selectorMissHint(target);
+  if (!hint) return err;
+  const count = await Promise.resolve()
+    .then(() => page.locator(resolveSelector(target)).count())
+    .catch(() => -1);
+  if (count !== 0) return err;
+  const message = err instanceof Error ? err.message : String(err);
+  return new Error(`${message}\n\n${hint}`);
+}
+
+async function runStep(
   page: Page,
   step: FlowStep,
   baseUrl: string,
