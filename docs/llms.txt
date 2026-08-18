@@ -28,7 +28,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (50)
+## Packages by category (51)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.3.1 — The design-token foundation every surface inherits. `npm i @broberg/theme`
@@ -62,6 +62,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 ### L3 — Domain (feature surfaces)
 - **@broberg/mail-core** v0.1.0 — Branded HTML email shell + primitives (renderShell, heading/paragraph/cta/factBox/signOff, CID logo attachment). `npm i @broberg/mail-core`
 - **@broberg/speech-dictionary** v0.1.2 — Fleet STT vocabulary + correction primitive. `npm i @broberg/speech-dictionary`
+- **@broberg/notifications** v0.1.0 — The fleet's in-app notification list core: ONE counting rule shared by every app, so the list, the bell and the OS badge can never disagree. `npm i @broberg/notifications`
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
 - **@broberg/lens-engine** v0.7.0 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
