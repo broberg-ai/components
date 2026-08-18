@@ -18,7 +18,21 @@ import type {
   SenderStatus,
 } from './types';
 
-export type { VapidConfig, PushSubscriptionJSON, PushMessage, SilentPushMessage, SendResult } from './types';
+export type {
+  VapidConfig,
+  PushSubscriptionJSON,
+  PushMessage,
+  SilentPushMessage,
+  SendResult,
+  // 0.4.1 — these were reachable structurally but could not be NAMED, so a
+  // consumer could not write `function onFailure(f: SendFailure)` or type a
+  // boot gate on SenderStatus. Found by checking the built .d.ts rather than
+  // the source: the source exported the values, the declaration file did not
+  // carry the names.
+  SendFailure,
+  SendFailureKind,
+  SenderStatus,
+} from './types';
 
 /** Generate a VAPID keypair once; store the private key as a secret. */
 export function generateVapidKeys(): { publicKey: string; privateKey: string } {

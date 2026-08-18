@@ -185,6 +185,27 @@ await fetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify(sub) }
 syncBadge(await fetchUnseenCount());
 ```
 
+> ### ⚠️ Writing your own `push` listener? Read THESE field names.
+>
+> `buildPayload()` puts the same notification on the wire twice, so either path
+> renders it:
+>
+> ```jsonc
+> {
+>   "web_push": 8030,                                    // declarative — Safari 18.4+
+>   "notification": { "title": …, "body": …, "navigate": …, "app_badge": … },
+>   "title": …, "body": …, "navigate": …,                // classic SW handler
+>   "badge": …, "icon": …, "tag": …
+> }
+> ```
+>
+> **A hand-written listener that reads its own field names gets an empty
+> notification and no error.** It arrives, it renders, the text is blank, and
+> every layer reports success. Sender and receiver must agree on the format — use
+> `@broberg/webpush/sw` and the question does not arise.
+>
+> *(Raised by torrent-search-api, whose first listener did exactly this.)*
+
 ## Service worker
 
 If your `sw.js` goes through a bundler:
