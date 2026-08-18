@@ -334,8 +334,17 @@ is trying to avoid, moved one layer out, and just as silent.
    > for coverage.
 
    xrt81 have filed **F079** for their adoption, carrying *parity after a
-   preference change* as an explicit AC. That is the measurement that will
-   actually widen the shape, and it arrives with their migration, not before.
+   preference change* as an explicit AC. It arrives with their migration, not
+   before.
+
+   **And it will prove less than it looks — their point, and it is right.** A
+   migration measures the core's number against *their* number, and their number
+   is itself measured on one member with one mute. So a green parity result means
+   **"the core agrees with us"**, not **"the rule is correct"**. The second can
+   only be measured the day several members actually switch things off, and
+   neither repo can bring that day forward.
+
+   Written here so a green tick from F079 is not read as more than it is.
 
 ## Rollout
 
