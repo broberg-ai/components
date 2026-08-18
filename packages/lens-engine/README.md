@@ -136,6 +136,22 @@ Nobody decided that behaviour, which is exactly why nobody caught it. cardmem's
 formulation, adopted here: **a missing capability fails visibly; an ignored field
 lies.** The migration is mechanical — the error names the key.
 
+**Since v0.7.2 the error names the ESCAPE HATCH too, not only the key:**
+
+```
+Unrecognized key(s) in object: 'project'. This schema is strict — an unknown key
+is refused rather than silently deleted. If it is YOUR field, carry it with
+flowBodySchema.extend({ project: … }), which stays strict and still refuses
+everything else. If it was meant to be one of ours, check the spelling.
+```
+
+That exists because this section did not help the consumer it was written for.
+cardmem's cloud path was rejected by 0.7.0 and they found `.extend()` by reading
+the source, not this file — **a consumer running `pnpm update` does not read
+release notes**, and the person who needs this line is holding a stack trace. A
+rejected key on a *step* points at the body instead, since a discriminated union
+cannot be extended.
+
 **The evidence this is worth the break.** cardmem mined 1258 real request bodies
 from fleet session transcripts. One flow sent `baseUrl` instead of `base_url`;
 the key was deleted and the flow ran against the wrong origin. `base`, `project`,

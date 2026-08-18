@@ -153,8 +153,36 @@ const timeoutMsSchema = z.number().int().min(1).max(60_000);
  *  A 14th action added below gets both for free; adding one WITHOUT them means
  *  bypassing this function, and test/strict-schema.test.ts reads the union's own
  *  members and fails if any is not strict. */
+/** The message an unknown key deserves.
+ *
+ *  Zod's default names the key and stops there. The person reading it is holding
+ *  a stack trace, not the release note that documents `.extend()` — and that is
+ *  the whole gap (F071.3). cardmem's cloud path was rejected by 0.7.0's
+ *  body-level strict; the README had carried a prominent section naming `project`
+ *  by name since that release, and it did not help, because they arrived from a
+ *  failing run rather than from a changelog. Their sentence: a consumer running
+ *  `pnpm update` does not read release notes.
+ *
+ *  Same move as F071.2 one story earlier — do not change what the schema DOES,
+ *  change what the failure SAYS, and name the alternative. */
+const unknownKeyHint =
+  (where: 'body' | 'step'): z.ZodErrorMap =>
+  (issue, ctx) => {
+    if (issue.code !== z.ZodIssueCode.unrecognized_keys) return { message: ctx.defaultError };
+    const named = issue.keys.map((k) => `'${k}'`).join(', ');
+    const first = issue.keys[0] ?? 'yourKey';
+    return {
+      message:
+        where === 'body'
+          ? `Unrecognized key(s) in object: ${named}. This schema is strict — an unknown key is refused rather than silently deleted. If it is YOUR field, carry it with flowBodySchema.extend({ ${first}: … }), which stays strict and still refuses everything else. If it was meant to be one of ours, check the spelling.`
+          : `Unrecognized key(s) in object: ${named}. The step grammar is strict — an unknown key is refused rather than silently deleted. A consumer-owned field belongs on the flow BODY via flowBodySchema.extend(), not on a step (a step union cannot be extended). Otherwise check the spelling — timeout_ms is the per-step timeout.`,
+    };
+  };
+
 const step = <T extends z.ZodRawShape>(shape: T) =>
-  z.object({ ...shape, timeout_ms: timeoutMsSchema.optional() }).strict();
+  z
+    .object({ ...shape, timeout_ms: timeoutMsSchema.optional() }, { errorMap: unknownKeyHint('step') })
+    .strict();
 
 export const flowStepSchema = z.discriminatedUnion('action', [
   step({ action: z.literal('goto'), url: z.string().min(1), waitFor: gotoWaitSchema.optional() }),
@@ -202,7 +230,7 @@ export const flowBodySchema = z
      *  with neither set, the built-in 30s applies. */
     timeout_ms: timeoutMsSchema.optional(),
     steps: z.array(flowStepSchema).min(1).max(100),
-  })
+  }, { errorMap: unknownKeyHint('body') })
   // Strict here too — and the evidence for it is a real incident, not a
   // principle. cardmem mined 1258 real request bodies from fleet transcripts:
   // one flow sent `baseUrl` instead of `base_url`, the key was silently deleted,

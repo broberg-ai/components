@@ -23,8 +23,8 @@ const MUTATIONS = [
   {
     name: 'step .strict() → .strip() (Zod default)',
     file: SCHEMA,
-    from: "  z.object({ ...shape, timeout_ms: timeoutMsSchema.optional() }).strict();",
-    to: "  z.object({ ...shape, timeout_ms: timeoutMsSchema.optional() });",
+    from: "    .object({ ...shape, timeout_ms: timeoutMsSchema.optional() }, { errorMap: unknownKeyHint('step') })\n    .strict();",
+    to: "    .object({ ...shape, timeout_ms: timeoutMsSchema.optional() }, { errorMap: unknownKeyHint('step') });",
   },
   {
     name: 'body .strict() → .strip() (Zod default)',
@@ -65,6 +65,21 @@ const MUTATIONS = [
     file: CAPTURE,
     from: "  const looksLikeCss = /[.#\\[\\]:>~+*()=\"' ]/.test(selector);\n  return looksLikeCss ? selector : `[data-testid=\"${selector}\"]`;",
     to: "  const looksLikeCss = /[.#\\[\\]:>~+*()=\"' ]/.test(selector);\n  return looksLikeCss || isBareTagName(selector) ? selector : `[data-testid=\"${selector}\"]`;",
+  },
+  // F071.3 — the .extend() hint. Two halves: removing it restores the message
+  // that named the key and stopped there, and firing it on every issue turns a
+  // hint into noise that nobody reads.
+  {
+    name: 'the .extend() hint is removed (back to Zod\'s bare message)',
+    file: SCHEMA,
+    from: "    if (issue.code !== z.ZodIssueCode.unrecognized_keys) return { message: ctx.defaultError };",
+    to: "    if (issue.code !== z.ZodIssueCode.unrecognized_keys) return { message: ctx.defaultError };\n    return { message: ctx.defaultError };",
+  },
+  {
+    name: 'the hint fires on EVERY issue, not just an unknown key',
+    file: SCHEMA,
+    from: "    if (issue.code !== z.ZodIssueCode.unrecognized_keys) return { message: ctx.defaultError };\n    const named",
+    to: "    const named",
   },
   // The hint must stay conditional on a REAL zero-match. Attaching it to every
   // failure of a tag-named target makes it noise, and noise stops being read.
