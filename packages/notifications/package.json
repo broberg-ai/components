@@ -1,0 +1,57 @@
+{
+  "name": "@broberg/notifications",
+  "version": "0.1.0",
+  "description": "Headless in-app notification core for the broberg.ai fleet — one counting rule shared by every app, so the list and the OS badge can never disagree. The package never owns your count query, your database, or your list UI: you supply a store, it owns the choreography.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "require": "./dist/types.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "notifications",
+    "notification",
+    "inbox",
+    "unread",
+    "unseen",
+    "badge",
+    "app badge",
+    "pwa",
+    "headless",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/notifications"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
