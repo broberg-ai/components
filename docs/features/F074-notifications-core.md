@@ -343,10 +343,34 @@ is trying to avoid, moved one layer out, and just as silent.
    functions, `onCountChanged` fired after every mutation, `clearedIds`. Tests
    assert on what reaches the store and the callback, never on a return value
    alone — moovyy's four surviving mutations are the reason that is written down.
-2. Publish `v0.1.0`. **moovyy adopts first**, because they have nothing to migrate
-   and every defect they hit is a defect the other two never pay for.
+2. Publish `v0.1.0`. **moovyy adopts first**, because they have nothing to
+   migrate and every defect they hit is one the other two never pay for.
+
+   **But be precise about what that adoption proves, because it is less than it
+   looks.** xrt81's observation, and it is the sharpest thing said about the
+   rollout: *v0.1.0's only production experience will come from the consumer who
+   cannot reveal a parity error.* moovyy has no old counter to compare the new
+   one against, so their adoption can prove the core **works** and can never
+   prove it **agrees**. The first real test of the contract is a migration, not
+   an adoption.
+
 3. xrt81 and cardmem migrate behind proven parity — their existing counters keep
    running until the core's number matches theirs on live data. **No naked
    cutover:** replace, prove, then remove.
+
+   **Name who can do what, or the measurement waits on "somebody".** The one
+   measurement that widens the evidence past one-user-one-kind is *parity after a
+   preference change* — a user mutes or unmutes something and the number has to
+   follow. It can only be taken by a repo that HAS an old counter to measure the
+   new one against:
+
+   | | can prove parity? | why |
+   |---|---|---|
+   | **xrt81** | yes — filed as **F079**, with this as an explicit AC | old counter, live mutes |
+   | **cardmem** | yes | old counter, live mutes |
+   | **moovyy** | **no** | nothing to migrate from |
+
+   So if the shape is to be covered before `v0.2.0`, xrt81 or cardmem cover it.
+   Written down because an unassigned measurement is an unperformed one.
 4. Prune story, informed by xrt81's measured growth.
 5. Tell Discovery, so the fourth app never writes this again.
