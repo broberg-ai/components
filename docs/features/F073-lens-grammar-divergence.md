@@ -89,13 +89,57 @@ by more than it predicted:** the ask is two verbs, not fifteen.
 
 | verdict | verbs | runs |
 |---|---|---:|
-| **ALIAS** — the engine already expresses it | `clickSelector` `fillSelector` `clear` `check` `uncheck` `uploadFile` | 272 |
-| **GAP** — genuinely missing | `waitForUrl` `expectAbsent` | 232 |
+| **ALIAS** — the engine already expresses it | `clickSelector` `fillSelector` `clear` `uploadFile` | 256 |
+| **GAP** — genuinely missing | `waitForUrl` `expectAbsent` `check` `uncheck` | 248 |
 | **DAEMON-ONLY** — do not port | `inspect` `autocomplete` `capture` `drag` `loop` `conditional` `waitForBuild` | 13 |
+
+### `check` / `uncheck` moved ALIAS → GAP when they were finally RUN
+
+The table above stood as *settled, 15/15* for a day on reasoning alone. Two rows
+were wrong, and only executing them found it. cardmem ran every ALIAS verdict
+against a real browser, with two checkboxes in **opposite** starting states and a
+fresh page load per case:
+
+```
+verb            scenario                                  action  assert  verdict
+clickSelector   button, one press                         ok      ok      ALIAS
+fillSelector    text field ← "x"                          ok      ok      ALIAS
+clear           text field ← "" (was "preset")            ok      ok      ALIAS
+check           box was OFF  → expect ON                  ok      ok      ALIAS
+check           box ALREADY ON → expect still ON          ok      FAIL    GAP
+uncheck         box was ON   → expect OFF                 ok      ok      ALIAS
+uncheck         box ALREADY OFF → expect still OFF        ok      FAIL    GAP
+uploadFile      file input ← pixel.gif                    ok      ok      ALIAS
+```
+
+**The finding is in the `action` column, not the `assert` column: it says `ok` in
+both failing rows.** The click SUCCEEDED. Only the assertion caught that the
+resulting state was inverted — so without AC#2's demand that an ALIAS be proven by
+*the resulting state* rather than by the step returning ok, both rows would have
+read green and `check` would have shipped as an alias that silently inverts a
+checkbox.
+
+`click` toggles; it cannot assert a resulting state. That is the whole difference
+between a real verdict and a plausible one here.
+
+**Scope, and cardmem's reading is adopted:** these are gaps only in the
+*idempotent* case — a caller who KNOWS the current state can use `click`. But that
+is precisely the fragility. The caller rarely knows, and the price of being wrong
+is a **green run with the wrong state**. So the answer is to implement real
+`.check()` / `.uncheck()`, not to document a rule about when `click` suffices.
+
+**The instrument is proven to discriminate:** the same two elements assert GREEN in
+the other direction (rows 4 and 6, same `chk-on`/`chk-off`), so a red cell is not
+a cell that is always red.
+
+`clear` as `fill` with an empty string round-trips correctly, and the field held
+`"preset"` first — so it is not an empty-against-empty false green.
 
 *(Figures are runs-carrying-that-verb and total 517 across 419 affected runs — a
 single run may carry several. The original acceptance criterion asked them to sum
-to 419, which was the wrong unit and my error, not the audit's.)*
+to 419, which was the wrong unit and my error, not the audit's. The 16
+`check`/`uncheck` runs moved from ALIAS to GAP when they were executed, which is
+why the first two rows differ from the version published a day earlier.)*
 
 `targetSchema` is `string | LocateSpec`, and a bare string is taken as a CSS
 selector — so `{action:'click', target:'#save'}` **is** `clickSelector`. That one
@@ -165,8 +209,15 @@ executor. The first two variants were the wrong **file** and the wrong
    114 unchanged. **Still open:** the runnable equivalents — an ALIAS verdict
    executed in a real browser rather than derived from a type signature — which
    is blocked on `apps/lens-cloud` being bumped off 0.6.1.
-2. Implement the two genuine gaps in the engine: **`waitForUrl`** then
-   **`expectAbsent`**. (`check`/`uncheck` came back ALIAS, so they are out.)
+2. Implement the **four** genuine gaps in the engine: **`waitForUrl`**,
+   **`expectAbsent`**, **`check`** and **`uncheck`**. The last two were ALIAS on
+   reasoning and GAP on measurement — see above. `check`/`uncheck` must be real
+   `locator.check()` / `.uncheck()` (idempotent, asserting), not a `click`.
+
+   **`expectAbsent` must NOT inherit F071.4's patient resolve**, or proving a thing
+   is gone will always cost the full timeout. It needs the snapshot semantics
+   deliberately. cardmem carry the identical trap in their own `expectAbsent`
+   (their F213.9), so the rule holds for both runners.
 3. Alias map in `@broberg/lens-client`, **camelCase only** — the case hazard was
    re-measured and does not exist (see above), so the map does not need to
    normalise. Note that lens-client holds a THIRD hand-written copy of the step
