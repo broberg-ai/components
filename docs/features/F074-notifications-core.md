@@ -267,9 +267,29 @@ is trying to avoid, moved one layer out, and just as silent.
    `navigate ?p=<slug>`). Under "the store owns the query" both are expressible —
    but it is worth one shared sentence of guidance, because xrt81's reasoning
    generalises and cardmem's fallback may not survive their legacy rows.
-3. **One measurement to take up.** cardmem's answers were read in code, not run,
-   and they offered to prove a number on the wire. Worth taking for exactly one
-   thing: the muted-kind exclusion, since it is the load-bearing divergence.
+3. ~~**One measurement to take up** — the muted-kind exclusion, the load-bearing
+   divergence.~~ **Measured on cardmem's production, 2026-08-18:**
+
+   ```
+   reach control first: notifications=1751 rows, notification_prefs=2 rows
+     (without it, "0 differences" is indistinguishable from an empty table)
+
+   user 019e1de8   muted=[review]   raw_unseen=0    excl_muted=0    (same)
+   user 019f2548   muted=[review]   raw_unseen=50   excl_muted=1    <- DIFFERS
+   ```
+
+   **50 against 1.** A core built on `count = rows WHERE seen IS NULL` would have
+   shown that user **badge 50** where the product shows **1** — a bell permanently
+   red with a kind they explicitly turned off, which is the fastest way to teach
+   someone to ignore a badge. The seam below is now backed by a number rather than
+   by two sessions reading each other's code.
+
+   **Their own limit on it, kept because it bounds what was proved:** only 2 users
+   on all of production have a prefs row, and both mute exactly `review`. So the
+   exclusion is proven to *work*, on one muted kind for one user. Nothing is proven
+   about several simultaneous mutes or the other six kinds. **When xrt81's data is
+   measured, ask for the distribution, not a yes/no** — a single differing user is
+   enough to settle the design and not enough to describe the shape.
 
 ## Rollout
 
