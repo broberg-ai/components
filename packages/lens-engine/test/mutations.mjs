@@ -100,23 +100,25 @@ const MUTATIONS = [
   {
     name: 'pass 2 serialised per layer (a miss costs n x timeout)',
     file: FLOW,
-    from: `    return await Promise.any(
+    from: `    const winner = await Promise.any(
       attempts.map(async (a) => {
         const loc = a.make().nth(nth);
         await loc.waitFor({ state, timeout: timeoutMs });
         return { locator: loc, layer: a.layer };
       }),
     );`,
-    to: `    for (const a of attempts) {
-      const loc = a.make().nth(nth);
-      try {
-        await loc.waitFor({ state, timeout: timeoutMs });
-        return { locator: loc, layer: a.layer };
-      } catch {
-        /* next layer — and this is the regression: each one pays in full */
+    to: `    const winner = await (async () => {
+      for (const a of attempts) {
+        const loc = a.make().nth(nth);
+        try {
+          await loc.waitFor({ state, timeout: timeoutMs });
+          return { locator: loc, layer: a.layer };
+        } catch {
+          /* next layer — and this is the regression: each one pays in full */
+        }
       }
-    }
-    throw new Error('all layers missed');`,
+      throw new Error('all layers missed');
+    })();`,
   },
   {
     name: 'upload loses its exemption (hidden file inputs break fleet-wide)',
@@ -141,6 +143,21 @@ const MUTATIONS = [
     file: FLOW,
     from: "      await locator.click({ timeout: remaining_ms });",
     to: "      await locator.click({ timeout: timeoutMs });",
+  },
+  // F071.5 — the race decides WHEN, the snapshot decides WHICH. Break each half
+  // separately: the first restores 0.8.0 (whoever settles first wins), the second
+  // corrupts the ordering itself and so must also redden pass 1.
+  {
+    name: 'the race decides WHICH layer again (0.8.0 — first to settle wins)',
+    file: FLOW,
+    from: "    return (await snapshotByPriority(attempts, state, nth)) ?? winner;",
+    to: "    return winner;",
+  },
+  {
+    name: 'the priority order is reversed (text beats testid)',
+    file: FLOW,
+    from: "  for (const a of attempts) {\n    try {\n      const base = a.make();",
+    to: "  for (const a of [...attempts].reverse()) {\n    try {\n      const base = a.make();",
   },
 ];
 

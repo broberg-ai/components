@@ -220,6 +220,52 @@ implement there.
 > correct instrument was our own shipped function, and it was sitting in
 > `node_modules` the whole time.
 
+## F071.5 — layer priority was specified, and the race did not implement it (0.8.1)
+
+F071.4's own task text said *"race all layers on `waitFor` against the REMAINING
+budget, **ties resolved by priority**"*. The race shipped in 0.8.0; the tie-break
+did not. `Promise.any` settles on whichever check finishes first, and nothing
+ordered two layers that became true in the same instant.
+
+**That instant is the ordinary case**, not an edge one: a `LocateSpec`'s layers
+are alternative descriptions of ONE element, so when it renders they all become
+true together. Which layer came back therefore depended on which of Playwright's
+locator machineries answered a few milliseconds sooner. Measured offline against
+0.8.0, with a page that models per-layer answer latency:
+
+```
+{ testid, css }         both present at t+200ms   → 0.8.0 resolved_via "css"
+{ testid, css, role, text }  same, reverse order  → 0.8.0 resolved_via "text"
+```
+
+`text` is the LOWEST-priority layer. When the layers happen to match *different*
+elements, the step acts on the wrong one and reports success — the same
+action-ok-wrong-thing family as everything else in this epic.
+
+**How it survived review, and this is the part worth keeping.** cardmem measured
+this exact arm in a real browser (#21420) and reported the opposite — *"PRIORITY
+WINS, 4/4 resolved to TESTID"* — with css injected at 2500ms and testid at
+3500ms. That result is not reachable under a bare `Promise.any`: a css layer that
+genuinely attached first would have settled first and won. The likeliest reading
+is that their css layer never became visible, so the arm compared testid against
+nothing. A control that cannot discriminate returns green for the same reason a
+correct implementation does.
+
+Neither of us caught it by reading the numbers. It fell out of running our own
+code against a clock — thirteen lines, no browser.
+
+**The fix is deliberately the small one.** Pass 1's snapshot is extracted and
+called a second time, right after the race resolves: the race answers *when*
+there is something to look at, the snapshot answers *which layer it is*. It waits
+for nothing.
+
+**The residual is pinned by a test rather than left accidental.** A
+higher-priority layer that becomes present *strictly later* than a lower-priority
+one still loses. Closing that would mean waiting the full budget on every
+self-heal — the `n × timeout` trade this epic already refused. Layers arriving at
+different times means they matched different elements, which is the caller's spec
+to fix, and the README says so next to the priority order.
+
 ## Rollout
 
 1. `.strict()` + tests (RED first against today's silent-drop).

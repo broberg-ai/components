@@ -72,6 +72,20 @@ a `LocateSpec` tried in fixed priority order — first unique, visible match win
 testid → css → role → label → placeholder → text → vision
 ```
 
+**Priority holds even when the element has not rendered yet** (0.8.1). While
+waiting, the layers are raced against one shared budget — but the layer that
+*answers first* is not necessarily the one you listed first, so the winner's
+timing is taken and the layer is then decided by priority. One element rendering
+makes all of its layers true at the same instant, and that ordinary case is now
+deterministic instead of depending on which locator answered a few milliseconds
+sooner.
+
+**What priority does not promise:** a higher-priority layer that becomes present
+*strictly later* than a lower-priority one still loses. Waiting to find out
+whether `testid` eventually shows up would cost the full budget on every
+self-heal. Layers are meant to describe **one** element, so layers arriving at
+different times means they matched different elements — check the spec.
+
 `vision` is the **Set-of-Marks** fallback (via `@broberg/ai-sdk`). It **ships
 dark**: `visionEnabled()` is `false` unless both `LENS_VISION_ENABLED` and a
 provider key (`MISTRAL_API_KEY` / `OPENROUTER_API_KEY`) are set. A vision-only
@@ -113,6 +127,33 @@ schemas (`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`,
 `uploadFileSchema`, …) to validate at your own HTTP boundary. Every step also
 accepts an optional `timeout_ms`, and **since v0.7.0 an unknown key is rejected
 rather than silently deleted** — see below.
+
+## v0.8.1 — the race decided *which* layer, and it should only decide *when*
+
+Not breaking, but it changes which element a multi-layer `LocateSpec` acts on.
+
+0.8.0 raced every layer with a bare `Promise.any`, which settles on whichever
+check finishes first. Nothing ordered two layers that became true in the same
+instant — and that is the ordinary case, because one element rendering makes all
+of its layers true at once. So the layer that came back depended on which
+locator's machinery answered sooner:
+
+```
+spec { testid, css } · both present from t+200ms · css answers in 5ms, testid in 30ms
+  0.8.0  →  resolved_via "css"        ← the caller listed testid FIRST
+  0.8.1  →  resolved_via "testid"
+```
+
+With four layers settling in reverse order, 0.8.0 returned `text` — the lowest
+priority one. When the layers happen to match *different* elements, that acts on
+the wrong element and reports success.
+
+The fix keeps the race for timing and re-asks the priority question once there is
+something to look at. It waits for nothing extra: a resolve whose element lands
+at 200ms out of a 3000ms budget still returns at ~200ms.
+
+The residual is deliberate and documented under **Self-healing locators** above: a
+higher-priority layer arriving strictly later still loses.
 
 ## v0.8.0 — a `LocateSpec` object finally waits (BREAKING: `resolveTarget`)
 

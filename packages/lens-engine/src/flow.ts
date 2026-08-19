@@ -199,6 +199,48 @@ async function tryDomLayers(
   if (spec.text) attempts.push({ layer: 'text', make: () => page.getByText(spec.text!, { exact }) });
 
   // PASS 1 — identity. Strict priority order, no waiting.
+  const now = await snapshotByPriority(attempts, state, nth);
+  if (now) return now;
+
+  // PASS 2 — time. Nothing is there YET, so wait on every layer at once against
+  // the SAME budget. `.nth(nth).waitFor()` and not `.waitFor()` then `.nth(nth)`:
+  // the latter resolves the moment the FIRST match attaches while the nth never
+  // arrives, which is a green run against the wrong element.
+  if (attempts.length === 0) return null;
+  try {
+    const winner = await Promise.any(
+      attempts.map(async (a) => {
+        const loc = a.make().nth(nth);
+        await loc.waitFor({ state, timeout: timeoutMs });
+        return { locator: loc, layer: a.layer };
+      }),
+    );
+    // F071.5 — the race answers WHEN, never WHICH. Promise.any settles on
+    // whichever check finishes first, and nothing orders two layers that became
+    // true in the same instant; the usual case is exactly that, because one
+    // element rendering makes ALL of its layers true at once. So take the
+    // winner's TIMING and then re-ask pass 1 WHICH layer that is. A snapshot,
+    // not a second race — it waits for nothing.
+    return (await snapshotByPriority(attempts, state, nth)) ?? winner;
+  } catch {
+    // AggregateError — every layer missed within the one shared budget.
+    return null;
+  }
+}
+
+/** The highest-priority layer present RIGHT NOW, or null. No waiting, ever.
+ *
+ *  Both passes call it, and that is the point (F071.5): pass 2's race decides
+ *  WHEN there is something to look at, and this decides WHICH layer it is. Before
+ *  0.8.1 the race decided both, so a spec listing `testid` first could resolve
+ *  through `css` purely because that locator's machinery answered a few
+ *  milliseconds sooner — silently acting on a different element than the caller
+ *  named first, whenever the layers do not describe the same one. */
+async function snapshotByPriority(
+  attempts: Array<{ layer: string; make: () => Locator }>,
+  state: 'visible' | 'attached',
+  nth: number,
+): Promise<{ locator: Locator; layer: string } | null> {
   for (const a of attempts) {
     try {
       const base = a.make();
@@ -209,24 +251,7 @@ async function tryDomLayers(
       /* an invalid selector for this layer — try the next */
     }
   }
-
-  // PASS 2 — time. Nothing is there YET, so wait on every layer at once against
-  // the SAME budget. `.nth(nth).waitFor()` and not `.waitFor()` then `.nth(nth)`:
-  // the latter resolves the moment the FIRST match attaches while the nth never
-  // arrives, which is a green run against the wrong element.
-  if (attempts.length === 0) return null;
-  try {
-    return await Promise.any(
-      attempts.map(async (a) => {
-        const loc = a.make().nth(nth);
-        await loc.waitFor({ state, timeout: timeoutMs });
-        return { locator: loc, layer: a.layer };
-      }),
-    );
-  } catch {
-    // AggregateError — every layer missed within the one shared budget.
-    return null;
-  }
+  return null;
 }
 
 export interface ResolveTargetResult {
