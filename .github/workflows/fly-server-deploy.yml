@@ -25,6 +25,24 @@ name: fly-server-deploy
 # Ship-dark: with no FLY_API_TOKEN the deploy is SKIPPED (job stays green) — a
 # fork/PR without the secret never red-fails. The token is only ever read via
 # env, never interpolated into a shell command.
+#
+# GIT_SHA (F033.8): every deploy is built with `--build-arg GIT_SHA=<7-char sha>`,
+# so an app can report WHICH version it is running to a deploy-register.
+#
+#   A BUILD-ARG IS BUILD-TIME ONLY. Passing it does not put anything in the
+#   running container. If you want the sha at runtime, YOUR Dockerfile must
+#   declare and forward it — this workflow cannot do that half for you:
+#
+#       ARG GIT_SHA=unknown
+#       ENV GIT_SHA=$GIT_SHA
+#
+#   Skip those two lines and your app boots with no sha and reports "unknown" —
+#   which a register accepts, writes once, and (being idempotent on deploy_id)
+#   can then never correct. A wrong row that reads as a healthy report.
+#
+#   Declaring nothing is safe: a Dockerfile without `ARG GIT_SHA` builds fine
+#   when the arg is passed (measured: exit 0, Docker only warns). So this is
+#   unconditional and needs no opt-in.
 
 on:
   workflow_call:
@@ -180,8 +198,12 @@ jobs:
         run: |
           APP_ARG=""; [ -n "$APP" ] && APP_ARG="--app $APP"
           DF_ARG=""; [ -n "$DOCKERFILE" ] && DF_ARG="--dockerfile $DOCKERFILE"
+          # F033.8 — stamp the build with the commit so a deploy-register can say WHICH
+          # version shipped. 7 chars, matching `git rev-parse --short HEAD`, so a CI deploy
+          # and a local ship of the same commit produce ONE id, not two rows for one release.
+          SHA="${GITHUB_SHA:0:7}"
           set -x
-          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG
+          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG --build-arg GIT_SHA="$SHA"
 
       - name: Health-verify (prove it serves 200)
         if: steps.guard.outputs.skip == 'false' && inputs.health_url != ''
