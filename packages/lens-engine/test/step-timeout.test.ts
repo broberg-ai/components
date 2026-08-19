@@ -30,6 +30,8 @@ function fakePage(onCall?: (c: Call) => void) {
   const locator: Record<string, unknown> = {
     first: () => locator,
     click: async (o?: { timeout?: number }) => rec('click', o),
+    check: async (o?: { timeout?: number }) => rec('check', o),
+    uncheck: async (o?: { timeout?: number }) => rec('uncheck', o),
     fill: async (_v: string, o?: { timeout?: number }) => rec('fill', o),
     pressSequentially: async (_t: string, o?: { timeout?: number }) => rec('pressSequentially', o),
     press: async (_k: string, o?: { timeout?: number }) => rec('press', o),
@@ -71,6 +73,8 @@ const EXERCISED: Record<string, FlowStep> = {
   },
   waitFor: { action: 'waitFor', target: '#a' },
   expectText: { action: 'expectText', target: '#a', text: 'hello' },
+  check: { action: 'check', target: '#a' },
+  uncheck: { action: 'uncheck', target: '#a' },
   expectVisible: { action: 'expectVisible', target: '#a' },
   expectEditable: { action: 'expectEditable', target: '#a' },
   screenshot: { action: 'screenshot', target: '#a' },

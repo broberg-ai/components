@@ -72,6 +72,27 @@ export interface FlowStepReport {
  * definition of "editable", identical on both sides. Powers the `expectEditable`
  * flow step (prove @broberg/cms-inline-edit click-to-edit turned a field editable).
  */
+/** What the element ACTUALLY is, for a `check`/`uncheck` that refused it.
+ *
+ *  PAGE-SERIALISABLE: this runs inside the browser, so it may close over nothing
+ *  and reference only its argument (same contract as isEditableElement — see
+ *  test/page-serialisable.test.ts, which exists because a unit test cannot see a
+ *  closure that only fails once it crosses into the page).
+ *
+ *  Playwright's own refusal names the RULE ("Not a checkbox or radio button") and
+ *  not the element, which is the difference between a one-line fix and a hunt
+ *  through the DOM. */
+export function describeElement(el: Element): string {
+  const attrs = ['type', 'role', 'data-testid']
+    .map((a) => {
+      const v = el.getAttribute(a);
+      return v === null ? null : `${a}="${v}"`;
+    })
+    .filter(Boolean);
+  const tag = el.tagName.toLowerCase();
+  return attrs.length ? `<${tag} ${attrs.join(' ')}>` : `<${tag}>`;
+}
+
 export function isEditableElement(el: Element): boolean {
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA') {
@@ -422,6 +443,38 @@ async function withSelectorMissHint(page: Page, step: FlowStep, err: unknown): P
   return new Error(`${message}\n\n${hint}`);
 }
 
+/** Say WHAT was resolved when check/uncheck refuse it, and why there is no
+ *  fallback.
+ *
+ *  The daemon executes `check` as a plain testid CLICK, which works on a
+ *  <label>, a wrapper div, a span around the box. A real locator.check() does
+ *  not — and that asymmetry is the one thing a migrating flow can trip over
+ *  (cardmem measured 26 of their 28 targets sitting on the input itself, so the
+ *  trap exists and they are mostly not in it).
+ *
+ *  Falling back to a click would be the WRONG repair: it is precisely the defect
+ *  that made these verbs a gap rather than an alias — the action reports ok and
+ *  the box ends up in the opposite state. So it throws, loudly, and explains. */
+async function withNotCheckableHint(locator: Locator, target: Target, err: unknown): Promise<unknown> {
+  const message = err instanceof Error ? err.message : String(err);
+  // Match narrowly: if Playwright ever rewords this, the hint disappears rather
+  // than attaching itself to unrelated failures. A missing hint is a smaller
+  // harm than a hint that fires on every timeout.
+  if (!/checkbox or radio/i.test(message)) return err;
+  const found = await locator
+    .evaluate(describeElement)
+    .catch(() => null);
+  if (!found) return err;
+  return new Error(
+    `${message}\n\n${describeTarget(target)} resolved to ${found}. ` +
+      `check/uncheck drive the control itself and assert the resulting state, so they need an ` +
+      `<input type="checkbox"> / <input type="radio"> or role="checkbox"/"radio" — a <label> or a ` +
+      `wrapper will not do. A click on the wrapper WOULD have worked, and could have left the box ` +
+      `in the opposite state to the one you asked for, which is why this throws instead of falling ` +
+      `back. Move the target onto the input itself.`,
+  );
+}
+
 async function runStep(
   page: Page,
   step: FlowStep,
@@ -520,6 +573,20 @@ async function runStep(
         throw new Error(`expectText: "${step.text}" not in "${txt.slice(0, 160)}"`);
       }
       return { detail: `${describeTarget(step.target)} ⊇ "${step.text}"`, resolved_via: layer };
+    }
+    case 'check':
+    case 'uncheck': {
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, {
+        action: step.action,
+        timeoutMs,
+      });
+      try {
+        if (step.action === 'check') await locator.check({ timeout: remaining_ms });
+        else await locator.uncheck({ timeout: remaining_ms });
+      } catch (err) {
+        throw await withNotCheckableHint(locator, step.target, err);
+      }
+      return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'expectVisible': {
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'expectVisible', timeoutMs });

@@ -128,6 +128,64 @@ schemas (`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`,
 accepts an optional `timeout_ms`, and **since v0.7.0 an unknown key is rejected
 rather than silently deleted** — see below.
 
+## v0.9.0 — `check` and `uncheck`, because a click cannot assert a state
+
+Two new steps. Additive: nothing existing changes.
+
+```jsonc
+{ "action": "check",   "target": "agree" }      // idempotent: already on → stays on
+{ "action": "uncheck", "target": "newsletter" } // idempotent: already off → stays off
+```
+
+They drive `locator.check()` / `locator.uncheck()`, which read the control's
+current state first and return immediately if it is already where you asked. A
+`click` **toggles** — and the caller who reaches for `check` is precisely the one
+who does not know the current state, otherwise they would have written `click`.
+
+### Why this is a real verb and not an alias
+
+Measured in a real browser, with two checkboxes in *opposite* starting states:
+
+```
+verb     scenario                       action  assert
+check    box was OFF  → expect ON       ok      ok
+check    box ALREADY ON → expect ON     ok      FAIL    ← click toggled it OFF
+uncheck  box was ON   → expect OFF      ok      ok
+uncheck  box ALREADY OFF → expect OFF   ok      FAIL    ← click toggled it ON
+```
+
+**The finding is in the `action` column: `ok` in both failing rows.** The click
+succeeded. Only an assertion on the *resulting state* caught that it was
+inverted.
+
+### Migrating from the daemon's `check` — the one thing that can bite
+
+The cardmem daemon executes `check` as a plain **click** on a `data-testid`,
+which works on a `<label>`, a wrapper `<div>`, a `<span>` around the box. A real
+`locator.check()` does not: it needs an `<input type="checkbox">` /
+`<input type="radio">` or `role="checkbox"`/`"radio"`, and throws otherwise.
+
+So a target pointing at the *wrapper* rather than the *input* goes from green to
+a hard failure. That direction is deliberate — **loud beats silent** — and there
+is **no fallback to a click**, because falling back is exactly the defect above:
+the action reports ok and the box ends up in the opposite state.
+
+The failure names what it found, so the fix is one line:
+
+```
+Error: Not a checkbox or radio button
+
+"agree" resolved to <label data-testid="agree">. check/uncheck drive the control
+itself and assert the resulting state, so they need an <input type="checkbox"> …
+Move the target onto the input itself.
+```
+
+Measured across the fleet's existing `check`/`uncheck` calls: **26 of 28 already
+point at a real input**, and the four resolvable ones sit on the input *inside* a
+`<label>` — so the trap exists and most flows are not in it. Two calls
+(storeform, contentpush) were not resolvable from the corpus and will announce
+themselves if they are wrong.
+
 ## v0.8.1 — the race decided *which* layer, and it should only decide *when*
 
 Not breaking, but it changes which element a multi-layer `LocateSpec` acts on.

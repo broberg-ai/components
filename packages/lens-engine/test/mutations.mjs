@@ -153,6 +153,27 @@ const MUTATIONS = [
     from: "    return (await snapshotByPriority(attempts, state, nth)) ?? winner;",
     to: "    return winner;",
   },
+  // F073.2 — the three decisions check/uncheck make. The first is the repair
+  // this story exists to refuse; the other two are what turns a failure into a
+  // one-line fix instead of a hunt.
+  {
+    name: 'check falls back to a click (the forbidden repair)',
+    file: FLOW,
+    from: "        if (step.action === 'check') await locator.check({ timeout: remaining_ms });",
+    to: "        if (step.action === 'check') await locator.click({ timeout: remaining_ms });",
+  },
+  {
+    name: 'the not-checkable hint fires on EVERY failure',
+    file: FLOW,
+    from: "  if (!/checkbox or radio/i.test(message)) return err;",
+    to: "  if (false) return err;",
+  },
+  {
+    name: 'describeElement drops an empty attribute VALUE (absent and blank collapse)',
+    file: FLOW,
+    from: "      return v === null ? null : `${a}=\"${v}\"`;",
+    to: "      return v ? `${a}=\"${v}\"` : null;",
+  },
   {
     name: 'the priority order is reversed (text beats testid)',
     file: FLOW,

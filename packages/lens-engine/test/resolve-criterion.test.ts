@@ -67,6 +67,8 @@ const TARGETABLE = [
   'expectText',
   'expectVisible',
   'expectEditable',
+  'check',
+  'uncheck',
   'screenshot',
   'upload',
 ] as const;

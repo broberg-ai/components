@@ -187,6 +187,48 @@ that the hits sat in different functions at different layers — a parser and an
 executor. The first two variants were the wrong **file** and the wrong
 **question**; this one was the right file at the wrong **resolution**.
 
+## F073.2 — `check` / `uncheck` shipped (0.9.0)
+
+Real `locator.check()` / `locator.uncheck()`, idempotent and state-asserting.
+Never a `click` underneath, and **no fallback to one** — falling back is the
+defect, not the repair: the action reports ok and the box ends up in the opposite
+state, which is precisely what the ALIAS measurement caught.
+
+A non-checkable target throws, and the message names the element it actually
+found (`<label data-testid="agree">`) rather than only Playwright's rule. That is
+the difference between a one-line fix and a hunt through the DOM.
+
+**The migration hazard, measured rather than warned about.** The daemon executes
+`check` as a plain testid CLICK, which works on a `<label>`, a wrapper `<div>`, a
+`<span>`. `locator.check()` does not. cardmem resolved all 28 of their recorded
+calls against the source:
+
+```
+23  agree                     <input type="checkbox" data-testid="agree">   inside a <label>
+ 1  idea-select               <input type="checkbox">
+ 1  settings-auto-wakeup-on   <input type="radio">                          inside a <label>
+ 1  settings-auto-wakeup-off  <input type="radio">                          inside a <label>
+ 2  check-terms · «bekræft brand-only»   storeform / contentpush — not theirs to resolve
+───
+26 of 28 point at a real input. The trap exists; they are mostly not in it.
+```
+
+The four they could see all sit **inside** a `<label>` with the testid on the
+input, which is the arrangement that migrates cleanly. Had the testid been on the
+`<label>`, the click would have worked and `.check()` would throw — so the two
+unresolved calls will announce themselves, loudly, which is the agreed direction.
+
+**Worth recording about how that number arrived.** Their first answer was 23 of
+28 with the rest "not resolvable from here". Their own correction an hour later:
+that was true about how far they had looked, not about what was possible — three
+of the four missing ones were in their own code and took five minutes.
+
+**The compiler is now the seal on this epic's central non-goal.** Adding a member
+to `flowStepSchema` with no `case` in `runStep` fails `tsc`
+(`TS2366: Function lacks ending return statement`), proven by adding a `scroll`
+verb and watching it go red. So "implementation first, enum second" is enforced by
+the build rather than by remembering the rule.
+
 ## Non-goals
 
 - **Completing the enum.** cardmem asked for exactly this — *"I would rather you

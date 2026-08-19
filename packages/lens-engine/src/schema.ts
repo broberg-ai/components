@@ -201,6 +201,13 @@ export const flowStepSchema = z.discriminatedUnion('action', [
   }),
   step({ action: z.literal('assert'), js: z.string().min(1) }),
   step({ action: z.literal('expectText'), target: targetSchema, text: z.string().min(1) }),
+  // F073.2 — REAL idempotent toggles, never a click underneath. `click` flips a
+  // checkbox and cannot assert the resulting state, so a caller who does not know
+  // the current state (which is everyone who reaches for `check`) gets a green run
+  // with the box in the opposite position. Measured by cardmem in a real browser:
+  // `check` on an already-checked box reported action ok and left it UNCHECKED.
+  step({ action: z.literal('check'), target: targetSchema }),
+  step({ action: z.literal('uncheck'), target: targetSchema }),
   step({ action: z.literal('expectVisible'), target: targetSchema }),
   step({ action: z.literal('expectEditable'), target: targetSchema }),
   step({
