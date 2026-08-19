@@ -1,6 +1,6 @@
 {
   "name": "@broberg/notifications",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Headless in-app notification core for the broberg.ai fleet — one counting rule shared by every app, so the list and the OS badge can never disagree. The package never owns your count query, your database, or your list UI: you supply a store, it owns the choreography.",
   "type": "module",
   "license": "MIT",

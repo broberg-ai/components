@@ -39,6 +39,31 @@ the package.
 **A failing STORE still throws.** Only the fan-out is forgiving: if the write did
 not happen, the caller must hear about it. Both directions have a test.
 
+### Two things to do when you upgrade from 0.1.0
+
+Both reported by moovyy after running the upgrade against their own suite rather
+than taking the release note's word for it.
+
+**1 · You will silently lose a red test.** If you wrapped `onCountChanged` in
+your own `try/catch` — as you should have on 0.1.0 — the mutation *"remove the
+consumer's error handling"* was RED before this release and is GREEN after,
+because the guard now lives here. That is correct, and it is invisible: nothing
+tells you a test stopped defending anything. Re-run your mutation pass after
+upgrading, and delete or re-aim the ones that have gone equivalent.
+
+**2 · `onCountChangedError` is where YOUR log shape goes — not an optional
+extra.** The fallback is deliberately neutral: one plain `console.error` line,
+no `[ERROR]` prefix, no emoji, because a package has no business deciding how
+your logs look. The consequence is that in a viewer which highlights on markers,
+the fallback does not stand out — moovyy measured that a phone which never
+receives its number disappears into the grey stream. Pass the handler and format
+it the way the rest of your system is formatted:
+
+```ts
+onCountChangedError: (err, subjectId, count) =>
+  log.error(`❌ badge ${count} not delivered to ${subjectId}`, err),
+```
+
 
 ## Why this exists
 
