@@ -142,6 +142,23 @@ runs that could not migrate.
 { "action": "uncheck",      "target": "newsletter" }   // idempotent: off -> stays off
 ```
 
+### Migrating a daemon flow — all four verbs at a glance
+
+| daemon verb | engine step | what changes |
+|---|---|---|
+| `waitForUrl` | `{ action: "waitForUrl", url }` | nothing in matching (substring, full URL, both sides). Default timeout 8000 ms → step/flow/30 s: **slower to fail, never faster**. Set `timeout_ms` to keep the old feel. |
+| `expectAbsent` | `{ action: "expectAbsent", target }` | hidden still counts as absent and never-existed is still a pass. **New:** all layers of a `LocateSpec` must be gone, not just the first. No page-settle discount — a late `expectAbsent` costs one poll rather than nothing. |
+| `check` | `{ action: "check", target }` | **the one that can bite.** A real `locator.check()` replaces a click, so a target on a `<label>` or wrapper now **throws** instead of silently toggling. Move the target onto the `<input>`. |
+| `uncheck` | `{ action: "uncheck", target }` | same as `check`. |
+| `clickSelector` | `{ action: "click", target: "<css>" }` | pure rename — a bare string target already *is* a CSS selector. |
+| `fillSelector` | `{ action: "fill", target, value }` | pure rename. |
+| `clear` | `{ action: "fill", target, value: "" }` | pure rename. |
+| `uploadFile` | `{ action: "upload", target, files }` | pure rename. |
+
+`inspect`, `autocomplete`, `capture`, `drag`, `loop`, `conditional` and
+`waitForBuild` stay daemon-only by decision — debugging and composite authoring
+sugar that belongs to an authoring surface, not to a frozen package grammar.
+
 ### `waitForUrl` matches a SUBSTRING of the full URL — not a glob
 
 That is a measurement, not a preference. Playwright's `page.waitForURL()` takes a
