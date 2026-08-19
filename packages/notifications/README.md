@@ -51,6 +51,21 @@ because the guard now lives here. That is correct, and it is invisible: nothing
 tells you a test stopped defending anything. Re-run your mutation pass after
 upgrading, and delete or re-aim the ones that have gone equivalent.
 
+**Re-running is only half of it** — moovyy's sharpening, after they did the first
+half and caught themselves. They found the equivalent mutant and wrote it in the
+commit message, but the test kept its old name and its old promise:
+*"a failing badge must not cost the message"*. The next person reads the **file**,
+not yesterday's commit, and believes it still guards their error handling. It
+does not.
+
+> **A test whose name promises something it no longer holds is worse than no
+> test. It is a claim somebody believes.**
+
+They re-aimed rather than deleted: it is now named as a **contract** test, its
+comment says it proves *this package's* guarantee rather than their own code, and
+it goes red again if a future release rolls the guarantee back. That is the shape
+to copy.
+
 **2 · `onCountChangedError` is where YOUR log shape goes — not an optional
 extra.** The fallback is deliberately neutral: one plain `console.error` line,
 no `[ERROR]` prefix, no emoji, because a package has no business deciding how
