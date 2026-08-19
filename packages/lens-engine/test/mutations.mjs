@@ -89,6 +89,59 @@ const MUTATIONS = [
     from: "  if (count !== 0) return err;",
     to: "  if (count === -2) return err;",
   },
+  // F071.4 — the patient resolve. Each of these is a way the fix could look
+  // landed and not be.
+  {
+    name: 'pass 2 removed (back to the snapshot-only defect)',
+    file: FLOW,
+    from: "  if (attempts.length === 0) return null;",
+    to: "  if (attempts.length >= 0) return null;",
+  },
+  {
+    name: 'pass 2 serialised per layer (a miss costs n x timeout)',
+    file: FLOW,
+    from: `    return await Promise.any(
+      attempts.map(async (a) => {
+        const loc = a.make().nth(nth);
+        await loc.waitFor({ state, timeout: timeoutMs });
+        return { locator: loc, layer: a.layer };
+      }),
+    );`,
+    to: `    for (const a of attempts) {
+      const loc = a.make().nth(nth);
+      try {
+        await loc.waitFor({ state, timeout: timeoutMs });
+        return { locator: loc, layer: a.layer };
+      } catch {
+        /* next layer — and this is the regression: each one pays in full */
+      }
+    }
+    throw new Error('all layers missed');`,
+  },
+  {
+    name: 'upload loses its exemption (hidden file inputs break fleet-wide)',
+    file: FLOW,
+    from: "  return action === 'upload' ? 'attached' : 'visible';",
+    to: "  return 'visible';",
+  },
+  {
+    name: 'pass 1 counts hidden elements again (self-heal stops healing)',
+    file: FLOW,
+    from: "      const hit = state === 'visible' ? await loc.isVisible() : (await base.count()) > nth;",
+    to: "      const hit = (await base.count()) > nth;",
+  },
+  {
+    name: 'the remaining-budget floor is removed (0 means WAIT FOREVER)',
+    file: FLOW,
+    from: "  return Math.max(1, budget - spent);",
+    to: "  return budget - spent;",
+  },
+  {
+    name: 'the verb waits on the ORIGINAL budget again (F074.51, 2N)',
+    file: FLOW,
+    from: "      await locator.click({ timeout: remaining_ms });",
+    to: "      await locator.click({ timeout: timeoutMs });",
+  },
 ];
 
 /** The set of failing test names, so two mutations can be compared. */

@@ -129,10 +129,59 @@ function describeTarget(t: Target): string {
   return t.testid ?? t.css ?? t.role ?? t.label ?? t.placeholder ?? t.text ?? t.vision ?? 'locate';
 }
 
-/** Try the LocateSpec's DOM layers in fixed order (testid→css→role→label→
- *  placeholder→text). Returns the first match + its layer, or null if all miss.
+/** What "found" means, per verb — and `upload` is the exception that matters.
+ *
+ *  `setInputFiles` deliberately does NOT require visibility, and a
+ *  `display:none` file input is the standard pattern behind every styled upload
+ *  control. A blanket `visible` would therefore break upload against hidden
+ *  inputs across the whole fleet. Measured by cardmem against 0.7.1 before a line
+ *  of this was written: upload onto a hidden input succeeded on `{css}`,
+ *  `{testid}` and the bare string alike, file read back.
+ *
+ *  `visible` is safe for every OTHER verb BY CONSTRUCTION, not by corpus — and
+ *  the distinction is the point, because a corpus argument covers only what has
+ *  been run. click/fill/type/press/select require Playwright actionability
+ *  (visible); expectVisible/expectEditable/screenshot/waitFor/expectText each
+ *  call waitFor({state:'visible'}) immediately after resolving. So the old
+ *  count()-based probe, which counted hidden elements too, could never produce a
+ *  PASSING step — only a worse message ("matched then invisible" instead of "not
+ *  matched"). Tightening it cannot break a flow that passes today. */
+function resolveState(action: string | undefined): 'visible' | 'attached' {
+  return action === 'upload' ? 'attached' : 'visible';
+}
+
+/** Try the LocateSpec's DOM layers, in TWO passes under ONE shared budget.
+ *
+ *  F071.4. The old single pass gated every layer on `await loc.count() > nth` —
+ *  an instantaneous probe. So an object target never waited AT ALL: measured in a
+ *  real browser, every arm returned in 220-410ms regardless of timeout_ms,
+ *  including a 30s one, and "not there yet" was indistinguishable from "never
+ *  there" (same verdict, same time, same message). The bare-string form was fine
+ *  because it skips the probe and lets Playwright auto-wait — so the README's own
+ *  advice to prefer the explicit `{ css: … }` form pointed straight into the trap.
+ *
+ *  The split is between two different questions the old code conflated:
+ *
+ *    pass 1  IDENTITY — was it renamed? Snapshot, all layers, strict priority.
+ *            Costs ~0, so the common case (element already rendered) is unchanged.
+ *    pass 2  TIME — has it rendered yet? Only if pass 1 found nothing: race every
+ *            layer against the ONE remaining budget.
+ *
+ *  Racing rather than serialising is not a style choice. A serialised waitFor per
+ *  layer turns a total miss into n × timeout, which cardmem raised before it was
+ *  built; the race costs one timeout no matter how many layers a spec carries.
+ *
+ *  Self-heal also gets BETTER: a first layer matching only a HIDDEN element used
+ *  to time out; now it falls through to the next layer, which is what "fallback"
+ *  promised all along.
+ *
  *  Never throws for a missing element — a miss is a null, not an error. */
-async function tryDomLayers(page: Page, spec: LocateSpec): Promise<{ locator: Locator; layer: string } | null> {
+async function tryDomLayers(
+  page: Page,
+  spec: LocateSpec,
+  state: 'visible' | 'attached',
+  timeoutMs: number,
+): Promise<{ locator: Locator; layer: string } | null> {
   const nth = spec.nth ?? 0;
   const exact = spec.exact ?? false;
   const attempts: Array<{ layer: string; make: () => Locator }> = [];
@@ -149,21 +198,57 @@ async function tryDomLayers(page: Page, spec: LocateSpec): Promise<{ locator: Lo
     attempts.push({ layer: 'placeholder', make: () => page.getByPlaceholder(spec.placeholder!, { exact }) });
   if (spec.text) attempts.push({ layer: 'text', make: () => page.getByText(spec.text!, { exact }) });
 
+  // PASS 1 — identity. Strict priority order, no waiting.
   for (const a of attempts) {
     try {
-      const loc = a.make();
-      if ((await loc.count()) > nth) return { locator: loc.nth(nth), layer: a.layer };
+      const base = a.make();
+      const loc = base.nth(nth);
+      const hit = state === 'visible' ? await loc.isVisible() : (await base.count()) > nth;
+      if (hit) return { locator: loc, layer: a.layer };
     } catch {
       /* an invalid selector for this layer — try the next */
     }
   }
-  return null;
+
+  // PASS 2 — time. Nothing is there YET, so wait on every layer at once against
+  // the SAME budget. `.nth(nth).waitFor()` and not `.waitFor()` then `.nth(nth)`:
+  // the latter resolves the moment the FIRST match attaches while the nth never
+  // arrives, which is a green run against the wrong element.
+  if (attempts.length === 0) return null;
+  try {
+    return await Promise.any(
+      attempts.map(async (a) => {
+        const loc = a.make().nth(nth);
+        await loc.waitFor({ state, timeout: timeoutMs });
+        return { locator: loc, layer: a.layer };
+      }),
+    );
+  } catch {
+    // AggregateError — every layer missed within the one shared budget.
+    return null;
+  }
 }
 
 export interface ResolveTargetResult {
   locator: Locator;
   /** Which layer matched: selector|testid|css|role|label|placeholder|text|vision. */
   resolved_via: string;
+  /** What is LEFT of the caller's budget after resolving. **The verb must wait on
+   *  THIS, never on the original `timeout_ms`.**
+   *
+   *  Otherwise the resolve and the action each spend the full budget: a caller
+   *  asking for 5000ms against an element that never arrives waits 10s and is told
+   *  5000ms — which is F074.51 word for word, reproduced inside the fix for
+   *  F074.51. cardmem caught it before a line was written, and it hits EVERY
+   *  targetable verb, not just the explicitly-waiting ones: click's actionability
+   *  waits again after resolve too.
+   *
+   *  Floored at 1, never 0. Playwright reads `timeout: 0` as "disable the
+   *  timeout", so an exhausted budget would hand the verb an INFINITE wait. That
+   *  is the third appearance of the same inversion in this epic — after
+   *  `badge = 0` meaning "remove the badge" and `timeout_ms: 0` meaning "never
+   *  time out". A zero here has never once meant what it looks like. */
+  remaining_ms: number;
 }
 
 /** Self-healing resolve — the ONE resolver the cloud runFlow AND the local daemon
@@ -174,26 +259,52 @@ export interface ResolveTargetResult {
  *  action uses it uniformly). Throws (clean, never a guess) when nothing matches.
  *  RECEIVES `page` (never constructs one) → runtime-safe across Playwright minor
  *  versions. `opts.action` only labels the missing-target error. */
+/** What is left of a budget after spending some of it — floored at 1, NEVER 0.
+ *
+ *  Exported because the floor IS the contract, and because the way it breaks is
+ *  silent: Playwright reads `timeout: 0` as "disable the timeout", so a budget
+ *  spent to exactly zero would hand the next call an INFINITE wait. That is the
+ *  third appearance of the same inversion in this epic — `badge = 0` meaning
+ *  "remove the badge", `timeout_ms: 0` meaning "never time out", and now this.
+ *  A zero has not once meant what it looks like.
+ *
+ *  Same reason resolveStepTimeout is exported: a rule that decides how long
+ *  something waits is a contract, and a contract that only exists inside a
+ *  closure cannot be tested or mutated. */
+export function remainingBudget(budget: number, spent: number): number {
+  return Math.max(1, budget - spent);
+}
+
 export async function resolveTarget(
   page: Page,
   target: Target,
-  opts?: { action?: string },
+  opts: { action?: string; timeoutMs: number },
 ): Promise<ResolveTargetResult> {
+  const started = Date.now();
+  const budget = opts.timeoutMs;
+  const left = () => remainingBudget(budget, Date.now() - started);
+
   if (target == null) {
-    throw new Error(`${opts?.action ?? 'locate'} step requires a target (a selector, data-testid, or locate spec)`);
+    throw new Error(`${opts.action ?? 'locate'} step requires a target (a selector, data-testid, or locate spec)`);
   }
   if (typeof target === 'string') {
-    return { locator: page.locator(resolveSelector(target)).first(), resolved_via: 'selector' };
+    // The string form never probes, so it spends nothing: Playwright's own
+    // auto-wait on the action does the waiting, against the full budget.
+    return {
+      locator: page.locator(resolveSelector(target)).first(),
+      resolved_via: 'selector',
+      remaining_ms: budget,
+    };
   }
-  const dom = await tryDomLayers(page, target);
-  if (dom) return { locator: dom.locator, resolved_via: dom.layer };
+  const dom = await tryDomLayers(page, target, resolveState(opts.action), budget);
+  if (dom) return { locator: dom.locator, resolved_via: dom.layer, remaining_ms: left() };
   if (target.vision) {
     if (!visionEnabled()) {
       throw new Error(
         `locate: DOM layers missed; vision fallback is dark (set LENS_VISION_ENABLED=1 + a provider key) for "${target.vision}"`,
       );
     }
-    return { locator: await resolveVisionElement(page, target.vision), resolved_via: 'vision' };
+    return { locator: await resolveVisionElement(page, target.vision), resolved_via: 'vision', remaining_ms: left() };
   }
   throw new Error(`locate: no layer matched ${JSON.stringify(target)}`);
 }
@@ -300,45 +411,45 @@ async function runStep(
       return { detail: url };
     }
     case 'click': {
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'click' });
-      await locator.click({ timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'click', timeoutMs });
+      await locator.click({ timeout: remaining_ms });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'fill': {
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'fill' });
-      await locator.fill(step.value, { timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'fill', timeoutMs });
+      await locator.fill(step.value, { timeout: remaining_ms });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'type': {
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'type' });
-      await locator.pressSequentially(step.text, { timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'type', timeoutMs });
+      await locator.pressSequentially(step.text, { timeout: remaining_ms });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'press': {
       if (step.target != null) {
-        const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'press' });
-        await locator.press(step.key, { timeout: timeoutMs });
+        const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'press', timeoutMs });
+        await locator.press(step.key, { timeout: remaining_ms });
         return { detail: step.key, resolved_via: layer };
       }
       await page.keyboard.press(step.key);
       return { detail: step.key };
     }
     case 'select': {
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'select' });
-      await locator.selectOption(step.value, { timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'select', timeoutMs });
+      await locator.selectOption(step.value, { timeout: remaining_ms });
       return { detail: `${describeTarget(step.target)}=${step.value}`, resolved_via: layer };
     }
     case 'upload': {
       const files = await Promise.all(step.files.map(resolveUploadFile));
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'upload' });
-      await locator.setInputFiles(files, { timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'upload', timeoutMs });
+      await locator.setInputFiles(files, { timeout: remaining_ms });
       return { detail: `${describeTarget(step.target)} ← ${files.map((f) => f.name).join(', ')}`, resolved_via: layer };
     }
     case 'waitFor': {
       let layer: string | undefined;
       if (step.target != null) {
-        const r = await resolveTarget(page, step.target, { action: 'waitFor' });
-        await r.locator.waitFor({ state: 'visible', timeout: timeoutMs });
+        const r = await resolveTarget(page, step.target, { action: 'waitFor', timeoutMs });
+        await r.locator.waitFor({ state: 'visible', timeout: r.remaining_ms });
         layer = r.resolved_via;
       }
       if (typeof step.ms === 'number') await page.waitForTimeout(step.ms);
@@ -377,8 +488,8 @@ async function runStep(
       return { detail: out.detail ?? step.js };
     }
     case 'expectText': {
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectText' });
-      await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'expectText', timeoutMs });
+      await locator.waitFor({ state: 'visible', timeout: remaining_ms });
       const txt = (await locator.innerText()).trim();
       if (!txt.includes(step.text)) {
         throw new Error(`expectText: "${step.text}" not in "${txt.slice(0, 160)}"`);
@@ -386,13 +497,13 @@ async function runStep(
       return { detail: `${describeTarget(step.target)} ⊇ "${step.text}"`, resolved_via: layer };
     }
     case 'expectVisible': {
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectVisible' });
-      await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'expectVisible', timeoutMs });
+      await locator.waitFor({ state: 'visible', timeout: remaining_ms });
       return { detail: describeTarget(step.target), resolved_via: layer };
     }
     case 'expectEditable': {
-      const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'expectEditable' });
-      await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+      const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'expectEditable', timeoutMs });
+      await locator.waitFor({ state: 'visible', timeout: remaining_ms });
       const editable = await locator.evaluate(isEditableElement);
       if (!editable) {
         throw new Error(
@@ -405,9 +516,9 @@ async function runStep(
     case 'screenshot': {
       if (step.target != null) {
         // Element shot of the resolved target (supports a LocateSpec).
-        const { locator, resolved_via: layer } = await resolveTarget(page, step.target, { action: 'screenshot' });
-        await locator.waitFor({ state: 'visible', timeout: timeoutMs });
-        await locator.scrollIntoViewIfNeeded({ timeout: timeoutMs });
+        const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'screenshot', timeoutMs });
+        await locator.waitFor({ state: 'visible', timeout: remaining_ms });
+        await locator.scrollIntoViewIfNeeded({ timeout: remaining_ms });
         const png = await locator.screenshot();
         return { detail: step.name ?? describeTarget(step.target), png, resolved_via: layer };
       }

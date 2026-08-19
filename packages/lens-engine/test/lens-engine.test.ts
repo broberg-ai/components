@@ -204,36 +204,59 @@ describe('resolveTarget — exported self-heal resolver (F050)', () => {
   // Duck-typed fake page: just enough Locator-factory surface to drive the resolver
   // OFFLINE (no real Chromium — same strategy as the rest of this file; the live
   // DOM resolution against a real page is proven by the consumer/daemon).
+  //
+  // F071.4 changed what "found" means: pass 1 asks isVisible() (or count() for
+  // `upload`), and pass 2 waits. So the fake models BOTH — a layer that is
+  // present is visible immediately; a layer that is absent is never visible and
+  // its waitFor rejects, which is what a real miss does.
+  const leaf = (label: string, present: boolean) => ({
+    isVisible: async () => present,
+    waitFor: async () => {
+      if (!present) throw new Error(`Timeout: ${label} never appeared`);
+    },
+    toString: () => label,
+    valueOf: () => label,
+  });
+  const layer = (label: (n: number) => string, present: boolean) => ({
+    count: async () => (present ? 1 : 0),
+    nth: (n: number) => leaf(label(n), present),
+    first: () => leaf(label(0), present),
+  });
   const fakePage = {
-    locator: (sel: string) => ({ first: () => `SEL:${sel}`, count: async () => 0, nth: (n: number) => `CSS:${sel}#${n}` }),
-    getByTestId: (id: string) => ({ count: async () => 1, nth: (n: number) => `TESTID:${id}#${n}` }),
-    getByRole: () => ({ count: async () => 0, nth: (n: number) => `ROLE#${n}` }),
-    getByLabel: () => ({ count: async () => 0, nth: (n: number) => `LABEL#${n}` }),
-    getByPlaceholder: () => ({ count: async () => 0, nth: (n: number) => `PH#${n}` }),
-    getByText: () => ({ count: async () => 0, nth: (n: number) => `TEXT#${n}` }),
+    locator: (sel: string) => ({
+      ...layer((n) => `CSS:${sel}#${n}`, false),
+      first: () => `SEL:${sel}`,
+    }),
+    getByTestId: (id: string) => layer((n) => `TESTID:${id}#${n}`, true),
+    getByRole: () => layer((n) => `ROLE#${n}`, false),
+    getByLabel: () => layer((n) => `LABEL#${n}`, false),
+    getByPlaceholder: () => layer((n) => `PH#${n}`, false),
+    getByText: () => layer((n) => `TEXT#${n}`, false),
   } as unknown as Parameters<typeof resolveTarget>[0];
 
+  const T = { timeoutMs: 5_000 };
+
   test('a string target resolves via the selector layer (bare testid wrapped)', async () => {
-    const r = await resolveTarget(fakePage, 'save-btn');
+    const r = await resolveTarget(fakePage, 'save-btn', T);
     expect(r.resolved_via).toBe('selector');
     expect(r.locator).toBe('SEL:[data-testid="save-btn"]');
   });
 
   test('a LocateSpec resolves via its first matching DOM layer, surfacing resolved_via', async () => {
-    const r = await resolveTarget(fakePage, { testid: 'version' });
+    const r = await resolveTarget(fakePage, { testid: 'version' }, T);
     expect(r.resolved_via).toBe('testid');
-    expect(r.locator).toBe('TESTID:version#0');
+    expect(String(r.locator)).toBe('TESTID:version#0');
   });
 
   test('a LocateSpec whose DOM layers all miss (no vision) throws — never guesses', async () => {
-    await expect(resolveTarget(fakePage, { role: 'button', name: 'Nope' })).rejects.toThrow(/no layer matched/);
+    await expect(resolveTarget(fakePage, { role: 'button', name: 'Nope' }, { ...T, timeoutMs: 50 })).rejects.toThrow(/no layer matched/);
   });
 
   test('a nullish target throws with the opts.action label', async () => {
-    await expect(resolveTarget(fakePage, null as unknown as string, { action: 'fill' })).rejects.toThrow(
+    await expect(resolveTarget(fakePage, null as unknown as string, { action: 'fill', ...T })).rejects.toThrow(
       /fill step requires a target/,
     );
-    await expect(resolveTarget(fakePage, undefined as unknown as string)).rejects.toThrow(
+    await expect(resolveTarget(fakePage, undefined as unknown as string, T)).rejects.toThrow(
       /locate step requires a target/,
     );
   });

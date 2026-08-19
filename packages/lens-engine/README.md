@@ -114,6 +114,91 @@ schemas (`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`,
 accepts an optional `timeout_ms`, and **since v0.7.0 an unknown key is rejected
 rather than silently deleted** — see below.
 
+## v0.8.0 — a `LocateSpec` object finally waits (BREAKING: `resolveTarget`)
+
+**Read this before upgrading if you call `resolveTarget` directly.** It now takes
+a required `timeoutMs` and returns a third field:
+
+```ts
+// 0.7.x
+const { locator, resolved_via } = await resolveTarget(page, target, { action });
+await locator.click({ timeout: timeoutMs });
+
+// 0.8.0
+const { locator, resolved_via, remaining_ms } =
+  await resolveTarget(page, target, { action, timeoutMs });
+await locator.click({ timeout: remaining_ms });   // ← the REMAINDER, not the original
+```
+
+Required rather than optional on cardmem's own request, against their own build:
+an optional budget is an absent guard that looks like a present one — the fix
+would read as landed in the shared resolver while every consumer kept the defect.
+
+### What was broken
+
+**A `LocateSpec` object never waited at all.** Measured in a real browser against
+0.7.1, element injected at t+800ms with a 5000ms timeout, against a control that
+never injects:
+
+```
+                arrives at t+800ms        never arrives
+{ css: … }      FAIL   457ms             fail   331ms
+{ testid: … }   FAIL   318ms             fail   316ms
+"#css"          ok    1124ms             fail  5377ms
+"testid"        ok    1341ms             fail  5252ms
+```
+
+**The object form's two columns are indistinguishable** — same verdict, same time,
+same message for *not there yet* and *never there*. Every layer was gated on
+`await loc.count() > nth`, an instantaneous probe; the bare-string form was fine
+only because it skips the probe and lets Playwright auto-wait.
+
+Which made the advice in the section below **actively harmful**: it tells you to
+prefer `{ css: "body" }` when precision matters, and that was the form that could
+not wait. A consumer following it got a flakier flow.
+
+### What changed
+
+Resolution is now two passes under **one shared budget**:
+
+| pass | question | cost |
+|---|---|---|
+| 1 | **identity** — was it renamed? Snapshot, all layers, strict priority. | ~0 |
+| 2 | **time** — has it rendered yet? Races every layer against the remaining budget. | ≤ `timeout_ms`, once |
+
+Racing rather than serialising is the point: a `waitFor` per layer would turn a
+total miss into `n × timeout`. Four layers that all miss now cost **one** timeout.
+
+**Self-heal got better as a side effect.** A first layer matching only a *hidden*
+element used to match and then time out; it now falls through to the next layer,
+which is what "fallback" promised all along.
+
+### The per-verb criterion — and why `upload` is exempt
+
+`visible` for every verb **except `upload`**, which uses `attached`.
+`setInputFiles` deliberately does not require visibility, and a `display:none`
+file input is the standard pattern behind every styled upload control — a blanket
+`visible` would break uploads everywhere.
+
+`visible` is safe for the others **by construction**, not by corpus:
+`click`/`fill`/`type`/`press`/`select` require Playwright actionability, and
+`expectVisible`/`expectEditable`/`screenshot`/`waitFor`/`expectText` each wait for
+visibility right after resolving. So the old probe's inclusion of hidden elements
+could never produce a *passing* step — only a worse message.
+
+### `remaining_ms`, and the zero that means "forever"
+
+The verb waits on what is **left**, never the original. Otherwise resolve and
+action each spend the full budget: ask for 5000ms against a missing element and
+you wait 10s while being told 5000ms — which is the exact defect `timeout_ms` was
+built to remove, reproduced inside its own fix.
+
+`remainingBudget(budget, spent)` is exported and floored at **1, never 0**:
+Playwright reads `timeout: 0` as *disable the timeout*, so an exhausted budget
+would become an infinite wait. Third time that inversion has appeared in this
+epic, after `badge = 0` meaning *remove the badge* and `timeout_ms: 0` meaning
+*never time out*.
+
 ## v0.7.0 — unknown keys are now REJECTED, and `timeout_ms` finally works
 
 **Read this before upgrading: a flow that parses today can stop parsing.** That is

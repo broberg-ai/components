@@ -34,6 +34,9 @@ export {
   resolveTarget,
   // F071.2 — the one failure whose cause is invisible in its own message.
   selectorMissHint,
+  // F071.4 — the floor is the contract: a remaining budget of 0 would mean
+  // "wait forever", not "no time left".
+  remainingBudget,
   isEditableElement,
   // F064 — exported for the SAME reason as isEditableElement: the local daemon
   // and the cloud runner must share ONE definition of what an assert means.
