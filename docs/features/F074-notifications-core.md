@@ -398,6 +398,53 @@ is trying to avoid, moved one layer out, and just as silent.
    and `@broberg/webpush` already ships `./sw.global` for a **classic** service
    worker with `importScripts` — which is what they run.
 
+   **MEASUREMENT 1 IS IN, and it is the answer that was hoped for** (moovyy,
+   2026-08-19, raw query against production):
+
+   ```
+   users 3 · push subscriptions 1 · settings rows 3 (GLOBAL k/v, PK is 'naevn', NO user column)
+   tables 17 · tables matching /mute|pref|notif/i → 0
+   grep -icE "mute|prefs|preference" src/db/schema.js → 0
+   ```
+
+   Not an empty filter — **the concept is absent from the schema.** So a third
+   consumer's `unseenCount` is a bare `WHERE seen_at IS NULL AND user_id = ?`,
+   and if the core assumed anywhere that a filter exists to apply, it would show
+   up here first.
+
+   They offered to run a call against a deliberately filterless store to confirm
+   it. **Not needed — it is provable by construction, which is stronger than a
+   runtime confirmation**, and verified in the source rather than remembered:
+   counting happens in exactly two places, `settle()` and `unseenCount()`, and
+   both are `store.countUnseen(subjectId)` with nothing around them. `kind`
+   appears in the core only in `markSeenByRef`, where the caller supplies the
+   kinds. The one `.filter()` in the package is inside `createMemoryStore` — the
+   reference store, not the core.
+
+   **Measurement 2 is closed to them too, and that is a fact rather than a
+   deferral:** no user has two simultaneous mutes because no user has one. They
+   noted that building some would produce a CONSTRUCTED proof rather than a
+   measured one — which is exactly what xrt81 warned against. So the multi-mute
+   shape stays uncovered, by all three consumers, and the plan says so.
+
+   **And they returned a sharper version of our own warning.** We told them to
+   read back from a fresh CALL. Measured on their side today, from the other
+   direction: `db.query(sql)` in bun:sqlite caches the prepared statement
+   **together with its column order**, so rebuilding a table between two calls
+   using the same SQL string returns real values under the WRONG names:
+
+   ```
+   before                      { a:'A', b:1,   c:'C' }
+   same query() string after   { a:'A', b:'C', c:1   }   <- a lie
+   fresh prepare() after       { a:'A', c:'C', b:1   }   <- true
+   ```
+
+   They spent half an hour believing a migration had swapped seven columns. It
+   never did; **the meter did.** So the readback rule is now: not merely a fresh
+   call — **a fresh `prepare()`**, or the instrument itself can lie after a schema
+   change. Same family as everything else in this epic, one layer below where we
+   were looking.
+
    **And the badge question they raised is worth stating as a rule rather than an
    answer:** `@broberg/notifications` owns the COUNT, `@broberg/webpush` owns the
    transport and the OS surface. **webpush must never derive a count** — it
