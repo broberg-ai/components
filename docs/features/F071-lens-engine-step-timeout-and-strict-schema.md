@@ -266,6 +266,38 @@ self-heal — the `n × timeout` trade this epic already refused. Layers arrivin
 different times means they matched different elements, which is the caller's spec
 to fix, and the README says so next to the priority order.
 
+## F071.6 — a label that could not contradict the caller (0.9.0)
+
+Filed by cardmem, and it is the reason F071.5 nearly stood. Setting out to prove
+0.8.0's defect, they read the step's `detail` and reported *"4/4 resolved to
+TESTID"*. The raw step said both things at once:
+
+```
+"detail":       "by-testid ⊇ \"WINNER\""     ← built from the spec's FIRST key
+"resolved_via": "css"                          ← the layer that actually hit
+```
+
+`describeTarget()` returns `t.testid ?? t.css ?? t.role ?? …` — the caller's
+priority order, not the outcome. Their own words for what they did: reading the
+notification instead of the record, which is a rule this fleet ships to 29 repos.
+
+**The property that made it dangerous is not that the label was imprecise. It was
+constructed from the REQUEST, so it could never contradict the caller.** A field
+that cannot disagree with you looks like confirmation and carries no information.
+`resolved_via` was correct all along; it simply sat below the field a human reads
+first.
+
+Fixed for all thirteen resolving verbs, not only the one that bit. A bare string
+is left alone (the string *is* the selector, and rewriting it would churn every
+consumer's logs for nothing), and a layer whose value cannot be recovered falls
+back to the old label — a label that says nothing beats one that says the wrong
+thing confidently.
+
+**And my own guess at the cause was wrong**, which is worth recording next to it:
+I proposed that their css layer never became visible. They measured it visible at
+page-time 1770 ms and went looking anyway. Had they accepted my explanation, the
+`detail` defect would still be there.
+
 ## Rollout
 
 1. `.strict()` + tests (RED first against today's silent-drop).

@@ -46,6 +46,8 @@ function fakePage(onCall?: (c: Call) => void) {
   const page = {
     locator: () => locator,
     goto: async (_u: string, o?: { timeout?: number }) => rec('goto', o),
+    waitForURL: async (_p: unknown, o?: { timeout?: number }) => rec('waitForURL', o),
+    url: () => 'https://example.com/x',
     waitForTimeout: async () => {},
     evaluate: async () => {},
     keyboard: { press: async () => {} },
@@ -73,13 +75,20 @@ const EXERCISED: Record<string, FlowStep> = {
   },
   waitFor: { action: 'waitFor', target: '#a' },
   expectText: { action: 'expectText', target: '#a', text: 'hello' },
+  waitForUrl: { action: 'waitForUrl', url: '/dashboard' },
   check: { action: 'check', target: '#a' },
   uncheck: { action: 'uncheck', target: '#a' },
   expectVisible: { action: 'expectVisible', target: '#a' },
   expectEditable: { action: 'expectEditable', target: '#a' },
   screenshot: { action: 'screenshot', target: '#a' },
 };
-const NO_TIMEOUT_BY_DESIGN = ['assert'];
+// `assert` runs through page.evaluate(), which takes no timeout option.
+// `expectAbsent` OWNS its deadline rather than delegating one — it polls, so
+// there is no Playwright call to hand a timeout to. That is not a hole: its
+// budget is asserted on the WALL-CLOCK instead, in test/absent-and-url.test.ts,
+// which is the stronger claim anyway (\"we passed the number along\" was true and
+// useless in F074.51).
+const NO_TIMEOUT_BY_DESIGN = ['assert', 'expectAbsent'];
 
 describe('the number the caller chose is the number Playwright receives', () => {
   it('covers every action in the union', () => {

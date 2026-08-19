@@ -206,6 +206,19 @@ export const flowStepSchema = z.discriminatedUnion('action', [
   // the current state (which is everyone who reaches for `check`) gets a green run
   // with the box in the opposite position. Measured by cardmem in a real browser:
   // `check` on an already-checked box reported action ok and left it UNCHECKED.
+  // F073.3 — the two verbs no `target` can express. 232 of the fleet's 248
+  // GAP runs.
+  //
+  // waitForUrl SUBSTRING-MATCHES THE FULL URL, deliberately not glob. Measured
+  // against the daemon's 162 recorded arguments, which split into two families:
+  // path-like ("/app", "/dashboard", "/") and bare host-or-fragment
+  // ("moovyy…", "wp-admin", "google.com/maps"). The second family cannot work
+  // under glob at all, and "/" — 6 runs — matches ANY url as a substring while
+  // matching only the root under glob. Adopting Playwright's default would have
+  // changed the meaning of at least 29 runs and silently converted the rest into
+  // full-timeout hangs.
+  step({ action: z.literal('waitForUrl'), url: z.string().min(1) }),
+  step({ action: z.literal('expectAbsent'), target: targetSchema }),
   step({ action: z.literal('check'), target: targetSchema }),
   step({ action: z.literal('uncheck'), target: targetSchema }),
   step({ action: z.literal('expectVisible'), target: targetSchema }),

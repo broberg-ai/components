@@ -153,6 +153,44 @@ const MUTATIONS = [
     from: "    return (await snapshotByPriority(attempts, state, nth)) ?? winner;",
     to: "    return winner;",
   },
+  // F073.3 — the matcher, the message, and the two rules absence obeys.
+  {
+    name: 'waitForUrl adopts Playwright glob (29 real runs change meaning)',
+    file: FLOW,
+    from: "        await page.waitForURL((u) => urlMatches(want, u.toString()), { timeout: timeoutMs });",
+    to: "        await page.waitForURL(want, { timeout: timeoutMs });",
+  },
+  {
+    name: 'the URL matcher becomes exact equality (37 of 38 real arguments die)',
+    file: FLOW,
+    from: "export function urlMatches(want: string, url: string): boolean {\n  return url.includes(want);",
+    to: "export function urlMatches(want: string, url: string): boolean {\n  return url === want;",
+  },
+  {
+    name: 'waitForUrl stops saying WHERE the page actually is',
+    file: FLOW,
+    from: "        throw new Error(`waitForUrl: never reached a URL containing \"${want}\" — still at ${page.url()}`);",
+    to: "        throw new Error(`waitForUrl: never reached a URL containing \"${want}\"`);",
+  },
+  {
+    name: 'expectAbsent ignores nth (\"the third row\" becomes \"any row\")',
+    file: FLOW,
+    from: "          if (visible > nth) present.push(l.layer);",
+    to: "          if (visible > 0) present.push(l.layer);",
+  },
+  {
+    name: 'expectAbsent passes when ANY layer is gone, not when all are',
+    file: FLOW,
+    from: "        if (present.length === 0) return { detail: describeTarget(step.target) };",
+    to: "        if (present.length < layers.length) return { detail: describeTarget(step.target) };",
+  },
+  // F071.6 — the label that could not contradict the caller.
+  {
+    name: 'the step label names the spec\'s first key again, not the layer that hit',
+    file: FLOW,
+    from: "  const value = layerValue(t, layer);\n  return value === null ? describeTarget(t) : `${value} (${layer})`;",
+    to: "  return describeTarget(t);",
+  },
   // F073.2 — the three decisions check/uncheck make. The first is the repair
   // this story exists to refuse; the other two are what turns a failure into a
   // one-line fix instead of a hunt.

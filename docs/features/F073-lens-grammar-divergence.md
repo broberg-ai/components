@@ -229,6 +229,74 @@ to `flowStepSchema` with no `case` in `runStep` fails `tsc`
 verb and watching it go red. So "implementation first, enum second" is enforced by
 the build rather than by remembering the rule.
 
+## F073.3 — `waitForUrl` / `expectAbsent` shipped (0.9.0)
+
+Blocked deliberately until cardmem measured their own corpus, because the URL
+matcher was the one place a plausible implementation would have behaved
+differently from the daemon while looking correct.
+
+**The matcher is SUBSTRING on the full URL, via a predicate.** Playwright's
+`waitForURL` takes a glob by default, and glob would have been wrong for almost
+the entire corpus. Measured across ALL 38 distinct real arguments (149 runs), not
+a sample — four families, and cardmem found the fourth only on the second
+extraction:
+
+```
+1  path-like, with a slash   /app 51 · /dashboard 7 · / 6 · /tak 4 · /platform 4
+2  bare host or fragment     broberg.ai 6 · wp-admin 5 · google.com/maps 4 · maps 2
+3  QUERY FRAGMENT            folder= · project=fd-sundhed · status=godkendt · status=afvist
+4  a full URL                https://xrt81.com/  (1)
+```
+
+Playwright's own rule is that a pattern with **no wildcard must equal the URL
+exactly**, and not one of the 38 carries a wildcard. **37 of 38 would never have
+matched anything** — only the single full URL survives. Family 3 can only ever
+work as a substring: `status=godkendt` sits mid-URL in the query string. `/` is 6
+runs and means "any URL" as a substring, "the root" under glob.
+
+TWO EXCLUSIONS, both recorded rather than trimmed. Thirteen of the 51 stored
+values are the manuscript author's PROSE ("redirect tilbage til kvittering",
+"navigated to case") — the store persists the step result and `label` overwrites
+the argument when one is set, so those arguments are simply not recoverable.
+Running them through a matcher would be testing sentences. And cardmem sent two
+typos in the list (`xlrt81` for `xrt81`, `wp-banner` for `wp-admin`) and corrected
+them in a message of their own precisely because the list was going to be parsed
+rather than read.
+
+The daemon's own line:
+
+```ts
+await page.waitForURL((u) => u.toString().includes(want), { timeout: stepTimeout(step) });
+```
+
+**Default timeout diverges on purpose, and cardmem priced it rather than
+preferring it:** the daemon's is 8000 ms, the engine's is step → flow → 30 s. Over
+the corpus' whole lifetime the split is pass 136 · fail 8 · skip 18 — so the 22 s
+of extra patience costs **~3 minutes in total, ever**. Their conclusion, adopted:
+keep the engine's rule, because consistency with the other twelve verbs is worth
+more than matching a historical default, and `timeout_ms` is there for anyone who
+wants it shorter.
+
+The verb is fleet-wide rather than theirs: fd-sundhed 74 · sanneandersen 15 ·
+cardmem 13 · cms 11 · broberg-ai-site 11 · autodoc 7 · how 5 · pitch 1 ·
+cronjobs 1.
+
+**`expectAbsent`** passes for an element that never existed and for one that is
+attached but hidden — both confirmed against the daemon's semantic (`count > 0 &&
+isVisible`). It requires **all** layers gone, which is the mirror of the presence
+rule and cardmem agreed strongly: *"er 'til stede' = ét lag rammer, så SKAL
+'fraværende' = intet lag rammer."* The failure names which layer still matched.
+
+**It does not use the patient resolve, and the test enforces that structurally**
+rather than by comment: the fake page's `waitFor` throws, so any future routing of
+`expectAbsent` through `resolveTarget` fails immediately rather than quietly
+costing the full budget on every pass.
+
+One cost the daemon pays and the engine does not: theirs discounts the wait by how
+long the page has been settled, so a late `expectAbsent` is free and only one right
+after a `goto` pays. Not ported — the engine has no page-settle clock, and adding
+one to save a poll would be machinery ahead of a measured need.
+
 ## Non-goals
 
 - **Completing the enum.** cardmem asked for exactly this — *"I would rather you

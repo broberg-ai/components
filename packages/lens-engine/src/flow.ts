@@ -150,6 +150,48 @@ function describeTarget(t: Target): string {
   return t.testid ?? t.css ?? t.role ?? t.label ?? t.placeholder ?? t.text ?? t.vision ?? 'locate';
 }
 
+/** The value a LocateSpec carries for one layer, or null when it cannot be
+ *  recovered (`vision`, or a layer added later). */
+function layerValue(t: LocateSpec, layer: string): string | null {
+  switch (layer) {
+    case 'testid':
+      return t.testid ?? null;
+    case 'css':
+      return t.css ?? null;
+    case 'role':
+      return t.role ?? null;
+    case 'label':
+      return t.label ?? null;
+    case 'placeholder':
+      return t.placeholder ?? null;
+    case 'text':
+      return t.text ?? null;
+    default:
+      return null;
+  }
+}
+
+/** The label for a step that RESOLVED something — it names the layer that
+ *  actually hit, not the spec's first key (F071.6).
+ *
+ *  describeTarget answers "what did you ask for" and is right for a failure
+ *  message, where nothing was resolved. Using it for a SUCCESS reported
+ *  `by-testid` for a step that ran through `css`, and cardmem drew a wrong
+ *  conclusion from exactly that: they read `detail`, not `resolved_via`, and
+ *  reported that priority had been preserved when it had not.
+ *
+ *  THE PROPERTY THAT MADE IT DANGEROUS is not imprecision. The old label was
+ *  built from the REQUEST, so it could never contradict the caller — a field that
+ *  cannot disagree with you looks like confirmation and carries no information.
+ *
+ *  A bare string is left alone: the string IS the selector, so there is nothing
+ *  to disambiguate. */
+function describeResolved(t: Target, layer: string | undefined): string {
+  if (typeof t === 'string' || !layer) return describeTarget(t);
+  const value = layerValue(t, layer);
+  return value === null ? describeTarget(t) : `${value} (${layer})`;
+}
+
 /** What "found" means, per verb — and `upload` is the exception that matters.
  *
  *  `setInputFiles` deliberately does NOT require visibility, and a
@@ -169,6 +211,65 @@ function describeTarget(t: Target): string {
  *  matched"). Tightening it cannot break a flow that passes today. */
 function resolveState(action: string | undefined): 'visible' | 'attached' {
   return action === 'upload' ? 'attached' : 'visible';
+}
+
+/** Every DOM layer a LocateSpec names, in FIXED PRIORITY ORDER.
+ *
+ *  One list, three readers (F073.3): the two resolve passes ask which layer is
+ *  PRESENT, and `expectAbsent` asks whether any of them still is. Absence has to
+ *  be judged over exactly the layers presence is judged over, or the two verbs
+ *  disagree about what the target means — and a negative assertion that reports
+ *  green while the element stands there under another layer is worse than not
+ *  having the verb. */
+function layerAttempts(page: Page, spec: LocateSpec): Array<{ layer: string; make: () => Locator }> {
+  const exact = spec.exact ?? false;
+  const attempts: Array<{ layer: string; make: () => Locator }> = [];
+  if (spec.testid) attempts.push({ layer: 'testid', make: () => page.getByTestId(spec.testid!) });
+  if (spec.css) attempts.push({ layer: 'css', make: () => page.locator(spec.css!) });
+  if (spec.role)
+    attempts.push({
+      layer: 'role',
+      make: () =>
+        page.getByRole(spec.role as Parameters<Page['getByRole']>[0], spec.name ? { name: spec.name, exact } : {}),
+    });
+  if (spec.label) attempts.push({ layer: 'label', make: () => page.getByLabel(spec.label!, { exact }) });
+  if (spec.placeholder)
+    attempts.push({ layer: 'placeholder', make: () => page.getByPlaceholder(spec.placeholder!, { exact }) });
+  if (spec.text) attempts.push({ layer: 'text', make: () => page.getByText(spec.text!, { exact }) });
+  return attempts;
+}
+
+/** `waitForUrl`'s matcher: a SUBSTRING of the full URL.
+ *
+ *  Exported so the corpus test drives the SAME rule the verb does. A rule
+ *  restated in two places is how F064 and F066 got in, and this one is the whole
+ *  contract for 149 recorded runs.
+ *
+ *  NOT A GLOB, and that is a measurement rather than a preference. Playwright's
+ *  own rule is that a pattern with no wildcard must equal the URL EXACTLY — so of
+ *  the 38 distinct arguments the fleet has sent, 37 would never have matched
+ *  anything. Four of them are query fragments (`status=godkendt`, `folder=`),
+ *  which are neither paths nor hosts and can only ever work as substrings, and
+ *  `/` alone — 6 runs — means "any URL" here and "the root" under glob.
+ *
+ *  A predicate is passed to Playwright rather than a string precisely so its glob
+ *  rules never get a chance to apply. */
+export function urlMatches(want: string, url: string): boolean {
+  return url.includes(want);
+}
+
+/** How often expectAbsent re-asks. Small enough that an element disappearing
+ *  mid-poll is noticed promptly, large enough not to hammer the page. The
+ *  ALREADY-absent case never sleeps at all: the first look answers it. */
+const ABSENT_POLL_MS = 100;
+
+/** The layers `expectAbsent` must find EMPTY. A string target is one layer; a
+ *  LocateSpec is all of the ones it names. */
+function expectAbsentLayers(page: Page, target: Target): Array<{ layer: string; locator: Locator }> {
+  if (typeof target === 'string') {
+    return [{ layer: 'selector', locator: page.locator(resolveSelector(target)) }];
+  }
+  return layerAttempts(page, target).map((a) => ({ layer: a.layer, locator: a.make() }));
 }
 
 /** Try the LocateSpec's DOM layers, in TWO passes under ONE shared budget.
@@ -204,20 +305,7 @@ async function tryDomLayers(
   timeoutMs: number,
 ): Promise<{ locator: Locator; layer: string } | null> {
   const nth = spec.nth ?? 0;
-  const exact = spec.exact ?? false;
-  const attempts: Array<{ layer: string; make: () => Locator }> = [];
-  if (spec.testid) attempts.push({ layer: 'testid', make: () => page.getByTestId(spec.testid!) });
-  if (spec.css) attempts.push({ layer: 'css', make: () => page.locator(spec.css!) });
-  if (spec.role)
-    attempts.push({
-      layer: 'role',
-      make: () =>
-        page.getByRole(spec.role as Parameters<Page['getByRole']>[0], spec.name ? { name: spec.name, exact } : {}),
-    });
-  if (spec.label) attempts.push({ layer: 'label', make: () => page.getByLabel(spec.label!, { exact }) });
-  if (spec.placeholder)
-    attempts.push({ layer: 'placeholder', make: () => page.getByPlaceholder(spec.placeholder!, { exact }) });
-  if (spec.text) attempts.push({ layer: 'text', make: () => page.getByText(spec.text!, { exact }) });
+  const attempts = layerAttempts(page, spec);
 
   // PASS 1 — identity. Strict priority order, no waiting.
   const now = await snapshotByPriority(attempts, state, nth);
@@ -491,17 +579,17 @@ async function runStep(
     case 'click': {
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'click', timeoutMs });
       await locator.click({ timeout: remaining_ms });
-      return { detail: describeTarget(step.target), resolved_via: layer };
+      return { detail: describeResolved(step.target, layer), resolved_via: layer };
     }
     case 'fill': {
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'fill', timeoutMs });
       await locator.fill(step.value, { timeout: remaining_ms });
-      return { detail: describeTarget(step.target), resolved_via: layer };
+      return { detail: describeResolved(step.target, layer), resolved_via: layer };
     }
     case 'type': {
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'type', timeoutMs });
       await locator.pressSequentially(step.text, { timeout: remaining_ms });
-      return { detail: describeTarget(step.target), resolved_via: layer };
+      return { detail: describeResolved(step.target, layer), resolved_via: layer };
     }
     case 'press': {
       if (step.target != null) {
@@ -515,13 +603,16 @@ async function runStep(
     case 'select': {
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'select', timeoutMs });
       await locator.selectOption(step.value, { timeout: remaining_ms });
-      return { detail: `${describeTarget(step.target)}=${step.value}`, resolved_via: layer };
+      return { detail: `${describeResolved(step.target, layer)}=${step.value}`, resolved_via: layer };
     }
     case 'upload': {
       const files = await Promise.all(step.files.map(resolveUploadFile));
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'upload', timeoutMs });
       await locator.setInputFiles(files, { timeout: remaining_ms });
-      return { detail: `${describeTarget(step.target)} ← ${files.map((f) => f.name).join(', ')}`, resolved_via: layer };
+      return {
+        detail: `${describeResolved(step.target, layer)} ← ${files.map((f) => f.name).join(', ')}`,
+        resolved_via: layer,
+      };
     }
     case 'waitFor': {
       let layer: string | undefined;
@@ -532,7 +623,7 @@ async function runStep(
       }
       if (typeof step.ms === 'number') await page.waitForTimeout(step.ms);
       if (step.target == null && typeof step.ms !== 'number') throw new Error('waitFor step needs a target or ms');
-      return { detail: step.target != null ? describeTarget(step.target) : `${step.ms}ms`, resolved_via: layer };
+      return { detail: step.target != null ? describeResolved(step.target, layer) : `${step.ms}ms`, resolved_via: layer };
     }
     case 'assert': {
       // F064 — `page.evaluate(string)` evaluated the body as an EXPRESSION and
@@ -572,7 +663,57 @@ async function runStep(
       if (!txt.includes(step.text)) {
         throw new Error(`expectText: "${step.text}" not in "${txt.slice(0, 160)}"`);
       }
-      return { detail: `${describeTarget(step.target)} ⊇ "${step.text}"`, resolved_via: layer };
+      return { detail: `${describeResolved(step.target, layer)} ⊇ "${step.text}"`, resolved_via: layer };
+    }
+    case 'waitForUrl': {
+      // SUBSTRING ON THE FULL URL — a predicate, so Playwright's glob rules never
+      // touch it. Measured against the daemon's 162 recorded arguments: they split
+      // into path-like ("/app", "/dashboard", "/") and bare host-or-fragment
+      // ("wp-admin", "google.com/maps"), and the second family cannot work under
+      // glob at all. "/" alone is 6 runs and means "any url" as a substring while
+      // meaning "the root" under glob. Choosing Playwright's default would have
+      // been a silent change of meaning, not a port.
+      const want = step.url;
+      try {
+        await page.waitForURL((u) => urlMatches(want, u.toString()), { timeout: timeoutMs });
+      } catch {
+        // Playwright's own message for a predicate names neither side. A failed
+        // login is the commonest use, and "where did it actually go" is the whole
+        // question — so say both.
+        throw new Error(`waitForUrl: never reached a URL containing "${want}" — still at ${page.url()}`);
+      }
+      return { detail: want };
+    }
+    case 'expectAbsent': {
+      // DELIBERATELY NOT resolveTarget. The patient resolve (F071.4) exists to
+      // WAIT for something to appear; running an absence check through it would
+      // spend the whole budget hunting for the thing we are asserting is gone, so
+      // every PASSING expectAbsent would cost the full timeout. Green, just slow —
+      // the kind of cost nobody ever traces back.
+      //
+      // ABSENCE IS OVER ALL LAYERS. Presence is "one layer hits"; absence must be
+      // "no layer hits", or this reports green while the element stands there
+      // under another layer.
+      const layers = expectAbsentLayers(page, step.target);
+      const nth = typeof step.target === 'string' ? 0 : (step.target.nth ?? 0);
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const present: string[] = [];
+        for (const l of layers) {
+          // `<= nth` and not `=== 0`: nth picks among matches, so "the third row
+          // is gone" is "there are fewer than three visible matches".
+          const visible = await l.locator.filter({ visible: true }).count().catch(() => 0);
+          if (visible > nth) present.push(l.layer);
+        }
+        if (present.length === 0) return { detail: describeTarget(step.target) };
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `expectAbsent: ${describeTarget(step.target)} is still visible via ${present.join(', ')} ` +
+              `after ${timeoutMs}ms`,
+          );
+        }
+        await page.waitForTimeout(ABSENT_POLL_MS);
+      }
     }
     case 'check':
     case 'uncheck': {
@@ -586,12 +727,12 @@ async function runStep(
       } catch (err) {
         throw await withNotCheckableHint(locator, step.target, err);
       }
-      return { detail: describeTarget(step.target), resolved_via: layer };
+      return { detail: describeResolved(step.target, layer), resolved_via: layer };
     }
     case 'expectVisible': {
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'expectVisible', timeoutMs });
       await locator.waitFor({ state: 'visible', timeout: remaining_ms });
-      return { detail: describeTarget(step.target), resolved_via: layer };
+      return { detail: describeResolved(step.target, layer), resolved_via: layer };
     }
     case 'expectEditable': {
       const { locator, resolved_via: layer, remaining_ms } = await resolveTarget(page, step.target, { action: 'expectEditable', timeoutMs });
@@ -603,7 +744,7 @@ async function runStep(
             `(no contenteditable, or a disabled/readonly form control)`,
         );
       }
-      return { detail: describeTarget(step.target), resolved_via: layer };
+      return { detail: describeResolved(step.target, layer), resolved_via: layer };
     }
     case 'screenshot': {
       if (step.target != null) {
@@ -612,7 +753,7 @@ async function runStep(
         await locator.waitFor({ state: 'visible', timeout: remaining_ms });
         await locator.scrollIntoViewIfNeeded({ timeout: remaining_ms });
         const png = await locator.screenshot();
-        return { detail: step.name ?? describeTarget(step.target), png, resolved_via: layer };
+        return { detail: step.name ?? describeResolved(step.target, layer), png, resolved_via: layer };
       }
       const mode: CaptureMode = step.mode ?? 'viewport';
       const { png } = await takeShot(page, mode, null, timeoutMs);

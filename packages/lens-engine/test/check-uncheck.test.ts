@@ -102,14 +102,24 @@ describe('F073.2 — a non-checkable target throws, and says what it found', () 
     // A hint that fires on every failure is a hint nobody reads — the same rule
     // F071.2's bare-tag hint was built to obey.
     const { page } = fakePage({ fails: 'Timeout 1234ms exceeded', el: { tagName: 'INPUT', type: 'checkbox' } });
-    const err = await execStep(page, step('check'), 'https://example.com', 1234).catch((e) => e as Error);
+    const err: Error = await execStep(page, step('check'), 'https://example.com', 1234).then(
+      () => {
+        throw new Error('expected the step to fail');
+      },
+      (e: unknown) => e as Error,
+    );
     expect(err.message).toContain('Timeout 1234ms exceeded');
     expect(err.message).not.toContain('falling back');
   });
 
   it('NEGATIVE CONTROL: Playwright’s own message is kept, not replaced', async () => {
     const { page } = fakePage({ fails: NOT_CHECKABLE, el: { tagName: 'LABEL' } });
-    const err = await execStep(page, step('check'), 'https://example.com', 1234).catch((e) => e as Error);
+    const err: Error = await execStep(page, step('check'), 'https://example.com', 1234).then(
+      () => {
+        throw new Error('expected the step to fail');
+      },
+      (e: unknown) => e as Error,
+    );
     expect(err.message).toContain('Not a checkbox or radio button');
   });
 });

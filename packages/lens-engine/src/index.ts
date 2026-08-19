@@ -42,6 +42,9 @@ export {
   // page, so the daemon and the cloud runner must share one definition rather than
   // each growing their own (two copies of a predicate is how F064 and F066 got in).
   describeElement,
+  // F073.3 — the waitForUrl matcher, exported so the corpus check drives the SAME
+  // rule the verb does rather than a copy of it.
+  urlMatches,
   // F064 — exported for the SAME reason as isEditableElement: the local daemon
   // and the cloud runner must share ONE definition of what an assert means.
   // Two copies is how the false green got in.

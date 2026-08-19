@@ -30,6 +30,8 @@ const VALID: Record<string, Record<string, unknown>> = {
   waitFor: { action: 'waitFor' },
   assert: { action: 'assert', js: 'true' },
   expectText: { action: 'expectText', target: '#a', text: 't' },
+  waitForUrl: { action: 'waitForUrl', url: '/dashboard' },
+  expectAbsent: { action: 'expectAbsent', target: '#a' },
   check: { action: 'check', target: '#a' },
   uncheck: { action: 'uncheck', target: '#a' },
   expectVisible: { action: 'expectVisible', target: '#a' },

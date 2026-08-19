@@ -128,7 +128,98 @@ schemas (`captureBodySchema`, `flowBodySchema`, `locateSpecSchema`,
 accepts an optional `timeout_ms`, and **since v0.7.0 an unknown key is rejected
 rather than silently deleted** — see below.
 
-## v0.9.0 — `check` and `uncheck`, because a click cannot assert a state
+## v0.9.0 — four verbs the engine could not express, and a label that lied
+
+Additive: nothing existing changes. `waitForUrl`, `expectAbsent`, `check` and
+`uncheck` close the four genuine gaps between this engine's grammar and the
+cardmem daemon's — **248 of the 517 verb-occurrences** across the fleet's flow
+runs that could not migrate.
+
+```jsonc
+{ "action": "waitForUrl",   "url": "/dashboard" }      // substring of the FULL url
+{ "action": "expectAbsent", "target": "toast" }        // waits for it to be GONE
+{ "action": "check",        "target": "agree" }        // idempotent: on -> stays on
+{ "action": "uncheck",      "target": "newsletter" }   // idempotent: off -> stays off
+```
+
+### `waitForUrl` matches a SUBSTRING of the full URL — not a glob
+
+That is a measurement, not a preference. Playwright's `page.waitForURL()` takes a
+**glob** by default, and `waitForURL('/dashboard')` does *not* match
+`http://localhost:3000/dashboard` without a configured `baseURL` — it hangs to the
+timeout. Run against every argument the fleet has actually sent — **38 distinct
+across 149 runs** — they fall into four families:
+
+```
+path-like, with a slash   /app 51 · /dashboard 7 · / 6 · /tak 4 · /platform 4
+bare host or fragment     broberg.ai 6 · wp-admin 5 · google.com/maps 4 · maps 2
+query fragment            folder= · project=fd-sundhed · status=godkendt · status=afvist
+a full URL                https://xrt81.com/  (1)
+```
+
+Playwright's rule is that **a pattern with no wildcard must equal the URL
+exactly**, and not one of the 38 carries a wildcard. So under glob, **37 of the 38
+would never match anything** — only the single full URL survives. The query
+fragments can *only* ever work as substrings; `/` alone, 6 runs, means "any URL"
+here and "the root" under glob.
+
+The 13 remaining recorded values are the manuscript author's own prose
+("redirect tilbage til kvittering"), not arguments — the store overwrites the
+label when one is set. They are listed in the corpus test so the exclusion is
+auditable rather than a quiet trim.
+
+The failure names both sides, because a failed login is the commonest use and
+*where it actually went* is the whole question:
+
+```
+waitForUrl: never reached a URL containing "/dashboard"
+            — still at https://app.example.com/login?error=bad_password
+```
+
+**Default timeout differs from the daemon's on purpose:** the daemon defaults to
+8000 ms, this engine to step -> flow -> 30 s. Longer, not shorter — a failing
+`waitForUrl` becomes slower to fail, never faster.
+
+### `expectAbsent` waits for absence, and it is cheap
+
+`expectVisible` has no negative, and this is not one: it must **wait for** the
+element to go, which is how you assert a toast closed or a row was deleted.
+
+- an element that **never existed** is a PASS, not an error
+- an element that is **attached but hidden** counts as absent
+- **all layers** of a `LocateSpec` must be gone. Presence is *one layer hits*, so
+  absence must be *no layer hits* — otherwise it reports green while the element
+  stands there under a different layer
+- the failure names **which layer** still matched
+- `nth` is honoured: *"the third row is gone"* is *"fewer than three visible"*
+
+**It deliberately does not use the patient resolve** (v0.8.0). That exists to wait
+for something to *appear*; running an absence check through it would spend the
+whole budget hunting for the thing you are asserting is gone, so every *passing*
+`expectAbsent` would cost the full timeout. Green, just slow — the kind of cost
+nobody traces back. An already-absent element under a 5000 ms budget returns in
+under 300 ms.
+
+### A step's `detail` now names the layer that actually matched
+
+Filed by cardmem after it cost them a wrong conclusion. Every resolving step
+reported a label built from the spec's **first key by priority**, whatever
+actually matched:
+
+```
+0.8.x   "detail": "by-testid"          "resolved_via": "css"
+0.9.0   "detail": "#by-css (css)"      "resolved_via": "css"
+```
+
+The danger was not imprecision. **The label was constructed from the request, so
+it could never contradict the caller** — a field that cannot disagree with you
+looks like confirmation and carries no information. `resolved_via` was always
+correct; it just sat below the field a human reads first.
+
+A bare-string target is unchanged (the string *is* the selector), and
+`resolved_via` itself is untouched.
+
+### `check` and `uncheck` — because a click cannot assert a state
 
 Two new steps. Additive: nothing existing changes.
 
