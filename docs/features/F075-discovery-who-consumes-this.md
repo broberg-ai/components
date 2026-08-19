@@ -105,6 +105,46 @@ Self-reporting works here — the key matched, the row was written, the timestam
 moved. It is not an unreliable input; it is simply never read by the surface
 people look at.
 
+### What only a consumer could see — cardmem re-enrolled and measured their own drift
+
+Asked to fix one wrong row, they measured all thirteen. **Six were wrong**, and
+two of those were a different defect entirely:
+
+```
+package                   register   installed
+ai-sdk                    0.11.0  →  0.24.0     13 releases
+lens-engine               0.4.2   →  0.9.1      11 releases
+webpush                   0.1.0   →  0.2.1
+seti-client               0.3.1   →  0.3.2
+secret-scan               —       →  0.1.7      NEVER ENROLLED
+speech-dictionary         —       →  0.1.1      NEVER ENROLLED
+```
+
+Verified independently from a fresh call rather than taken on their word: 13 rows,
+every version matching, and `@broberg/lens-engine` now reading `0.9.1` for them.
+
+**Two findings that the register cannot produce about itself:**
+
+**1 · "Never enrolled" is not "stale", and it is invisible from this side.** A
+stale row looks like a fact; a missing row looks like nothing. They had used
+`secret-scan` and `speech-dictionary` for months with neither party able to see
+it. Marking each row with its age (AC#6) cannot reach that class at all — so the
+manifest scan must report **what it found that has no enrolment**, and that count,
+not the row count, is what measures coverage.
+
+**2 · The drift runs in one direction only.** All six were too OLD; none too new.
+So a stale register **always understates how widely a new release is installed,
+and therefore always understates the blast radius of a breaking change.** That is
+the dangerous direction, and it is exactly the error that opened this epic. A
+report that says "6 rows differ" without saying which way hides the only part that
+matters.
+
+**And the owner's own row is rotten too**, which is the argument for wiring this
+into the publish job rather than into anyone's diligence: `components` is
+registered as `src` for `@broberg/lens-engine` at **0.2.0** while npm serves
+0.9.1. Seven releases stale, in the register this repo runs, while the card about
+staleness was open.
+
 ## The thing neither defect would have fixed
 
 storeform's second point, and it decides the shape: **even a complete index would
