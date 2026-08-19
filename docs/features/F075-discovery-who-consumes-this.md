@@ -25,52 +25,85 @@ the package installed. I had the note and made the mistake anyway. **A lesson
 that must be remembered at the moment of writing a release note is not a
 control.**
 
-## What is actually there — measured, after I got it wrong once
+## What is actually there — measured three times, wrong twice
 
-The first version of this doc claimed `/api/fleet` returns `{ s, r, pub }` and
-has no `uses`. **That was wrong, and the way it was produced is the week's own
-failure form:** I printed `rows[0].keys()` and reported it as the shape of every
-row. Row 0 is `components`, which has no `uses`.
-
-Measured across **all** rows (2026-08-19):
+**The endpoint already exists, and it would have answered the question.**
+`GET /api/enrollments` serves the live self-reported roster: 92 rows, 20
+sessions. Asked about the release I got wrong:
 
 ```
-fields across all rows   s · r · pub · src · uses · note · isNew
-rows with a non-empty uses   6 of 11
-
-  cardmem  uses = lens · seti-client · seti-server
-  trail    uses = lens · secret-scan · mail
-  sanne    uses = lens · mail
-  xrt81    uses = lens · forms-turnstile
-  fds      uses = lens · webpush
-  fdaa     uses = mail
-  storeform            — NO ROW AT ALL
+@broberg/lens-engine   cms 0.4.0 (uses) · cardmem 0.4.2 (uses) · components (src)
+@broberg/lens-client   storeform 0.1.0 (uses) · autodoc 0.1.0 (uses) · components (src)
 ```
 
-**Two defects, and the second is worse than a missing field.**
+storeform is not on `lens-engine`. **Had I read this endpoint, the wrong release
+note would never have been written.** The failure was not a missing capability —
+it was that nothing in the release path points at the endpoint that exists, and I
+never looked. Which is this card's own thesis, now with the sharpest possible
+evidence: *the control was already built and went unused.*
 
-**1 · `uses` on `/api/fleet` is HAND-WRITTEN.** It lives in
-`scripts/inventory-data.mjs`, not in the enrollment table. cardmem's row lists
-`lens`, `seti-client`, `seti-server` — and omits `lens-engine`, which their
-daemon demonstrably imports (`resolveTarget`, since their F074.23). So the field
-is **stale by construction: it agrees with whoever last edited the roster and can
-never contradict them.** Same shape as the `detail` field this repo fixed in
-F071.6 — see [[a-field-that-cannot-contradict-you]].
+Two earlier readings of this section were wrong, and both are worth keeping
+because they are the same mistake at different depths:
 
-**2 · A repo that HAS self-reported is absent from the fleet map entirely.**
-`GET /api/sessions/storeform` returns their enrolment, twenty days old:
+1. *"`/api/fleet` returns `{ s, r, pub }` and has no `uses`."* Produced by
+   printing `rows[0].keys()` and reporting it as the shape of every row. Row 0 is
+   `components`, which has no `uses`. Six of eleven rows carry one.
+2. *"the reverse index does not exist."* It does. I checked `/api/fleet` and
+   `/api/sessions/:s`, and stopped one endpoint short.
 
-```json
-{"pkg":"@broberg/lens-client","version":"0.1.0","role":"uses","updated_at":1783120403176}
+### The real defect: two sources, and the hand-written one is a fiction
+
+`app.get("/api/fleet", c => c.json({ count: FLEET.length, fleet: FLEET }))` —
+`FLEET` is the hardcoded array in `scripts/inventory-data.mjs`. It never touches
+the enrollment table. Measured against the live data (2026-08-19):
+
+```
+session      hand-written /api/fleet          live /api/enrollments
+components   -                                -
+buddy        -                                ai-sdk, cron, db-sdk, fleet-contracts, secret-scan
+upmetrics    -                                @upmetrics/sdk, config, lens, mail
+cardmem      lens, seti-client, seti-server   ai-sdk, apikey, auth, gravatar, lens, LENS-ENGINE,
+                                              mail, media-transform, seti-client, seti-server, webpush
+trail        lens, mail, secret-scan          + ai-sdk, apikey, speech-dictionary
+sanne        lens, mail                       + @upmetrics/sdk, ai-sdk
+cms          -                                @upmetrics/sdk, ai-sdk, LENS-ENGINE, mail
+xrt81        forms-turnstile, lens            + ai-sdk, config, cron, gravatar, mail, mcp, media, media-transform, webpush
+fds          lens, webpush                    ai-sdk, lens          ← webpush claimed, not enrolled
+fdaa         mail                             -                     ← claims one, has none
 ```
 
-`/api/fleet` has no storeform row. The data exists on the write side and is lost
-on the way to the read side. **An absence does not look like a hole** — I looked
-at the fleet map, saw no storeform, and reasonably concluded they had nothing to
-do with Lens. An empty `uses` field would at least have shown the row existed.
-storeform's reading: *"we have not recorded it" and "we never looked" cannot be
-told apart from the call-site* — the week's failure form, now in the registry
-itself.
+**Ten of eleven rows disagree.** And ten enrolled sessions have no row at all:
+`storeform`, `autodoc`, `torrent-search-api`, `fd-sundhed`, `sanneandersen`,
+`beacon`, `cronjobs`, `pitch-vault`, `happy-little-place`, plus one enrolled
+under a raw UUID instead of a name.
+
+The hand-written list is wrong in **both** directions — it omits `lens-engine`
+for cardmem (the fact I needed) and claims `mail` for `fdaa` (who never enrolled
+it). It agrees with whoever last edited the roster and with nothing else. Same
+shape as the `detail` field fixed in F071.6 — see
+[[a-field-that-cannot-contradict-you]].
+
+### And storeform's experiment localised the other half
+
+They re-enrolled as a clean test (#21445):
+
+```
+POST /api/enroll            → 200 {"ok":true,"key":"matched"}, updated_at moved
+GET /api/sessions/storeform → the row is there, fresh, with their probe note
+GET /api/fleet   before     11 rows · storeform 0
+GET /api/fleet   after      11 rows · storeform 0
+POSITIVE CONTROL: the fleet response is BYTE-IDENTICAL before and after
+```
+
+The byte-identical control is what makes it a diagnosis rather than a guess: had
+`/api/fleet` merely been slow or cached, something would have moved. **The write
+side is fine; the read side never consults it.** Exactly what a hardcoded array
+predicts.
+
+**This strengthens the case for an involuntary basis rather than weakening it.**
+Self-reporting works here — the key matched, the row was written, the timestamp
+moved. It is not an unreliable input; it is simply never read by the surface
+people look at.
 
 ## The thing neither defect would have fixed
 
