@@ -148,7 +148,7 @@ runs that could not migrate.
 |---|---|---|
 | `waitForUrl` | `{ action: "waitForUrl", url }` | nothing in matching (substring, full URL, both sides). Default timeout 8000 ms → step/flow/30 s: **slower to fail, never faster**. Set `timeout_ms` to keep the old feel. |
 | `expectAbsent` | `{ action: "expectAbsent", target }` | hidden still counts as absent and never-existed is still a pass. **New:** all layers of a `LocateSpec` must be gone, not just the first. No page-settle discount — a late `expectAbsent` costs one poll rather than nothing. |
-| `check` | `{ action: "check", target }` | **the one that can bite.** A real `locator.check()` replaces a click, so a target on a `<label>` or wrapper now **throws** instead of silently toggling. Move the target onto the `<input>`. |
+| `check` | `{ action: "check", target }` | **Nothing, measured.** The daemon has driven a real `locator.check()` since its F074.23, and all 28 recorded calls passed under it. A `<label>` works (Playwright follows the label→control association); only a wrapper with no label semantics (`<div>`, `<span>`) throws. |
 | `uncheck` | `{ action: "uncheck", target }` | same as `check`. |
 | `clickSelector` | `{ action: "click", target: "<css>" }` | pure rename — a bare string target already *is* a CSS selector. |
 | `fillSelector` | `{ action: "fill", target, value }` | pure rename. |
@@ -266,33 +266,58 @@ uncheck  box ALREADY OFF → expect OFF   ok      FAIL    ← click toggled it O
 succeeded. Only an assertion on the *resulting state* caught that it was
 inverted.
 
-### Migrating from the daemon's `check` — the one thing that can bite
+### Migrating an existing `check` — measured, and there is nothing to migrate
 
-The cardmem daemon executes `check` as a plain **click** on a `data-testid`,
-which works on a `<label>`, a wrapper `<div>`, a `<span>` around the box. A real
-`locator.check()` does not: it needs an `<input type="checkbox">` /
-`<input type="radio">` or `role="checkbox"`/`"radio"`, and throws otherwise.
+The hazard people expect here is a runner that executed `check` as a plain
+**click** (which works on anything wrapping the box) handing over to a real
+`locator.check()` (which does not). Worth stating because it is the obvious
+worry — and worth measuring, because in this fleet it is **empty**.
 
-So a target pointing at the *wrapper* rather than the *input* goes from green to
-a hard failure. That direction is deliberate — **loud beats silent** — and there
-is **no fallback to a click**, because falling back is exactly the defect above:
-the action reports ok and the box ends up in the opposite state.
+The cardmem daemon has driven `locator.check()` / `locator.uncheck()` since its
+F074.23, not a click. Its stored history carries Playwright's own `.check()`
+messages (`"Clicking the checkbox did not change its state"`), which a click
+cannot produce. So all 28 recorded `check`/`uncheck` calls in fleet history
+already ran through a real `.check()` — **and every one of them passed.** A pass
+under `.check()` is itself proof that the target reaches a checkable element,
+since it throws otherwise. **28 of 28, resolved by their own green status.**
 
-The failure names what it found, so the fix is one line:
+What follows is therefore the contract, not a migration warning.
+
+```
+<label> wrapping the checkbox        ok      box → true
+<label for="…"> pointing at it       ok      box → true
+the <input> itself                   ok      box → true
+<div> wrapper (no label semantics)   THROWS  "Not a checkbox or radio button"
+<label> wrapping nothing checkable   THROWS  same
+```
+
+**A `<label>` is fine, either association.** Playwright follows the
+label→control relationship. Only a plain wrapper refuses.
+
+*An earlier version of this section said a `<label>` would throw. It does not —
+and that error failed in the **green** direction: it promised a throw that never
+comes, so anyone whose testid sits on a label would have believed themselves
+caught by a trap they were not in and moved an attribute for nothing.*
+
+Where it does throw, the failure names what it found, so the fix is one line:
 
 ```
 Error: Not a checkbox or radio button
 
-"agree" resolved to <label data-testid="agree">. check/uncheck drive the control
-itself and assert the resulting state, so they need an <input type="checkbox"> …
-Move the target onto the input itself.
+"agree" resolved to <div data-testid="agree">. check/uncheck drive the control
+itself and assert the resulting state, so the target must reach an
+<input type="checkbox"> … A <label> is fine … but a plain wrapper (<div>,
+<span>) is not. Move the target onto the input, or onto its label.
 ```
 
-Measured across the fleet's existing `check`/`uncheck` calls: **26 of 28 already
-point at a real input**, and the four resolvable ones sit on the input *inside* a
-`<label>` — so the trap exists and most flows are not in it. Two calls
-(storeform, contentpush) were not resolvable from the corpus and will announce
-themselves if they are wrong.
+There is **no fallback to a click**, because falling back is exactly the defect
+above: the action reports ok and the box ends up in the opposite state.
+
+Two independent confirmations that the fleet's existing targets are fine:
+cardmem resolved 26 of the 28 against their own source (all on the `<input>`,
+inside a `<label>`), storeform resolved `check-terms` the same way — and then the
+stronger argument made both unnecessary, since all 28 had already passed under a
+real `.check()`.
 
 ## v0.8.1 — the race decided *which* layer, and it should only decide *when*
 

@@ -16,9 +16,17 @@
 // Playwright's contract — check() reads isChecked() first and returns if already
 // in the desired state — and proving it needs a real checkbox in a real browser,
 // which is cardmem's arm. What is OURS is that the verb drives .check()/.uncheck()
-// and NEVER a click, that a non-checkable target throws rather than falling back,
-// and that the failure names the element it actually found. That is what is
-// asserted here.
+// and NEVER a click, that a refusal is not repaired by falling back, and that the
+// failure names the element it actually found.
+//
+// AND A `<label>` IS NOT A REFUSAL — measured in a real browser after the first
+// version of this file assumed it was. Playwright follows the label→control
+// association, so a testid on a <label> (wrapping, or for="…") drives the box
+// fine; what refuses is a wrapper with no label semantics, or a <label>
+// associated with nothing checkable. A FAKE CANNOT KNOW THAT: the association
+// lives in the browser's HTML semantics, not in the locator API. So these tests
+// drive the hint MECHANISM with an element Playwright really does refuse, and the
+// label fact is pinned where it belongs — in cardmem's browser matrix.
 import { describe, it, expect } from 'vitest';
 import { execStep, describeElement } from '../src/flow.js';
 import type { FlowStep } from '../src/schema.js';
@@ -79,12 +87,14 @@ describe('F073.2 — a non-checkable target throws, and says what it found', () 
   const NOT_CHECKABLE = 'Error: Not a checkbox or radio button';
 
   it('names the element, and never falls back to a click', async () => {
+    // A <div> wrapper, not a <label> — a label is accepted by Playwright and is
+    // therefore the wrong example for a refusal.
     const { page, calls } = fakePage({
       fails: NOT_CHECKABLE,
-      el: { tagName: 'LABEL', 'data-testid': 'agree' },
+      el: { tagName: 'DIV', 'data-testid': 'agree' },
     });
     await expect(execStep(page, step('check'), 'https://example.com', 1234)).rejects.toThrow(
-      /<label data-testid="agree">/,
+      /<div data-testid="agree">/,
     );
     // THE HALF THAT MATTERS: no click was issued. A fallback would report ok and
     // leave the box in the opposite state — the exact defect that made this a gap.
@@ -112,8 +122,25 @@ describe('F073.2 — a non-checkable target throws, and says what it found', () 
     expect(err.message).not.toContain('falling back');
   });
 
+  it('the hint does NOT tell a label-targeting caller to move their testid', async () => {
+    // The correction that matters. The first version of this message said "a
+    // <label> or a wrapper will not do", which is false — and false in the GREEN
+    // direction: it promised a throw that never comes, so someone whose testid
+    // sits on a label would have believed themselves caught by a trap they were
+    // not in and moved an attribute for no reason.
+    const { page } = fakePage({ fails: NOT_CHECKABLE, el: { tagName: 'DIV' } });
+    const err: Error = await execStep(page, step('check'), 'https://example.com', 1234).then(
+      () => {
+        throw new Error('expected the step to fail');
+      },
+      (e: unknown) => e as Error,
+    );
+    expect(err.message).toMatch(/<label> is fine/);
+    expect(err.message).toMatch(/label→control association/);
+  });
+
   it('NEGATIVE CONTROL: Playwright’s own message is kept, not replaced', async () => {
-    const { page } = fakePage({ fails: NOT_CHECKABLE, el: { tagName: 'LABEL' } });
+    const { page } = fakePage({ fails: NOT_CHECKABLE, el: { tagName: 'DIV' } });
     const err: Error = await execStep(page, step('check'), 'https://example.com', 1234).then(
       () => {
         throw new Error('expected the step to fail');

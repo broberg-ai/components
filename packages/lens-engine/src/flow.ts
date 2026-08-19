@@ -534,11 +534,17 @@ async function withSelectorMissHint(page: Page, step: FlowStep, err: unknown): P
 /** Say WHAT was resolved when check/uncheck refuse it, and why there is no
  *  fallback.
  *
- *  The daemon executes `check` as a plain testid CLICK, which works on a
- *  <label>, a wrapper div, a span around the box. A real locator.check() does
- *  not — and that asymmetry is the one thing a migrating flow can trip over
- *  (cardmem measured 26 of their 28 targets sitting on the input itself, so the
- *  trap exists and they are mostly not in it).
+ *  A `<label>` IS ACCEPTED — measured, after a first version of this message
+ *  said otherwise. Playwright follows the label→control association, so a testid
+ *  on a `<label>` wrapping the box, or on a `<label for="…">` pointing at it,
+ *  drives the control fine. What actually refuses is a wrapper with no label
+ *  semantics (`<div>`, `<span>`), or a `<label>` associated with nothing
+ *  checkable.
+ *
+ *  That correction matters more than it looks: the wrong version failed in the
+ *  GREEN direction. It promised a throw that never comes, so a consumer whose
+ *  testid sits on a label would have believed themselves caught by a trap they
+ *  were not in, and moved an attribute for no reason.
  *
  *  Falling back to a click would be the WRONG repair: it is precisely the defect
  *  that made these verbs a gap rather than an alias — the action reports ok and
@@ -555,11 +561,13 @@ async function withNotCheckableHint(locator: Locator, target: Target, err: unkno
   if (!found) return err;
   return new Error(
     `${message}\n\n${describeTarget(target)} resolved to ${found}. ` +
-      `check/uncheck drive the control itself and assert the resulting state, so they need an ` +
-      `<input type="checkbox"> / <input type="radio"> or role="checkbox"/"radio" — a <label> or a ` +
-      `wrapper will not do. A click on the wrapper WOULD have worked, and could have left the box ` +
-      `in the opposite state to the one you asked for, which is why this throws instead of falling ` +
-      `back. Move the target onto the input itself.`,
+      `check/uncheck drive the control itself and assert the resulting state, so the target must ` +
+      `reach an <input type="checkbox"> / <input type="radio"> or role="checkbox"/"radio". A ` +
+      `<label> is fine — Playwright follows the label→control association, wrapping or for="…" ` +
+      `alike — but a plain wrapper (<div>, <span>) is not, and neither is a <label> associated ` +
+      `with nothing checkable. A click on the wrapper WOULD have worked, and could have left the ` +
+      `box in the opposite state to the one you asked for, which is why this throws instead of ` +
+      `falling back. Move the target onto the input, or onto its label.`,
   );
 }
 
