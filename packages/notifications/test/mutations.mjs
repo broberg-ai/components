@@ -67,6 +67,21 @@ const MUTATIONS = [
     from: "      if (typeof row?.title !== 'string' || row.title.trim() === '') {",
     to: "      if (false) {",
   },
+  // F074.3 — the two halves of a survivable fan-out. The first restores 0.1.0
+  // (a dead phone undoes the write); the second makes the failure vanish, which
+  // is this package's own defect turned inward.
+  {
+    name: 'a failing fan-out takes the mutation with it again (0.1.0)',
+    file: INDEX,
+    from: "    try {\n      await onCountChanged(subjectId, count);\n    } catch (err) {",
+    to: "    try {\n      await onCountChanged(subjectId, count);\n    } catch (err) {\n      throw err;",
+  },
+  {
+    name: 'the fan-out failure is swallowed (badge and list disagree, nobody told)',
+    file: INDEX,
+    from: "      if (onCountChangedError) onCountChangedError(err, subjectId, count);\n      else console.error('[@broberg/notifications] onCountChanged failed', { subjectId, count, err });",
+    to: "      void err;",
+  },
 ];
 
 /** The set of failing test names, so two mutations can be compared. */

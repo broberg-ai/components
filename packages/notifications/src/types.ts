@@ -64,6 +64,14 @@ export interface NotificationsConfig<Row extends NotificationRow = NotificationR
    *  "the badge and the list change together", and an optional one would make
    *  the guarantee a suggestion. */
   onCountChanged: (subjectId: string, count: number) => void | Promise<void>;
+  /** Where a FAILED fan-out goes (0.2.0). The mutation has already happened, so
+   *  it stands; only the announcement failed, and the two are different facts.
+   *
+   *  Optional, and its absence is not silence: without it the failure goes to
+   *  `console.error`. A swallowed one would leave the badge and the list
+   *  disagreeing with nobody told — which is the defect this package exists to
+   *  prevent, moved into the package itself. */
+  onCountChangedError?: (err: unknown, subjectId: string, count: number) => void;
 }
 
 /** What a clearing call gives back.

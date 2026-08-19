@@ -27,16 +27,41 @@ export interface Notifications<Row extends NotificationRow = NotificationRow> {
  *  announce. Get that order wrong — or skip the announce on one path — and you
  *  have the defect this exists to prevent: a list showing five unopened rows
  *  above a clean app icon, with the user believing neither. */
+/** Declared rather than pulled in from `lib: dom` or `@types/node`. This package
+ *  is deliberately environment-agnostic — browser, node, bun, service worker —
+ *  and widening the lib to reach one global would let every other one in. */
+declare const console: { error(...args: unknown[]): void };
+
 export function createNotifications<Row extends NotificationRow = NotificationRow>(
   config: NotificationsConfig<Row>,
 ): Notifications<Row> {
-  const { store, onCountChanged } = config;
+  const { store, onCountChanged, onCountChangedError } = config;
 
   /** Recount and announce. Never call `onCountChanged` from anywhere else: one
-   *  place means a new operation cannot forget it, only fail to call this. */
+   *  place means a new operation cannot forget it, only fail to call this.
+   *
+   *  A FAILING FAN-OUT MUST NOT UNDO THE MUTATION (F074.3, filed by moovyy after
+   *  adopting 0.1.0). Until 0.2.0 this awaited `onCountChanged` bare, so a dead
+   *  phone or a wrong VAPID key rejected the whole `notify()` — AFTER the row was
+   *  already written. Their case: a downloaded film would not be booked because a
+   *  NUMBER could not be moved, and a caller that retries then writes the row
+   *  twice.
+   *
+   *  The write already happened, so the operation succeeded; only the
+   *  announcement failed. Those are two different facts and the caller is
+   *  entitled to the first one.
+   *
+   *  IT IS NEVER SWALLOWED, because then the badge and the list disagree with
+   *  nobody told — the exact defect this package exists to prevent. It goes to
+   *  `onCountChangedError` if given, and to `console.error` if not. */
   async function settle(subjectId: string): Promise<number> {
     const count = await store.countUnseen(subjectId);
-    await onCountChanged(subjectId, count);
+    try {
+      await onCountChanged(subjectId, count);
+    } catch (err) {
+      if (onCountChangedError) onCountChangedError(err, subjectId, count);
+      else console.error('[@broberg/notifications] onCountChanged failed', { subjectId, count, err });
+    }
     return count;
   }
 

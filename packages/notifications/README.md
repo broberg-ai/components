@@ -10,6 +10,36 @@ You supply a store; it owns the choreography.
 npm i @broberg/notifications
 ```
 
+## v0.2.0 — a failing fan-out no longer undoes the mutation
+
+Filed by moovyy after adopting 0.1.0, and it bit in production shape.
+
+`onCountChanged` is awaited after every mutation. Until 0.2.0 it was awaited
+**bare** — so a dead phone, a `410 Gone`, or a wrong VAPID key rejected the whole
+`notify()`, *after the row was already written*. Their case: a downloaded film
+would not be booked because a **number** could not be moved. And a caller that
+retries then writes the row twice.
+
+**The write already happened, so the operation succeeded; only the announcement
+failed. Those are two different facts, and the caller is entitled to the first.**
+
+```ts
+createNotifications({
+  store,
+  onCountChanged: (subjectId, count) => sendSilent({ badge: count }),
+  onCountChangedError: (err, subjectId, count) => log.warn({ err, subjectId, count }),
+})
+```
+
+**It is never swallowed.** Without `onCountChangedError` the failure goes to
+`console.error`. Silence would leave the badge and the list disagreeing with
+nobody told — which is the defect this package exists to prevent, moved inside
+the package.
+
+**A failing STORE still throws.** Only the fan-out is forgiving: if the write did
+not happen, the caller must hear about it. Both directions have a test.
+
+
 ## Why this exists
 
 Three apps built the same notification list. They looked different and behaved
