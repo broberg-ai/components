@@ -381,5 +381,27 @@ is trying to avoid, moved one layer out, and just as silent.
 
    So if the shape is to be covered before `v0.2.0`, xrt81 or cardmem cover it.
    Written down because an unassigned measurement is an unperformed one.
+
+   **Assigned, 2026-08-19 — moovyy is building, and asked BEFORE writing code**
+   (on Christian's instruction, which is the reuse rule working as intended). What
+   they CAN take, in priority order, since the parity shape is closed to them:
+
+   | # | measurement | why only they can take it |
+   |---|---|---|
+   | 1 | do they have per-user preferences at all? | a consumer whose count is UNFILTERED proves the core must not assume a filter. A zero here is the most valuable answer, not the least |
+   | 2 | any user with **≥2 simultaneous mutes**? | zero such users exist on cardmem AND xrt81. One is worth more than a hundred single-mute users |
+   | 3 | `markAllSeen` → `clearedIds` against a REAL table | they filed the gap; the requirement is that the list comes from the STORE's answer, never the request |
+   | 4 | read back from a FRESH call after every mutation | not component state, not the write's own response — and on drizzle + bun:sqlite a new column can silently fail to persist through a typed `.set()` while the call reports success |
+
+   Their environment settled two questions without a change on our side: the core
+   has **zero runtime deps** (their vanilla ES-module app needs no bundler for it),
+   and `@broberg/webpush` already ships `./sw.global` for a **classic** service
+   worker with `importScripts` — which is what they run.
+
+   **And the badge question they raised is worth stating as a rule rather than an
+   answer:** `@broberg/notifications` owns the COUNT, `@broberg/webpush` owns the
+   transport and the OS surface. **webpush must never derive a count** — it
+   displays the number it is handed, and `onCountChanged` is where that number
+   comes from. That is how three display surfaces stay on one counter.
 4. Prune story, informed by xrt81's measured growth.
 5. Tell Discovery, so the fourth app never writes this again.
