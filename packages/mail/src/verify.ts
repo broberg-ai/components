@@ -91,6 +91,30 @@ const DEFAULT_DKIM_SELECTOR = 'resend';
  * ENOTFOUND / ENODATA  → the query succeeded and there is nothing there
  * anything else        → timeout, SERVFAIL, refused, no resolver: we do not know
  */
+/**
+ * RUNTIME-DEPENDENT, MEASURED 2026-08-22 on one machine, same OS, same inputs:
+ *
+ *                                    node 25.7    bun 1.3.14
+ *   'Moovyy <noreply@x.dev>'         EBADNAME     ENOTFOUND
+ *   ''                               ENODATA      ERR_INVALID_ARG_TYPE
+ *   name exists, no record           ENODATA      ENOTFOUND
+ *   name does not exist              ENOTFOUND    ENOTFOUND
+ *
+ * Two consequences, and the first is why senderDomain() throws:
+ *
+ * 1. An UNPARSED string reaching the lookup gets classified by whichever
+ *    runtime happens to be running. On node a malformed name is EBADNAME →
+ *    'unknown' (harmless); on bun it is ENOTFOUND → 'missing', which is a
+ *    confident false alarm about a domain that is fine. So parsing BEFORE the
+ *    lookup is not ergonomics — it is the only way to a deterministic answer.
+ *    A consumer and this package each measured this and each stated their own
+ *    runtime's result as universal. Both were right locally and wrong globally.
+ *
+ * 2. bun cannot distinguish NXDOMAIN from NODATA — it reports ENOTFOUND for
+ *    both. Harmless here, since both mean absent and both are listed below.
+ *    But do NOT build logic on that distinction: it does not survive the
+ *    runtime change, and it would fail in the quiet direction.
+ */
 const ABSENT_CODES = new Set(['ENOTFOUND', 'ENODATA']);
 
 async function lookup<T>(fn: () => Promise<T>): Promise<{ state: 'found'; value: T } | { state: 'absent' } | { state: 'unknown' }> {

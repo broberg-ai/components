@@ -225,6 +225,18 @@ The normalisation is **never silent**: `report.domain` carries the domain actual
 
 > Measured before fixing: `""` resolved as `ENODATA` and produced *"add TXT on ''"* instructions for a domain that does not exist — the real confident false alarm. `Moovyy <…>` resolved as `EBADNAME`, which the three-state design already handled as *unknown* rather than *missing*.
 
+**The DNS error code is runtime-dependent — measured, not assumed.** Same machine, same inputs, node 25.7 vs bun 1.3.14:
+
+| input | node | bun |
+|---|---|---|
+| `Moovyy <noreply@x.dev>` | `EBADNAME` → *unknown* | `ENOTFOUND` → *missing* |
+| `""` | `ENODATA` | `ERR_INVALID_ARG_TYPE` |
+| name exists, no record | `ENODATA` | `ENOTFOUND` |
+
+Both absence codes are handled, so a genuinely missing record is classified correctly on either. But it is why `senderDomain()` **throws** rather than letting an unparsed string reach the lookup: on bun a malformed name reads as *absent*, which is a confident false alarm about a domain that is fine. Parsing first is the only deterministic path.
+
+One caveat for anyone extending this: **bun cannot tell NXDOMAIN from NODATA** — both surface as `ENOTFOUND`. Harmless today (both mean absent), but do not build logic on that distinction; it will not survive a runtime change, and it will fail quietly.
+
 **`region` is not guessed.** Without it the MX fix reads `feedback-smtp.<region>.amazonses.com` and says the region must be supplied. A confidently wrong region produces a record that looks right and routes bounces nowhere.
 
 ## API
