@@ -49,7 +49,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/auth** v0.2.0 — Thin fleet wrapper around Better Auth. `npm i @broberg/auth`
 - **@broberg/apikey** v0.3.1 — The fleet's inbound API-key primitives. `npm i @broberg/apikey`
 - **@broberg/event-log** v0.1.0 — A GDPR-aware event and activity log. `npm i @broberg/event-log`
-- **@broberg/gravatar** v0.2.0 — Isomorphic Gravatar helper (SHA-256 via crypto.subtle) + initials fallback. `npm i @broberg/gravatar`
+- **@broberg/gravatar** v0.2.1 — Isomorphic Gravatar helper (SHA-256 via crypto.subtle) + initials fallback. `npm i @broberg/gravatar`
 - **@broberg/consent-cookie** v0.1.0 — A consent and cookie banner. `npm i @broberg/consent-cookie`
 
 ### L2 — Shell (the app frame & controls)
