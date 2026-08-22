@@ -170,8 +170,19 @@ jobs:
         run: |
           APP_ARG=""
           [ -n "$APP" ] && APP_ARG="--app $APP"
+          # F033.9 — two states, not one. "flyctl could not answer" and "flyctl
+          # answered and the secret is absent" are different facts, and only the
+          # second one is about secrets. This used to swallow stderr and read an
+          # empty listing as "every required secret is missing", so an EXPIRED
+          # TOKEN was reported as missing secrets — sending you off to set
+          # secrets that were already there, with the real cause discarded.
           # Names only — flyctl secrets list never prints values.
-          PRESENT=" $(flyctl secrets list $APP_ARG 2>/dev/null | awk 'NR>1 {print $1}' | tr '\n' ' ') "
+          if ! LISTING="$(flyctl secrets list $APP_ARG 2>&1)"; then
+            echo "$LISTING"
+            echo "::error::Could not READ the secrets on the app — flyctl failed to authenticate or reach it (its own error is printed above). This says NOTHING about which secrets are set. Check FLY_API_TOKEN (expired? wrong org scope?) and the app name before you touch a single secret."
+            exit 1
+          fi
+          PRESENT=" $(echo "$LISTING" | awk 'NR>1 {print $1}' | tr '\n' ' ') "
           MISSING=""
           IFS=',' read -ra NEED <<< "$REQUIRED_SECRETS"
           for raw in "${NEED[@]}"; do
