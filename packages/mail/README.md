@@ -219,6 +219,12 @@ if (!r.ok) console.warn("[mail]", r.summary, ...r.missing);
 
 **`dkimSelector` is provider-specific.** It defaults to `resend`. On another provider you would otherwise be told "DKIM missing" about a domain that is perfectly fine — another false alarm, another reason to switch the check off. Pass your own selector.
 
+**`MAIL_FROM` is an ADDRESS, not a domain — pass it anyway (v0.7.0).** The check accepts a bare domain, `noreply@send.broberg.ai`, or `Moovyy <noreply@send.broberg.ai>`, and `senderDomain()` is exported if you want the parse on its own. It lives here because it is three lines every consumer writes identically, and the wrong version produces **no error** — only an alarm that looks right.
+
+The normalisation is **never silent**: `report.domain` carries the domain actually looked up, not the string you passed. And unreadable input (`""`, a URL, a bare word) claims **nothing** — it reports `not a domain … NOTHING was checked` rather than inventing a plausible one. `senderDomain()` itself throws on those; `verifySendingDomain()` never throws, because a boot check that crashes the boot is worse than the problem it reports.
+
+> Measured before fixing: `""` resolved as `ENODATA` and produced *"add TXT on ''"* instructions for a domain that does not exist — the real confident false alarm. `Moovyy <…>` resolved as `EBADNAME`, which the three-state design already handled as *unknown* rather than *missing*.
+
 **`region` is not guessed.** Without it the MX fix reads `feedback-smtp.<region>.amazonses.com` and says the region must be supplied. A confidently wrong region produces a record that looks right and routes bounces nowhere.
 
 ## API

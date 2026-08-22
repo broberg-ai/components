@@ -288,3 +288,101 @@ describe('a TXT record is not an SPF record', () => {
     expect(r.mx).toBe('missing');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// F005.10 — MAIL_FROM is an ADDRESS, not a domain.
+//
+// Filed by moovyy the hour they adopted 0.6.0. But MEASURED, their description
+// of the symptom was wrong, and the truth is sharper:
+//
+//   "Moovyy <noreply@send.broberg.ai>"  → EBADNAME  → all three 'unknown'
+//   ""                                  → ENODATA   → all three 'MISSING'
+//
+// They reported the display-name form as claiming everything was missing. It
+// does not — the three-state design already absorbed that, because EBADNAME is
+// not an absence code. The genuine confident-false-alarm is the EMPTY STRING,
+// which resolves as ENODATA and produces "add TXT on ''" instructions for a
+// domain that does not exist. That is the case pinned hardest below.
+import { senderDomain } from '../src/verify';
+
+describe('F005.10 — senderDomain reads the three forms MAIL_FROM actually holds', () => {
+  it.each([
+    ['send.broberg.ai', 'send.broberg.ai'],
+    ['noreply@send.broberg.ai', 'send.broberg.ai'],
+    ['Moovyy <noreply@send.broberg.ai>', 'send.broberg.ai'],
+    ['  Moovyy  <noreply@Send.Broberg.AI>  ', 'send.broberg.ai'],
+  ])('%s → %s', (input, expected) => {
+    expect(senderDomain(input)).toBe(expected);
+  });
+
+  it.each([
+    ['', 'empty'],
+    ['   ', 'whitespace only'],
+    ['Moovyy <>', 'display name with no address'],
+    ['moovyy', 'a bare word, no dot'],
+    ['https://send.broberg.ai/x', 'a URL'],
+    ['noreply@', 'address with no domain'],
+    ['a b.com', 'a space inside'],
+    ['-bad.com', 'leading hyphen label'],
+  ])('REFUSES %o (%s) rather than guessing', (input) => {
+    // Inventing a plausible domain here regenerates the exact defect this fixes.
+    expect(() => senderDomain(input)).toThrow();
+  });
+});
+
+describe('F005.10 — the check accepts all three forms and never normalises silently', () => {
+  const resolver = fakeResolver(
+    {
+      'send.broberg.ai': dnsError('ENODATA'),
+      'resend._domainkey.send.broberg.ai': [[DKIM_KEY]],
+    },
+    { 'send.broberg.ai': dnsError('ENODATA') },
+  );
+
+  it('all three inputs produce an IDENTICAL report — they cannot drift apart', async () => {
+    const [a, b, c] = await Promise.all([
+      verifySendingDomain('send.broberg.ai', { resolver }),
+      verifySendingDomain('noreply@send.broberg.ai', { resolver }),
+      verifySendingDomain('Moovyy <noreply@send.broberg.ai>', { resolver }),
+    ]);
+    expect(b).toEqual(a);
+    expect(c).toEqual(a);
+  });
+
+  it('report.domain carries what was ACTUALLY looked up, not what was passed', async () => {
+    const r = await verifySendingDomain('Moovyy <noreply@send.broberg.ai>', { resolver });
+    // Normalising without saying so would be this same bug in a different coat.
+    expect(r.domain).toBe('send.broberg.ai');
+  });
+
+  it('NEGATIVE CONTROL: genuinely missing records are still reported after the change', async () => {
+    const r = await verifySendingDomain('Moovyy <noreply@send.broberg.ai>', { resolver, region: 'eu-west-1' });
+    expect(r.ok).toBe(false);
+    expect(r.spf).toBe('missing');
+    expect(r.mx).toBe('missing');
+    expect(r.dkim).toBe('ok');
+    expect(r.missing).toHaveLength(2);
+  });
+});
+
+describe('F005.10 — unreadable input claims NOTHING, and still does not throw', () => {
+  it('THE REAL FALSE ALARM: an empty string no longer reports records as missing', async () => {
+    // Measured against 0.6.0: '' resolves as ENODATA, so every record came back
+    // 'missing' with fix instructions for a domain named "". That is the
+    // confident false alarm, and it is the one this case exists to kill.
+    const r = await verifySendingDomain('');
+    expect(r.missing).toEqual([]);
+    expect(r.spf).toBe('unknown');
+    expect(r.summary).toContain('not a domain');
+    expect(r.summary).toContain('NOTHING was checked');
+  });
+
+  it('never throws on unreadable input — a boot check that crashes the boot is worse', async () => {
+    await expect(verifySendingDomain('https://send.broberg.ai/x')).resolves.toMatchObject({ ok: false });
+  });
+
+  it('echoes the raw input back so the reader can see what they passed', async () => {
+    const r = await verifySendingDomain('moovyy');
+    expect(r.domain).toBe('moovyy');
+  });
+});

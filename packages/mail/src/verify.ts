@@ -103,6 +103,39 @@ async function lookup<T>(fn: () => Promise<T>): Promise<{ state: 'found'; value:
 }
 
 /**
+ * Pull the domain out of whatever a consumer keeps in `MAIL_FROM`.
+ *
+ * F005.10 — filed by moovyy the hour they adopted 0.6.0. `MAIL_FROM` is an
+ * ADDRESS, not a domain (`Moovyy <noreply@send.broberg.ai>`), and handing it
+ * straight to the check sends every lookup to a name that cannot resolve.
+ *
+ * Three lines every consumer writes identically, whose wrong version produces
+ * no error — only an alarm that looks right. That signature is why it lives
+ * here rather than in each repo.
+ *
+ * THROWS on anything it cannot make sense of, and that is deliberate: inventing
+ * a plausible domain out of `https://example.com/x` or a bare word would
+ * regenerate the exact defect this exists to remove. Guessing is the bug.
+ */
+export function senderDomain(from: string): string {
+  const trimmed = (from ?? '').trim();
+  if (!trimmed) throw new Error('senderDomain: empty input — pass a domain, an address, or "Name <address>".');
+
+  const angle = /<([^>]*)>/.exec(trimmed);
+  const candidate = (angle ? angle[1] : trimmed).trim();
+  const at = candidate.lastIndexOf('@');
+  const domain = (at >= 0 ? candidate.slice(at + 1) : candidate).trim().toLowerCase();
+
+  // A hostname, not "something with a dot in it": no scheme, no path, no
+  // spaces, no empty labels, and at least two labels.
+  const looksLikeHost = /^(?!-)[a-z0-9-]+(?<!-)(\.(?!-)[a-z0-9-]+(?<!-))+$/.test(domain);
+  if (!looksLikeHost) {
+    throw new Error(`senderDomain: cannot read a domain from ${JSON.stringify(from)} — pass a domain, an address, or "Name <address>".`);
+  }
+  return domain;
+}
+
+/**
  * Check that `domain` has the DNS records needed to actually deliver mail.
  *
  * NEVER THROWS and never blocks a send. It is a report; the consumer decides
@@ -116,11 +149,36 @@ async function lookup<T>(fn: () => Promise<T>): Promise<{ state: 'found'; value:
  * ```
  */
 export async function verifySendingDomain(
-  domain: string,
+  rawFrom: string,
   options: VerifyDomainOptions = {},
 ): Promise<DomainReadiness> {
   const selector = options.dkimSelector ?? DEFAULT_DKIM_SELECTOR;
   const dns: DnsResolver = options.resolver ?? { resolveTxt, resolveMx };
+
+  // F005.10 — accept a domain, an address, or "Name <address>", because that is
+  // what MAIL_FROM actually holds. THE NORMALISATION IS NEVER SILENT: `domain`
+  // below carries what was really looked up, so a consumer can see which name
+  // was checked rather than assume it was the one they passed.
+  //
+  // This still never throws — a boot check that crashes the boot is worse than
+  // the problem it reports — so unreadable input becomes a report that says so
+  // and claims NOTHING about any record. `senderDomain` is exported separately
+  // for a consumer who wants the strict version.
+  let domain: string;
+  try {
+    domain = senderDomain(rawFrom);
+  } catch {
+    return {
+      ok: false,
+      domain: rawFrom,
+      spf: 'unknown',
+      dkim: 'unknown',
+      mx: 'unknown',
+      missing: [],
+      unknown: ['SPF', 'DKIM', 'MX'],
+      summary: `${JSON.stringify(rawFrom)}: not a domain — pass a domain, an address, or "Name <address>". NOTHING was checked.`,
+    };
+  }
 
   const [txt, dkim, mx] = await Promise.all([
     lookup(() => dns.resolveTxt(domain)),
