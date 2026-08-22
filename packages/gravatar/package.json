@@ -1,6 +1,6 @@
 {
   "name": "@broberg/gravatar",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Isomorphic Gravatar helper (SHA-256) + initials fallback. Headless core + React and Preact adapter components with 3-tier fallback: uploaded picture → Gravatar → generated initials.",
   "type": "module",
   "license": "MIT",

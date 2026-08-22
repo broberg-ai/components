@@ -49,6 +49,10 @@ Splits on non-letter/non-digit, unicode-aware — so CJK and accented Latin work
 
 The email branch takes the **prefix** before `@`. That is what its documentation always claimed; the code read the whole address and only looked right because most addresses happen to begin with two letters.
 
+**An email in the `name` slot works (v0.2.1).** `getInitials("cb@webhouse.dk")` → `CB`, identical to `getInitials(null, "cb@webhouse.dk")` — because `navn = bruger.navn || bruger.email` is an ordinary call-site and the two arguments must agree. Detection is conservative: exactly one `@`, non-empty and whitespace-free on both sides, so `"Anne @ Hansen"` stays a name.
+
+> 0.2.0 got this wrong and shipped it: every address in the name slot came out ending in the TLD's first letter (`cb@webhouse.dk` → `CD`). The acceptance criterion that should have caught it asserted the same string in the *email* argument only — the claim was about the common case, the test was about one argument position, and both were green.
+
 **Known limitation, deliberate.** `getInitials("Jens Hansen, direktør")` returns `JD` — it takes the title as the surname. Truncating at the first comma would fix the Danish *"Name, Title"* form and **break** the equally common *"Surname, Firstname"* export. Two conventions, opposite fixes, and nothing in the string to tell them apart. Left alone rather than guessed at.
 
 ## The core is `async`, on purpose

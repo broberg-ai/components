@@ -103,25 +103,43 @@ export function getInitials(
   // excluded CJK or accented Latin would pass every ASCII test and break real
   // users, so 李 明 and José are asserted cases, not afterthoughts.
   const words = (s: string) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const pick = (w: string[]): string | null =>
+    w.length >= 2
+      ? (w[0][0] + w[w.length - 1][0]).toUpperCase()
+      : w.length === 1
+        ? w[0].substring(0, 2).toUpperCase()
+        : null;
 
-  const nameWords = name ? words(name) : [];
-  if (nameWords.length >= 2) {
-    return (nameWords[0][0] + nameWords[nameWords.length - 1][0]).toUpperCase();
-  }
-  if (nameWords.length === 1) {
-    return nameWords[0].substring(0, 2).toUpperCase();
+  const trimmedName = (name ?? "").trim();
+
+  // F013.8 — AN EMAIL IN THE NAME SLOT IS A REAL CALL-SITE SHAPE, not misuse:
+  // `navn = bruger.navn || bruger.email`. 0.2.0 sent it down the name branch,
+  // where the unicode split made ['cb','webhouse','dk'] and first+last gave
+  // "CD". Every address came out ending in the TLD's first letter. 0.1.0 got
+  // "CB" for the wrong reason — one whitespace-word, first two characters —
+  // but the user saw the right answer, so degrading it to "??" would still be
+  // a regression. Detection is the fix.
+  //
+  // Conservative on purpose: exactly one @, non-empty and whitespace-free on
+  // both sides. A name containing an @ is not a name.
+  const nameIsEmail = /^[^\s@]+@[^\s@]+$/.test(trimmedName);
+
+  if (trimmedName && !nameIsEmail) {
+    const r = pick(words(trimmedName));
+    if (r) return r;
   }
 
-  // The email branch now does what its doc comment always claimed: the PREFIX.
+  // The email branch does what its doc comment always claimed: the PREFIX.
   // It used to read substring(0,2) of the WHOLE address, so x@webhouse.dk gave
   // "X@". It only ever looked right because most addresses start with two
   // letters — cb@webhouse.dk → "CB" was luck, not design.
-  const emailWords = email ? words(email.split("@")[0]) : [];
-  if (emailWords.length >= 2) {
-    return (emailWords[0][0] + emailWords[emailWords.length - 1][0]).toUpperCase();
-  }
-  if (emailWords.length === 1) {
-    return emailWords[0].substring(0, 2).toUpperCase();
+  //
+  // The name slot is tried first when it holds an address: it is the value the
+  // caller chose to display.
+  for (const addr of [nameIsEmail ? trimmedName : "", email ?? ""]) {
+    if (!addr) continue;
+    const r = pick(words(addr.split("@")[0]));
+    if (r) return r;
   }
 
   // Reachable at last. A whitespace-only name used to return two SPACES — the
