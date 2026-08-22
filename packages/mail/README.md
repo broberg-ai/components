@@ -177,6 +177,50 @@ Precedence follows what happens at send time, not what reads nicely: `no-key` an
 `disabled` beat `live`, because `send()` returns early on both before the
 allowlist gate is consulted.
 
+## `verifySendingDomain()` (v0.6.0) — is the domain you send FROM able to deliver?
+
+A **different question** from `mailer.mode`, and the difference is the whole reason this exists.
+
+On 2026-08-22 Christian could not log in to moovyy.com. The magic-link mail never arrived. Every measurable link was green — token minted, `mode: 'live'`, `send()` → `{ok:true, id}`, Resend accepted it.
+
+`mode` said `live` and **that was correct**. The mailer *was* live. It really did send. What was broken was the **sending domain**:
+
+```
+send.broberg.ai     DKIM ok   SPF MISSING   DKIM-only is not "configured"
+send.webhouse.dk    SPF ok    MX ok         DKIM MISSING
+```
+
+Two fleet domains, both half-configured, in exactly opposite ways. Nobody knew. It was found by accident while looking at a login bug.
+
+So `mode: 'live'` was **a green that was TRUE and still insufficient** — not a lie, an answer to a question nobody had thought to ask a second one alongside. The two answer different things:
+
+| | question |
+|---|---|
+| `mailer.mode` | given how this mailer was **configured**, will it deliver? |
+| `verifySendingDomain()` | is the domain it sends **from** able to deliver at all? |
+
+```ts
+import { verifySendingDomain } from "@broberg/mail/verify";
+
+const r = await verifySendingDomain("send.broberg.ai", { region: "eu-west-1" });
+if (!r.ok) console.warn("[mail]", r.summary, ...r.missing);
+// send.broberg.ai: INCOMPLETE — deliverability is degraded (spam-folder risk), not necessarily blocked.
+//   SPF — add TXT on send.broberg.ai: "v=spf1 include:amazonses.com ~all"
+//   MX  — bounces cannot come back; add MX on send.broberg.ai: 10 feedback-smtp.eu-west-1.amazonses.com
+```
+
+**Three states, never two.** Each record is `ok` | `missing` | `unknown`. A DNS lookup that *failed* (timeout, SERVFAIL, no resolver) is **not** a record that is absent, and the two are decided on the error code — never on an empty result. Collapsing them turns a network hiccup into a confident false alarm about a domain that is fine, and a false alarm at boot is how a check gets switched off. Both absence codes are handled: `ENOTFOUND` (NXDOMAIN — the name does not exist) *and* `ENODATA` (NOERROR with no answer — the name exists, the record does not). The fleet's two domains produce one of each.
+
+**It reports incompleteness, not failure.** `send.webhouse.dk` has no DKIM and still *passes* DMARC — relaxed alignment means SPF alone carries it. It is downweighted by Google, not rejected. A check that shouts "mail will not arrive" about that domain would be wrong, and over-harsh checks get disabled.
+
+**Never throws, never blocks a send.** It is a report; you decide what to do with it. A repo that does not call it is unaffected; one that calls it on a broken resolver still boots.
+
+**Node-only, on its own subpath.** The core entrypoint keeps zero dependencies and stays importable on edge/workers, where `node:dns` does not exist — same reason `./webhook` is separate.
+
+**`dkimSelector` is provider-specific.** It defaults to `resend`. On another provider you would otherwise be told "DKIM missing" about a domain that is perfectly fine — another false alarm, another reason to switch the check off. Pass your own selector.
+
+**`region` is not guessed.** Without it the MX fix reads `feedback-smtp.<region>.amazonses.com` and says the region must be supplied. A confidently wrong region produces a record that looks right and routes bounces nowhere.
+
 ## API
 
 - `createMailer(config?) → Mailer` — the returned mailer carries `.mode` (above)
