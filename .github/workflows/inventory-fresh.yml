@@ -31,6 +31,24 @@ jobs:
       - name: Every tracked text file is greppable
         run: npx --yes @broberg/greppable@0.2.0
 
+      # F038.8 — this job ALREADY failed on a file that does not parse, but only
+      # by side effect: a broken source cannot regenerate, so the step below
+      # errored and the job went red for a reason nobody chose. A refactor that
+      # made the generators tolerate a bad load would remove that coverage
+      # silently, and nothing would announce it. So the check is explicit, it
+      # runs FIRST, and it names its own cause — the trap has now bitten twice
+      # and both times it was a straight quote inside a double-quoted desc.
+      - name: The single source parses
+        run: |
+          for f in scripts/inventory-data.mjs scripts/build-inventory.mjs scripts/build-onboarding.mjs; do
+            if ! node --check "$f" 2>/tmp/syntax.err; then
+              echo "::error file=$f::$f does not parse. Most likely a straight double quote inside a double-quoted desc field — the desc string is delimited by \", so a \" inside it ends the string early. Use a curly quote, or drop the quotes."
+              cat /tmp/syntax.err
+              exit 1
+            fi
+          done
+          echo "All three parse."
+
       - name: Regenerate the surfaces from the single source
         run: |
           bun scripts/build-inventory.mjs
