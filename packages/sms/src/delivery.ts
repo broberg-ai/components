@@ -47,6 +47,8 @@ export interface DeliveryReport {
   error?: string;
   /** Whether the provider says this was billed, where it says so. */
   charged?: boolean;
+  /** The caller's own correlation value, when the provider echoes one back. */
+  reference?: string;
   /** Segments the provider charged for — compare against estimate(). */
   segments?: number;
 }
@@ -274,6 +276,29 @@ export function parseSmsDkLog(body: unknown): DeliveryReport[] {
  * above IS verified and needs no public URL; prefer it until this one has been
  * seen working.
  */
+/**
+ * sms.dk's delivery callback, which arrives as a GET with the payload in the
+ * query string.
+ *
+ * WHAT IS PROVEN AND WHAT IS NOT, because the difference matters here:
+ *
+ *   PROVEN — the field NAMES below are not invented. They are the vocabulary
+ *   sms.dk uses in its own delivery-log API, measured from a live response
+ *   (test/fixtures/smsdk-log.live.json): batchId, dlrStatus, receiver, timeSent,
+ *   userReference. Same provider, same concepts, same spelling.
+ *
+ *   NOT PROVEN — that the CALLBACK uses those same names. Their callback
+ *   parameters are undocumented (docs.sms.dk and their Postman workspace both
+ *   render as JavaScript apps with no readable content), and verifying it needs
+ *   a publicly reachable URL for them to call, which this package cannot stand
+ *   up. Tracked on F076.8.
+ *
+ * So this reads several spellings of each field rather than betting on one, and
+ * returns null rather than a half-built report when it cannot find an id. If you
+ * wire this and the reports come back empty, log the raw query string first —
+ * that is the fastest way to find out what they actually send, and worth sending
+ * back to components so the next repo does not repeat it.
+ */
 export function parseSmsDkDlr(query: URLSearchParams | Record<string, string>): DeliveryReport | null {
   const get = (k: string): string | undefined => {
     const v = query instanceof URLSearchParams ? query.get(k) : query[k];
@@ -287,8 +312,14 @@ export function parseSmsDkDlr(query: URLSearchParams | Record<string, string>): 
     id,
     state: SMSDK_STATES[raw] ?? 'unknown',
     raw: SMSDK_LABELS[raw] ?? raw,
-    ...(get('receiver') ? { recipient: get('receiver') } : {}),
-    ...(iso(get('timeSent')) ? { at: iso(get('timeSent')) } : {}),
+    ...(get('receiver') ?? get('msisdn') ? { recipient: get('receiver') ?? get('msisdn') } : {}),
+    ...(iso(get('timeSent') ?? get('timesent')) ? { at: iso(get('timeSent') ?? get('timesent')) } : {}),
+    // Their own log API carries userReference, and it is the field a consumer
+    // sets to correlate a callback back to their own record. Losing it here
+    // would make the report arrive with nothing to attach it to.
+    ...(get('userReference') ?? get('userreference')
+      ? { reference: get('userReference') ?? get('userreference') }
+      : {}),
   };
 }
 

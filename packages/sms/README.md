@@ -433,6 +433,60 @@ Events are remembered for **48 hours** by default — GatewayAPI retries for 24,
 
 The default `MemorySmsEventStore` is **bounded** (50k entries, oldest evicted). An unbounded `Map` fed by a webhook endpoint is a memory leak with a public URL.
 
+## The webhook route — one line, all three providers
+
+```ts
+import { createSmsWebhook, createDeliveryInbox } from "@broberg/sms";
+
+const inbox = createDeliveryInbox({ store: myStore });
+
+export const POST = createSmsWebhook({
+  secret: process.env.GATEWAYAPI_WEBHOOK_SECRET,
+  sharedToken: process.env.SMS_WEBHOOK_TOKEN,
+  async onReports(reports) {
+    for (const v of await inbox.accept(reports)) {
+      if (v.fresh) await db.setStatus(v.report.id, v.state);
+    }
+  },
+});
+```
+
+Hono, same options:
+
+```ts
+app.all("/sms/status", smsWebhookHono({ secret, sharedToken, onReports }));
+```
+
+It handles **all three shapes** — GatewayAPI's signed POST, inMobile's POST, and sms.dk's GET-with-query — and tells your handler which one arrived.
+
+### The three ways assembling this by hand goes wrong
+
+**1. The raw body.** Verification must run on the bytes *as received*. Parse first and re-serialise for the signature and it will not match — key order alone is enough — and the natural "fix" is to stop verifying. **The handler owns the read**, so it cannot happen.
+
+**2. The 5-second, 2xx contract.** GatewayAPI retries for **24 hours** unless it gets a 2xx within five seconds. So: verify, parse, **acknowledge**, *then* do your work. Your `onReports` runs after the response and may be as slow as it likes.
+
+> **On serverless, pass `waitUntil`.** Cloudflare and Vercel freeze the process once the response returns. The Hono adapter wires `c.executionCtx.waitUntil` for you; for a bare handler, pass it yourself. Without it the work can be cut short — and for GatewayAPI that loses the status permanently, because they offer no polling to fall back on.
+
+**3. A throw is a non-2xx**, and earns the same storm. Nothing here throws: a `onReports` that fails is reported to `onError` *after* the 2xx has already gone.
+
+### Securing the endpoint
+
+| Provider | Signs its callbacks? |
+|---|---|
+| GatewayAPI | **yes** — HMAC-SHA-256. Set `secret` and a bad or missing signature is a `401`, with the body never parsed. |
+| sms.dk | no |
+| inMobile | no |
+
+**Those last two have no defence but `sharedToken`.** Without it their callback URL is a public endpoint that writes to your database on request. Generate one (`openssl rand -hex 32`), put it in the URL you give them, and the handler checks `?token=` or `X-Sms-Token` on every call.
+
+Leaving `secret` unset does not fail — it *warns*, every call. That is a decision, and a silent one would be indistinguishable from having forgotten.
+
+### One caveat, stated rather than buried
+
+`parseSmsDkDlr` has **not** been verified against a real sms.dk callback. Their callback parameters are undocumented — `docs.sms.dk` and their Postman workspace both render as JavaScript apps with no readable content — and confirming it needs a publicly reachable URL for them to call.
+
+The field names it reads are not invented: they are the vocabulary sms.dk uses in **its own delivery-log API**, measured from a live response. That is a strong prior and it is not proof. If you wire this and the reports come back empty, log the raw query string first — and send it back to `components` so the next repo does not repeat the work.
+
 ## Three gateways, three hiding places for a failed send
 
 **This is the single most useful thing in this package.** All three providers
