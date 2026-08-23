@@ -300,9 +300,19 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     // hashes gets switched off within a week, after which it protects nothing.
     // Hue keys are mixed-case; SHAs are lowercase hex — that asymmetry is the
     // whole guard. (Pattern contributed + field-tested by beacon, F035.7.)
+    //
+    // F035.9 — the comment above described the guard correctly and the REGEX DID
+    // NOT. It only excluded lowercase hex, so anything else lowercase sailed
+    // through: a 40-character run of hyphenated English prose in a commit
+    // (`do-not-log-a-request-body-and-assume-this-catches-it`) blocked a real
+    // commit in components on 2026-08-23, and an UPPERCASE SHA was flagged too.
+    // Now mixed case is actually REQUIRED — one lower and one upper — which is
+    // what the sentence claimed all along and excludes hex in either case for
+    // free. A random 40-char alphanumeric key misses this only if it drew zero
+    // uppercase or zero lowercase, which is ~1 in 10^9.
     label: 'hue-application-key',
     description: 'Philips Hue v2 application key (40 chars, no prefix)',
-    regex: /\b(?![0-9a-f]{40}\b)[A-Za-z0-9-]{40}\b/g,
+    regex: /\b(?=[A-Za-z0-9-]{40}\b)(?=[A-Za-z0-9-]*[a-z])(?=[A-Za-z0-9-]*[A-Z])[A-Za-z0-9-]{40}\b/g,
   },
 ];
 
