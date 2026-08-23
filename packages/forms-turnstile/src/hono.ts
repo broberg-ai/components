@@ -27,6 +27,15 @@ export interface HonoTurnstileOptions {
   ipHeader?: string;
   /** Override the default 400 JSON response on block. */
   onBlocked?: (c: Context, reason: SpamBlockReason) => Response;
+  /** Abort the Turnstile siteverify call after this many ms. Default 10s. */
+  timeoutMs?: number;
+  /**
+   * What to do when Cloudflare cannot be REACHED. Default "throw" (fail closed).
+   * Pass "block" to receive reason "turnstile-unavailable" in onBlocked instead,
+   * so the response can say what actually happened rather than accusing the user
+   * of failing a bot check. See applySpamGauntlet (F024.8).
+   */
+  onUnavailable?: "throw" | "block";
 }
 
 /** Hono middleware enforcing the spam gauntlet on a public form POST route. */
@@ -46,7 +55,13 @@ export function honoTurnstileMiddleware(opts: HonoTurnstileOptions): MiddlewareH
       rateLimit: opts.maxPerHour
         ? { ipHash: hashIp(ip), formName: opts.formName, maxPerHour: opts.maxPerHour }
         : undefined,
-      turnstile: { token: String(body[tokenField] ?? ""), secret: opts.secret, remoteip: ip || undefined },
+      turnstile: {
+        token: String(body[tokenField] ?? ""),
+        secret: opts.secret,
+        remoteip: ip || undefined,
+        timeoutMs: opts.timeoutMs,
+        onUnavailable: opts.onUnavailable,
+      },
     });
 
     if (result.blocked) {

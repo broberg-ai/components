@@ -29,6 +29,74 @@ Each layer is **opt-in** — pass only the options key for the checks you want; 
 
 The individual checks are exported too (`isHoneypotTriggered`, `isRateLimited`, `validateTurnstile`, `HONEYPOT_FIELD`) if you'd rather call them yourself.
 
+### "You are a bot" and "we could not ask" are different answers (v0.3.0)
+
+`verifyTurnstile()` returns **three** outcomes, because three things can happen:
+
+```ts
+import { verifyTurnstile } from "@broberg/forms-turnstile/server";
+
+const r = await verifyTurnstile(token, secret, { remoteip, timeoutMs: 10_000 });
+// { ok: true }
+// { ok: false, reason: "rejected",    errorCodes: [...] }   ← Cloudflare said no
+// { ok: false, reason: "unavailable", detail: "…" }         ← we never got an answer
+```
+
+It **never throws** — a 5xx, an HTML error page, a dropped connection and a
+timeout all come back as `unavailable` with a readable detail.
+
+**Why this exists.** Before v0.3.0, `unavailable` reached callers on *two
+different channels depending on the shape of Cloudflare's failure*: a non-JSON
+body **threw**, while a JSON body without a `success` field returned **`false`**.
+No caller could handle it consistently — and the `false` branch was the harmful
+one. It became `reason: "turnstile"`, which renders as *"you failed the bot
+check"*: a real person told she is not human, with "try again" as her only
+option and nothing wrong with her token. The log said `turnstile` too, naming
+the wrong cause.
+
+Measured in production. It is the same defect [v0.2.0 fixed on the browser
+side](#gate-the-submit-button-on-status-not-on-token-v020) — when a client/server
+pair has this bug in one half, check the other half first.
+
+**Absence of a verdict is not a verdict.**
+
+#### Choosing the policy
+
+`applySpamGauntlet` defaults to **fail-closed**:
+
+```ts
+await applySpamGauntlet({ turnstile: { token, secret } });
+// Cloudflare unreachable → THROWS. An unguarded route 500s. Nothing gets through.
+```
+
+That is deliberate: it preserves what this package already did for the dominant
+outage shape, so upgrading never silently converts somebody's 500 into a 400 that
+accuses a human. To decide for yourself instead:
+
+```ts
+const r = await applySpamGauntlet({
+  turnstile: { token, secret, onUnavailable: "block" },
+});
+if (r.blocked && r.reason === "turnstile-unavailable") {
+  // Say what is true: "We can't check that right now — try shortly, or call us."
+  // NOT "you failed the bot check".
+}
+```
+
+`turnstile-unavailable` is a distinct member of `SpamBlockReason`, so a
+`switch` over it will tell you at compile time that you have a new case to
+handle. Both options are also on the Hono middleware (`timeoutMs`,
+`onUnavailable`).
+
+**There is now a timeout** (default 10s). Without one, a hung Cloudflare
+connection holds the request until the platform kills the invocation — worse on
+Fly/serverless than locally, and the user just watches a spinner.
+
+**`validateTurnstile()` is deprecated but unchanged.** It is lossy — it cannot
+tell the two failures apart, and still splits them across a return value and a
+throw. Its exact behaviour is pinned by test so existing callers see no change on
+upgrade. Migrate to `verifyTurnstile` when you touch the call-site.
+
 **Rate limiter caveat:** in-process only (a `Map`, swept lazily) — protects a single-instance deployment (Fly single machine, one Bun worker) but each instance has its own counters, so it does **not** protect multi-instance/serverless. For a shared, pluggable-store limiter (Turso/Redis-backed), reach for `@broberg/apikey`'s `SlidingWindowRateLimiter` instead.
 
 > **Measure your instance count, then write it next to the constant.** With N

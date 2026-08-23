@@ -16,7 +16,7 @@ function appWith(opts: Parameters<typeof honoTurnstileMiddleware>[0]) {
 
 describe("honoTurnstileMiddleware", () => {
   it("passes through + stashes the parsed body when turnstile verifies", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ success: true }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })));
     const app = appWith({ secret: "secret", formName: "contact" });
     const res = await app.request("/api/contact", {
       method: "POST",
@@ -28,7 +28,7 @@ describe("honoTurnstileMiddleware", () => {
   });
 
   it("400s when turnstile verification fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ success: false }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false }), { status: 200 })));
     const app = appWith({ secret: "secret", formName: "contact" });
     const res = await app.request("/api/contact", {
       method: "POST",
@@ -52,7 +52,7 @@ describe("honoTurnstileMiddleware", () => {
   });
 
   it("skips the honeypot layer when honeypot:false", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ success: true }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })));
     const app = appWith({ secret: "secret", formName: "contact", honeypot: false });
     const res = await app.request("/api/contact", {
       method: "POST",
@@ -63,7 +63,7 @@ describe("honoTurnstileMiddleware", () => {
   });
 
   it("enforces maxPerHour when provided, reading the IP from ipHeader", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ success: true }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })));
     const app = appWith({ secret: "secret", formName: "contact", maxPerHour: 1, ipHeader: "CF-Connecting-IP" });
     const req = () =>
       app.request("/api/contact", {
@@ -76,7 +76,7 @@ describe("honoTurnstileMiddleware", () => {
   });
 
   it("supports a custom onBlocked response", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ success: false }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false }), { status: 200 })));
     const app = appWith({
       secret: "secret",
       formName: "contact",

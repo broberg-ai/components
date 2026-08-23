@@ -70,7 +70,7 @@ describe("validateTurnstile", () => {
   it("returns true when siteverify reports success", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ json: async () => ({ success: true }) }),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })),
     );
     await expect(validateTurnstile("tok", TURNSTILE_TEST_SECRET_KEY)).resolves.toBe(true);
   });
@@ -78,13 +78,13 @@ describe("validateTurnstile", () => {
   it("returns false when siteverify reports failure", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ json: async () => ({ success: false }) }),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false }), { status: 200 })),
     );
     await expect(validateTurnstile("tok", TURNSTILE_TEST_SECRET_KEY)).resolves.toBe(false);
   });
 
   it("posts secret + response (+ remoteip when given) as form-urlencoded", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ success: true }) });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await validateTurnstile("tok", "secret", "1.2.3.4");
     const [url, init] = fetchMock.mock.calls[0];
@@ -97,6 +97,12 @@ describe("validateTurnstile", () => {
   });
 });
 
+// NOTE (F024.8): the fetch doubles below are real `Response` objects. They used
+// to be `{ json: async () => ({...}) }` — no `ok`, no `status` — which matched
+// the implementation of the day (it never looked at the status) rather than
+// matching reality. A suite whose doubles are shaped like the code cannot detect
+// a class of bug the code has; these now carry a status because verifyTurnstile
+// reads one.
 describe("applySpamGauntlet", () => {
   it("short-circuits on honeypot before rate-limit/turnstile run", async () => {
     const fetchMock = vi.fn();
@@ -126,7 +132,7 @@ describe("applySpamGauntlet", () => {
   it("passes clean when every configured layer passes", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ json: async () => ({ success: true }) }),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })),
     );
     const result = await applySpamGauntlet({
       honeypot: { body: {} },
@@ -138,7 +144,7 @@ describe("applySpamGauntlet", () => {
   it("blocks on a failed turnstile verification", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ json: async () => ({ success: false }) }),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false }), { status: 200 })),
     );
     const result = await applySpamGauntlet({ turnstile: { token: "bad", secret: "secret" } });
     expect(result).toEqual({ blocked: true, reason: "turnstile" });
@@ -166,7 +172,7 @@ describe("envDefaults", () => {
     };
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ json: async () => ({ success: true }) }),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })),
     );
     const result = await applySpamGauntlet({
       turnstile: { token: "any-token", secret: env.TURNSTILE_SECRET_KEY },
