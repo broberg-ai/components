@@ -264,3 +264,5 @@ export function createSms(config: SmsConfig): SmsClient {
     },
   };
 }
+
+export { gatewayapi, type GatewayApiConfig } from './providers/gatewayapi';

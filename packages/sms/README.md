@@ -90,6 +90,53 @@ An allowlist entry that cannot be parsed is **dropped with a warning**, never si
 
 A gateway answering `accepted` means it took the message, not that a handset received it — and **every one of those costs money**. Delivery status is F076.5; until it lands, a repo using this is paying for messages it cannot prove arrived.
 
+## GatewayAPI
+
+```ts
+import { createSms, gatewayapi } from "@broberg/sms";
+
+const sms = createSms({
+  provider: gatewayapi({ apiKey: process.env.SMS_API_KEY }),   // region defaults to 'eu'
+  from: "Moovyy",                                              // 3–18 characters, enforced
+  live: process.env.SMS_LIVE === "true",
+});
+```
+
+Built against their **Mobile Messaging API** (OpenAPI `2026.08.21-1807`, fetched 2026-08-23), not against recalled knowledge — which mattered three times:
+
+| Trap | What memory would have produced | What the spec says |
+|---|---|---|
+| **The endpoint** | `POST /rest/mtsms` — every example on the web | That API now lives under `/docs/apis/**legacy**/rest/` and opens with a deprecation notice telling new customers to use this one. We *are* a new customer. |
+| **Success status** | `200` (what the legacy API answered) | **`202 Accepted`.** `if (res.status !== 200) throw` reads like the obvious check and would fail *every successful send*. |
+| **Recipient** | `recipients: [{ msisdn: "+4512345678" }]` | `recipient: 4512345678` — a bare **integer**, singular, no `+`. |
+
+### `region` is not a URL preference
+
+`'eu'` (default) → `messaging.gatewayapi.eu` · `'com'` → `messaging.gatewayapi.com`
+
+A key is issued by, and valid for, **one** dashboard, so the region decides where the account and the message data live. `'eu'` is the default because EU hosting is the reason this package exists. Pick the wrong one and the key simply `403`s — which is why that error names the region it was pointed at.
+
+### 401 and 403 are different faults
+
+Measured against the live endpoint on 2026-08-23 — **their docs list only 403**:
+
+| | | The fix |
+|---|---|---|
+| **401** | no credentials reached them | the `Authorization` header is missing or malformed. Your key is probably fine. |
+| **403** | credentials arrived and were **rejected** | wrong/revoked key — or a key minted in the *other* region. |
+
+Collapsing the two sends you off to rotate a perfectly good key.
+
+### A timeout is not a failure
+
+`{ ok: false }` on a timeout does **not** mean nothing was sent. The request may have arrived and the message may already be billed — we simply never heard the answer. The error says so in as many words. **Do not retry blindly**; confirm via delivery status (F076.5) first.
+
+### What is proven, and what is not
+
+- ✅ **Proven against the live service:** both hosts exist, the path and method are right, the `Token` scheme is recognised, and a rejected credential produces the correct 403 diagnosis end-to-end from the built package.
+- ✅ **Proven against their published schema:** the request body this adapter sends validates against `MobileMessageRequest` — required fields, types, lengths and enums. The schema is the one part of the test suite we did not write.
+- ❌ **Not proven:** that a *valid* token returns `202` with a `msg_id`, and that an SMS reaches a handset. Both need a real account. Until then this adapter is **unverified against a successful send**.
+
 ## Providers
 
 | Provider | Price/SMS (DK) | Subscription | Hosting / audit |

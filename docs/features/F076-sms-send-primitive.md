@@ -58,8 +58,7 @@ The form this repo has been fighting all week, harder here than for mail: the pr
 Same shape as [`@broberg/mail`](F005-mail-sending-resend.md) — proven, and the fleet already reads it:
 
 ```ts
-import { createSms } from "@broberg/sms";
-import { gatewayapi } from "@broberg/sms/gatewayapi";
+import { createSms, gatewayapi } from "@broberg/sms";
 
 const sms = createSms({
   provider: gatewayapi({ apiKey: process.env.SMS_API_KEY }),
@@ -78,6 +77,7 @@ await sms.send({ to: "+4512345678", text: "…" });   // { ok, id?, error?, skip
 - **`mode` from day one** — F005.8's lesson, not re-learned after an incident.
 - **Never throws.** A typed result, always.
 - **Zero runtime dependencies**, `fetch` only, so it runs on Node, Bun and edge alike.
+- **One entry point, not a subpath per adapter** (decided F076.2). This doc first sketched `@broberg/sms/gatewayapi`. An adapter here is ~40 lines of `fetch` with *no* dependency to keep external, so splitting the package buys nothing and re-opens the tsup clean-race that cost us two broken tarballs (F061). Tree-shaking already drops unused adapters for ESM consumers.
 
 ## Scope
 
