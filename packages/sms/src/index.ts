@@ -316,3 +316,4 @@ export function createSms(config: SmsConfig): SmsClient {
 export { gatewayapi, type GatewayApiConfig } from './providers/gatewayapi';
 export { smsdk, type SmsDkConfig } from './providers/smsdk';
 export { inmobile, type InMobileConfig } from './providers/inmobile';
+export * from './delivery';

@@ -1,0 +1,28 @@
+{
+  "reports": [
+    {
+      "messageId": "e5436b35-2ca5-48e9-b52f-4b9c0abe457f",
+      "numberDetails": {
+        "isAnonymized": false,
+        "countryCode": "45",
+        "phoneNumber": "22680880",
+        "rawMsisdn": "4522680880",
+        "msisdn": "4522680880",
+        "isValidMsisdn": true,
+        "countryHint": "DK"
+      },
+      "deliveryInfo": {
+        "stateCode": 1,
+        "stateDescription": "Delivered",
+        "sendTime": "2026-08-23T10:42:56Z",
+        "doneTime": "2026-08-23T10:42:59Z"
+      },
+      "chargeInfo": {
+        "isCharged": true,
+        "smsCount": 1,
+        "network": "45-TDC",
+        "encoding": "gsm7"
+      }
+    }
+  ]
+}

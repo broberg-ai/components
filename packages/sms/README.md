@@ -90,6 +90,62 @@ An allowlist entry that cannot be parsed is **dropped with a warning**, never si
 
 A gateway answering `accepted` means it took the message, not that a handset received it — and **every one of those costs money**. Delivery status is F076.5; until it lands, a repo using this is paying for messages it cannot prove arrived.
 
+## Delivery status — proving a message ARRIVED
+
+`"accepted"` is the gateway saying it took your message. Every one of those costs money whether or not a handset ever saw it.
+
+```ts
+import { fetchSmsDkLog, fetchInMobileReports,
+         parseGatewayApiWebhook, verifyGatewayApiSignature } from "@broberg/sms";
+
+const reports = await fetchSmsDkLog({ apiKey, limit: 50 });
+// [{ provider, id, state: "delivered", raw: "Received", recipient, at, charged, segments }]
+```
+
+**One vocabulary, five states**, and `pending` is deliberately not `unknown`:
+
+| state | meaning |
+|---|---|
+| `delivered` | the network confirmed it reached the handset |
+| `failed` | permanently not delivered |
+| `expired` | the gateway gave up |
+| `pending` | the gateway says **not yet** |
+| `unknown` | the gateway said something we do not recognise |
+
+**An unrecognised status becomes `unknown` — never `delivered`, never `failed`** — and the provider's own word is always kept in `raw`. This is not defensive padding: GatewayAPI publishes the RCS status values and *not* the full SMS set, so meeting a status we have never seen is the **common** case. Rounding it to the nearest one we know is how a message nobody received gets recorded as arrived.
+
+`pending` vs `unknown` matters because the gateways themselves distinguish them: inMobile's state 0 is literally named *Unknown*, while sms.dk's 0 is *"No status yet"*. Collapsing them throws away a fact they went to the trouble of reporting.
+
+### Three providers, three mechanisms
+
+| | webhook | polling |
+|---|---|---|
+| **GatewayAPI** | POST, **HMAC-SHA-256 signed** | **none, by design** — "the Mobile Message API does not include APIs for polling message states" |
+| **inMobile** | `statusCallbackUrl` | `GET /v4/sms/outgoing/reports` — **read-once** |
+| **sms.dk** | `dlrUrl`, delivered by **GET** | `POST /v1/sms/listlog` — repeatable |
+
+**inMobile's poll is destructive.** Their words: *"Each report will only be returned once. Once called, the status has been removed from our side and cannot be retrieved again."* Measured: a second read of the same report returns `[]`. So **persist before you filter**, and never run two pollers — they do not each see everything, they split the reports and both believe they saw it all.
+
+**GatewayAPI webhooks retry with exponential backoff for up to 24 hours** and require a 2xx within 5 seconds. Duplicates are guaranteed, not an edge case — dedupe on `id` + `state`.
+
+### Verifying a GatewayAPI webhook
+
+```ts
+const raw = await request.text();               // the RAW body, not a re-serialised object
+if (!(await verifyGatewayApiSignature(raw, request.headers.get("Signature"), secret))) {
+  return new Response("bad signature", { status: 403 });
+}
+for (const report of parseGatewayApiWebhook(JSON.parse(raw))) { /* … */ }
+```
+
+Pass the body **exactly as received**. Re-serialising a parsed object changes the bytes — key order, whitespace, number formatting — and the signature will not match. That is the most common way this check fails. Verification uses `crypto.subtle` (so it works on Node, Bun, Deno, workers and the browser) and compares in constant time.
+
+**An empty secret is rejected**, never treated as "verification not configured".
+
+### One provider timestamp is not a date
+
+`new Date("23.08.2026 12.33.57")` — sms.dk's format, Danish order with **dots in the time too** — is `Invalid Date`. inMobile's and GatewayAPI's parse fine. It is handled explicitly, and **an unparseable timestamp leaves `at` absent rather than emitting a guess**.
+
 ## Three gateways, three hiding places for a failed send
 
 **This is the single most useful thing in this package.** All three providers
