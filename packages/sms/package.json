@@ -1,6 +1,6 @@
 {
   "name": "@broberg/sms",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Provider-agnostic SMS send primitive for the broberg.ai fleet — Danish/EU-hosted gateways, swap by config. Ship-dark, allowlist-gated, typed result, and segment/cost estimation before you pay.",
   "type": "module",
   "exports": {
@@ -10,13 +10,18 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/broberg-ai/components",
@@ -29,5 +34,18 @@
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
-  "keywords": ["sms", "gatewayapi", "inmobile", "sms.dk", "danish", "gdpr", "broberg"]
+  "keywords": [
+    "sms",
+    "gatewayapi",
+    "inmobile",
+    "sms.dk",
+    "danish",
+    "gdpr",
+    "broberg",
+    "bulk-sms",
+    "batch",
+    "sendmany",
+    "consent",
+    "opt-out"
+  ]
 }

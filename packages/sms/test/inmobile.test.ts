@@ -187,3 +187,138 @@ describe('inMobile allows 14 sender digits, not the 15 the other two allow', () 
     expect(c).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F076.12 — the batch path.
+//
+// Same endpoint as a single send, which is why it was easy to miss: we were
+// already POSTing a `messages` ARRAY and putting exactly one element in it.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const swagger = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./fixtures/inmobile.swagger-slice.json', import.meta.url)), 'utf8'),
+) as any;
+
+describe('F076.12 — one call, up to 250 recipients', () => {
+  const result = (msisdn: string, over: Record<string, unknown> = {}) => ({
+    messageId: `MSG_${msisdn}`,
+    smsCount: 1,
+    encoding: 'gsm7',
+    from: 'Broberg',
+    numberDetails: { countryCode: '45', phoneNumber: msisdn.slice(2), msisdn, rawMsisdn: msisdn, isValidMsisdn: true },
+    ...over,
+  });
+  const reply = (results: unknown[]) => JSON.stringify({ results });
+
+  it('THE LIMIT COMES FROM THEIR SWAGGER, NOT FROM A NUMBER I TYPED', () => {
+    const declared = swagger.components.schemas.SmsOutgoingPostRequest.properties.messages.maxItems;
+    expect(declared).toBe(250);
+    expect(inmobile({ apiKey: 'k' }).batchLimit).toBe(declared);
+    // And it is genuinely NOT GatewayAPI's 1000 — one shared constant would be
+    // wrong for one of them, upwards, which turns a working batch into a 400.
+    expect(declared).toBeLessThan(1000);
+  });
+
+  it('sends ONE request carrying every recipient', async () => {
+    const c = stubFetch(200, reply([result('4522680881'), result('4522680882')]));
+    await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(c).toHaveLength(1);
+    expect(c[0].url).toBe('https://api.inmobile.com/v4/sms/outgoing');
+    expect(c[0].body.messages).toHaveLength(2);
+  });
+
+  it('A REORDERED REPLY DOES NOT MISATTRIBUTE AN ID — matched on the number WE sent', async () => {
+    stubFetch(200, reply([result('4522680882'), result('4522680881')]));
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res[0].id).toBe('MSG_4522680881');
+    expect(res[1].id).toBe('MSG_4522680882');
+  });
+
+  it('isValidMsisdn:false on ONE recipient refuses that one and leaves the rest sent', async () => {
+    // Their 200-with-a-messageId trap, now at batch scale: 249 good numbers must
+    // not be dragged down by the one they could not use.
+    stubFetch(
+      200,
+      reply([
+        result('4522680881'),
+        result('4522680882', {
+          numberDetails: { msisdn: '4522680882', rawMsisdn: '4522680882', isValidMsisdn: false },
+        }),
+        result('4522680883'),
+      ]),
+    );
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+      { to: '+4522680883', text: 'tre' },
+    ]);
+    expect(res.map((r) => r.outcome)).toEqual(['sent', 'refused', 'sent']);
+    expect(res[1].error).toContain('isValidMsisdn=false');
+  });
+
+  it('a recipient MISSING from the reply is `unknown`, never dropped', async () => {
+    stubFetch(200, reply([result('4522680881')]));
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res[0].outcome).toBe('sent');
+    expect(res[1].outcome).toBe('unknown');
+    expect(res[1].error).toContain('4522680882');
+  });
+
+  it('a bad SENDER on one message is never submitted and never blocks the others', async () => {
+    const c = stubFetch(200, reply([result('4522680881'), result('4522680883')]));
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to', from: 'B'.repeat(20) },
+      { to: '+4522680883', text: 'tre' },
+    ]);
+    expect(c[0].body.messages).toHaveLength(2);
+    expect(res.map((r) => r.outcome)).toEqual(['sent', 'refused', 'sent']);
+  });
+
+  it('a 401 refuses the whole batch, and says the key is the PASSWORD', async () => {
+    stubFetch(401, JSON.stringify({ errorMessage: 'Unauthorized' }));
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res.every((r) => r.outcome === 'refused')).toBe(true);
+    expect(res[0].error).toContain('Basic-auth PASSWORD');
+  });
+
+  it('a timeout makes every recipient `unknown` and names how many are at stake', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw Object.assign(new Error('aborted'), { name: 'TimeoutError' });
+      }),
+    );
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+      { to: '+4522680883', text: 'tre' },
+    ]);
+    expect(res.every((r) => r.outcome === 'unknown')).toBe(true);
+    expect(res[0].error).toContain('ALL 3 MESSAGES');
+  });
+
+  it('their charge count is still cross-checked PER RECIPIENT inside a batch', async () => {
+    const warn = vi.spyOn(globalThis.console, 'warn').mockImplementation(() => {});
+    stubFetch(200, reply([result('4522680881'), result('4522680882', { smsCount: 3 })]));
+    await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(warn.mock.calls.flat().join(' ')).toContain('charge for 3 segment(s)');
+    warn.mockRestore();
+  });
+});

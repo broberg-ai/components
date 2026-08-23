@@ -20,7 +20,14 @@
 // The docs list only 403 for authentication. Collapsing the two sends you off to
 // regenerate a perfectly good key when the real fault is a header you never set.
 
-import { SmsUnknownError, checkSenderName, gatewayRefusal, type SmsProvider } from '../index';
+import {
+  SmsUnknownError,
+  checkSenderName,
+  gatewayRefusal,
+  type BatchOutcome,
+  type SmsProvider,
+  type SmsSendInput,
+} from '../index';
 
 export interface GatewayApiConfig {
   /** Token from the GatewayAPI dashboard. Bound to ONE region — see `region`. */
@@ -62,6 +69,18 @@ const HOSTS = {
   com: 'https://messaging.gatewayapi.com',
 } as const;
 
+/**
+ * Recipients per /mobile/multi call. MEASURED, not guessed: their live OpenAPI
+ * gives `messages` `"maxItems": 1000, "minItems": 1`.
+ *
+ * WORTH WRITING DOWN BECAUSE IT IS TWO DIFFERENT 1000s. The same spec puts
+ * `"gt": 1000` on `recipient` — and that one is a floor on the PHONE NUMBER as
+ * an integer, not a batch size. Reading it as the batch limit is an easy and
+ * completely silent mistake: both numbers are 1000, and only one of them splits
+ * your send correctly.
+ */
+const BATCH_LIMIT = 1000;
+
 
 
 export function gatewayapi(config: GatewayApiConfig): SmsProvider {
@@ -76,79 +95,109 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
 
   const root = (baseUrl ?? HOSTS[region]).replace(/\/+$/, '');
   const url = `${root}/mobile/single`;
+  const multiUrl = `${root}/mobile/multi`;
+
+  /**
+   * POST and read the body, with the ONE rule this package will not bend: a
+   * request whose answer never arrived is `unknown`, not failed.
+   *
+   * Shared by both paths deliberately. Two copies of this classification is two
+   * chances to get the expensive direction wrong, and the batch path is where it
+   * would be expensive a thousand times over.
+   */
+  const request = async (
+    target: string,
+    body: unknown,
+    count: number,
+  ): Promise<{ res: Response; raw: string }> => {
+    const subject = count === 1 ? 'THE MESSAGE' : `ALL ${count} MESSAGES`;
+    let res: Response;
+    try {
+      res = await fetch(target, {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${apiKey}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+      if (timedOut) {
+        // NOT the same as "it failed". The request may have reached them and the
+        // message may already be sent AND BILLED — we simply never heard the
+        // answer. Retrying blind double-sends and double-charges.
+        throw new SmsUnknownError(
+          `gatewayapi: no response within ${timeoutMs}ms. ${subject} MAY OR MAY NOT HAVE BEEN SENT ` +
+            `— and may already have been billed. Do NOT retry blindly; confirm via delivery status first.`,
+        );
+      }
+      // Also unknown: a socket that dies mid-request looks identical to one that
+      // never opened, and only one of those is safe to retry.
+      throw new SmsUnknownError(
+        `gatewayapi: could not reach ${target} — ${err instanceof Error ? err.message : String(err)}. ` +
+          `The request may still have arrived; do NOT retry blindly.`,
+      );
+    }
+    return { res, raw: await res.text() };
+  };
+
+  /** The per-message body, or the reason this one recipient cannot be sent. */
+  const toRequest = ({ to, text, from }: SmsSendInput): { ok: true; body: Record<string, unknown>; recipient: number } | { ok: false; error: Error } => {
+    // Caught here rather than by their 422, because a sender name is set ONCE in
+    // config and would otherwise fail on every message forever.
+    const senderProblem = checkSenderName(from, 'gatewayapi');
+    if (senderProblem) return { ok: false, error: new Error(senderProblem) };
+
+    // E.164 in, bare digits out. Every E.164 number is at most 15 digits, so
+    // this always stays inside Number.MAX_SAFE_INTEGER (~9.0e15).
+    const recipient = Number(to.replace(/^\+/, ''));
+    if (!Number.isSafeInteger(recipient)) {
+      return { ok: false, error: new Error(`gatewayapi: ${JSON.stringify(to)} is not a usable recipient number.`) };
+    }
+
+    const body: Record<string, unknown> = { sender: from, recipient, message: text };
+    if (priority) body.priority = priority;
+    if (label) body.label = label;
+    if (expiration) body.expiration = expiration;
+    return { ok: true, body, recipient };
+  };
+
+  const statusHint = (status: number): string =>
+    status === 401
+      ? ' — NO credentials reached them. The Authorization header is missing or malformed; it must read exactly "Token <key>". Your key is probably fine.'
+      : status === 403
+        ? ' — credentials arrived and were REJECTED. Wrong/revoked key, or a key issued for the OTHER region (this client is pointed at ' +
+          `${root}). Check which dashboard minted it.`
+        : status === 422
+          ? ' — they parsed it and refused the contents (recipient not a phone number, empty message, bad sender, or an expiration out of range). The body below names the field.'
+          : '';
 
   return {
     name: `gatewayapi:${baseUrl ? 'custom' : region}`,
+    batchLimit: BATCH_LIMIT,
 
     async send({ to, text, from }) {
-      // Caught here rather than by their 422, because a sender name is set ONCE
-      // in config and would otherwise fail on every message forever.
-      // Shared with the sms.dk adapter: both gateways state the same limit, so it
-      // is the SMS standard rather than a GatewayAPI quirk. Their OWN schema
-      // permits 18, which is the trap — see checkSenderName.
-      const senderProblem = checkSenderName(from, 'gatewayapi');
-      if (senderProblem) throw new Error(senderProblem);
+      // Shared with the sms.dk adapter: both gateways state the same sender
+      // limit, so it is the SMS standard rather than a GatewayAPI quirk. Their
+      // OWN schema permits 18, which is the trap — see checkSenderName.
+      const built = toRequest({ to, text, from });
+      if (!built.ok) throw built.error;
 
-      // E.164 in, bare digits out. Every E.164 number is at most 15 digits, so
-      // this always stays inside Number.MAX_SAFE_INTEGER (~9.0e15).
-      const recipient = Number(to.replace(/^\+/, ''));
-      if (!Number.isSafeInteger(recipient)) {
-        throw new Error(`gatewayapi: ${JSON.stringify(to)} is not a usable recipient number.`);
-      }
-
-      const body: Record<string, unknown> = { sender: from, recipient, message: text };
-      if (priority) body.priority = priority;
-      if (label) body.label = label;
-      if (expiration) body.expiration = expiration;
-
-      let res: Response;
-      try {
-        res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            Authorization: `Token ${apiKey}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-      } catch (err) {
-        const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
-        if (timedOut) {
-          // NOT the same as "it failed". The request may have reached them and
-          // the message may already be sent AND BILLED — we simply never heard
-          // the answer. Retrying blind double-sends and double-charges.
-          throw new SmsUnknownError(
-            `gatewayapi: no response within ${timeoutMs}ms. THE MESSAGE MAY OR MAY NOT HAVE BEEN SENT ` +
-              `— and may already have been billed. Do NOT retry blindly; confirm via delivery status first.`,
-          );
-        }
-        // Also unknown: a socket that dies mid-request looks identical to one
-        // that never opened, and only one of those is safe to retry.
-        throw new SmsUnknownError(
-          `gatewayapi: could not reach ${url} — ${err instanceof Error ? err.message : String(err)}. ` +
-            `The request may still have arrived; do NOT retry blindly.`,
-        );
-      }
-
-      const raw = await res.text();
+      const { res, raw } = await request(url, built.body, 1);
 
       if (!res.ok) {
         // 401 and 403 are different faults with different fixes. Their docs list
         // only 403; the live API distinguishes them, so we do too.
-        const hint =
-          res.status === 401
-            ? ' — NO credentials reached them. The Authorization header is missing or malformed; it must read exactly "Token <key>". Your key is probably fine.'
-            : res.status === 403
-              ? ' — credentials arrived and were REJECTED. Wrong/revoked key, or a key issued for the OTHER region (this client is pointed at ' +
-                `${root}). Check which dashboard minted it.`
-              : res.status === 422
-                ? ' — they parsed it and refused the contents (recipient not a phone number, empty message, bad sender, or an expiration out of range). The body below names the field.'
-                : '';
         // 429 and 5xx come back branded retryable (F076.11); a 401/403/422 does not,
         // because it will refuse exactly the same way on attempt five.
-        throw gatewayRefusal(res.status, `gatewayapi ${res.status}${hint} ${raw.slice(0, 500)}`.trim(), res.headers);
+        throw gatewayRefusal(
+          res.status,
+          `gatewayapi ${res.status}${statusHint(res.status)} ${raw.slice(0, 500)}`.trim(),
+          res.headers,
+        );
       }
 
       // Success is 202 Accepted, not 200 — hence res.ok rather than a status test.
@@ -174,6 +223,117 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
         );
       }
       return { id };
+    },
+
+    /**
+     * One HTTP call, up to 1000 recipients — POST /mobile/multi.
+     *
+     * TWO THINGS HERE THAT A CAREFUL READING OF THEIR DOCS GETS WRONG.
+     *
+     * 1. THE DOCUMENTED EXAMPLE IS THE WRONG SHAPE. Their 202 example for
+     *    /mobile/multi shows a single `{msg_id, recipient, reference}` — the
+     *    response for the SINGLE route — while the schema it references,
+     *    MultiMobileMessageResponse, is `{responses: [...]}`. Coding to the
+     *    example reads `undefined` for every recipient of every batch, and does
+     *    it silently: the messages went, the ids did not come back.
+     *
+     * 2. AN ID MUST NEVER BE ATTRIBUTED TO THE WRONG NUMBER. Trusting array
+     *    order alone means a reordered response writes recipient A's delivery
+     *    status against recipient B — and nothing downstream can detect it,
+     *    because both ids are real. They echo `recipient` back on every answer,
+     *    so we match on it and CONSUME each answer once. An unmatched recipient
+     *    is reported `unknown`, never guessed.
+     */
+    async sendMany(messages: SmsSendInput[]): Promise<BatchOutcome[]> {
+      const outcomes = new Array<BatchOutcome>(messages.length);
+      const live: Array<{ index: number; recipient: number; body: Record<string, unknown> }> = [];
+
+      // One bad sender name or unusable number does NOT take the batch with it.
+      messages.forEach((m, index) => {
+        const built = toRequest(m);
+        if (built.ok) live.push({ index, recipient: built.recipient, body: built.body });
+        else outcomes[index] = built;
+      });
+
+      // Everybody in this chunk was refused locally: no HTTP call, nothing billed.
+      if (!live.length) return outcomes;
+
+      const { res, raw } = await request(multiUrl, { messages: live.map((e) => e.body) }, live.length);
+
+      if (!res.ok) {
+        // The WHOLE request was refused, so nothing in it was accepted. Thrown
+        // rather than filled in per recipient, which lets a 429/5xx stay branded
+        // retryable and the chunk be tried again as a whole.
+        throw gatewayRefusal(
+          res.status,
+          `gatewayapi ${res.status}${statusHint(res.status)} ${raw.slice(0, 500)}`.trim(),
+          res.headers,
+        );
+      }
+
+      let parsed: { responses?: unknown };
+      try {
+        parsed = JSON.parse(raw) as { responses?: unknown };
+      } catch {
+        throw new SmsUnknownError(
+          `gatewayapi: accepted ${live.length} message(s) with ${res.status} but the body was not JSON, so we ` +
+            `have no ids — they were probably sent. Do NOT retry blindly: ${raw.slice(0, 200)}`,
+        );
+      }
+
+      const responses = Array.isArray(parsed.responses)
+        ? (parsed.responses as Array<{ msg_id?: unknown; recipient?: unknown }>)
+        : null;
+      if (!responses) {
+        throw new SmsUnknownError(
+          `gatewayapi: accepted ${live.length} message(s) with ${res.status} but the reply had no \`responses\` ` +
+            `array, so we have no ids — they were probably sent. Do NOT retry blindly: ${raw.slice(0, 200)}`,
+        );
+      }
+
+      const used = new Array<boolean>(responses.length).fill(false);
+      /** Same ordinal if it is for the same number; otherwise search; else null. */
+      const take = (ordinal: number, recipient: number): { msg_id?: unknown } | null => {
+        const atOrdinal = responses[ordinal];
+        if (atOrdinal && !used[ordinal] && Number(atOrdinal.recipient) === recipient) {
+          used[ordinal] = true;
+          return atOrdinal;
+        }
+        for (let i = 0; i < responses.length; i += 1) {
+          if (!used[i] && Number(responses[i].recipient) === recipient) {
+            used[i] = true;
+            return responses[i];
+          }
+        }
+        return null;
+      };
+
+      live.forEach((entry, ordinal) => {
+        const hit = take(ordinal, entry.recipient);
+        if (!hit) {
+          outcomes[entry.index] = {
+            ok: false,
+            error: new SmsUnknownError(
+              `gatewayapi: accepted with ${res.status} but returned no answer for ${entry.recipient} ` +
+                `(${responses.length} answer(s) for ${live.length} message(s)). It may still have been sent — ` +
+                `do NOT retry blindly.`,
+            ),
+          };
+          return;
+        }
+        const msgId = typeof hit.msg_id === 'string' ? hit.msg_id : undefined;
+        outcomes[entry.index] = msgId
+          ? { ok: true, id: msgId }
+          : {
+              ok: false,
+              error: new SmsUnknownError(
+                `gatewayapi: accepted with ${res.status} but returned no msg_id for ${entry.recipient}, so there ` +
+                  `is no handle for the delivery webhook — it was probably sent. Do NOT retry blindly.`,
+              ),
+            };
+      });
+
+      return outcomes;
     },
   };
 }

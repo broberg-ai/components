@@ -24,6 +24,22 @@
 // Also measured, and worth writing down because it cost a probe: their own
 // documented path for the credit endpoint (/user/getcreditvalue) 404s. It is
 // /v1/user/getcreditvalue. A documented example is not the live API.
+//
+// NO sendMany, DELIBERATELY (F076.12). The other two adapters batch; this one
+// fans out, one HTTP call per recipient, and says so through `client.batch`.
+//
+// WHY NOT: their own validation answers `"receiver" needs to be a digit` and
+// `"receiver" must be of numeric characters only` — which reads as a scalar,
+// not a list. Their reply carries `batchId` and `report.accepted[]`, so a
+// multi-recipient form may well exist, but their documentation is entirely
+// client-rendered and we could not enumerate a second endpoint from it.
+//
+// NOT PROVEN EITHER WAY, and that is the point: the only way to settle it is to
+// POST an array of real numbers at a live send endpoint, and if the guess is
+// right that delivers real messages and bills for them. A wrong guess about a
+// batch limit is not a bug you find in a test — it is an invoice. So this stays
+// on the fan-out path until someone can probe it on an account where a
+// surprise send is acceptable.
 
 import { SmsUnknownError, checkSenderName, estimate, gatewayRefusal, type SmsProvider } from '../index';
 

@@ -291,3 +291,159 @@ describe('dark mode still costs nothing', () => {
     expect(res.estimate?.segments).toBe(2);
   });
 });
+
+describe('F076.12 — the batch route, /mobile/multi', () => {
+  const multi = (recipients: number[]) =>
+    JSON.stringify({
+      responses: recipients.map((recipient, i) => ({ msg_id: `MSG${i}`, recipient, reference: null })),
+    });
+
+  it('THE LIMIT COMES FROM THEIR SCHEMA, NOT FROM A NUMBER I TYPED', async () => {
+    // The one assertion that makes "measured, not guessed" mechanical. Refresh
+    // the fixture with a different maxItems and this goes red instead of the
+    // package quietly over-filling a batch.
+    const declared = spec.components.schemas.MultiMobileMessageRequest.properties.messages.maxItems;
+    expect(declared).toBe(1000);
+    expect(gatewayapi({ apiKey: 'k' }).batchLimit).toBe(declared);
+    expect(Object.keys(spec.paths)).toContain('/mobile/multi');
+  });
+
+  it('AND IT IS NOT THE OTHER 1000 IN THE SAME SPEC', () => {
+    // `recipient` carries "gt": 1000 — a floor on the PHONE NUMBER as an
+    // integer, not a batch size. Both are 1000; only one of them splits a send
+    // correctly, and reading the wrong one fails silently.
+    expect(spec.components.schemas.MobileMessageRequest.properties.recipient.gt).toBe(1000);
+    expect(spec.components.schemas.MobileMessageRequest.properties.recipient.gt).not.toBe(
+      spec.components.schemas.MultiMobileMessageRequest.properties.messages.maxItems - 1,
+    );
+  });
+
+  it('posts ONE call to /mobile/multi with a messages array', async () => {
+    const c = stubFetch(202, multi([4522680881, 4522680882]));
+    await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(c).toHaveLength(1);
+    expect(c[0].url).toBe('https://messaging.gatewayapi.eu/mobile/multi');
+    expect((c[0].body.messages as unknown[]).length).toBe(2);
+  });
+
+  it('EVERY message in the batch validates against their published schema', async () => {
+    const c = stubFetch(202, multi([4522680881, 4522680882]));
+    await client({ priority: 'urgent', label: 'kampagne' }).sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    for (const body of c[0].body.messages as Record<string, unknown>[]) {
+      expect(validate(body)).toEqual([]);
+    }
+  });
+
+  it('THE DOCUMENTED EXAMPLE IS THE WRONG SHAPE, and answering with it is `unknown`', async () => {
+    // Their 202 example for /mobile/multi is a bare {msg_id, recipient} — the
+    // SINGLE route's response — while the schema says {responses: [...]}. An
+    // adapter coded to the example reads undefined for everyone, silently.
+    stubFetch(202, ACCEPTED);
+    const res = await client().sendMany([{ to: '+4522680881', text: 'en' }]);
+    expect(res[0].outcome).toBe('unknown');
+    expect(res[0].error).toContain('`responses`');
+  });
+
+  it('A REORDERED REPLY DOES NOT MISATTRIBUTE AN ID — the expensive silent one', async () => {
+    // Both ids are real, so nothing downstream can catch a swap. Matched on the
+    // recipient they echo back, never on position alone.
+    stubFetch(
+      202,
+      JSON.stringify({
+        responses: [
+          { msg_id: 'FOR_82', recipient: 4522680882, reference: null },
+          { msg_id: 'FOR_81', recipient: 4522680881, reference: null },
+        ],
+      }),
+    );
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res[0].id).toBe('FOR_81');
+    expect(res[1].id).toBe('FOR_82');
+  });
+
+  it('a recipient with NO answer in the reply is `unknown`, and the others are unaffected', async () => {
+    stubFetch(202, multi([4522680881])); // asked for two, told about one
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res[0].outcome).toBe('sent');
+    expect(res[1].outcome).toBe('unknown');
+    expect(res[1].error).toContain('4522680882');
+  });
+
+  it('a bad SENDER on one message does not stop the other two, and is not submitted', async () => {
+    const c = stubFetch(202, multi([4522680881, 4522680883]));
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to', from: 'A'.repeat(20) },
+      { to: '+4522680883', text: 'tre' },
+    ]);
+    expect((c[0].body.messages as unknown[]).length).toBe(2); // the bad one never left
+    expect(res.map((r) => r.outcome)).toEqual(['sent', 'refused', 'sent']);
+    expect(res[1].error).toContain('characters');
+  });
+
+  it('when EVERY message is refused locally, no HTTP call is made at all', async () => {
+    const c = stubFetch(202, multi([]));
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en', from: 'A'.repeat(20) },
+      { to: '+4522680882', text: 'to', from: 'B'.repeat(20) },
+    ]);
+    expect(c).toHaveLength(0); // nothing billed, nothing attempted
+    expect(res.every((r) => r.outcome === 'refused')).toBe(true);
+  });
+
+  it('a 403 refuses the WHOLE batch — they told us no, so it is `refused`', async () => {
+    stubFetch(403, 'forbidden');
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res.map((r) => r.outcome)).toEqual(['refused', 'refused']);
+    expect(res[0].error).toContain('REJECTED');
+  });
+
+  it('a timeout makes EVERY recipient in the batch `unknown`, never refused', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+      }),
+    );
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res.every((r) => r.outcome === 'unknown')).toBe(true);
+    expect(res[0].error).toContain('ALL 2 MESSAGES');
+  });
+
+  it('a 2xx with no msg_id for one recipient is `unknown` for that one only', async () => {
+    stubFetch(
+      202,
+      JSON.stringify({
+        responses: [
+          { msg_id: 'MSG0', recipient: 4522680881, reference: null },
+          { msg_id: null, recipient: 4522680882, reference: null },
+        ],
+      }),
+    );
+    const res = await client().sendMany([
+      { to: '+4522680881', text: 'en' },
+      { to: '+4522680882', text: 'to' },
+    ]);
+    expect(res[0].outcome).toBe('sent');
+    expect(res[1].outcome).toBe('unknown');
+    expect(res[1].error).toContain('no msg_id');
+  });
+});

@@ -97,6 +97,34 @@ Checked Discovery before writing this (`sms`, `text message`, `gatewayapi`, `twi
 
 What *is* reused is the **shape**: `@broberg/mail`'s create → mode → ship-dark → allowlist → typed-result contract, including the `mode` readback (F005.8) and the delivery-webhook lesson (F005.7). Deliberately not shared as code — the two have different result types, different failure modes and different units of cost, and a premature shared base would couple them for the sake of four similar lines.
 
+## Bulk sending (F076.12) — the batch limits, measured
+
+Sending to 5,000 people was 5,000 HTTP calls. Every gateway offers a batch and we used none of them; that is the cost that starts to hurt at exactly the volume worth invoicing for.
+
+**Measured 2026-08-23 from each gateway's live schema, not from their prose:**
+
+| Gateway | Batch endpoint | Recipients per call | Source |
+|---|---|---|---|
+| **GatewayAPI** | `POST /mobile/multi` | **1000** | `MultiMobileMessageRequest.messages.maxItems`, live OpenAPI `2026.08.21-1807` |
+| **inMobile** | `POST /v4/sms/outgoing` | **250** | `SmsOutgoingPostRequest.messages.maxItems`, live swagger v4 |
+| **sms.dk** | *none proven* | fan-out | their validation rejects non-digits in `receiver` — a scalar |
+
+They differ by a factor of four, so the limit is a property of the adapter. Both are asserted in tests against a vendored copy of the vendor's own schema, so refreshing a fixture with a changed limit goes red instead of silently over-filling a batch.
+
+**Two corrections to what this card originally assumed**, both worth recording because both were the kind of mistake that fails silently:
+
+1. **GatewayAPI's `1000` is two different numbers.** `messages` has `maxItems: 1000` — the batch limit. `recipient` has `gt: 1000` — a floor on the *phone number as an integer*. The card was written citing the second as the batch limit. The requirement it stated (split a 1,001-recipient batch, never reject it) is right; the reason given for it was not.
+2. **Their documented `202` example for `/mobile/multi` is the single route's response** — a bare `{msg_id, recipient}` where the schema says `{responses: [...]}`. An adapter coded to the example reads `undefined` for every recipient of every batch.
+
+**Design consequences, all of them per-recipient:**
+
+- `sendMany()` returns **one result per recipient**, in the order given. A batch reporting one status hides the forty out of five thousand that were gated.
+- **One failure never aborts the rest** — asserted on provider calls, because an aborting implementation still returns an array of the right length.
+- The consent gate, the opt-out check, the duplicate lock, the allowlist and the price all still run **per recipient**. `send()` and `sendMany()` share one `prepare()` so they cannot diverge.
+- **An id is never attributed by array position.** Both batch gateways echo the recipient back; each answer is matched to the number we sent and consumed once. A reordered reply would otherwise write one person's delivery status against another, undetectably — both ids are real.
+- **A timed-out chunk is `unknown` for everyone in it.** F076.6's rule at batch scale: this is exactly where a naive retry re-sends a thousand delivered messages.
+- The gate pass is **sequential**, which catches a repeat inside one uploaded list — and, less obviously, is what makes the lock hold on a *shared* store with no atomic claim. A parallel pass looks correct against the in-memory store and bills twice against Redis.
+
 ## Rollout
 
 Core first with a fake provider, so the contract is proven before any real API is wired. Then one real adapter, live-verified against a real handset. Then the others. Nothing goes to a customer until `mode` and delivery status have both been read back from a real send.

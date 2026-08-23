@@ -1,0 +1,213 @@
+{
+  "info": {
+    "title": "inMobile REST API",
+    "version": "version 4"
+  },
+  "paths": {
+    "/v4/sms/outgoing": {
+      "post": {
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsOutgoingPostRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsOutgoingPostReply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorMessage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorMessage"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorMessage"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SmsOutgoingPostRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "description": "A list of the sms messages to be sent. Allowed to contain between 1 and 250 elements.",
+            "maxItems": 250,
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/SmsOutgoingApiCreateModel"
+            }
+          }
+        }
+      },
+      "SmsOutgoingPostReply": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SmsOutgoingApiCreateResultModel"
+            }
+          }
+        }
+      },
+      "SmsOutgoingApiCreateResultModel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "numberDetails": {
+            "$ref": "#/components/schemas/NumberDetails"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text message.",
+            "example": "This is a message text to be sent"
+          },
+          "from": {
+            "type": "string",
+            "description": "The sender.",
+            "example": "PetShop"
+          },
+          "smsCount": {
+            "type": "integer",
+            "description": "The number of sms messages this message will be split into when sent to the operator. Charging will also be done according to this number.",
+            "format": "int32",
+            "example": 1
+          },
+          "messageId": {
+            "type": "string",
+            "description": "An optional message id used to identify the message.\nIf no message id is provided, a new message id is generated and assigned to the message. This id must be unique across all messages created on the same account.\n(In case a previous message has been deleted according to GDPR deletion rules setup on the specific account, the messageId is allowed to be reused)",
+            "example": "PetShop"
+          },
+          "encoding": {
+            "type": "string",
+            "description": "The encoding of the message. Can be either \"gsm7\" or \"ucs2\". In case the message was submitted with encoding \"auto\", this report will reveal the final encoding based on the characters in the message text.\n\"gsm7\" is the default alphabet for text messages and when using gsm7, a single sms message can contain 160 characters. If the length exceeds 160 characters, the message is actually split up into parts of 153 characters and charged according to this. Please note, that a few, specific characters fill up 2 bytes and count for 2 letters. Ref: https://en.wikipedia.org/wiki/GSM_03.38\n\"ucs2\" allows for more non-roman characters to be used along with smileys. When using this encoding, a single message can consist of 70 characters. If the message exceeds 70 characters, the final message is actually split into parts of 67 characters.",
+            "example": "gsm7"
+          }
+        }
+      },
+      "SmsOutgoingApiCreateModel": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SmsOutgoingBaseApiModel"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "from"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "The text message.",
+                "maxLength": 10000,
+                "minLength": 1,
+                "example": "This is a message text to be sent"
+              },
+              "from": {
+                "type": "string",
+                "description": "The sender. This can either be a 3-11 chars text sender or an up to 14 digit long sender number.</br>\nIf the max length is exceeded, the string is truncated.",
+                "minLength": 1,
+                "example": "PetShop"
+              },
+              "flash": {
+                "type": "boolean",
+                "description": "If true, the message will be shown as a flash message (also known as a class0 message) on the target phone. If false, it will be received as a standard text message.</br>\nDefault: false",
+                "nullable": true,
+                "example": false
+              },
+              "encoding": {
+                "type": "string",
+                "description": "The encoding of the message. Can be either \"gsm7\", \"ucs2\" or \"auto\".</br>\n\"gsm7\" is the default alphabet for text messages and when using gsm7, a single sms message can contain 160 characters. If the length exceeds 160 characters, the message is actually split up into parts of 153 characters and charged according to this. Please note, that a few, specific characters fill up 2 bytes and count for 2 letters. Ref: https://en.wikipedia.org/wiki/GSM_03.38</br>\n\"ucs2\" allows for more non-roman characters to be used along with smileys. When using this encoding, a single message can consist of 70 characters. If the message exceeds 70 characters, the final message is actually split into parts of 67 characters.</br>\n\"auto\" can be used in case the sender wishes to support non-roman characters but wants to save the expenses on all the traffic that only contains gsm characters anyway.</br>\nDefault: \"gsm7\"",
+                "example": "gsm7"
+              }
+            }
+          }
+        ]
+      },
+      "NumberDetails": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "countryCode": {
+            "type": "string",
+            "description": "The country code part of the msisdn, e.g. 45.",
+            "example": "45"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "The phone number part of the msisdn, e.g. 12345678.",
+            "example": "12345678"
+          },
+          "rawMsisdn": {
+            "type": "string",
+            "description": "The input msisdn in its unaltered format. This is the value provided when sending the text message.",
+            "example": "45 12 34 56 78"
+          },
+          "msisdn": {
+            "type": "string",
+            "description": "The final cleaned msisdn.",
+            "example": "4512345678"
+          },
+          "isValidMsisdn": {
+            "type": "boolean",
+            "description": "True if the input msisdn was valid.",
+            "example": true
+          },
+          "countryHint": {
+            "type": "string",
+            "description": "The country code hint if provided in the request.",
+            "example": "45"
+          }
+        }
+      }
+    }
+  },
+  "_note": "Trimmed slice of api.inmobile.com/swagger/v1/swagger.json fetched 2026-08-23. Only the schemas this adapter is checked against; the prose description was dropped."
+}

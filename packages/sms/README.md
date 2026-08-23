@@ -472,6 +472,74 @@ A gateway asking you to wait replaces the backoff. A `Retry-After: 0` — or a m
 
 Which is why retry is **off by default**. The duplicate lock prevents money being spent; retry *spends time*, in someone else's request handler.
 
+## `sendMany()` — 5,000 recipients without 5,000 HTTP calls
+
+```ts
+const results = await sms.sendMany([
+  { to: "+4512345678", text: "Tilbud! Afmeld: …", category: "marketing" },
+  { to: "+4587654321", text: "Tilbud! Afmeld: …", category: "marketing" },
+  // …4,998 more
+]);
+
+results.length;              // 5000 — ALWAYS one per recipient, in the order given
+results.filter(r => r.outcome === "sent").length;
+results.filter(r => r.skippedReason === "opted-out");   // who was gated, and why
+```
+
+**One result per recipient, always.** A batch that reports a single status hides the forty people out of five thousand who were blocked — behind a green result.
+
+**One failure does not abort the rest.** A bad number at position 300 is the ordinary case, not the exceptional one. Every recipient after it is still attempted.
+
+**Every per-recipient gate still runs per recipient** — consent, the opt-out line, the duplicate lock, the allowlist, and the price. `sendMany()` and `send()` share one gate function, so a rule added to one is a rule added to both.
+
+### What it costs, before you pay it
+
+```ts
+const bill = sms.estimateMany(messages);
+bill.segments;    // 6,412 — this is the number on the invoice
+bill.encodings;   // { "gsm-7": 4,998, "ucs-2": 2 }
+bill.warnings;    // [{ index: 17, warning: "“ is not in GSM-7 …" }]
+```
+
+Exactly the sum of the individual estimates. **Look at `encodings`:** one curly apostrophe in a template used for 5,000 people is 5,000 messages billed at UCS-2 rates, and the total alone will not tell you — it just looks like a big send.
+
+### How it actually goes out — read it at boot
+
+```ts
+sms.batch;   // { mode: "gateway-batch", size: 1000, concurrency: 5 }
+```
+
+| Provider | `mode` | Recipients per call | Measured from |
+|---|---|---|---|
+| **GatewayAPI** | `gateway-batch` | **1000** | live OpenAPI — `MultiMobileMessageRequest.messages.maxItems` |
+| **inMobile** | `gateway-batch` | **250** | live swagger — `SmsOutgoingPostRequest.messages.maxItems` |
+| **sms.dk** | `fan-out` | 1 | *see below* |
+
+The difference between five requests and five thousand is worth being able to read rather than infer — and it changes when you change provider, not when you change your code.
+
+**A batch larger than the limit is SPLIT, never rejected.** You asked to reach 1,001 people; the transport's ceiling is this package's problem.
+
+> **Two different 1000s in GatewayAPI's spec.** `messages` has `maxItems: 1000` — the batch limit. `recipient` has `gt: 1000` — a floor on the *phone number as an integer*. Both are 1000, only one of them splits a send correctly, and reading the wrong one fails silently.
+
+**Why sms.dk fans out:** their own validation answers `"receiver" needs to be a digit`, which reads as a scalar rather than a list. Their reply carries a `batchId`, so a multi-recipient form may well exist — but their docs render entirely as a JavaScript app and we could not enumerate a second endpoint. **Not proven either way**, and the only way to settle it is to POST an array of real numbers at a live send endpoint. A wrong guess about a batch limit is not a bug you find in a test; it is an invoice.
+
+### The failure modes it is careful about
+
+**A timed-out chunk is `unknown` for every recipient in it — never `refused`.** The gateway may have taken all thousand. This is precisely where a naive retry re-sends a thousand delivered messages, so the same rule holds as for a single send: **never retry an `unknown`.**
+
+**Fewer answers than recipients is `unknown`, not silence.** If a gateway returns 999 results for 1,000 messages, the missing one is reported — it may well have been sent. It is never quietly dropped.
+
+**An id is never attributed by position alone.** Both GatewayAPI and inMobile echo the recipient back on every answer, so each is matched to the number *we* sent and consumed once. Trusting array order would let a reordered reply write one person's delivery status against another — and nothing downstream could catch it, because both ids are real.
+
+**A repeat inside one batch is caught.** The same number twice in an uploaded list is blocked by the duplicate lock, because the gates run sequentially before anything is dispatched. That also makes the lock hold on a *shared* store with no atomic claim — where a parallel gate pass would let both copies through and bill both.
+
+```ts
+// Tune it if you need to
+await sms.sendMany(messages, { concurrency: 10, chunkSize: 100 });
+```
+
+`concurrency` defaults to **5**. It is the knob that turns a large send into a 429.
+
 ## The webhook route — one line, all three providers
 
 ```ts
@@ -670,3 +738,19 @@ const myGateway: SmsProvider = {
 ```
 
 One method, one shape. Throw on failure — the core turns it into `{ ok: false, error }` and never lets it reach the caller as an exception.
+
+**`sendMany` is optional**, and leaving it out is not a gap — it is the honest statement that this gateway has no proven multi-recipient endpoint, and `createSms()` fans out instead:
+
+```ts
+const myGateway: SmsProvider = {
+  name: "my-gateway",
+  batchLimit: 500,                       // the gateway's OWN limit, measured
+  async send({ to, text, from }) { … },
+  async sendMany(messages) {
+    // ONE outcome per input message, in input order. Throw only for a
+    // whole-request failure; a per-message refusal belongs in its own outcome,
+    // so one bad number cannot take the other 499 with it.
+    return messages.map((m) => ({ ok: true, id: "…" }));
+  },
+};
+```
