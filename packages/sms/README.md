@@ -188,6 +188,91 @@ createSms({ …, duplicates: false })                                // off
 
 **If the store is unreachable, the message still goes out** and a warning says protection was lost. A guard that takes the whole SMS capability down when Redis hiccups is worse than the duplicate it was preventing — nobody logs in while the one-time codes are blocked.
 
+## Consent and opt-out
+
+> ### This does not make you compliant
+>
+> It makes the mechanics correct, refuses the sends that are obviously wrong, and keeps evidence you can produce later. Whether a given consent is **valid**, whether the existing-customer exception applies, whether your wording is adequate — that stays with you. `consentMode: 'enforced'` is a statement about *wiring*, not a legal opinion.
+
+```ts
+import { createSms, createConsentRegistry } from "@broberg/sms";
+
+const consent = createConsentRegistry({ store: myConsentStore });
+const sms = createSms({ provider, from: "Moovyy", live: true, consent });
+
+sms.consentMode;                       // 'enforced' — assert at boot
+
+await consent.record({
+  phone: "+4522680880",
+  basis: "Tilmeldt nyhedsbrev på webshoppen 23/8",   // required
+  textVersion: "samtykke-v2",
+});
+
+await sms.send({ to, text, category: "marketing" });      // → sent
+await sms.send({ to: other, text, category: "marketing" }); // → skipped / 'no-consent'
+```
+
+### The rule that is a test, not a comment
+
+> **A transactional message is NEVER blocked by a marketing opt-out.**
+
+A one-time code, an appointment change, a delivery notice — none of those are marketing. Blocking them locks people out of their own accounts, which is worse than the problem being solved.
+
+### So `category` is required, and there is no default
+
+With a register wired, **every** send must say what it is. A send without a `category` is **refused**.
+
+| A default of… | would… |
+|---|---|
+| `transactional` | let a marketing blast bypass the gate **silently** |
+| `marketing` | block one-time codes |
+
+Both wrong in a dangerous direction. The friction of touching every call-site is the point — each one needs a human decision.
+
+**With no register wired, nothing changes.** No category needed, nothing blocked.
+
+### Two reasons, not one
+
+| `skippedReason` | Usually means |
+|---|---|
+| `no-consent` | Your import failed, or you never asked. |
+| `opted-out` | A person's decision. |
+
+Same outcome, entirely different thing to do about it.
+
+### The record is not a boolean
+
+GDPR art. 7(1) asks you to **demonstrate** consent — a yes/no flag cannot, because in a year nobody can say where the yes came from.
+
+| Field | |
+|---|---|
+| `basis` **(required)** | The sentence you could read aloud. A record without one is **refused**: better no row than one nobody can account for. |
+| `textVersion` | *Which wording* they agreed to. Version the document, not a field inside it — otherwise a bump overwrites the text earlier consents point at. |
+| `consentedAt`, `source`, `ip`, `userAgent` | |
+| `withdrawnAt`, `withdrawalSource` | Set on opt-out. **The row is never deleted.** |
+
+### The asymmetry is deliberate
+
+| | |
+|---|---|
+| `consent.record()` | Needs a `basis`. **Refuses on a withdrawn number** unless `overrideWithdrawal: true` — otherwise re-running a signup import silently un-withdraws everyone who ever opted out, with no error to notice. |
+| `consent.optOut()` | Needs **nothing**. Never refuses. Works on a number that never consented. Idempotent, and the **earliest** withdrawal date stands. |
+
+Withdrawal must be at least as easy as giving consent (art. 7(3)), and a guard that can reject an opt-out is the one bug here nobody would forgive.
+
+### The store has no TTL, on purpose
+
+It is **not** the `SmsEventStore` used by the delivery inbox and the duplicate lock — that one expires after 48 hours. A consent record must never expire; you may have to produce it years later.
+
+```ts
+interface SmsConsentStore {
+  get(phone: string): Promise<ConsentRecord | null> | ConsentRecord | null;
+  put(record: ConsentRecord): Promise<void> | void;
+}
+```
+
+`MemorySmsConsentStore` ships for tests. It dies with the process, which makes it useless as a legal record — `consentMode` cannot tell you that, but your deployment can.
+
 ## "Accepted" is not "delivered"
 
 A gateway answering `accepted` means it took the message, not that a handset received it — and **every one of those costs money**. Delivery status is F076.5; until it lands, a repo using this is paying for messages it cannot prove arrived.

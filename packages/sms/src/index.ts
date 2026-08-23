@@ -27,6 +27,7 @@
 // fleet already reads. Zero runtime dependencies, fetch only, so it loads on
 // Node, Bun and edge alike.
 
+import type { ConsentMode, ConsentRegistry, SmsCategory } from './consent';
 import {
   createDuplicateGuard,
   type DuplicateGuardConfig,
@@ -215,6 +216,12 @@ export interface SmsMessage {
   /** Sender name or number. Falls back to the client's `from`. */
   from?: string;
   /**
+   * What this message IS (F077). REQUIRED when a consent register is wired —
+   * there is no safe default, because guessing transactional lets a marketing
+   * blast bypass the gate and guessing marketing blocks one-time codes.
+   */
+  category?: SmsCategory;
+  /**
    * Replaces the derived duplicate key for this send (F076.9).
    *
    * Works in BOTH directions: give two identical messages different keys and
@@ -319,6 +326,14 @@ export interface SmsConfig {
   allowlist?: string[];
   defaultCountry?: string;
   /**
+   * The consent register (F077). Omit it and nothing is gated.
+   *
+   * Wire it and `category` becomes REQUIRED on every send, and a MARKETING send
+   * needs a recorded consent. A TRANSACTIONAL send is never blocked by either —
+   * that is the whole point, not a special case.
+   */
+  consent?: ConsentRegistry;
+  /**
    * The send-side duplicate lock (F076.9). ON BY DEFAULT with a 60-second window
    * and in-process memory — a fix behind a flag reaches only the people who read
    * changelogs, i.e. the people who did not need it.
@@ -334,6 +349,13 @@ export interface SmsClient {
   readonly mode: DeliveryMode;
   /** What the duplicate lock actually guarantees. Assert this at boot too. */
   readonly duplicateGuard: DuplicateGuardMode;
+  /**
+   * 'enforced' when a consent register is wired, 'off' otherwise.
+   *
+   * It says what is WIRED. It is not a statement that anything is lawful — see
+   * the note at the top of consent.ts.
+   */
+  readonly consentMode: ConsentMode;
   readonly provider: string | null;
   estimate(text: string): SmsEstimate;
   send(message: SmsMessage): Promise<SmsResult>;
@@ -350,6 +372,7 @@ export function createSms(config: SmsConfig): SmsClient {
     allowlist = [],
     defaultCountry = '45',
     duplicates,
+    consent,
   } = config;
 
   const guard = createDuplicateGuard(duplicates);
@@ -375,6 +398,7 @@ export function createSms(config: SmsConfig): SmsClient {
   return {
     mode,
     duplicateGuard: guard.mode,
+    consentMode: consent?.mode ?? 'off',
     provider: provider?.name ?? null,
     estimate,
 
@@ -388,6 +412,43 @@ export function createSms(config: SmsConfig): SmsClient {
       }
 
       const cost = estimate(message.text);
+
+      // THE CONSENT GATE, and it runs BEFORE the dark-mode check on purpose: a
+      // missing category is a programming error you want to meet in development,
+      // and development IS dark mode. Meeting it in production instead is how a
+      // marketing blast goes out ungated.
+      if (consent && consent.mode === 'enforced') {
+        if (!message.category) {
+          return {
+            ok: false,
+            outcome: 'refused',
+            error:
+              'sms: a consent register is wired, so every send must declare `category`: ' +
+              "'transactional' (a one-time code, a receipt, an appointment change) or 'marketing'. " +
+              'There is no default, because guessing transactional would let a marketing send bypass ' +
+              'the consent gate and guessing marketing would block one-time codes. Nothing was sent.',
+            estimate: cost,
+          };
+        }
+
+        // A TRANSACTIONAL MESSAGE IS NEVER BLOCKED. Not by a missing consent, not
+        // by an opt-out. An opt-out is from marketing; a one-time code is not
+        // marketing, and blocking it locks someone out of their own account.
+        if (message.category === 'marketing') {
+          const state = await consent.check(to);
+          if (state !== 'consented') {
+            return {
+              ok: true,
+              outcome: 'skipped',
+              skipped: true,
+              // Two reasons, not one: 'no-consent' usually means an import
+              // failed; 'opted-out' is a person's decision.
+              skippedReason: state === 'withdrawn' ? 'opted-out' : 'no-consent',
+              estimate: cost,
+            };
+          }
+        }
+      }
 
       if (mode !== 'live' && !allowed.has(to)) {
         // Derived from `mode`, not from which branch we happen to be in: a
@@ -473,3 +534,4 @@ export { inmobile, type InMobileConfig } from './providers/inmobile';
 export * from './delivery';
 export * from './idempotency';
 export * from './lock';
+export * from './consent';

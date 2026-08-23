@@ -15,8 +15,25 @@ import { MemorySmsEventStore, type InboxGuarantee, type SmsEventStore } from './
 
 declare const console: { warn(...args: unknown[]): void };
 
-/** Why a send was deliberately not made. Four different things, four values. */
-export type SmsSkipReason = 'disabled' | 'not-allowlisted' | 'no-provider' | 'duplicate';
+/**
+ * Why a send was deliberately not made. Six different things, six values —
+ * they are not interchangeable, and collapsing any two sends the reader to fix
+ * the wrong thing.
+ *
+ *   disabled / not-allowlisted / no-provider   the environment said no
+ *   duplicate                                  the send-side lock said no (F076.9)
+ *   no-consent / opted-out                     the consent gate said no (F077)
+ *
+ * `no-consent` usually means an import failed. `opted-out` is a person's
+ * decision. Same outcome, entirely different thing to do about it.
+ */
+export type SmsSkipReason =
+  | 'disabled'
+  | 'not-allowlisted'
+  | 'no-provider'
+  | 'duplicate'
+  | 'no-consent'
+  | 'opted-out';
 
 export interface DuplicateGuardConfig {
   /**
