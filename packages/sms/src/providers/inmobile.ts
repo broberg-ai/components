@@ -27,7 +27,7 @@
 // ("If the max length is exceeded, the string is truncated"), and their numeric
 // limit is 14 where the other two allow 15. Both handled by checkSenderName.
 
-import { checkSenderName, estimate, type SmsProvider } from '../index';
+import { SmsUnknownError, checkSenderName, estimate, type SmsProvider } from '../index';
 
 export interface InMobileConfig {
   /** API key from the inMobile dashboard. Sent as the Basic-auth PASSWORD. */
@@ -129,12 +129,15 @@ export function inmobile(config: InMobileConfig): SmsProvider {
       } catch (err) {
         const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
         if (timedOut) {
-          throw new Error(
+          throw new SmsUnknownError(
             `inmobile: no response within ${timeoutMs}ms. THE MESSAGE MAY OR MAY NOT HAVE BEEN SENT ` +
               `— and may already have been billed. Do NOT retry blindly; check the report first.`,
           );
         }
-        throw new Error(`inmobile: could not reach ${url} — ${err instanceof Error ? err.message : String(err)}`);
+        throw new SmsUnknownError(
+          `inmobile: could not reach ${url} — ${err instanceof Error ? err.message : String(err)}. ` +
+            `The request may still have arrived; do NOT retry blindly.`,
+        );
       }
 
       const raw = await res.text();
@@ -142,7 +145,14 @@ export function inmobile(config: InMobileConfig): SmsProvider {
       try {
         parsed = JSON.parse(raw) as Reply;
       } catch {
-        throw new Error(`inmobile: ${res.status} but the body was not JSON: ${raw.slice(0, 200)}`);
+        // An unreadable body only means "we do not know" when they ACCEPTED it.
+        // On a 4xx/5xx we heard a no, and a no is safe to retry.
+        throw res.ok
+          ? new SmsUnknownError(
+              `inmobile: accepted with ${res.status} but the body was not JSON, so we cannot tell what was ` +
+                `sent — do NOT retry blindly: ${raw.slice(0, 200)}`,
+            )
+          : new Error(`inmobile: ${res.status} but the body was not JSON: ${raw.slice(0, 200)}`);
       }
 
       if (!res.ok) {
@@ -157,7 +167,10 @@ export function inmobile(config: InMobileConfig): SmsProvider {
 
       const result = parsed.results?.[0];
       if (!result) {
-        throw new Error(`inmobile: ${res.status} but the results array was empty: ${raw.slice(0, 200)}`);
+        throw new SmsUnknownError(
+          `inmobile: ${res.status} but the results array was empty — they accepted the request and told us ` +
+            `nothing about it. Do NOT retry blindly: ${raw.slice(0, 200)}`,
+        );
       }
 
       // THE ONE THAT MATTERS. A 200 with a real messageId and isValidMsisdn:false
@@ -181,7 +194,10 @@ export function inmobile(config: InMobileConfig): SmsProvider {
 
       const id = typeof result.messageId === 'string' ? result.messageId : undefined;
       if (!id) {
-        throw new Error(`inmobile: ${res.status} but no messageId was returned: ${raw.slice(0, 200)}`);
+        throw new SmsUnknownError(
+          `inmobile: ${res.status} but no messageId was returned, so there is no handle for the delivery ` +
+            `report — the message was probably sent. Do NOT retry blindly: ${raw.slice(0, 200)}`,
+        );
       }
       return { id };
     },

@@ -209,8 +209,62 @@ export interface SmsMessage {
   from?: string;
 }
 
+/**
+ * What actually happened to a send. FOUR outcomes, because there are four —
+ * and `ok: boolean` can only carry two.
+ *
+ * The one that matters is `unknown`. When a request times out, or the socket
+ * dies, or the gateway answers 2xx with a body we cannot read, we do not know
+ * what happened: the message may have reached them, may already be on its way
+ * to a handset, and MAY ALREADY BE BILLED. We simply never heard the answer.
+ *
+ * Collapsed into `ok:false`, that is indistinguishable from a rejected key —
+ * and the obvious response to `ok:false` is to retry. A retry after an unknown
+ * double-sends and double-charges, and on a one-time code it sends the user two
+ * different codes, of which only one works.
+ *
+ * The same shape @broberg/mail hit in F005.9: three states squeezed into two.
+ *
+ * THE RULE, and it fits on one line:
+ *   `refused` means the gateway told us no. Anything else that is not a
+ *   confirmed send is `unknown`.
+ *
+ * So retry on `refused`. NEVER retry on `unknown` — confirm via delivery status
+ * (F076.5) first, or send with an idempotency key the gateway honours.
+ */
+export type SmsOutcome = 'sent' | 'skipped' | 'refused' | 'unknown';
+
+/**
+ * Thrown by an adapter when the outcome of a send is genuinely unknown.
+ *
+ * The core branches on the BRAND (`smsOutcome`), never on `instanceof` and
+ * never on the message text. instanceof breaks the moment two copies of this
+ * package end up in one bundle — a real and quiet failure, and it would fail in
+ * the expensive direction: an unknown silently downgraded to a refusal, which
+ * is the retry a caller must not make.
+ */
+export class SmsUnknownError extends Error {
+  readonly smsOutcome = 'unknown' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'SmsUnknownError';
+  }
+}
+
+/** True when this error means "we never heard the answer". */
+export function isUnknownSendError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { smsOutcome?: unknown }).smsOutcome === 'unknown';
+}
+
 export interface SmsResult {
+  /**
+   * Success. `false` covers BOTH a refusal and an unknown — deliberately, so
+   * an existing `if (!res.ok)` alarm still fires on an unknown. Read `outcome`
+   * before you retry.
+   */
   ok: boolean;
+  /** Which of the four things happened. `ok` alone cannot say. */
+  outcome: SmsOutcome;
   /** Provider message id — the same id a delivery status will carry back (F076.5). */
   id?: string;
   error?: string;
@@ -291,23 +345,32 @@ export function createSms(config: SmsConfig): SmsClient {
       try {
         to = normalisePhone(message.to, defaultCountry);
       } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+        // Local refusal — nothing left this process, nothing was billed.
+        return { ok: false, outcome: 'refused', error: err instanceof Error ? err.message : String(err) };
       }
 
       const cost = estimate(message.text);
 
       if (mode !== 'live' && !allowed.has(to)) {
-        return { ok: true, skipped: true, estimate: cost };
+        return { ok: true, outcome: 'skipped', skipped: true, estimate: cost };
       }
       if (!provider) {
-        return { ok: true, skipped: true, estimate: cost };
+        return { ok: true, outcome: 'skipped', skipped: true, estimate: cost };
       }
 
       try {
         const res = await provider.send({ to, text: message.text, from: message.from ?? from });
-        return { ok: true, ...(res.id ? { id: res.id } : {}), estimate: cost };
+        return { ok: true, outcome: 'sent', ...(res.id ? { id: res.id } : {}), estimate: cost };
       } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err), estimate: cost };
+        // The whole point of this card: an adapter that never heard an answer
+        // says so with a BRANDED error, and it lands here as its own outcome
+        // rather than as another `ok:false` a retry wrapper cannot tell apart.
+        return {
+          ok: false,
+          outcome: isUnknownSendError(err) ? 'unknown' : 'refused',
+          error: err instanceof Error ? err.message : String(err),
+          estimate: cost,
+        };
       }
     },
   };

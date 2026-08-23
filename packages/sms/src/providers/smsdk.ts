@@ -25,7 +25,7 @@
 // documented path for the credit endpoint (/user/getcreditvalue) 404s. It is
 // /v1/user/getcreditvalue. A documented example is not the live API.
 
-import { checkSenderName, estimate, type SmsProvider } from '../index';
+import { SmsUnknownError, checkSenderName, estimate, type SmsProvider } from '../index';
 
 export interface SmsDkConfig {
   /** Bearer token from the sms.dk web interface. */
@@ -139,12 +139,15 @@ export function smsdk(config: SmsDkConfig): SmsProvider {
       } catch (err) {
         const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
         if (timedOut) {
-          throw new Error(
+          throw new SmsUnknownError(
             `smsdk: no response within ${timeoutMs}ms. THE MESSAGE MAY OR MAY NOT HAVE BEEN SENT ` +
               `— and may already have been billed. Do NOT retry blindly; check the log first.`,
           );
         }
-        throw new Error(`smsdk: could not reach ${url} — ${err instanceof Error ? err.message : String(err)}`);
+        throw new SmsUnknownError(
+          `smsdk: could not reach ${url} — ${err instanceof Error ? err.message : String(err)}. ` +
+            `The request may still have arrived; do NOT retry blindly.`,
+        );
       }
 
       const raw = await res.text();
@@ -155,9 +158,15 @@ export function smsdk(config: SmsDkConfig): SmsProvider {
       } catch {
         // An HTML body here means the path is wrong — their 404s render a page
         // rather than JSON, which is exactly how /user/getcreditvalue hid from us.
-        throw new Error(
-          `smsdk: ${res.status} but the body was not JSON — usually a wrong path, since their 404 serves an HTML page: ${raw.slice(0, 160)}`,
-        );
+        // Unreadable + accepted is unknown; unreadable + refused is a refusal.
+        throw res.ok
+          ? new SmsUnknownError(
+              `smsdk: accepted with ${res.status} but the body was not JSON, so we cannot tell whether this ` +
+                `recipient was accepted — do NOT retry blindly: ${raw.slice(0, 160)}`,
+            )
+          : new Error(
+              `smsdk: ${res.status} but the body was not JSON — usually a wrong path, since their 404 serves an HTML page: ${raw.slice(0, 160)}`,
+            );
       }
 
       const reason = rejectionReason(parsed);
@@ -180,12 +189,20 @@ export function smsdk(config: SmsDkConfig): SmsProvider {
 
       const top = typeof parsed.message === 'string' ? parsed.message : raw.slice(0, 300);
       const code = parsed.messageCode != null ? ` [code ${parsed.messageCode}]` : '';
-      throw new Error(
+      const detail =
         `smsdk ${res.status}${code}: ${top}` +
-          (res.status === 409 && /senderName/i.test(top)
-            ? ` — sender names must be approved in the sms.dk web interface before they can be used.`
-            : ''),
-      );
+        (res.status === 409 && /senderName/i.test(top)
+          ? ` — sender names must be approved in the sms.dk web interface before they can be used.`
+          : '');
+
+      // Fell through everything: no accepted, no named rejection. On a 2xx that
+      // means they took it and said nothing useful — we do not know the outcome.
+      throw res.ok
+        ? new SmsUnknownError(
+            `${detail} — the recipient appeared in neither the accepted nor the rejected list, so the ` +
+              `outcome is unknown. Do NOT retry blindly; check the log.`,
+          )
+        : new Error(detail);
     },
   };
 }

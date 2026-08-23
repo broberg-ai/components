@@ -20,7 +20,7 @@
 // The docs list only 403 for authentication. Collapsing the two sends you off to
 // regenerate a perfectly good key when the real fault is a header you never set.
 
-import { checkSenderName, type SmsProvider } from '../index';
+import { SmsUnknownError, checkSenderName, type SmsProvider } from '../index';
 
 export interface GatewayApiConfig {
   /** Token from the GatewayAPI dashboard. Bound to ONE region — see `region`. */
@@ -119,12 +119,17 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
           // NOT the same as "it failed". The request may have reached them and
           // the message may already be sent AND BILLED — we simply never heard
           // the answer. Retrying blind double-sends and double-charges.
-          throw new Error(
+          throw new SmsUnknownError(
             `gatewayapi: no response within ${timeoutMs}ms. THE MESSAGE MAY OR MAY NOT HAVE BEEN SENT ` +
               `— and may already have been billed. Do NOT retry blindly; confirm via delivery status first.`,
           );
         }
-        throw new Error(`gatewayapi: could not reach ${url} — ${err instanceof Error ? err.message : String(err)}`);
+        // Also unknown: a socket that dies mid-request looks identical to one
+        // that never opened, and only one of those is safe to retry.
+        throw new SmsUnknownError(
+          `gatewayapi: could not reach ${url} — ${err instanceof Error ? err.message : String(err)}. ` +
+            `The request may still have arrived; do NOT retry blindly.`,
+        );
       }
 
       const raw = await res.text();
@@ -149,14 +154,22 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
       try {
         parsed = JSON.parse(raw) as { msg_id?: unknown };
       } catch {
-        throw new Error(`gatewayapi: accepted with ${res.status} but the body was not JSON: ${raw.slice(0, 200)}`);
+        // They ACCEPTED it (2xx) and we cannot read the handle. The message is
+        // probably on its way; retrying would send a second one.
+        throw new SmsUnknownError(
+          `gatewayapi: accepted with ${res.status} but the body was not JSON, so we have no msg_id — ` +
+            `the message was probably sent. Do NOT retry blindly: ${raw.slice(0, 200)}`,
+        );
       }
 
       const id = typeof parsed.msg_id === 'string' ? parsed.msg_id : undefined;
       if (!id) {
         // Their schema marks msg_id required. If it is absent we have no handle
         // for the delivery webhook, so say so rather than returning a blank id.
-        throw new Error(`gatewayapi: accepted with ${res.status} but returned no msg_id: ${raw.slice(0, 200)}`);
+        throw new SmsUnknownError(
+          `gatewayapi: accepted with ${res.status} but returned no msg_id, so there is no handle for the ` +
+            `delivery webhook — the message was probably sent. Do NOT retry blindly: ${raw.slice(0, 200)}`,
+        );
       }
       return { id };
     },

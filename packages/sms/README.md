@@ -22,7 +22,7 @@ const sms = createSms({
 
 sms.mode;                                   // 'live' | 'allowlist-only' | 'disabled' | 'no-key'
 await sms.send({ to: "12345678", text: "Din kode er 1234" });
-// → { ok: true, id: "…", estimate: { units: 20, segments: 1, encoding: 'gsm-7' } }
+// → { ok: true, outcome: 'sent', id: "…", estimate: { units: 20, segments: 1, encoding: 'gsm-7' } }
 ```
 
 Zero runtime dependencies, `fetch` only — it loads on Node, Bun and edge alike.
@@ -78,13 +78,50 @@ No provider → a logged no-op. `live` is an **explicit** opt-in, never inferred
 
 An allowlist entry that cannot be parsed is **dropped with a warning**, never silently widening the gate.
 
-## `send()` never throws
+## `send()` never throws — and it has **four** answers, not two
 
 ```ts
-{ ok, id?, error?, skipped?, estimate? }
+{ ok, outcome, id?, error?, skipped?, estimate? }
 ```
 
+> ## ⚠️ The retry rule
+>
+> **Retry on `refused`. NEVER retry on `unknown`** — an unknown may already have been sent *and billed*.
+
+`ok` is a boolean and there are four things that can happen, so `ok` alone cannot tell you what to do next. **`outcome` is what you branch on:**
+
+| `outcome` | `ok` | What happened | Retry? |
+|---|---|---|---|
+| `sent` | `true` | The gateway took it and gave us a handle | no |
+| `skipped` | `true` | Dark mode / not allowlisted / no key — nothing was sent, nothing was billed | n/a |
+| `refused` | `false` | **The gateway told us no.** Bad number, rejected key, unapproved sender | **yes** |
+| `unknown` | `false` | **We never heard the answer.** It may be on its way to a handset already | **no** |
+
+```ts
+const res = await sms.send({ to, text });
+if (res.outcome === "refused") return retry();      // safe: nothing went out
+if (res.outcome === "unknown") return alertAndCheckDeliveryStatus(res);
+```
+
+### Why `unknown` exists
+
+A request that times out, a socket that dies mid-flight, a `2xx` whose body we cannot read — in every one of those we do **not** know what happened. The message may have reached the gateway, may already be on its way, and **may already be billed**.
+
+Collapsed into `ok: false`, that is indistinguishable from a rejected key. And the obvious response to `ok: false` is to retry — which double-sends, double-charges, and on a one-time code sends the user **two different codes, of which only one works**.
+
+The rule the classifier follows, in one line:
+
+> **`refused` means the gateway told us no. Anything else that is not a confirmed send is `unknown`.**
+
+Note that two of the three gateways deliver a refusal on a **`2xx`** (sms.dk's `207` with the number in `rejected`, inMobile's `200` with `isValidMsisdn: false`), so this is not an HTTP-status test — see *Three gateways, three hiding places* below.
+
+**`ok` still means what it always did.** An `unknown` is `ok: false`, so an existing `if (!res.ok)` alarm keeps firing. Reading `outcome` is what's new, not a behaviour change.
+
 `estimate` is present even when the send is skipped — so you can see what dark mode *would* have spent.
+
+### Writing your own retry wrapper?
+
+Branch on `outcome`, never on `error` text. If you need to classify an error you caught yourself, use the exported `isUnknownSendError(err)` — it reads a **brand** on the error, not `instanceof`, so it survives two copies of this package ending up in one bundle.
 
 ## "Accepted" is not "delivered"
 

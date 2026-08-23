@@ -144,10 +144,13 @@ describe('A SUCCESSFUL HTTP RESPONSE THAT MEANS NOTHING WAS SENT', () => {
 
   it('an empty accepted array is a failure even when nothing says "rejected"', async () => {
     // Defence against a shape we have not seen: accepted:[] with no rejections
-    // and no error. Nothing went out, so it must not read as ok.
+    // and no error. They took it (2xx) and told us nothing we can act on, so it
+    // must not read as ok — and since we cannot prove nothing went out, it is
+    // `unknown` rather than `refused`: retrying it could double-send (F076.6).
     stubFetch(200, JSON.stringify({ status: 'success', messageCode: 5000, result: { report: { accepted: [], rejected: [] } } }));
     const res = await client().send({ to: '+4522680880', text: 'Hej' });
     expect(res.ok).toBe(false);
+    expect(res.outcome).toBe('unknown');
   });
 });
 
