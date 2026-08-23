@@ -25,7 +25,7 @@
 // documented path for the credit endpoint (/user/getcreditvalue) 404s. It is
 // /v1/user/getcreditvalue. A documented example is not the live API.
 
-import { SmsUnknownError, checkSenderName, estimate, type SmsProvider } from '../index';
+import { SmsUnknownError, checkSenderName, estimate, gatewayRefusal, type SmsProvider } from '../index';
 
 export interface SmsDkConfig {
   /** Bearer token from the sms.dk web interface. */
@@ -202,7 +202,7 @@ export function smsdk(config: SmsDkConfig): SmsProvider {
             `${detail} — the recipient appeared in neither the accepted nor the rejected list, so the ` +
               `outcome is unknown. Do NOT retry blindly; check the log.`,
           )
-        : new Error(detail);
+        : gatewayRefusal(res.status, detail, res.headers);
     },
   };
 }

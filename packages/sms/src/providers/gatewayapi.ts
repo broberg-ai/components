@@ -20,7 +20,7 @@
 // The docs list only 403 for authentication. Collapsing the two sends you off to
 // regenerate a perfectly good key when the real fault is a header you never set.
 
-import { SmsUnknownError, checkSenderName, type SmsProvider } from '../index';
+import { SmsUnknownError, checkSenderName, gatewayRefusal, type SmsProvider } from '../index';
 
 export interface GatewayApiConfig {
   /** Token from the GatewayAPI dashboard. Bound to ONE region — see `region`. */
@@ -146,7 +146,9 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
               : res.status === 422
                 ? ' — they parsed it and refused the contents (recipient not a phone number, empty message, bad sender, or an expiration out of range). The body below names the field.'
                 : '';
-        throw new Error(`gatewayapi ${res.status}${hint} ${raw.slice(0, 500)}`.trim());
+        // 429 and 5xx come back branded retryable (F076.11); a 401/403/422 does not,
+        // because it will refuse exactly the same way on attempt five.
+        throw gatewayRefusal(res.status, `gatewayapi ${res.status}${hint} ${raw.slice(0, 500)}`.trim(), res.headers);
       }
 
       // Success is 202 Accepted, not 200 — hence res.ok rather than a status test.

@@ -28,6 +28,7 @@
 // Node, Bun and edge alike.
 
 import type { ConsentMode, ConsentRegistry, SmsCategory } from './consent';
+import { attemptSend, resolveRetry, type RetryConfig, type RetryPolicy } from './retry';
 import {
   createDuplicateGuard,
   type DuplicateGuardConfig,
@@ -326,6 +327,16 @@ export interface SmsConfig {
   allowlist?: string[];
   defaultCountry?: string;
   /**
+   * Retry a failed send (F076.11). OFF by default, and deliberately so.
+   *
+   * Unlike the duplicate lock — which PREVENTS money being spent — retry SPENDS
+   * time, inside whatever request handler called you. A caller who did not ask
+   * for it should not silently wait. Pass `true` for the defaults, or a config.
+   *
+   * An `unknown` outcome is NEVER retried, whatever you configure.
+   */
+  retry?: RetryConfig | true;
+  /**
    * The consent register (F077). Omit it and nothing is gated.
    *
    * Wire it and `category` becomes REQUIRED on every send, and a MARKETING send
@@ -350,6 +361,15 @@ export interface SmsClient {
   /** What the duplicate lock actually guarantees. Assert this at boot too. */
   readonly duplicateGuard: DuplicateGuardMode;
   /**
+   * What retry will actually do, or null when it is off.
+   *
+   * `worstCaseMs` is the question worth asking at boot: read it together with
+   * your provider's `timeoutMs`, because three attempts against a 15-second
+   * timeout is 45 seconds of requests PLUS this, and that total sits inside
+   * someone's request handler.
+   */
+  readonly retryPolicy: RetryPolicy | null;
+  /**
    * 'enforced' when a consent register is wired, 'off' otherwise.
    *
    * It says what is WIRED. It is not a statement that anything is lawful — see
@@ -373,7 +393,10 @@ export function createSms(config: SmsConfig): SmsClient {
     defaultCountry = '45',
     duplicates,
     consent,
+    retry,
   } = config;
+
+  const retryPolicy = resolveRetry(retry);
 
   const guard = createDuplicateGuard(duplicates);
 
@@ -399,6 +422,7 @@ export function createSms(config: SmsConfig): SmsClient {
     mode,
     duplicateGuard: guard.mode,
     consentMode: consent?.mode ?? 'off',
+    retryPolicy,
     provider: provider?.name ?? null,
     estimate,
 
@@ -523,7 +547,10 @@ export function createSms(config: SmsConfig): SmsClient {
       }
 
       try {
-        const res = await provider.send({ to, text: message.text, from: sender });
+        // The lock is claimed ONCE and settled ONCE, around all attempts — so a
+        // retry inside here never trips the duplicate guard, and the guard still
+        // records the final outcome.
+        const res = await attemptSend(() => provider.send({ to, text: message.text, from: sender }), retryPolicy);
         if (lockKey) await guard.settle(lockKey, 'sent', res.id);
         return { ok: true, outcome: 'sent', ...(res.id ? { id: res.id } : {}), estimate: cost };
       } catch (err) {
@@ -554,3 +581,4 @@ export * from './idempotency';
 export * from './lock';
 export * from './consent';
 export * from './webhook';
+export * from './retry';

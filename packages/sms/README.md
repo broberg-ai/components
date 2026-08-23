@@ -433,6 +433,45 @@ Events are remembered for **48 hours** by default — GatewayAPI retries for 24,
 
 The default `MemorySmsEventStore` is **bounded** (50k entries, oldest evicted). An unbounded `Map` fed by a webhook endpoint is a memory leak with a public URL.
 
+## Retry — off by default, and never on an `unknown`
+
+```ts
+createSms({ …, retry: true })                              // 2 retries, 500ms then 2s
+createSms({ …, retry: { attempts: 3, delaysMs: [200, 1000, 5000] } })
+
+sms.retryPolicy;   // { attempts, delaysMs, maxRetryAfterMs, worstCaseMs } | null
+```
+
+> **`unknown` is never retried, whatever you configure.** It may already be on its way to a handset *and already billed*. Retrying it double-sends, double-charges, and on a one-time code delivers two different codes of which only one works.
+
+This is why retry could not exist before [the four outcomes](#sendnever-throws--and-it-has-four-answers-not-two) and [the duplicate lock](#the-duplicate-lock--nothing-sends-the-same-message-twice) did.
+
+### And not every refusal is worth retrying either
+
+| | |
+|---|---|
+| **429, 5xx** | retried |
+| **400, 401, 403, 404, 422** | **not** — they fail identically on attempt five, and retrying wastes your caller's time |
+| **timeout, dropped socket** | never — that is `unknown` |
+
+A 5xx *is* retried because a gateway that failed on its own side has almost certainly not queued anything. **"Almost certainly" is not "certainly"** — if your traffic is one-time codes and a duplicate is worse than a miss, leave retry off for that client.
+
+The decision is made on a **brand** on the error, never on its message text. `err.message.includes("429")` agrees with any message containing those three characters; a test proves an ordinary `Error` shouting *429* is **not** retried.
+
+### `Retry-After` is honoured, and a `0` is not
+
+A gateway asking you to wait replaces the backoff. A `Retry-After: 0` — or a missing, past-dated or unparseable one — falls back to the backoff instead of retrying instantly. An absurd one is **capped** (`maxRetryAfterMs`, default 10s) with a warning, so a request handler is never parked for ten minutes.
+
+### The worst case is a number, not an adjective
+
+`delaysMs` is a **list, not a formula**. "Exponential with jitter" cannot be read off a config to answer the only question that matters:
+
+> *What is the worst case inside my request handler?*
+
+`retryPolicy.worstCaseMs` answers it. **Read it together with your provider's `timeoutMs`** — three attempts against a 15-second timeout is 45 seconds of requests *plus* the waits, and that total is what your caller waits for.
+
+Which is why retry is **off by default**. The duplicate lock prevents money being spent; retry *spends time*, in someone else's request handler.
+
 ## The webhook route — one line, all three providers
 
 ```ts

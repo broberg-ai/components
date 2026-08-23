@@ -27,7 +27,7 @@
 // ("If the max length is exceeded, the string is truncated"), and their numeric
 // limit is 14 where the other two allow 15. Both handled by checkSenderName.
 
-import { SmsUnknownError, checkSenderName, estimate, type SmsProvider } from '../index';
+import { SmsUnknownError, checkSenderName, estimate, gatewayRefusal, type SmsProvider } from '../index';
 
 export interface InMobileConfig {
   /** API key from the inMobile dashboard. Sent as the Basic-auth PASSWORD. */
@@ -162,7 +162,7 @@ export function inmobile(config: InMobileConfig): SmsProvider {
           res.status === 401
             ? ' — the API key was rejected. It is sent as the Basic-auth PASSWORD, with the username ignored.'
             : '';
-        throw new Error(`inmobile ${res.status}${hint}: ${msg}${details}`);
+        throw gatewayRefusal(res.status, `inmobile ${res.status}${hint}: ${msg}${details}`, res.headers);
       }
 
       const result = parsed.results?.[0];
