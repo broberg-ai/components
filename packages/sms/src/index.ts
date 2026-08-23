@@ -154,6 +154,54 @@ export function normalisePhone(input: string, defaultCountry = '45'): string {
   );
 }
 
+/**
+ * Sender-name limits, from the SMS standard rather than from any one provider.
+ *
+ * CONFIRMED INDEPENDENTLY BY TWO GATEWAYS, which is why it lives here and not in
+ * an adapter:
+ *   GatewayAPI — "15 digits, or up to 11 characters if it is text", and a sender
+ *                that does not fit "may be replaced automatically" en route.
+ *   sms.dk     — "either numeric with a limit of 15 chars or alphanumeric with a
+ *                limit of 11 chars".
+ *
+ *   inMobile   — "a 3-11 chars text sender or an up to 14 digit long sender
+ *                number", and — worse than a rejection — "IF THE MAX LENGTH IS
+ *                EXCEEDED, THE STRING IS TRUNCATED".
+ *
+ * The TEXT limit of 11 is unanimous, so it lives here as a constant. The NUMERIC
+ * limit is not: 15 on GatewayAPI and sms.dk, 14 on inMobile, which is why
+ * checkSenderName takes it as a parameter rather than assuming.
+ *
+ * Note GatewayAPI's own OpenAPI schema permits 18. It is the network, not the
+ * API, that decides what actually arrives — so a name their validator accepts
+ * can still be replaced silently on the way to the handset, and inMobile will
+ * quietly cut it down without telling anyone. Three vendors, three flavours of
+ * the same silent failure; one check in front of all of them.
+ */
+export const SENDER_MIN = 3;
+export const SENDER_MAX_TEXT = 11;
+export const SENDER_MAX_NUMERIC = 15;
+
+/**
+ * Returns an explanation if the sender name will not survive, or null if it is
+ * fine. Checked once at send time rather than left to the provider, because a
+ * sender name is set ONCE in config: getting it wrong fails every message
+ * forever, and on at least one gateway it fails INVISIBLY.
+ */
+export function checkSenderName(from: string, provider: string, maxNumeric = SENDER_MAX_NUMERIC): string | null {
+  const numeric = /^\d+$/.test(from);
+  const max = numeric ? maxNumeric : SENDER_MAX_TEXT;
+  if (from.length >= SENDER_MIN && from.length <= max) return null;
+  return (
+    `${provider}: sender ${JSON.stringify(from)} is ${from.length} characters — ` +
+    `a ${numeric ? 'numeric' : 'text'} sender must be ${SENDER_MIN}\u2013${max}. ` +
+    (numeric
+      ? 'Nothing was sent.'
+      : 'The SMS standard only carries 11 for a text sender, so a longer one is REPLACED ' +
+        'by the network and arrives showing something else — even where the API accepts it. Nothing was sent.')
+  );
+}
+
 export interface SmsMessage {
   to: string;
   text: string;
@@ -266,3 +314,5 @@ export function createSms(config: SmsConfig): SmsClient {
 }
 
 export { gatewayapi, type GatewayApiConfig } from './providers/gatewayapi';
+export { smsdk, type SmsDkConfig } from './providers/smsdk';
+export { inmobile, type InMobileConfig } from './providers/inmobile';

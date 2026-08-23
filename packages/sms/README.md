@@ -90,6 +90,37 @@ An allowlist entry that cannot be parsed is **dropped with a warning**, never si
 
 A gateway answering `accepted` means it took the message, not that a handset received it — and **every one of those costs money**. Delivery status is F076.5; until it lands, a repo using this is paying for messages it cannot prove arrived.
 
+## Three gateways, three hiding places for a failed send
+
+**This is the single most useful thing in this package.** All three providers
+were wired the same week, and not one of them reports a failure the same way:
+
+| | How a message that will not arrive comes back | Does `res.ok` catch it? |
+|---|---|---|
+| **GatewayAPI** | a non-2xx status | **yes** |
+| **sms.dk** | `207 Multi-Status`, number in a `rejected` array | **no** — 207 is "ok" |
+| **inMobile** | `200 OK`, a real `messageId`, and `numberDetails.isValidMsisdn: false` | **no** — nothing at the top level dissents |
+
+Write the obvious check — "did the HTTP call succeed?" — and you get a correct
+adapter for one of these and a silently broken one for the other two. Both of the
+silent cases still **bill you**.
+
+So each adapter's success test is written against *its own* gateway's shape, and
+each one has a test named after the trap it exists for. If you add a fourth
+provider, assume it has invented a fourth hiding place and go looking for it
+before you trust a 200.
+
+### And the sender name is a fourth variant of the same thing
+
+| | Text sender | Numeric | What happens if you exceed it |
+|---|---|---|---|
+| GatewayAPI | 11 | 15 | the network **replaces** it (their schema accepts 18) |
+| sms.dk | 11 | 15 | `409` — but only if the name is also pre-approved |
+| inMobile | 11 | **14** | **silently truncated** |
+
+`checkSenderName()` holds the tightest line in front of all three, because two of
+those three failures never produce an error.
+
 ## GatewayAPI
 
 ```ts
@@ -147,6 +178,34 @@ Collapsing the two sends you off to rotate a perfectly good key.
 - ✅ **Proven against the live service:** both hosts exist, the path and method are right, the `Token` scheme is recognised, and a rejected credential produces the correct 403 diagnosis end-to-end from the built package.
 - ✅ **Proven against their published schema:** the request body this adapter sends validates against `MobileMessageRequest` — required fields, types, lengths and enums. The schema is the one part of the test suite we did not write.
 - ❌ **Not proven:** that a *valid* token returns `202` with a `msg_id`, and that an SMS reaches a handset. Both need a real account. Until then this adapter is **unverified against a successful send**.
+
+## sms.dk
+
+```ts
+import { createSms, smsdk } from "@broberg/sms";
+const sms = createSms({ provider: smsdk({ apiKey: process.env.SMSDK_API_KEY }), from: "SMSDKDemo", live: true });
+```
+
+`POST https://api.sms.dk/v1/sms/send`, Bearer auth. Optional `dlrUrl` (delivery reports) and `userReference`.
+
+**Sender names must be pre-approved** in the sms.dk web interface — an unapproved one is a `409`, and the error says so rather than making you guess. `GET /v1/sendername/list` shows what the account already has.
+
+Their credit endpoint is `/v1/user/**getcreditvalue**` under `/v1` — the path in their own published collection omits it and 404s, serving an HTML page rather than JSON. Hence the "wrong path" hint in the adapter's parse error.
+
+## inMobile
+
+```ts
+import { createSms, inmobile } from "@broberg/sms";
+const sms = createSms({ provider: inmobile({ apiKey: process.env.INMOBILE_API_KEY }), from: "Broberg", live: true });
+```
+
+`POST https://api.inmobile.com/v4/sms/outgoing`, **Basic auth with the key as the password** (the username is ignored — theirs, not ours). Optional `statusCallbackUrl`, `respectBlacklist`, `validityPeriodInSeconds`.
+
+**A demo account appends text to your message — and does NOT bill you for it.** Measured 2026-08-23: inMobile added `\n\nSMS sent from a demo account at inMobile.com` (46 characters) to every message. The received text is therefore *not* what you sent, and a 126-character message arrived as 172. But their charge record says `smsCount: 1`, `isCharged: true` — they bill your text, not theirs. So `estimate()` stays right about money and wrong about what the recipient reads. If you assert on received text in a test, that trailer will break strict equality on a trial account.
+
+**Delivery status is available today** via `GET /v4/sms/outgoing/reports?limit=1..250`, and it is the real thing — `deliveryInfo.stateDescription: "Delivered"` with a `doneTime`, plus `chargeInfo` and the carrier. **Read it exactly once**: their own words are *"Each report will only be returned once. Once called, the status has been removed from our side and cannot be retrieved again."* Persist what you read before you filter it, and never run two pollers — they will split the reports between them and each will think it saw everything.
+
+**They tell you what they will charge**, and we check it. `smsCount` is their own segment count computed from the same GSM-7 rules `estimate()` implements, so a disagreement means one of the two is wrong about your invoice — and you get a warning instead of a surprise. Agreement is silent.
 
 ## Providers
 

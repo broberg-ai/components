@@ -1,6 +1,6 @@
 {
   "name": "@broberg/sms",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Provider-agnostic SMS send primitive for the broberg.ai fleet — Danish/EU-hosted gateways, swap by config. Ship-dark, allowlist-gated, typed result, and segment/cost estimation before you pay.",
   "type": "module",
   "exports": {
