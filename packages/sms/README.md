@@ -97,7 +97,7 @@ import { createSms, gatewayapi } from "@broberg/sms";
 
 const sms = createSms({
   provider: gatewayapi({ apiKey: process.env.SMS_API_KEY }),   // region defaults to 'eu'
-  from: "Moovyy",                                              // 3–18 characters, enforced
+  from: "Moovyy",                                              // max 11 chars — see below
   live: process.env.SMS_LIVE === "true",
 });
 ```
@@ -115,6 +115,17 @@ Built against their **Mobile Messaging API** (OpenAPI `2026.08.21-1807`, fetched
 `'eu'` (default) → `messaging.gatewayapi.eu` · `'com'` → `messaging.gatewayapi.com`
 
 A key is issued by, and valid for, **one** dashboard, so the region decides where the account and the message data live. `'eu'` is the default because EU hosting is the reason this package exists. Pick the wrong one and the key simply `403`s — which is why that error names the region it was pointed at.
+
+### The sender name limit is 11, not the 18 their schema accepts
+
+| Source | Limit |
+|---|---|
+| Their OpenAPI schema (`sender`) | **18** characters — and the API really does accept it |
+| Their own limitations page | **11** characters for a *text* sender, 15 digits for a numeric one |
+
+A 12-character name passes validation, is billed, is delivered — and **arrives showing something else**, because a sender that does not fit "may be replaced automatically" by the network. Nothing reports it.
+
+So this adapter holds the tighter line and refuses before anything is sent, with an error that says *why* the API would have accepted it. The gap between what an API accepts and what the network carries is exactly the kind of silence this package exists to remove.
 
 ### 401 and 403 are different faults
 

@@ -231,12 +231,50 @@ describe('failures that must not look like successes', () => {
     expect(res.error).toContain('not JSON');
   });
 
-  it('a sender name of the wrong length is caught HERE, not by a 422 on every message', async () => {
+  it('a sender name that is too SHORT is caught HERE, not by a 422 on every message', async () => {
     const calls = stubFetch(202, ACCEPTED);
     const res = await client({}, 'Mo').send({ to: '12345678', text: 'Hej' });
     expect(res.ok).toBe(false);
-    expect(res.error).toContain('3–18');
+    expect(res.error).toContain('3–11');
     expect(calls).toHaveLength(0); // nothing was sent, nothing was billed
+  });
+
+  it('THE LIMIT IS 11, NOT THE 18 THEIR SCHEMA ACCEPTS — a longer text sender is replaced en route', async () => {
+    // Their OpenAPI says maxLength 18 and their API accepts it. Their own
+    // limitations page says the SMS standard carries 11 for a text sender and
+    // that a longer one "may be replaced automatically". So a 12-character name
+    // validates, sends, bills, delivers — and arrives showing something else.
+    // The schema is the wrong authority for this one field.
+    const calls = stubFetch(202, ACCEPTED);
+    const res = await client({}, 'MoovyyRides!').send({ to: '12345678', text: 'Hej' });
+    expect('MoovyyRides!').toHaveLength(12); // inside their schema, outside the standard
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('REPLACED by the network');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('11 characters is allowed — the boundary is asserted on both sides', async () => {
+    const calls = stubFetch(202, ACCEPTED);
+    const res = await client({}, 'MoovyyRide').send({ to: '12345678', text: 'Hej' });
+    expect('MoovyyRide').toHaveLength(10);
+    expect(res.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a NUMERIC sender gets 15, not 11 — the standard treats digits differently', async () => {
+    const calls = stubFetch(202, ACCEPTED);
+    const res = await client({}, '451234567890').send({ to: '12345678', text: 'Hej' });
+    expect('451234567890').toHaveLength(12); // would be refused as text
+    expect(res.ok).toBe(true);
+    expect(calls[0].body.sender).toBe('451234567890');
+  });
+
+  it('16 digits is still refused, and the message says numeric', async () => {
+    const calls = stubFetch(202, ACCEPTED);
+    const res = await client({}, '4512345678901234').send({ to: '12345678', text: 'Hej' });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('numeric sender must be 3–15');
+    expect(calls).toHaveLength(0);
   });
 
   it('an empty apiKey throws at construction — ship dark by passing NO provider instead', () => {

@@ -62,9 +62,22 @@ const HOSTS = {
   com: 'https://messaging.gatewayapi.com',
 } as const;
 
-/** Their schema: minLength 3, maxLength 18. Enforced by them with a 422, per message. */
+/**
+ * TWO DIFFERENT LIMITS, and the API's is the wrong one to trust.
+ *
+ * Their OpenAPI schema says sender is 3..18 characters, and that is what the API
+ * ACCEPTS. Their own limitations page says the SMS standard carries "15 digits,
+ * or up to 11 characters if it is text" — and that a sender which does not fit
+ * "may be replaced automatically" en route.
+ *
+ * So a 12-character name passes our check, passes their validation, is billed,
+ * is delivered — and arrives showing something else. Nothing reports it. The
+ * gap between what an API accepts and what the network carries is exactly the
+ * kind of silence this package exists to remove, so we hold the tighter line.
+ */
 const SENDER_MIN = 3;
-const SENDER_MAX = 18;
+const SENDER_MAX_TEXT = 11;
+const SENDER_MAX_NUMERIC = 15;
 
 export function gatewayapi(config: GatewayApiConfig): SmsProvider {
   const { apiKey, region = 'eu', baseUrl, priority, label, expiration, timeoutMs = 15_000 } = config;
@@ -85,10 +98,16 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
     async send({ to, text, from }) {
       // Caught here rather than by their 422, because a sender name is set ONCE
       // in config and would otherwise fail on every message forever.
-      if (from.length < SENDER_MIN || from.length > SENDER_MAX) {
+      const numericSender = /^\d+$/.test(from);
+      const max = numericSender ? SENDER_MAX_NUMERIC : SENDER_MAX_TEXT;
+      if (from.length < SENDER_MIN || from.length > max) {
         throw new Error(
           `gatewayapi: sender ${JSON.stringify(from)} is ${from.length} characters — ` +
-            `GatewayAPI requires ${SENDER_MIN}–${SENDER_MAX}. Nothing was sent.`,
+            `a ${numericSender ? 'numeric' : 'text'} sender must be ${SENDER_MIN}\u2013${max}. ` +
+            (numericSender
+              ? 'Nothing was sent.'
+              : `Their API would accept up to 18, but the SMS standard only carries 11 for a text sender, ` +
+                `so a longer one is REPLACED by the network and arrives showing something else. Nothing was sent.`),
         );
       }
 
