@@ -107,7 +107,19 @@ export class MemorySmsConsentStore implements SmsConsentStore {
   }
 }
 
-export type ConsentMode = 'enforced' | 'off';
+/**
+ * What is actually wired — three values, because there are three.
+ *
+ *   'off'        no register. Nothing is gated, no category needed.
+ *   'body-only'  a register with an `optOutText` but NO store: marketing bodies
+ *                are checked for a way out, but consent itself is NOT, because
+ *                there is nothing to check it against.
+ *   'enforced'   a store is wired. Consent is checked.
+ *
+ * The middle value exists so nobody reads "enforced" over a register that cannot
+ * read a single consent record.
+ */
+export type ConsentMode = 'enforced' | 'body-only' | 'off';
 
 /** What the register knows about one number. */
 export type ConsentState = 'consented' | 'withdrawn' | 'none';
@@ -117,6 +129,18 @@ export interface ConsentRegistryConfig {
   store?: SmsConsentStore;
   /** Default country for normalising numbers. Matches createSms(). */
   defaultCountry?: string;
+  /**
+   * The way out that must appear in EVERY marketing message.
+   *
+   * `"Afmeld: sms.broberg.dk/a/x7k2"` — a link, a short code instruction,
+   * whatever you actually offer. Markedsføringsloven wants a clear and free way
+   * out in every marketing message, and for the existing-customer exception
+   * (§10 stk. 2) it is one of the conditions rather than a courtesy.
+   *
+   * When set, a marketing send whose body does NOT contain this string is
+   * refused. IT IS NEVER APPENDED — see `optOutText` on the registry below.
+   */
+  optOutText?: string;
 }
 
 export interface RecordConsentInput {
@@ -141,6 +165,16 @@ export interface RecordConsentInput {
 
 export interface ConsentRegistry {
   readonly mode: ConsentMode;
+  /**
+   * The opt-out instruction every marketing body must contain, if configured.
+   *
+   * NEVER APPENDED AUTOMATICALLY. SMS is billed per segment, and quietly adding
+   * characters can flip a one-segment message into two — the exact surprise
+   * `estimate()` exists to prevent, and it would arrive as a bill rather than as
+   * an error. So the send is refused and the sender decides where it goes and
+   * what it costs.
+   */
+  readonly optOutText?: string;
   /** Record a consent. Throws on a blank basis, or on a withdrawn number without overrideWithdrawal. */
   record(input: RecordConsentInput): Promise<ConsentRecord>;
   /**
@@ -172,8 +206,8 @@ const nowIso = (): string => new Date().toISOString();
  * ```
  */
 export function createConsentRegistry(config: ConsentRegistryConfig = {}): ConsentRegistry {
-  const { store, defaultCountry = '45' } = config;
-  const mode: ConsentMode = store ? 'enforced' : 'off';
+  const { store, defaultCountry = '45', optOutText } = config;
+  const mode: ConsentMode = store ? 'enforced' : optOutText ? 'body-only' : 'off';
 
   // A number we cannot normalise is a programming error, not a policy decision —
   // so it throws in BOTH directions, including on the opt-out path. That is not
@@ -182,6 +216,7 @@ export function createConsentRegistry(config: ConsentRegistryConfig = {}): Conse
 
   return {
     mode,
+    ...(optOutText ? { optOutText } : {}),
 
     async record(input) {
       if (!input.basis || !input.basis.trim()) {
@@ -270,3 +305,49 @@ export function createConsentRegistry(config: ConsentRegistryConfig = {}): Conse
     },
   };
 }
+
+/**
+ * Is this whole message someone asking to be left alone?
+ *
+ * Ships even though this package has no inbound SMS. Christian asked the right
+ * question — «Men kræver det ikke at alle de 3 API'er er sat op til at kunne
+ * modtage fra brugeren også?» — and for a STOP reply the answer is yes: two-way
+ * needs a keyword on a short code or a virtual number, per gateway, at a price
+ * none of them publish. That is F077.3, and it is his decision.
+ *
+ * This function is pure and costs nothing, so it ships now: the day inbound
+ * exists, every repo in the fleet already agrees on what counts as an opt-out.
+ *
+ * DANISH AND ENGLISH, because a Danish recipient writes AFMELD and an English one
+ * writes STOP, and recognising only one of them silently ignores half the people
+ * asking to be left alone.
+ *
+ * AND IT MATCHES THE WHOLE MESSAGE, NOT A SUBSTRING. "Kan I stoppe leveringen
+ * fredag?" is a question, not an opt-out — unsubscribing them would be a bug
+ * they never find out about until they wonder why nothing arrives.
+ */
+const OPT_OUT_KEYWORDS = new Set([
+  'stop',
+  'stop all',
+  'stopall',
+  'stop marketing',
+  'unsubscribe',
+  'afmeld',
+  'afmelding',
+  'frameld',
+  'framelding',
+]);
+
+export function parseOptOutKeyword(text: string): boolean {
+  const normalised = (text ?? '')
+    .trim()
+    .toLowerCase()
+    // Trailing punctuation only — "STOP." and "Stop!" are opt-outs. Stripping
+    // anything more would start turning sentences into keywords.
+    .replace(/^[\s.,!?:;'"]+|[\s.,!?:;'"]+$/g, '')
+    .replace(/\s+/g, ' ');
+  return OPT_OUT_KEYWORDS.has(normalised);
+}
+
+/** The keywords recognised, exported so a consumer can show them to a recipient. */
+export const OPT_OUT_WORDS: readonly string[] = [...OPT_OUT_KEYWORDS];

@@ -200,7 +200,7 @@ import { createSms, createConsentRegistry } from "@broberg/sms";
 const consent = createConsentRegistry({ store: myConsentStore });
 const sms = createSms({ provider, from: "Moovyy", live: true, consent });
 
-sms.consentMode;                       // 'enforced' — assert at boot
+sms.consentMode;                       // 'enforced' | 'body-only' | 'off' — assert at boot
 
 await consent.record({
   phone: "+4522680880",
@@ -259,6 +259,46 @@ GDPR art. 7(1) asks you to **demonstrate** consent — a yes/no flag cannot, bec
 | `consent.optOut()` | Needs **nothing**. Never refuses. Works on a number that never consented. Idempotent, and the **earliest** withdrawal date stands. |
 
 Withdrawal must be at least as easy as giving consent (art. 7(3)), and a guard that can reject an opt-out is the one bug here nobody would forgive.
+
+### Every marketing message must carry a way out
+
+Markedsføringsloven wants a clear and **free** way out in every marketing message — and for the existing-customer exception (§10 stk. 2) it is one of the *conditions*, not a courtesy. **The mechanism is not specified**, so a link satisfies it and none of this needs inbound SMS.
+
+```ts
+const consent = createConsentRegistry({
+  store: myConsentStore,
+  optOutText: "Afmeld: sms.broberg.dk/a/x7k2",
+});
+
+await sms.send({ to, text: "Tilbud i weekenden!", category: "marketing" });
+// → refused: this body does not contain "Afmeld: sms.broberg.dk/a/x7k2"
+```
+
+> **It is never appended for you.** SMS is billed per segment, so silently adding characters can turn a one-segment message into two — and you would meet that on the invoice rather than in an error. The send is refused, you put the line where you want it, and `estimate()` tells you what it costs.
+
+A **transactional** message is never asked to carry it. A one-time code should not have marketing furniture on it.
+
+### `parseOptOutKeyword()` — ready before there is anything to read
+
+```ts
+parseOptOutKeyword("STOP");                          // true
+parseOptOutKeyword("AFMELD");                        // true  (Danish and English)
+parseOptOutKeyword("Kan I stoppe leveringen fredag?") // false ← the important one
+```
+
+This package **does not receive SMS**. A STOP *reply* needs two-way messaging: a keyword on a short code or a virtual number, **per gateway**, at a price none of them publish. That is a decision, not a config toggle — so this ships as a pure function instead, and the day inbound exists the whole fleet already agrees on what counts as an opt-out.
+
+It matches the **whole message**, not a substring. A false positive unsubscribes someone who asked a question, and they only find out when they wonder why nothing arrives.
+
+### `consentMode` — three values, because there are three
+
+| | You wired | What is checked |
+|---|---|---|
+| `off` | nothing | nothing. No category needed. |
+| `body-only` | `optOutText`, no store | marketing **bodies** — but not consent, because there is nothing to check against |
+| `enforced` | a store | consent, and the body if `optOutText` is set |
+
+The middle value exists so nobody reads *"enforced"* over a register that cannot read a single consent record.
 
 ### The store has no TTL, on purpose
 

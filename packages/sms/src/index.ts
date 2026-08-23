@@ -417,7 +417,7 @@ export function createSms(config: SmsConfig): SmsClient {
       // missing category is a programming error you want to meet in development,
       // and development IS dark mode. Meeting it in production instead is how a
       // marketing blast goes out ungated.
-      if (consent && consent.mode === 'enforced') {
+      if (consent && consent.mode !== 'off') {
         if (!message.category) {
           return {
             ok: false,
@@ -435,7 +435,25 @@ export function createSms(config: SmsConfig): SmsClient {
         // by an opt-out. An opt-out is from marketing; a one-time code is not
         // marketing, and blocking it locks someone out of their own account.
         if (message.category === 'marketing') {
-          const state = await consent.check(to);
+          // THE WAY OUT COMES FIRST, because a template with no opt-out line is
+          // wrong for EVERY recipient. Reporting the consent problem first would
+          // send a developer hunting for a consenting test number to discover a
+          // bug that is in their template.
+          if (consent.optOutText && !message.text.includes(consent.optOutText)) {
+            return {
+              ok: false,
+              outcome: 'refused',
+              error:
+                `sms: a marketing message must carry a way out, and this one does not contain ` +
+                `${JSON.stringify(consent.optOutText)}. It is NOT added for you: SMS is billed per ` +
+                `segment, so appending characters can turn a one-segment message into two and you ` +
+                `would meet that on the invoice rather than here. Put it in the text yourself and ` +
+                `check estimate() for what it costs. Nothing was sent.`,
+              estimate: cost,
+            };
+          }
+
+          const state = consent.mode === 'enforced' ? await consent.check(to) : 'consented';
           if (state !== 'consented') {
             return {
               ok: true,
