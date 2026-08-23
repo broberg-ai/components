@@ -183,6 +183,66 @@ Pass the body **exactly as received**. Re-serialising a parsed object changes th
 
 `new Date("23.08.2026 12.33.57")` — sms.dk's format, Danish order with **dots in the time too** — is `Invalid Date`. inMobile's and GatewayAPI's parse fine. It is handled explicitly, and **an unparseable timestamp leaves `at` absent rather than emitting a guess**.
 
+## Duplicate + out-of-order delivery events
+
+> **GatewayAPI retries a webhook that does not answer `2xx` within 5 seconds — with backoff, for up to 24 hours.** Duplicates are the normal case, not an edge case. A slow query, a deploy, one pause, and the identical event arrives again.
+
+```ts
+import { createDeliveryInbox, parseGatewayApiWebhook } from "@broberg/sms";
+
+const inbox = createDeliveryInbox({ store: myStore });   // omit store → in-process
+console.log(inbox.guarantee);                            // assert this at boot
+
+app.post("/sms/status", async (c) => {
+  for (const v of await inbox.accept(parseGatewayApiWebhook(await c.req.json()))) {
+    if (!v.fresh) continue;                  // a retry, or older news than we hold
+    await db.setStatus(v.report.id, v.state);
+    if (v.state === "failed") await alertSomeone(v.report);
+  }
+  return c.body(null, 200);
+});
+```
+
+### Two problems, and only the first is obvious
+
+**1. The same event twice.** Harmless for a status write; expensive for anything hanging off it — a "your code is on its way" push sent twice, a fan-out fired twice, a per-message charge counted twice.
+
+**2. A status arriving out of order.** This is the one that bites silently. Retries plus backoff mean a delayed `enroute` can land *after* the `delivered` it preceded. Last-write-wins then downgrades a delivered message back to pending — and it **stays wrong forever**, because no further event is coming.
+
+The rule `accept()` enforces:
+
+> **A resolved state is never replaced by an unresolved one.**
+>
+> `delivered` / `failed` / `expired` are resolved. `pending` and `unknown` are not — and `unknown` sits there deliberately: *a status we could not read must never displace one we could.*
+
+Within one tier, the gateway's own timestamps decide; with no timestamps the newest arrival wins.
+
+### `guarantee` — read it at boot, like `mode`
+
+A dedupe you believe is fleet-wide and is really per-process is exactly the kind of thing nobody discovers until it has already cost money. So it says so:
+
+| `guarantee` | You passed | What you actually have |
+|---|---|---|
+| `process` | no store | Dedupes **within this process**. Restart, or a second instance, and the same event is processed again. |
+| `shared` | a store | Real dedupe — but `get`-then-`set` is not atomic, so two copies arriving in the *same instant* can both be judged fresh. |
+| `shared-atomic` | a store with `setIfAbsent` | The real thing. Redis `SETNX`, a unique constraint, a conditional put. |
+
+### The store is yours
+
+**This package does not own a database.** You supply two methods (three for the strong guarantee):
+
+```ts
+interface SmsEventStore {
+  get(key: string): Promise<string | null> | string | null;
+  set(key: string, value: string, ttlMs?: number): Promise<void> | void;
+  setIfAbsent?(key: string, value: string, ttlMs?: number): Promise<boolean> | boolean;
+}
+```
+
+Events are remembered for **48 hours** by default — GatewayAPI retries for 24, so anything shorter lets the tail of a retry storm through as "new".
+
+The default `MemorySmsEventStore` is **bounded** (50k entries, oldest evicted). An unbounded `Map` fed by a webhook endpoint is a memory leak with a public URL.
+
 ## Three gateways, three hiding places for a failed send
 
 **This is the single most useful thing in this package.** All three providers
