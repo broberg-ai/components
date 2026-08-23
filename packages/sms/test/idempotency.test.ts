@@ -33,7 +33,9 @@ const report = (over: Partial<DeliveryReport> = {}): DeliveryReport => ({
 });
 
 /** A store that records every call, so "the package used MY store" is provable. */
-function spyStore(withAtomic = false) {
+function spyStore(
+  withAtomic = false,
+): { store: SmsEventStore; calls: string[]; map: Map<string, string> } {
   const map = new Map<string, string>();
   const calls: string[] = [];
   const store: SmsEventStore = {
@@ -198,13 +200,16 @@ describe('within one tier, the gateway’s own timestamps decide', () => {
 });
 
 describe('AC#3 + AC#5 — the package owns no database, and says what you are getting', () => {
-  it.each([
-    ['no store at all', () => undefined, 'process'],
-    ['a store without setIfAbsent', () => spyStore(false).store, 'shared'],
-    ['a store WITH setIfAbsent', () => spyStore(true).store, 'shared-atomic'],
-  ] as const)('%s → guarantee %o', (_label, make, expected) => {
-    const store = make();
-    expect(createDeliveryInbox(store ? { store } : {}).guarantee).toBe(expected);
+  it('no store at all → guarantee "process"', () => {
+    expect(createDeliveryInbox().guarantee).toBe('process');
+  });
+
+  it('a store WITHOUT setIfAbsent → guarantee "shared" — real, but not concurrency-safe', () => {
+    expect(createDeliveryInbox({ store: spyStore(false).store }).guarantee).toBe('shared');
+  });
+
+  it('a store WITH setIfAbsent → guarantee "shared-atomic"', () => {
+    expect(createDeliveryInbox({ store: spyStore(true).store }).guarantee).toBe('shared-atomic');
   });
 
   it('the default is NOT a no-op pretending to dedupe — it really does dedupe, in this process', async () => {
