@@ -123,6 +123,71 @@ Note that two of the three gateways deliver a refusal on a **`2xx`** (sms.dk's `
 
 Branch on `outcome`, never on `error` text. If you need to classify an error you caught yourself, use the exported `isUnknownSendError(err)` — it reads a **brand** on the error, not `instanceof`, so it survives two copies of this package ending up in one bundle.
 
+## The duplicate lock — nothing sends the same message twice
+
+> **On by default.** A double-clicked button, a retried job, a resubmitted form — each one used to call the gateway again, be accepted, and be billed. The recipient got the same SMS twice.
+
+```ts
+const sms = createSms({ provider, from: "Moovyy", live: true });
+sms.duplicateGuard;                      // 'process' — assert this at boot
+
+await sms.send({ to, text });            // → { outcome: 'sent', id: 'msg_1' }
+await sms.send({ to, text });            // → { outcome: 'skipped',
+                                         //     skippedReason: 'duplicate',
+                                         //     id: 'msg_1' }   ← the ORIGINAL id
+```
+
+The suppressed call is **not an error** — the caller has nothing to fix — and it hands back the id of the message that *did* go, so you keep the handle you need for delivery status.
+
+### Four ways a send can be deliberately skipped, four values
+
+`skippedReason` tells them apart, because they are not the same problem:
+
+| `skippedReason` | Meaning |
+|---|---|
+| `duplicate` | The lock stopped it. **In production this is a signal** — something upstream is double-firing. |
+| `not-allowlisted` | Dark mode, and this number is not on the allowlist. Expected in staging. |
+| `disabled` | The kill-switch is on. |
+| `no-provider` | Ship-dark: no gateway is configured. |
+
+### The window is short on purpose — 60 seconds
+
+The two windows in this package fail in **opposite** directions, so they are not the same number:
+
+- **Too short** → a duplicate slips through. Cost: one extra SMS.
+- **Too long** → a *legitimate* repeat is blocked. Cost: a customer never gets a message they needed.
+
+The second is worse, so the lock stays near the length of the thing it actually catches. A re-requested one-time code is safe either way (a new code is different text), but *"Din bestilling er klar"* for two separate orders inside a minute would be blocked — pass an `idempotencyKey` for those.
+
+```ts
+await sms.send({ to, text, idempotencyKey: `order-${id}` });
+```
+
+It **replaces** the derived key, so it works both ways: two identical messages with different keys both go out, and two different call-sites sharing one key collapse to a single send.
+
+### A failed send does not hold the lock — an unknown one does
+
+This is [the retry rule](#sendnever-throws--and-it-has-four-answers-not-two) enforced rather than documented:
+
+| The send was… | The lock | Because |
+|---|---|---|
+| `refused` | **released** | The gateway said no. Retrying is exactly what you should do. |
+| `unknown` | **held** | It may already have gone *and* been billed. The lock is what stops the retry. |
+| `sent` | held, with the id | |
+
+### Configuring it
+
+```ts
+createSms({ …, duplicates: { window: 60_000, store: myStore } })   // shared across instances
+createSms({ …, duplicates: false })                                // off
+```
+
+`duplicateGuard` reads `'process'` · `'shared'` · `'shared-atomic'` · `'off'` — the same three-value honesty as the delivery inbox, plus off. **`'process'` means a second instance behind a load balancer will send again.**
+
+**The store never holds the message or the number.** The key is a SHA-256 hash of sender + recipient + text. Both a phone number and an SMS body are personal data, and a key travels — to Redis, into logs, into a dump.
+
+**If the store is unreachable, the message still goes out** and a warning says protection was lost. A guard that takes the whole SMS capability down when Redis hiccups is worse than the duplicate it was preventing — nobody logs in while the one-time codes are blocked.
+
 ## "Accepted" is not "delivered"
 
 A gateway answering `accepted` means it took the message, not that a handset received it — and **every one of those costs money**. Delivery status is F076.5; until it lands, a repo using this is paying for messages it cannot prove arrived.

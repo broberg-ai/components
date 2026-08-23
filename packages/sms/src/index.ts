@@ -27,6 +27,13 @@
 // fleet already reads. Zero runtime dependencies, fetch only, so it loads on
 // Node, Bun and edge alike.
 
+import {
+  createDuplicateGuard,
+  type DuplicateGuardConfig,
+  type DuplicateGuardMode,
+  type SmsSkipReason,
+} from './lock';
+
 /** GSM 03.38 default alphabet — every character here is ONE septet. */
 const GSM7_BASIC = new Set(
   '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà',
@@ -207,6 +214,14 @@ export interface SmsMessage {
   text: string;
   /** Sender name or number. Falls back to the client's `from`. */
   from?: string;
+  /**
+   * Replaces the derived duplicate key for this send (F076.9).
+   *
+   * Works in BOTH directions: give two identical messages different keys and
+   * both go out; give two different call-sites the same key and only the first
+   * does. Use it when a legitimate repeat falls inside the lock window.
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -268,8 +283,16 @@ export interface SmsResult {
   /** Provider message id — the same id a delivery status will carry back (F076.5). */
   id?: string;
   error?: string;
-  /** True when the client deliberately did NOT send (dark, disabled, not allowlisted). */
+  /** True when the client deliberately did NOT send (dark, disabled, not allowlisted, duplicate). */
   skipped?: boolean;
+  /**
+   * WHICH kind of deliberate non-send. Present whenever `skipped` is.
+   *
+   * The four are not interchangeable: a skip in staging is expected, and a
+   * `duplicate` suppressed in PRODUCTION is a signal that something upstream is
+   * double-firing and somebody should look.
+   */
+  skippedReason?: SmsSkipReason;
   /** What it cost, or would have cost. Present even when skipped. */
   estimate?: SmsEstimate;
 }
@@ -295,11 +318,22 @@ export interface SmsConfig {
   /** Numbers that receive mail even when not live. Normalised on construction. */
   allowlist?: string[];
   defaultCountry?: string;
+  /**
+   * The send-side duplicate lock (F076.9). ON BY DEFAULT with a 60-second window
+   * and in-process memory — a fix behind a flag reaches only the people who read
+   * changelogs, i.e. the people who did not need it.
+   *
+   * Pass a `store` to make it survive a restart or a second instance; pass
+   * `false` to turn it off. Read `client.duplicateGuard` to see which you got.
+   */
+  duplicates?: DuplicateGuardConfig | false;
 }
 
 export interface SmsClient {
   /** The resolved delivery decision — assert this at boot. */
   readonly mode: DeliveryMode;
+  /** What the duplicate lock actually guarantees. Assert this at boot too. */
+  readonly duplicateGuard: DuplicateGuardMode;
   readonly provider: string | null;
   estimate(text: string): SmsEstimate;
   send(message: SmsMessage): Promise<SmsResult>;
@@ -315,7 +349,10 @@ export function createSms(config: SmsConfig): SmsClient {
     disabled = false,
     allowlist = [],
     defaultCountry = '45',
+    duplicates,
   } = config;
+
+  const guard = createDuplicateGuard(duplicates);
 
   // Precedence mirrors what send() actually does, so the readback describes the
   // observable outcome rather than restating the config: a missing provider
@@ -337,6 +374,7 @@ export function createSms(config: SmsConfig): SmsClient {
 
   return {
     mode,
+    duplicateGuard: guard.mode,
     provider: provider?.name ?? null,
     estimate,
 
@@ -352,22 +390,75 @@ export function createSms(config: SmsConfig): SmsClient {
       const cost = estimate(message.text);
 
       if (mode !== 'live' && !allowed.has(to)) {
-        return { ok: true, outcome: 'skipped', skipped: true, estimate: cost };
+        // Derived from `mode`, not from which branch we happen to be in: a
+        // client with no provider is 'no-key', and reporting that as
+        // "not allowlisted" sends the reader to check the wrong setting.
+        const skippedReason: SmsSkipReason =
+          mode === 'disabled' ? 'disabled' : mode === 'no-key' ? 'no-provider' : 'not-allowlisted';
+        return { ok: true, outcome: 'skipped', skipped: true, skippedReason, estimate: cost };
       }
       if (!provider) {
-        return { ok: true, outcome: 'skipped', skipped: true, estimate: cost };
+        return { ok: true, outcome: 'skipped', skipped: true, skippedReason: 'no-provider', estimate: cost };
+      }
+
+      const sender = message.from ?? from;
+
+      // The lock goes AFTER the skip checks — there is nothing to lock about a
+      // send that was never going to happen — and BEFORE the gateway call, which
+      // is where the money is spent.
+      let lockKey: string | null = null;
+      if (guard.mode !== 'off') {
+        try {
+          const key = await guard.fingerprint({
+            from: sender,
+            to,
+            text: message.text,
+            ...(message.idempotencyKey ? { idempotencyKey: message.idempotencyKey } : {}),
+          });
+          const claimed = await guard.claim(key);
+          if (!claimed.ok) {
+            return {
+              ok: true,
+              outcome: 'skipped',
+              skipped: true,
+              skippedReason: 'duplicate',
+              // The id of the message that DID go, so the caller keeps its handle
+              // for delivery status rather than losing track of it.
+              ...(claimed.id ? { id: claimed.id } : {}),
+              estimate: cost,
+            };
+          }
+          lockKey = key;
+        } catch (err) {
+          // THE LOCK IS A SAFETY NET, NOT THE PRODUCT. If the store is
+          // unreachable we send anyway and say so loudly, degrading to exactly
+          // the behaviour this package had before the lock existed. A guard that
+          // takes the whole SMS capability down when Redis hiccups is worse than
+          // the duplicate it was protecting against — nobody logs in while the
+          // one-time codes are blocked.
+          console.warn(
+            `[@broberg/sms] the duplicate lock is UNAVAILABLE (${err instanceof Error ? err.message : String(err)}) — ` +
+              `sending WITHOUT duplicate protection. A repeat of this message will go out again.`,
+          );
+        }
       }
 
       try {
-        const res = await provider.send({ to, text: message.text, from: message.from ?? from });
+        const res = await provider.send({ to, text: message.text, from: sender });
+        if (lockKey) await guard.settle(lockKey, 'sent', res.id);
         return { ok: true, outcome: 'sent', ...(res.id ? { id: res.id } : {}), estimate: cost };
       } catch (err) {
         // The whole point of this card: an adapter that never heard an answer
         // says so with a BRANDED error, and it lands here as its own outcome
         // rather than as another `ok:false` a retry wrapper cannot tell apart.
+        const unknown = isUnknownSendError(err);
+        // A REFUSAL voids the lock, because retrying a refused send is exactly
+        // what a caller should do. An UNKNOWN HOLDS it — F076.6's rule enforced
+        // rather than merely documented: the message may already have gone.
+        if (lockKey) await guard.settle(lockKey, unknown ? 'sent' : 'void');
         return {
           ok: false,
-          outcome: isUnknownSendError(err) ? 'unknown' : 'refused',
+          outcome: unknown ? 'unknown' : 'refused',
           error: err instanceof Error ? err.message : String(err),
           estimate: cost,
         };
@@ -381,3 +472,4 @@ export { smsdk, type SmsDkConfig } from './providers/smsdk';
 export { inmobile, type InMobileConfig } from './providers/inmobile';
 export * from './delivery';
 export * from './idempotency';
+export * from './lock';
