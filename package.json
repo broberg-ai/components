@@ -5,6 +5,7 @@
   "description": "Monorepo home for the small core @broberg/* packages (see docs/INVENTORY.md).",
   "packageManager": "pnpm@10.30.3",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck"

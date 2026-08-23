@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Refuse to commit a secret. Three layers, cheapest first.
+#
+# Written 2026-08-23 after a GatewayAPI token arrived and this repo turned out to
+# have NO git hooks at all — nothing stood between a credential and `git push`.
+#
+# The interesting layer is 2. A GatewayAPI token is 64 characters of letters,
+# digits and hyphens with no prefix: there is no format to match that would not
+# also match every hash, id and base64 blob in the repo. So the reliable guard is
+# not "does this look like a secret" but "is this one of MY secrets" — matched
+# against the actual values in .env. That works for any credential, whatever
+# shape it has, with no false positives.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+fail() { echo "" >&2; echo "COMMIT BLOCKED — $1" >&2; echo "" >&2; exit 1; }
+
+# ── 1. The env file itself must never be staged ────────────────────────────
+staged_env="$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)"
+if [ -n "$staged_env" ]; then
+  fail "these are env files and must not be committed:
+$(echo "$staged_env" | sed 's/^/    /')
+
+  git restore --staged $(echo "$staged_env" | tr '\n' ' ')"
+fi
+
+# ── 2. No VALUE from .env may appear anywhere in the staged diff ───────────
+# The layer that catches a credential with no recognisable format.
+if [ -f "$ROOT/.env" ]; then
+  diff_file="$(mktemp)"; trap 'rm -f "$diff_file"' EXIT
+  git diff --cached > "$diff_file"
+  while IFS= read -r line; do
+    name="${line%%=*}"
+    value="${line#*=}"
+    value="${value%\"}"; value="${value#\"}"
+    value="${value%\'}"; value="${value#\'}"
+    # Short values are words, not credentials, and would fire on ordinary text.
+    [ "${#value}" -lt 12 ] && continue
+    if grep -qF -- "$value" "$diff_file"; then
+      fail "the value of \$$name from .env appears in this commit.
+  That credential is now in the staged diff. Remove it and read it from the
+  environment instead — and if it has already been pushed anywhere, ROTATE it."
+    fi
+  done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ROOT/.env" || true)
+fi
+
+# ── 3. Known credential FORMATS, for secrets that are not ours ─────────────
+# Catches a key pasted from somewhere else — a provider token in a code sample,
+# a colleague's key in a fixture. @broberg/secret-scan owns the pattern list.
+SCAN="$ROOT/packages/secret-scan/dist/index.js"
+if [ -f "$SCAN" ]; then
+  git diff --cached | node --input-type=module -e '
+    const { redactSecrets } = await import(process.argv[1]);
+    let text = ""; for await (const c of process.stdin) text += c;
+    const r = redactSecrets(text);
+    const real = (r.findings ?? []).filter(f => f.label !== "announced-secret");
+    if (real.length) {
+      console.error("  " + real.map(f => `${f.label} ×${f.count ?? 1}`).join("\n  "));
+      process.exit(1);
+    }
+  ' "$SCAN" || fail "@broberg/secret-scan recognised a credential format in this commit (listed above)."
+fi
+
+exit 0
