@@ -158,5 +158,29 @@
   {
     "term": "Turbo",
     "group": "tech"
+  },
+  {
+    "term": "Cardmem",
+    "group": "brand"
+  },
+  {
+    "term": "Trail",
+    "group": "brand"
+  },
+  {
+    "term": "Moovyy",
+    "group": "brand"
+  },
+  {
+    "term": "Pitch Vault",
+    "group": "brand"
+  },
+  {
+    "term": "Upmetrics",
+    "group": "brand"
+  },
+  {
+    "term": "Contract Manager",
+    "group": "brand"
   }
 ]
