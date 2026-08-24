@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- Every one of the 117 tips, inline: https://discovery.broberg.ai/llms-full.txt
+- Every one of the 118 tips, inline: https://discovery.broberg.ai/llms-full.txt
 
 ## Secrets Vault — flådens delte krypterede secret-store
 
@@ -92,7 +92,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/cms-inline-edit** v0.5.1 — Inline editing on live @webhouse/cms-sites, plus self-healing page links that rewrite themselves at render. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
-## Tips & tricks — every tip inline (117 across 15 platforms)
+## Tips & tricks — every tip inline (118 across 15 platforms)
 
 ### Fly.io (25)
 - **[build-stamp]** health.build — stamp the running commit on your health endpoint, and say how much to trust it. Convention (beacon, measured on their own service): GET /v1/health returns build:{ commit, dirty, source } where source is env (a deploy declared its sha, e.g. BUILD env var — declared, not observed) then git (the process runs from a work tree and git was asked — observed) then unknown (commit MUST be null). Five decisions, each one a trap somebody already hit: (1) read it ONCE at startup, never per request — the question is what the process was started from, and a git lookup per request answers about the tree as it is NOW, i.e. code the process never loaded; (2) UNTRACKED files count as dirty — the process runs what is on disk, and an uncommitted file is still one it could load; (3) never invent a sha — null plus source unknown, because a sha that looks like an answer is worse than no answer; (4) dirty is not decoration, it says how far to trust the sha: a true sha on a dirty tree describes code that is not running; (5) for the CONSUMER of the field — when comparing two sides (a page against the service that serves it), a dirty on EITHER side must make the comparison SILENT. A bundle is stamped when it is built, i.e. before the commit that contains it, so during ordinary work the shas disagree all day; warn on that and the warning is ignored within a week. Two CLEAN builds that disagree is the thing worth flagging. And say what a difference means: beacons service ran 732e4241 while HEAD was 637bae6, a real 48-hour drift — but that commit only touched CLAUDE.md, so the drift was harmless. A field that reports difference without significance becomes why is my service always red. _(beacon)_
@@ -156,7 +156,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **[accordion]** Gotcha — accordion: with multiple methods enabled (Card + Klarna) the card fields stay COLLAPSED until 'Kort'/'Card' is selected. Click the card row first. _(sanne)_
 - **[verify]** Verify post-payment via sk_test: GET /v1/checkout/sessions?expand[]=data.payment_intent — application_fee_amount is ONLY present on a PAID session (on an open one payment_intent=null). commission / transfer_data / amount_total / shipping_address_collection all readable. _(sanne)_
 
-### Supabase (8)
+### Supabase (9)
 - **[region]** Provision in region arn (Stockholm) — same as Fly. _(components)_
 - **[lens]** Authed Lens capture → @broberg/lens; keep only your signInWithPassword in createSession, package owns the rest. _(components)_
 - **[gotcha]** Cookie-domain trap: behind a proxy the Host header is 'localhost' → cookie never reaches the real domain. Pin LENS_COOKIE_DOMAIN. _(fds)_
@@ -165,6 +165,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **[rls-observability]** RLS silently drops pre-login audit events: events that fire before login (signup-fail, scanner-detected, verification-failed) hit an INSERT policy requiring auth.uid() IS NOT NULL, get rejected, and a swallowing catch hides it = zero history. Use a service-role admin client for legitimate unauth events + replace the silent catch with explicit console.error. _(fds)_
 - **[grants]** Supabase removes auto-grants for new tables (Oct 30 2026). Always add explicit GRANT … TO service_role, authenticated (anon only if needed). SECURITY DEFINER fns: SET search_path = public, pg_catalog + REVOKE EXECUTE FROM anon, authenticated unless it IS an RPC. _(fds)_
 - **[ssr-cookie-proxy]** @supabase/ssr cookie behind a proxy: sb-<ref>-auth-token domain is derived from request Host; behind Apache/nginx/Fly that can be 'localhost'/'0.0.0.0' so the browser NEVER sends the cookie (silent false-green). Pin the cookie domain. Bonus: the cookie SPLITS into .0/.1 chunks when large — handle as an array. _(fds)_
+- **[revoke-anon]** REVOKE ALL ON FUNCTION … FROM PUBLIC does NOT strip anon. Supabase installs a default-privilege that grants anon EXECUTE on every new function in public, and a revoke from the PUBLIC pseudo-role never touches an explicit role grant — so the SQL file reads locked-down while the database still lets anon call it (measured 2026-08-24, fd-sundhed). Assert on pg_proc.proacl (the function's actual ACL), never on the migration file; the real fix is an explicit REVOKE EXECUTE ON FUNCTION … FROM anon (and authenticated unless it IS an RPC). _(fds)_
 
 ### Turso / libSQL (5)
 - **[reuse]** Consume via @broberg/db-sdk (libSQL transport) rather than a bespoke client. _(components)_
