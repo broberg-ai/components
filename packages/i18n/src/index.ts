@@ -34,7 +34,16 @@ export interface I18nConfig {
   storageKey?: string;
   /** Inject a storage backend. Default: global localStorage when usable. */
   storage?: StorageLike;
-  /** Detect from `navigator.language` when nothing is stored. Default true. */
+  /**
+   * Detect from `navigator.language` when nothing is stored. Default **true**.
+   *
+   * Consequence, and it is easy to miss: leaving this on means **your product's
+   * language is decided by a browser setting your user never touched**. Nothing
+   * breaks and nothing errors — a Danish-first product opened on an `en-US`
+   * browser simply renders entirely in English until the user picks a language.
+   * If your product has one primary language and an explicit `fallbackLocale`,
+   * you almost certainly want `detect: false`. See the README.
+   */
   detect?: boolean;
 }
 

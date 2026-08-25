@@ -43,11 +43,54 @@ const off = i18n.subscribe((locale) => rerender());  // pub/sub, no context prov
 - **`bilingual()`** — picks the active-locale field from a `{da,en}` object and
   tolerates a plain string, so LLM-generated bilingual content and legacy plain
   strings both work.
-- **Detection** — stored locale → `navigator.language` prefix-match → default,
-  all SSR-guarded.
+- **Detection** — stored locale → `navigator.language` exact-match →
+  `navigator.language` prefix-match → default, all SSR-guarded. **Read the next
+  section before you accept the default here** — it decides what language your
+  product speaks.
 - **pnpm-hoist safe** — a `globalThis`-keyed registry means two bundle copies
   with the same `storageKey` share one instance, so the active locale can never
   desync.
+
+## Which detection default do you want?
+
+`detect` is **`true` unless you set it to `false`**. The consequence, stated
+plainly: **without `detect: false`, your product's language is decided by a
+browser setting your user never touched.**
+
+That is not the same sentence as "we detect the locale", and the difference is
+the whole point. Nothing breaks, nothing errors, no test goes red — the engine
+does exactly what it was configured to do, and the configuration was our
+default.
+
+What it looks like when it bites (a real one, fd-sundhed, August 2026): a
+Danish-first product, `locales: ["da", "en"]`, no stored choice yet. A municipal
+leader opens her first page mid-demo on a laptop with an `en-US` browser and
+gets **the entire leader surface in English** — "For approval", "Awaiting your
+decision". She had never chosen English. Nobody had. It took that team five
+separate symptom-fixes across several weeks before anyone asked whether they
+wanted the behaviour at all.
+
+The opt-out is one line:
+
+```ts
+const i18n = createI18n({
+  locales: ["da", "en"],
+  fallbackLocale: "en",
+  messages,
+  detect: false,          // ← the product decides the language, not the browser
+});
+```
+
+Pick deliberately:
+
+| Your product | Set |
+|---|---|
+| One primary language, an explicit `fallbackLocale`, users who expect *your* language on first visit | **`detect: false`** — the common case |
+| A genuinely multilingual audience with no single primary language, where meeting the user in their browser's language is the point | `detect: true` (today's default) |
+
+Either way, an explicit `setLocale()` from a language switcher always wins and
+is persisted — detection only ever decides the **first** render, before the user
+has chosen.
 
 ## API
 
