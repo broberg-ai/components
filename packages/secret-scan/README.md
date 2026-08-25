@@ -189,6 +189,35 @@ value includes their `NAME=value` context — a bare provider token classifies v
 its prefix, and a prefix-less bare token (e.g. a raw Mistral key) is genuinely
 unidentifiable and returns `null`.
 
+### A `null` has two meanings — check the length floor first
+
+Every token pattern carries a **minimum length** (typically `{20,}`). So a
+`null` from `classify()` means **either** of two things, and they are
+indistinguishable from the return value alone:
+
+1. no pattern matches this string; **or**
+2. a pattern exists, but your sample was **shorter than its floor**.
+
+```ts
+classify("rk_live_51ABCdef");                 // → null   (8 chars after the prefix — under the floor)
+classify("rk_live_51" + "A".repeat(90));      // → { label: "stripe-secret-key", … }
+```
+
+**Before you report a missing pattern, re-probe with a realistic-length value.**
+Two gap reports in two days were both this, and both were withdrawn: a short
+sample measured the *floor* and was read as missing *coverage*.
+
+The floor is deliberate and load-bearing. Without it the literal string
+`sk_live_` in prose, a doc or a code comment would be flagged — and a redactor
+that fires on prose gets switched off within a week, after which it protects
+nothing. Do not lower it.
+
+**And measure the version you actually run.** Patterns are added over time
+(`whsec_` landed in **0.4.0**), and a caret on a `0.x` version locks the minor —
+`^0.1.7` can never resolve `0.4.0`, so a consumer never picks these up by
+itself. Check the **installed** version, not the source tree and not the roster,
+before concluding a pattern is absent.
+
 ## Two recommended integration shapes
 
 1. **Write boundary (ingest gate)** — redact before you persist, so secrets never
@@ -229,6 +258,15 @@ regexes — most-specific first so attribution is correct:
   value assigned to a `secret`/`token`/`password`/`api-key`-named field).
 - **Field-anchored (context-only, to avoid FP on bare tokens):** Cloudflare API
   token, Mistral, Vimeo — matched only next to their env-var name.
+
+### Deliberately NOT detected
+
+- **Stripe publishable keys (`pk_live_` / `pk_test_`).** These are *publishable*
+  by design — they ship in browser bundles and in setup instructions. They are
+  not a leak risk, and redacting one would corrupt copy-pasted setup docs for no
+  gain. This is a **decided scope boundary, not a gap**: a secret-scanner that
+  masks a public value trains people to ignore it. Requested and declined,
+  2026-08-25.
 
 ### Design notes
 
