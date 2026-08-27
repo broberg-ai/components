@@ -52,7 +52,7 @@ Production backends per chat turn tell the same story: Eir's public traffic has 
 
 > There is no guard. There is an absence. This week's recurring shape, in its purest form: a property that is true by luck reads exactly like a property that is enforced.
 
-So it becomes a rule the package can fail on rather than a fact it hopes for: **`claude-cli` may never be step 1 in a cloud image**, and a public surface must resolve to a paid API through `@broberg/ai-sdk` — at which point the cost is genuinely unknown **on a surface where strangers decide the volume**. Hence: spend cap and per-visitor rate limit are architecture, not settings.
+So it becomes a rule that can fail rather than a fact anyone hopes for — and trail sharpened the wording, correctly: **the guard hangs on `production`, not on "claude-cli appears in the chain."** On Christian's Mac that chain is deliberate; it is what makes local ingest free. Killing it to close a cloud hole would be a fix that costs more than the defect. The rule is therefore that a **public/production** surface must resolve to a paid API through `@broberg/ai-sdk` — at which point the cost is genuinely unknown **on a surface where strangers decide the volume**. Hence: spend cap and per-visitor rate limit are architecture, not settings.
 
 trail also confirmed the token gap is real: `tokens_in`/`tokens_out` are NULL on every `claude-cli` turn, so the free runs cannot be costed backwards. Stamping tokens even when the price is 0 is the cheapest true number anyone can get, and they agreed to it.
 
@@ -131,7 +131,12 @@ sanne's sharpest observation is the reason the third one exists: **their tools a
 | **F079.6** | Retention, consent, redaction | A required value, not a default. |
 | **F079.7** | Pilot: Eir migrates to the core, keeping its own prompt and tools | The proof. If Eir cannot adopt it without losing anything, the extraction is wrong. |
 
-**External dependency, and the only one:** the tool socket in Trail (F079 → trail). Proposed to them, not built around them.
+**External dependencies — two, both proposed to trail, neither promised:**
+
+1. **The tool socket** — a site cannot give Trail its own tools today. Without it a shared module can never say "here are your free slots".
+2. **A boot assertion** that refuses to start when the resolved backend is `claude-cli` in production. trail chose this over a test that reads `chain.ts`, for the right reason: a test sees what the CODE prefers, the assertion sees what the running process actually resolved to — and the failure would arrive by someone changing the IMAGE without touching the chain.
+
+Both are marked **awaiting owner GO**, not "on the way". trail put them to Christian rather than acting on a peer's recommendation, and said plainly they did not want us planning on a promise they had not been allowed to make. That is the right shape, and this plan does not assume either lands.
 
 ## The decision that is Christian's
 
