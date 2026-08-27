@@ -298,21 +298,61 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     // not decoration: a bare [A-Za-z0-9-]{40} also matches a GIT COMMIT SHA, and
     // telemetry/error output is full of those. A redactor that eats commit
     // hashes gets switched off within a week, after which it protects nothing.
-    // Hue keys are mixed-case; SHAs are lowercase hex — that asymmetry is the
-    // whole guard. (Pattern contributed + field-tested by beacon, F035.7.)
     //
-    // F035.9 — the comment above described the guard correctly and the REGEX DID
-    // NOT. It only excluded lowercase hex, so anything else lowercase sailed
-    // through: a 40-character run of hyphenated English prose in a commit
-    // (`do-not-log-a-request-body-and-assume-this-catches-it`) blocked a real
-    // commit in components on 2026-08-23, and an UPPERCASE SHA was flagged too.
-    // Now mixed case is actually REQUIRED — one lower and one upper — which is
-    // what the sentence claimed all along and excludes hex in either case for
-    // free. A random 40-char alphanumeric key misses this only if it drew zero
-    // uppercase or zero lowercase, which is ~1 in 10^9.
+    // F035.10 — THAT SENTENCE CAME TRUE ABOUT THIS VERY PATTERN. It was the only
+    // prefix-less pattern here matching on ENTROPY ALONE, and base64 is
+    // mixed-case alphanumeric, so it fired inside npm integrity digests:
+    //
+    //   resolution: {integrity: sha512-ABkD1WhyfPZprKRQI3bhATjeiFuNWC9PXhfGWqL+sg/…}
+    //                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ matched
+    //
+    // 33 hits in components' own pnpm-lock.yaml, 32 of them digests. (`-` is in
+    // the class but is not a word character, so \b anchors happily mid-digest.)
+    // Reported by trail, whose gate then could not commit a lockfile change —
+    // i.e. no dependency update at all. A gate nobody can satisfy is a gate
+    // someone switches off, which costs more than the hole it closed.
+    //
+    // It is now CONTEXT-ONLY like every other prefix-less secret in this file
+    // (cloudflare-api-token, mistral-api-key, vimeo-access-token,
+    // labeled-hex-secret): the field name is the signal, not the randomness.
+    // Deliberately given up: a bare 40-char Hue key in prose with no field name.
+    // See the README's "Deliberately NOT detected" — do not remove the anchor to
+    // "fix" that; a pattern that cannot tell a key from a checksum is worse than
+    // no pattern. (Original pattern contributed by beacon, F035.7.)
     label: 'hue-application-key',
-    description: 'Philips Hue v2 application key (40 chars, no prefix)',
-    regex: /\b(?=[A-Za-z0-9-]{40}\b)(?=[A-Za-z0-9-]*[a-z])(?=[A-Za-z0-9-]*[A-Z])[A-Za-z0-9-]{40}\b/g,
+    description: 'Philips Hue application key (hue/bridge-named field + 40 chars)',
+    // The `["'`]?` BEFORE the separator is not decoration: a Hue key most often
+    // arrives as JSON — {"hue_application_key": "…"} — and the four older
+    // context-only patterns in this file all omit it, so they miss the quoted
+    // form. Noted rather than silently changed there; that is its own card.
+    regex: /\b(?:hue|bridge)[_-]?(?:application[_-]?key|username|user|key)\b["'`]?\s*[:=]\s*["'`]?[A-Za-z0-9-]{40}(?![A-Za-z0-9-])/gi,
+  },
+];
+
+/**
+ * Shapes that identify a secret by its VALUE ALONE, with no field name.
+ *
+ * These are deliberately NOT in `SECRET_PATTERNS`, because a scanner runs over
+ * arbitrary text where an unanchored entropy match is a disaster: the Hue shape
+ * (40 mixed-case alphanumerics) is also what a 40-character window inside an npm
+ * `sha512-…` digest looks like, which is how 0.5.0 blocked every lockfile commit
+ * in every repo running the gate (F035.10).
+ *
+ * `classify()` is a different question, and that is the whole reason this list
+ * exists. Its caller has ALREADY asserted the string is a secret — they pasted
+ * it into a vault field and asked "what kind?" — so there is no checksum to
+ * confuse it with and no text to corrupt. Answering "unknown" there costs a
+ * consumer a working feature (cardmem's Secrets Vault type-detection) for a
+ * false-positive risk that only exists when scanning.
+ *
+ * Same value, two questions: "is there a secret in this text?" and "what kind of
+ * secret is this?" They do not deserve the same evidence bar.
+ */
+const VALUE_ONLY_PATTERNS: ReadonlyArray<SecretPattern> = [
+  {
+    label: 'hue-application-key',
+    description: 'Philips Hue application key (40 chars, no prefix)',
+    regex: /^(?=[A-Za-z0-9-]{40}$)(?=[A-Za-z0-9-]*[a-z])(?=[A-Za-z0-9-]*[A-Z])[A-Za-z0-9-]{40}$/,
   },
 ];
 
@@ -556,6 +596,13 @@ export function classify(value: string, opts?: RedactOptions): ClassifyResult | 
   const v = value.trim();
   if (!v) return null;
   for (const p of patternsFor(opts)) {
+    p.regex.lastIndex = 0;
+    if (p.regex.test(v)) return { label: p.label, description: p.description };
+  }
+  // Only after every anchored pattern has declined: shapes that are safe to
+  // name when the caller has already said "this is a secret". Anchored to the
+  // WHOLE string (^…$), so this can never fire on a fragment of a longer value.
+  for (const p of VALUE_ONLY_PATTERNS) {
     p.regex.lastIndex = 0;
     if (p.regex.test(v)) return { label: p.label, description: p.description };
   }

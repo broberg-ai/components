@@ -268,6 +268,30 @@ regexes — most-specific first so attribution is correct:
   masks a public value trains people to ignore it. Requested and declined,
   2026-08-25.
 
+- **A bare Hue application key sitting in free text** (40 mixed-case chars with
+  no field name near it). `hue-application-key` is **context-only**: it fires on
+  a `hue`/`bridge`-named field, not on the shape alone.
+
+  This is the same trade as above, and it was paid for. Until 0.5.1 the pattern
+  matched on shape, and the shape of a Hue key is also the shape of a
+  40-character window inside an npm integrity digest:
+
+  ```
+  resolution: {integrity: sha512-ABkD1WhyfPZprKRQI3bhATjeiFuNWC9PXhfGWqL+sg/…}
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ matched
+  ```
+
+  33 hits in one real `pnpm-lock.yaml`. Any repo running this package as a
+  pre-commit gate could no longer commit a lockfile change — so no dependency
+  update at all. **A gate nobody can satisfy is a gate someone switches off**,
+  and then the other 38 patterns protect nothing either. Do not remove the
+  anchor to "improve coverage": that is the change that breaks everything.
+
+  **`classify()` is unaffected** and still names a bare key. It answers a
+  different question — its caller has already said "this is a secret, what
+  kind?", so there is no surrounding text to corrupt and no checksum to confuse
+  it with. Same value, two questions, two evidence bars.
+
 ### Design notes
 
 - **Pattern-based, not entropy** — a redacted *real* fact corrupts knowledge, so
