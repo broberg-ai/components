@@ -40,7 +40,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/mail-core** v0.1.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
 - **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
 - **@broberg/cron** v0.1.0 — The fleet's typed self-service client for cronjobs.webhouse.net. `npm i @broberg/cron`
-- **@broberg/chat** v0.2.1 — The fleet's AI-chat engine: a conversation loop with a tool registry, streaming typed frames, knowledge from Trail, and history management. `npm i @broberg/chat`
+- **@broberg/chat** v0.3.0 — The fleet's AI-chat engine: a conversation loop with a tool registry, streaming typed frames, knowledge from Trail, and history management. `npm i @broberg/chat`
 - **@broberg/webpush** v0.5.0 — The fleet's storage-agnostic Web Push primitive. `npm i @broberg/webpush`
 - **@broberg/mcp** v0.5.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
 - **@broberg/secret-scan** v0.5.1 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
@@ -85,7 +85,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.1.0 — The fleet Data SDK. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.28.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@broberg/ai-sdk** v0.34.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
 - **@upmetrics/sdk** v0.3.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
