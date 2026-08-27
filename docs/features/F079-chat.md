@@ -110,6 +110,11 @@ sanne's sharpest observation is the reason the third one exists: **their tools a
 3. **Retention is a required value with no default.** A site cannot adopt the module and find the hole later.
 4. **Spend cap + per-visitor rate limit are architecture.** `claude-cli` can never serve the public.
 5. **"I cannot look that up" must be reachable, and must never collapse into "no."** Eir confidently told Christian that Sanne sells nothing — because the shop tool was missing. The model was not confused; it was blind and sounded certain.
+6. **A failure in a layer beneath the chat keeps its own state all the way up, and never merges with "nothing found."** sanne's generalisation of rule 5, from a defect they have **live**: their Eir cannot tell *"the knowledge base found nothing"* from *"the knowledge base did not answer"*, so when it was down Eir answered health questions from generic model knowledge in Sanne's voice — and the failure **looked like a normal reply**.
+
+> **Measured three times in ONE day, in three repos:** `@broberg/mail` returning `{ok:true, skipped:true}` for an invitation that was never sent · `@broberg/ai-sdk`'s `resolveModel` returning `ok:true` about a model the registry did not know · Eir answering as though it knew something it did not.
+>
+> Not three accidents. **A success-shaped answer is never handled, because it does not look like anything that needs handling.** If this module takes one thing from the whole design, it is this rule.
 
 ## Reuse (F217) — eight existing packages, no new provider integration
 
