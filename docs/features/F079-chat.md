@@ -82,6 +82,29 @@ sanne's sharpest observation is the reason the third one exists: **their tools a
 
 **A site cannot give Trail its own tools.** Prompt, tools and guardrails are all server-side there. Without that socket a shared module is a FAQ box — it can never say *"here are your free slots"*. That is a **proposal to trail**, not something built around them, and it is the epic's only external dependency.
 
+## Rollout — smallest first, each one useful alone
+
+| # | Story | Why this order |
+|---|---|---|
+| **F079.1** | Headless core: conversation loop, tool registry, **deny-by-default authorization**, SSE frames | The contract. Everything else is an adapter over it, and the authorization rule cannot be retrofitted. |
+| **F079.2** | Retrievers — `trail` · `document` · `collection` | Answers Christian's actual question about what the knowledge is based on. `document` is the one nobody has: *a long text cc maintains per site*. |
+| **F079.3** | Stack A + Stack B adapters | Same shape as `@broberg/device-stats` — thin, structural, no vendor types. |
+| **F079.4** | The widget: streaming, human handoff, feedback, transcript, unread badge | The Dinero surface. Handoff first — it is what sanne missed most. |
+| **F079.5** | Spend cap + per-visitor rate limit + Turnstile | Must exist *before* the first public deploy, not after the first bill. |
+| **F079.6** | Retention, consent, redaction | A required value, not a default. |
+| **F079.7** | Pilot: Eir migrates to the core, keeping its own prompt and tools | The proof. If Eir cannot adopt it without losing anything, the extraction is wrong. |
+
+**External dependency, and the only one:** the tool socket in Trail (F079 → trail). Proposed to them, not built around them.
+
+## The decision that is Christian's
+
+Two products are hiding in one request, and they cost very differently:
+
+1. **A site assistant** — answers from the site's own knowledge, points at pages, hands off to a human. Every site can have one. This is Eir minus Sanne.
+2. **An assistant that ACTS** — books, looks up prices, checks availability. Far more valuable, and it is where authorization, consent and liability live.
+
+The plan builds (1) with the socket for (2) from day one, because retrofitting authorization into a chat that already ships is exactly the defect cms found this week. But which sites get (2), and when, is his call.
+
 ## Non-goals
 
 - Not a Trail replacement, and not a second knowledge store.
