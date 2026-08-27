@@ -50,6 +50,15 @@ name: fly-server-deploy
 #   for. It sits beside the typed inputs, not instead of them. Never put a
 #   secret in it — the deploy command is echoed to the log.
 #
+#   AND ONE MORE THING THAT BITES THE SAME APPS, contributed by coverletter after
+#   proving this workflow in their pipeline: if you keep data in SQLite, your
+#   BUILD can fail randomly with `database is locked`. Next.js collects page data
+#   in PARALLEL workers, each opens your database file, and `journal_mode = WAL`
+#   takes an exclusive lock — two workers race and one loses. It looks like a
+#   broken build, not a race, and the same code built fine ten minutes earlier.
+#   Fix: set `busy_timeout` BEFORE `journal_mode`. Mentioned here because the set
+#   of apps that need `ha: false` and the set that hit this are the same set.
+#
 # Ship-dark: with no FLY_API_TOKEN the deploy is SKIPPED (job stays green) — a
 # fork/PR without the secret never red-fails. The token is only ever read via
 # env, never interpolated into a shell command.
@@ -336,7 +345,12 @@ jobs:
           # Three outcomes get three DIFFERENT messages. Collapsing them is how
           # F033.9 sent someone to fix secrets that were already set.
           last_reason="never returned 200"
-          while [ "$(date +%s)" -lt "$deadline" ]; do
+          # ALWAYS ATTEMPT AT LEAST ONCE. A `while [ now -lt deadline ]` head can
+          # be false on entry — a small timeout, or a run that crosses a second
+          # boundary — and then the step fails having made NO request at all,
+          # reporting "never returned 200" about a URL it never called. It also
+          # made the test suite flaky, which is how it was found.
+          while :; do
             resp=$(curl -s --max-time 10 -w $'\n%{http_code}' "$HEALTH_URL" || printf '\n000')
             code=$(printf '%s' "$resp" | tail -n1)
             body=$(printf '%s' "$resp" | sed '$d')
@@ -362,6 +376,7 @@ jobs:
               last_reason="never returned 200"
               echo "  … got $code, retrying in 5s"
             fi
+            [ "$(date +%s)" -lt "$deadline" ] || break
             sleep 5
           done
           echo "::error::$HEALTH_URL — deploy NOT proven healthy within ${HEALTH_TIMEOUT}s: ${last_reason}."

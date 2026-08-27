@@ -233,6 +233,15 @@ const curlServing = (body) =>
   });
   check("a non-200 still fails as a timeout", down.status !== 0 && /never returned 200/.test(down.out), down.out.trim());
 
+  // Found by a flake, not by design: a `while [now < deadline]` head can be
+  // false on entry, and then the step fails having made NO request — reporting
+  // "never returned 200" about a URL it never called. Deterministic now.
+  const zero = runStep(HEALTH, {
+    env: { ...env, HEALTH_TIMEOUT: "0", HEALTH_COMMIT_PATH: ".commit" },
+    stubs: { curl: curlServing('{"commit":"abc1234"}') },
+  });
+  check("a zero timeout still makes ONE attempt and can succeed", zero.status === 0, zero.out.trim());
+
   // Old behaviour is untouched for consumers that do not set the path.
   const anyOk = runStep(HEALTH, {
     env: { ...env, HEALTH_COMMIT_PATH: "" },
