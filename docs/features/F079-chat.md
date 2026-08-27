@@ -171,6 +171,24 @@ A Trail tenant is created **only** as a side effect of a first Google login on a
 
 **None of this blocks F079.1** — the core is model-injected and stores nothing, so it is exactly the right thing to build while these are settled. It blocks fd-sundhed *going live on Trail*, which is a different date and a decision for Christian.
 
+## The second surface, already designed — do not block it
+
+The mocked chat Christian referred to is **not in fd-sundhed's code**: it is a cardmem mockup, approved at v13, screens 4 and 4b of *"FD Sundhed — mobil kunderejse"*. An employee writes freely about an injury; the assistant asks **one clarifying question at a time** and ends in an **action** ("shall I find you a time?"), never in an assessment.
+
+**Sequence is settled: the admin chat first.** This is not what gets built now — it is what must not be walled off. Three things it demands that the admin chat does not:
+
+1. **The user is an EMPLOYEE, not an admin** — and the permission set is *disjoint*, not a subset. She may only ever discuss **her own** case. fd-sundhed has 13 `user` rows today and 15.863 arriving. Anything that assumes "fewer tools = a smaller admin" is wrong before it ships.
+2. **Free text about an injury is article 9 data going straight into a model.** This is the strongest argument that the EU tier and the retention limit are first-line constraints rather than v2: it is not an admin asking for a number, it is a municipal employee describing her body.
+3. **"No diagnoses" is a product decision, and it must be PROVABLE.** Their sentence is the requirement: *"if the core gets a prompt or policy mechanism, this is the kind of rule it must carry — and it must be provable, not merely written."*
+
+### Why point 3 changes something, and what it does not change yet
+
+A prompt instruction is an **agreement**: it works for whoever reads it. buddy made the same argument against a JSDoc warning earlier the same day and was right then too.
+
+So a rule like "never state a diagnosis" cannot live only in `systemPrompt` if anyone is expected to rely on it. It needs somewhere a **test can drive it** — and the honest version is not a diagnosis detector, which would be a guard that fails green the first time a phrasing slips past it. It is a **policy hook over the outgoing frame stream**: the consumer's rule lives as code, sees every text frame before it leaves, and can refuse or rewrite.
+
+**The core already permits this without a shape change** — `run()` yields an async iterable, so a policy is a transform over it. That is deliberate and is the reason this section exists now rather than after the adapters: nothing built today forecloses it, and nothing is being built for it speculatively either.
+
 ## Rollout — smallest first, each one useful alone
 
 | # | Story | Why this order |
