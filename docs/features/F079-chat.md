@@ -138,14 +138,18 @@ sanne's sharpest observation is the reason the third one exists: **their tools a
 
 Both are marked **awaiting owner GO**, not "on the way". trail put them to Christian rather than acting on a peer's recommendation, and said plainly they did not want us planning on a promise they had not been allowed to make. That is the right shape, and this plan does not assume either lands.
 
-## The decision that is Christian's
+## Decided by Christian, 2026-08-27
 
-Two products are hiding in one request, and they cost very differently:
+> *"Og ja den skal kunne aktivere værktøjer der er unikke for det enkelte site eller platform."*
 
-1. **A site assistant** — answers from the site's own knowledge, points at pages, hands off to a human. Every site can have one. This is Eir minus Sanne.
-2. **An assistant that ACTS** — books, looks up prices, checks availability. Far more valuable, and it is where authorization, consent and liability live.
+**Site-specific tools are in scope from day one, not a later phase.** So the tool registry is the core of the module rather than an extension point bolted on afterwards — which is also the only order that works, because retrofitting authorization into a chat that already ships is precisely the defect cms found this week.
 
-The plan builds (1) with the socket for (2) from day one, because retrofitting authorization into a chat that already ships is exactly the defect cms found this week. But which sites get (2), and when, is his call.
+Two things follow, and they are the shape of the whole build:
+
+1. **Answering ships to every site.** Knowledge, streaming, handoff, retention. This is Eir minus Sanne.
+2. **Acting is enabled per site, on Christian's word.** Booking, prices, availability. Eir keeps the tools it already has; nobody else gets acting tools without him saying so. The *capability* is universal; the *permission* is per site.
+
+That split is why deny-by-default is the package's contract and not a setting: a module that can carry site-specific tools to every repo in the fleet is a module where one forgotten permission declaration is a live hole on a customer's site.
 
 ## Non-goals
 
