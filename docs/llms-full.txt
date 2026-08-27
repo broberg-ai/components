@@ -28,7 +28,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (53)
+## Packages by category (54)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.3.1 — The design-token foundation every surface inherits. `npm i @broberg/theme`
@@ -40,6 +40,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/mail-core** v0.1.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
 - **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
 - **@broberg/cron** v0.1.0 — The fleet's typed self-service client for cronjobs.webhouse.net. `npm i @broberg/cron`
+- **@broberg/chat** v0.2.1 — The fleet's AI-chat engine: a conversation loop with a tool registry, streaming typed frames, knowledge from Trail, and history management. `npm i @broberg/chat`
 - **@broberg/webpush** v0.5.0 — The fleet's storage-agnostic Web Push primitive. `npm i @broberg/webpush`
 - **@broberg/mcp** v0.5.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
 - **@broberg/secret-scan** v0.5.1 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
