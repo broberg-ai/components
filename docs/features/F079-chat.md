@@ -215,6 +215,21 @@ So the hole is not in ai-sdk's defaults — it is in what the **caller** hands i
 
 That is [F079.8](./F079.8-policy-seam.md) — one seam carrying both this and the no-diagnoses rule, and it is **blocked on a question asked of ai-sdk**, not on a guess: can they report the provider/model/region that *actually* answered, including after a fallback fired?
 
+## Trail is the brain of every chat — Christian, 2026-08-27
+
+> *"ALLE CHATS SKAL anvende trail — det er IKKE til diskussion."*
+> *"Både Admin chat og Enduser chat SKAL anvende trail — ingen diskussion."* **To separate Trails, to separate vidensbaser.** Admin først, enduser sidst.
+
+**This overrules a recommendation, and the recommendation is worth keeping on the record anyway.** fd-sundhed measured their ten most likely admin questions — 5 answerable only by a live lookup, 4 only by prose, 1 both — and advised *against* a Trail for the admin chat. Not because prose was missing, but because **their prose is the dangerous part**: all four prose answers are decisions that have *changed*, one of them twice in four hours, and a knowledge base carrying last week's answer would be confidently wrong on exactly the question where being wrong means telling a manager something about an employee's body.
+
+Christian decided the other way. It is his call, it is made, and this plan follows it.
+
+**And it is not the contradiction it looks like.** Eir already proves the shape: **Trail is ONE TOOL among eight**, not a prefetch. So an admin chat asks its own tools *"how many reports are waiting?"* and asks Trail *"may a temp use the scheme?"* **in the same turn**, with the model choosing. Nothing about the Trail decision costs the operational half.
+
+**What survives from the objection is a requirement, not an exit.** A stale answer is still dangerous; it is now a problem to solve *inside* the retriever — freshness, and sourcing decision-shaped answers from the **Decision Register** rather than from prose somebody wrote once. fd-sundhed will version their knowledge base and regenerate it from the settled decisions rather than hand-editing it. That lands as a constraint on F079.2.
+
+**Two knowledge bases, not one.** Admin and end-user are separate Trails. The employee chat's KB is written for someone who cannot ask Christian; the admin KB is written for someone who can. Mixing them would let an employee's question reach an answer written for a manager.
+
 ## Rollout — smallest first, each one useful alone
 
 | # | Story | Why this order |
