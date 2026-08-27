@@ -63,6 +63,26 @@ A shared module that lets each site write its own authorization inherits this fa
 | `trailRetriever({ kbId })` | Trail neurons (what Eir uses) |
 | `documentRetriever({ files })` | *"et langt skriv som cc laver til det enkelte site"* |
 | `collectionRetriever({ collections })` | Live CMS content — the generic form of Eir's `treatments_list` |
+| `schemaPrompt({ model })` | The site's own data model, generated — precision and honest refusal both come from structure |
+
+### A fourth knowledge model nobody had on the list: the schema itself
+
+cms answered a design question I did not know I had, and they **corrected their own earlier number** to do it (their "313 lines" was the source file's length, not the generated prompt — they re-measured rather than let a wrong sizing figure stand).
+
+Their system prompt is **generated from the site's own data model**, and it works. Proven with three real model calls against the real prompt for sanneandersen (19 collections, 143 fields):
+
+| Probe | Result |
+|---|---|
+| "which fields does `undervisere` have, which are required?" | all 7 field names in order, `name` correctly the only required one |
+| "what is `sektion-komponenter` for, does it have a public URL?" | correct, and it *derived* "no public URL" from `kind:data` |
+| **negative control** — a collection that does not exist | **did not hallucinate.** Said it could not find it and listed the 19 real ones |
+
+**So the module must be able to GENERATE its prompt from a data model, not merely accept a text.** Their argument is the one that settles it: the precision *and* the correct refusal both come from **structure** — field names, types, required flags, kind. A hand-written description goes stale at the first schema change, and then the chat is *confidently wrong about fields that no longer exist*. That is worse than not knowing.
+
+Two things they told us to build better than they did:
+
+- **Do not pay for the same knowledge twice.** The schema is in the prompt *and* there is a `get_schema` tool, and their own rule 9 orders the model to call it before creating anything — so 3.2k tokens every turn *plus* a tool round-trip on exactly the path where it matters most. Pick one place.
+- **Cap it, and build it once.** The schema is 56% of a 6,619-token prompt on sanneandersen, scales linearly with the site, and has **no ceiling**. Worse, the prompt is rebuilt on *every message*, and to write "10 documents" per collection it runs a `findMany` against every one — **19 database queries per chat turn, for a number in a prompt.**
 
 sanne's sharpest observation is the reason the third one exists: **their tools are not generic but their signatures are.** `treatments_list` *is* "look up a CMS collection". Take the collection name as config and one tool serves every site; hard-code it and every site rewrites it.
 
