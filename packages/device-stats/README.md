@@ -35,6 +35,55 @@ const facts = deriveDevice({
 Pure: no I/O, no clock, no storage, no framework. The same input always gives the
 same output, so it runs anywhere and is trivially testable.
 
+## Stack A — Next.js
+
+```ts
+// middleware.ts / a route handler
+import { deviceFromNextRequest } from "@broberg/device-stats/next";
+const facts = deviceFromNextRequest(request);
+
+// a Server Component — headers() has NO url, so pass searchParams
+import { headers } from "next/headers";
+import { deviceFromNextHeaders } from "@broberg/device-stats/next";
+const facts = deviceFromNextHeaders(await headers(), { searchParams });
+```
+
+Without `searchParams` the launch context is **`unknown`, not `browser`** — see
+"unknown is an answer" below. Defaulting to `browser` there would label every
+server render an un-installed visit and hide your installed-PWA traffic in the
+one surface most likely to be measured.
+
+## Stack B — Hono / Bun
+
+```ts
+import { deviceMiddleware } from "@broberg/device-stats/hono";
+
+app.use("*", deviceMiddleware({ onDevice: (facts) => sink.record(facts) }));
+```
+
+`onDevice` runs once per request. **If it throws or rejects, the request is
+unaffected** — a device statistic is never worth a 500 on a user's page. Pass
+`onError` if you want to hear about it.
+
+## No vendor types cross the boundary
+
+Neither adapter imports a `next` or `hono` type. They take *structural slices*
+of what they actually touch (`.headers`, sometimes `.url`), so the same reading
+serves Next middleware, Next route handlers, Hono, `Bun.serve` and a plain
+`fetch` `Request` — and cannot break when a vendor renames or re-parameterises
+its request type.
+
+This repo paid for the alternative once already: `@broberg/auth` typed a
+parameter as Better Auth's own `Auth<O>`, which is invariant, so a
+plugin-narrowed instance did not satisfy it and every consumer had to write a
+cast.
+
+Both packages are **optional** peer dependencies and build externals — measured:
+zero vendor `import`/`require` in any of the seven emitted files, and the
+adapters weigh 576 and 1207 bytes.
+
+`deviceFromRequest(req)` in the core does the same job for anything else.
+
 ## What it may collect, and why that is the architecture
 
 This package deliberately answers only the half that needs **no consent**.
@@ -132,11 +181,20 @@ The same shape appears in form factor: an Android **tablet** is an Android UA
 
 ## Testing
 
-56 tests against **21 real User-Agent strings with recorded provenance** — 18
+73 tests against **21 real User-Agent strings with recorded provenance** — 18
 from `playwright-core`'s device registry (harvested from real devices, versioned
 with the release), 3 from vendor-documented formats and labelled as the weaker
 evidence they are. A table tested against strings the author invented tests the
 author's idea of the format.
+
+The adapters are tested against the **real** `hono` and `next` packages — a real
+`new Hono()` driven through `app.request()`, a real `NextRequest` — not mocks.
+A mock of a framework tests your idea of the framework.
+
+And the claims are **mutation-proven** rather than merely green: removing the
+UA-reduction guard, reordering Chrome above Edge, moving the iPad check after
+Mobile, removing the middleware's try/catch, and dropping the no-URL rule each
+turn *named* tests red.
 
 ## License
 

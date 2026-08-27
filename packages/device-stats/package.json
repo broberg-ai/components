@@ -1,19 +1,47 @@
 {
   "name": "@broberg/device-stats",
   "version": "0.1.0",
-  "description": "Framework-free device statistics primitive: derive bucketed device facts (form factor, OS/browser major version, installed-PWA vs browser, screen bucket) from what the browser already sends. No identifier, no fingerprint, no storage — coarse buckets are baked in, not configurable.",
+  "description": "Framework-free device statistics primitive: derive bucketed device facts (form factor, OS/browser major version, installed-PWA vs browser, screen bucket) from what the browser already sends. No identifier, no fingerprint, no storage \u2014 coarse buckets are baked in, not configurable.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./next": {
+      "import": {
+        "types": "./dist/next.d.ts",
+        "default": "./dist/next.js"
+      },
+      "require": {
+        "types": "./dist/next.d.cts",
+        "default": "./dist/next.cjs"
+      }
+    },
+    "./hono": {
+      "import": {
+        "types": "./dist/hono.d.ts",
+        "default": "./dist/hono.js"
+      },
+      "require": {
+        "types": "./dist/hono.d.cts",
+        "default": "./dist/hono.cjs"
+      }
     }
   },
   "scripts": {
@@ -24,17 +52,47 @@
   "devDependencies": {
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "hono": "^4.12.0",
+    "next": "^16.0.0"
   },
   "keywords": [
-    "device", "device stats", "analytics", "statistics", "user agent", "ua parser",
-    "client hints", "pwa", "installed", "standalone", "form factor", "viewport",
-    "screen size", "privacy", "gdpr", "no fingerprint", "broberg"
+    "device",
+    "device stats",
+    "analytics",
+    "statistics",
+    "user agent",
+    "ua parser",
+    "client hints",
+    "pwa",
+    "installed",
+    "standalone",
+    "form factor",
+    "viewport",
+    "screen size",
+    "privacy",
+    "gdpr",
+    "no fingerprint",
+    "broberg"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/broberg-ai/components.git",
     "directory": "packages/device-stats"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0",
+    "hono": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    }
+  }
 }

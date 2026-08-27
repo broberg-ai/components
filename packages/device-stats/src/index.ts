@@ -253,3 +253,65 @@ export function deriveDevice(input: DeriveInput = {}): DeviceFacts {
 
   return facts;
 }
+
+// ---------------------------------------------------------------------------
+// structural request reader
+// ---------------------------------------------------------------------------
+
+/**
+ * The only shape this package needs from a request.
+ *
+ * Deliberately STRUCTURAL rather than a vendor type. `@broberg/auth` F008.8
+ * paid for the alternative: Better Auth's `Auth<O>` is invariant, so a narrowed
+ * instance did not satisfy a parameter typed as the vendor's own type and every
+ * consumer had to cast. Typed like this, one function serves Next middleware,
+ * Next route handlers, Hono's `c.req.raw`, `Bun.serve` and a plain `Request` —
+ * and cannot break when a vendor renames or re-parameterises its request type.
+ */
+export interface RequestLike {
+  headers: HeaderInput;
+  url?: string | null;
+}
+
+export interface FromRequestOptions {
+  /** Query parameter carrying the app's declared launch context. Default `src`. */
+  launchParam?: string;
+  screenWidth?: number | null;
+}
+
+function launchFromUrl(url: string | null | undefined, param: string): string | null {
+  if (!url) return null;
+  const q = url.indexOf("?");
+  if (q === -1) return null;
+  // Parsed off the query string alone, so a relative URL (which `new URL(url)`
+  // would reject) works exactly like an absolute one.
+  return new URLSearchParams(url.slice(q + 1)).get(param);
+}
+
+/**
+ * Derive device facts straight from a request, reading the launch marker out of
+ * the request's own query string.
+ *
+ * When the request carries no URL at all, `launch` is `unknown` rather than
+ * `browser` — see `deriveDevice`'s contract. Claiming `browser` would make
+ * installed-PWA traffic invisible, which is the one answer worth getting right.
+ */
+export function deviceFromRequest(req: RequestLike, opts: FromRequestOptions = {}): DeviceFacts {
+  const param = opts.launchParam ?? "src";
+  const hasUrl = typeof req.url === "string" && req.url.length > 0;
+
+  const facts = deriveDevice({
+    headers: req.headers,
+    launchCtx: hasUrl ? (launchFromUrl(req.url, param) ?? "browser") : undefined,
+    screenWidth: opts.screenWidth,
+  });
+
+  // "We looked and found no marker" (browser) and "we could not look at all"
+  // are DIFFERENT facts, and only the first is evidence of an un-installed
+  // visit. Collapsing them would report every URL-less request as `browser`
+  // and make installed-PWA traffic invisible — the one answer this module
+  // exists to get right.
+  if (!hasUrl) facts.launch = "unknown";
+
+  return facts;
+}

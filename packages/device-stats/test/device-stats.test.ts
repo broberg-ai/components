@@ -188,10 +188,25 @@ describe("AC#5 — anti-fingerprint, proven adversarially", () => {
     expect(JSON.stringify(widened)).not.toContain("1237");
     expect(JSON.stringify(widened)).not.toContain("17.5.1");
 
-    // And the module exports nothing that hands back raw detail.
+    // And the module exports nothing that hands back raw detail. This is an
+    // ALLOWLIST, not a snapshot: a new export must be added here deliberately,
+    // which forces whoever adds one to think about whether it widens the
+    // result. (It already caught `deviceFromRequest` being added in F078.2.)
     const exported = Object.keys(mod).sort();
-    expect(exported).toEqual(["bucketWidth", "deriveDevice"]);
+    expect(exported).toEqual(["bucketWidth", "deriveDevice", "deviceFromRequest"]);
     expect(bucketWidth(1237)).toBe("1025-1440");
+
+    // Every export that returns facts is held to the same bar.
+    const viaRequest = mod.deviceFromRequest(
+      { headers: ua(full), url: "https://x.dk/?src=pwa" },
+      { screenWidth: 1237 },
+    );
+    const s = JSON.stringify(viaRequest);
+    expect(s).not.toContain("1237");
+    expect(s).not.toContain("17.5.1");
+    expect(Object.keys(viaRequest).sort()).toEqual(
+      ["browser", "formFactor", "launch", "os", "screenBucket", "source"].sort(),
+    );
   });
 });
 
