@@ -95,10 +95,10 @@ device characteristics from JavaScript counts**, cookie or not. What the browser
 **sends unprompted as part of the protocol** is a different thing: it was not
 accessed, it arrived.
 
-| Tier 0 — this package, no consent | Tier 1 — consent-gated, separate entry |
+| Tier 0 — the main entry, no consent | Tier 1 — `/client`, consent-gated |
 |---|---|
-| OS + browser family and **major** version | Precise OS version (`getHighEntropyValues`) |
-| Desktop / mobile / tablet | Real viewport + screen + `devicePixelRatio` |
+| OS + browser family and **major** version | The **real** OS version (`getHighEntropyValues`) |
+| Desktop / mobile / tablet | Real viewport + screen + `devicePixelRatio`, bucketed |
 | **Installed vs browser** (see below) | `display-mode: standalone` confirmation |
 
 Never, in any tier: `Accept-Language` as a stored dimension, canvas/WebGL/font
@@ -120,6 +120,62 @@ marker the answer is `browser`, which is what an un-installed visit is.
 An unrecognised marker returns `unknown` rather than `browser` — a misconfigured
 `start_url` should be visible, not silently indistinguishable from a real
 browser visit.
+
+## Tier 1 — `/client`, behind a consent gate
+
+```ts
+import { collectDeviceDetail } from "@broberg/device-stats/client";
+
+const detail = await collectDeviceDetail({ consent: manager });
+if (detail) sink.record(detail);   // null = no consent, and nothing was read
+```
+
+`consent` is anything with `has(category)` — a `@broberg/consent-cookie`
+`ConsentManager` fits as-is, and so does your own consent store. **No concrete
+type is imported**, so using our statistics does not oblige you to install our
+consent package. The gate defaults to the `analytics` category; pass `category`
+to move it.
+
+Returns `null` — never throws — when consent is absent, when it is granted for a
+different category, or when there is no browser at all (SSR). Importing the
+module on a server touches nothing.
+
+### The gate makes the read impossible, not merely unused
+
+This is the whole design, and it is worth stating plainly because it is *not*
+visible in the return value:
+
+> "We read the device and then discarded it because there was no consent" and
+> "we never read the device" produce **identical output**. Only the first is
+> unlawful. ePrivacy art. 5(3) prohibits the **access**, not the retention.
+
+So the consent check is the first statement in the function, before anything
+device-shaped is in scope — and a test spies on `matchMedia`, `innerWidth`,
+`screen`, `devicePixelRatio` and `navigator.userAgentData` and asserts **zero
+touches** without consent, and **non-zero** with it. The second half matters as
+much as the first: without it, a collector that never works at all would pass.
+
+Moving the gate below the reads turns **four named tests red**. It was measured,
+not assumed.
+
+### What it buys, and what it costs
+
+`getHighEntropyValues(['platformVersion'])` returns the OS version that Tier 0
+must refuse to guess — the honest trade the section below promises. Only
+`platformVersion` is requested; `model`, `architecture` and `fullVersionList`
+are the fingerprinting surface this package exists to avoid, so they are **not
+asked for**, rather than asked-for-and-dropped.
+
+**Windows is the trap.** Chromium's `platformVersion` on Windows is not the
+Windows version: `13.0.0` and up means Windows **11**, `1.0.0`–`12.x` means
+Windows **10**, and `0.x` is Windows 7/8/8.1 and cannot be told apart. Passing
+it through would report "Windows 13" — a version that does not exist, and one
+that would be believed because it looks like a number. Same rule as `Android
+10; K`: mapped, or `unknown`.
+
+Every read is guarded on its own. Older Safari has no `userAgentData`, so that
+one fact degrades to `unknown` and the viewport, screen and display-mode facts
+still come back.
 
 ## Anti-fingerprinting is enforced, not documented
 
@@ -181,7 +237,7 @@ The same shape appears in form factor: an Android **tablet** is an Android UA
 
 ## Testing
 
-73 tests against **21 real User-Agent strings with recorded provenance** — 18
+93 tests against **21 real User-Agent strings with recorded provenance** — 18
 from `playwright-core`'s device registry (harvested from real devices, versioned
 with the release), 3 from vendor-documented formats and labelled as the weaker
 evidence they are. A table tested against strings the author invented tests the
@@ -193,8 +249,10 @@ A mock of a framework tests your idea of the framework.
 
 And the claims are **mutation-proven** rather than merely green: removing the
 UA-reduction guard, reordering Chrome above Edge, moving the iPad check after
-Mobile, removing the middleware's try/catch, and dropping the no-URL rule each
-turn *named* tests red.
+Mobile, removing the middleware's try/catch, dropping the no-URL rule, moving
+the consent gate below the reads, passing the Windows `platformVersion` through
+raw, collapsing an unaskable `display-mode` into `browser`, and dropping the
+`getHighEntropyValues` catch each turn *named* tests red.
 
 ## License
 

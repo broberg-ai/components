@@ -8,7 +8,7 @@ export default defineConfig([
     // @broberg/pwa 0.2.1 without react.d.ts and blocked a consumer's adoption).
     // dist is cleaned ONCE by the `build` script, then verify-exports.mjs
     // proves every declared export target actually exists.
-    entry: { index: "src/index.ts", next: "src/next.ts", hono: "src/hono.ts" },
+    entry: { index: "src/index.ts", next: "src/next.ts", hono: "src/hono.ts", client: "src/client.ts" },
     format: ["esm", "cjs"],
     dts: true,
     sourcemap: true,

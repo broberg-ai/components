@@ -1,6 +1,6 @@
 {
   "name": "@broberg/device-stats",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-free device statistics primitive: derive bucketed device facts (form factor, OS/browser major version, installed-PWA vs browser, screen bucket) from what the browser already sends. No identifier, no fingerprint, no storage \u2014 coarse buckets are baked in, not configurable.",
   "type": "module",
   "license": "MIT",
@@ -41,6 +41,16 @@
       "require": {
         "types": "./dist/hono.d.cts",
         "default": "./dist/hono.cjs"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
+      },
+      "require": {
+        "types": "./dist/client.d.cts",
+        "default": "./dist/client.cjs"
       }
     }
   },
