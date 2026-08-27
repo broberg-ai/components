@@ -146,12 +146,22 @@ export type ModelFn = (req: ModelRequest) => AsyncIterable<ModelEvent>;
 // frames
 // ---------------------------------------------------------------------------
 
+import { assertHistoryConfig, prepareHistory, type HistoryConfig } from "./history.js";
+
 export type ChatFrame =
   | { type: "text"; text: string }
   | { type: "tool-call"; id: string; name: string; args: Record<string, unknown> }
   | { type: "tool-result"; id: string; name: string; result: unknown }
   | { type: "error"; scope: "tool" | "model"; name?: string; message: string }
-  | { type: "done"; reason: "complete" | "max-rounds" };
+  /**
+   * What history management did before this round. Never silent: a user must
+   * not be quietly answered from half a conversation.
+   *
+   * `warned` arrives while there is still room to act — cms's route passes the
+   * provider's raw 400 to the user today, which is the behaviour this replaces.
+   */
+  | { type: "history"; action: "warned" | "reduced" | "failed"; note: string; dropped?: number }
+  | { type: "done"; reason: "complete" | "max-rounds" | "too-large" };
 
 // ---------------------------------------------------------------------------
 // the prompt fragment the core owns
@@ -191,6 +201,15 @@ export interface CreateChatOptions<Ctx = unknown, Caller = unknown> {
   name?: string;
   /** Safety stop on tool→model→tool cycles. Default 6. */
   maxRounds?: number;
+  /**
+   * Keep the conversation under the model's input limit. Optional, but if you
+   * pass it you must choose a strategy — there is no "none".
+   *
+   * WITHOUT IT this loop sends whatever it is given, which is what every chat
+   * in the fleet does today and why an overflowing conversation dies rather
+   * than degrades.
+   */
+  history?: HistoryConfig;
 }
 
 export interface RunInput<Ctx = unknown, Caller = unknown> {
@@ -217,6 +236,7 @@ export function createChat<Ctx = unknown, Caller = unknown>(
   }
   const can = opts.can;
   const maxRounds = opts.maxRounds ?? 6;
+  const history = assertHistoryConfig(opts.history);
   const name = opts.name ?? botName();
   const system = [corePrompt(name), opts.systemPrompt?.trim()].filter(Boolean).join("\n\n");
 
@@ -252,8 +272,33 @@ export function createChat<Ctx = unknown, Caller = unknown>(
       const calls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
       let text = "";
 
+      // Decide what to SEND. `messages` — the record of what actually happened
+      // — is never rewritten; only the payload for this call is.
+      let outgoing = messages;
+      if (history) {
+        const outcome = await prepareHistory(messages, history, system);
+        if (outcome.status === "reduced") {
+          outgoing = outcome.messages;
+          yield {
+            type: "history",
+            action: "reduced",
+            dropped: outcome.dropped,
+            note: `${outcome.dropped} earlier message(s) were ${outcome.strategy === "compact" ? "summarised" : "left out"} to stay within the limit. The full conversation is unchanged.`,
+          };
+        } else if (outcome.status === "failed") {
+          // Stop here rather than send a payload we know is too large. Sending
+          // it is how cms's conversation dies: the provider 400s, and a retry
+          // sends exactly the same thing again, for ever.
+          yield { type: "history", action: "failed", note: outcome.note };
+          yield { type: "done", reason: "too-large" };
+          return;
+        } else if (outcome.warning) {
+          yield { type: "history", action: "warned", note: outcome.warning };
+        }
+      }
+
       try {
-        for await (const ev of opts.model({ system, messages, tools: specs })) {
+        for await (const ev of opts.model({ system, messages: outgoing, tools: specs })) {
           if (ev.type === "text") {
             text += ev.text;
             yield { type: "text", text: ev.text }; // streamed, not batched

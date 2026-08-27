@@ -319,11 +319,88 @@ can believe otherwise.
 What the adapter itself puts on the wire is guaranteed: no `ctx`, no permission
 string, no stack trace. Asserted by scanning the emitted bytes.
 
+## An overflowing conversation must not become a dead one
+
+```ts
+const chat = createChat({
+  model,
+  history: {
+    strategy: "window",        // or "compact" — REQUIRED, there is no default
+    maxInputTokens: 120_000,   // REQUIRED, and declared by YOU (see below)
+    keepRecent: 6,
+    // strategy: "compact" also needs:
+    // summarise: async (older) => (await ai.chat({ prompt: `Summarise: …` })).text,
+  },
+});
+```
+
+**The defect this exists for, measured by cms in their own chat:** nothing
+truncates, so the client sends the whole conversation every message; the route's
+`maxTokens` is the **output** limit; the provider 400s and the raw error reaches
+the user. And the part that makes it serious:
+
+> **Because nothing truncates, a retry resends the same oversized payload.** The
+> conversation is not expensive, it is **dead** — from the moment it tips, after
+> a long session, which is exactly when there is most to lose.
+
+So the test that matters is not *"the message got shorter"*. It is **the next
+turn on the same conversation succeeds.**
+
+### Compaction changes what the MODEL sees, never what the USER can read
+
+This module **never mutates the array you give it**, and neither does the loop.
+Whatever you persist stays complete and verbatim, however much was left out of
+the payload. cms's rule, from a real user they are not: somebody uses their admin
+chat as a working tool and may expect to re-read a session word for word.
+
+### Three outcomes, and a failure is one of them
+
+```ts
+{ status: "unchanged", messages, estimatedTokens, warning? }
+{ status: "reduced",   messages, estimatedTokens, dropped, strategy }
+{ status: "failed",    reason: "compaction_failed" | "cannot_reduce", messages, note }
+```
+
+`compaction_failed` (your summariser threw) and `cannot_reduce` (there was
+nothing left to remove) are **never the same value**, and a failure returns the
+transcript **unchanged** — never half-shortened. sanne's rule, generalised: when
+a layer beneath the chat can fail, the failure carries its own state all the way
+up and never merges with "nothing found".
+
+The loop surfaces all of it as typed `history` frames (`warned` · `reduced` ·
+`failed`), and an unshrinkable turn ends with `done: "too-large"` **without
+calling the model** — sending a payload you know is too large is how the
+conversation dies.
+
+### ⚠️ You declare the limit. It is not read from the model registry.
+
+Measured by cms and confirmed by ai-sdk: a model object carries exactly
+`[id, alias, provider, available, status, note, source]` — **there is no context
+window in it**, on any of the ten models. The only number that looks like one is
+`maxTokens`, which is a **per-call output limit**. Read it as "the window" and
+you get a number for something else entirely, which is worse than no number
+because it looks like an answer.
+
+`estimateTokens` is a **rough** heuristic (~4 characters per token) and says so.
+Inject your own `estimate` if you have a real tokenizer.
+
+### What is deliberately not here
+
+**RAG over history** — store everything, retrieve only what is relevant. It is
+last by Christian's order (*"vi skal have noget i drift med FD Sundhed FØR vi
+har RAG klar"*), and it is **not in the `HistoryStrategy` union** rather than
+present-and-throwing: an option that exists and throws fails in production; one
+that does not exist fails in your editor.
+
+**Prompt-caching** is not here either, and needs nothing from you: `@broberg/ai-sdk`
+0.31.0 turned it on by default with a content-derived key. Measured live:
+`$0.004411 → $0.000458`.
+
 ## What is NOT in here
 
-The widget, spend caps, retention, redaction, history management. The core is
-the contract; `/next`, `/hono`, `/http` and `/client` are the HTTP half, and
-`/trail` is the knowledge half.
+The widget, spend caps, retention, redaction, RAG-over-history. The core is the
+contract; `/next`, `/hono`, `/http` and `/client` are the HTTP half, `/trail` is
+the knowledge half, and `/history` keeps a conversation alive.
 
 **Retention deserves its own warning.** Both stores measured during this design
 keep whole conversations with **no expiry at all** — and one of them holds GDPR

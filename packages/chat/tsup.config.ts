@@ -13,6 +13,7 @@ export default defineConfig([
       hono: "src/hono.ts",
       client: "src/client.ts",
       trail: "src/trail.ts",
+      history: "src/history.ts",
     },
     format: ["esm", "cjs"],
     dts: true,
