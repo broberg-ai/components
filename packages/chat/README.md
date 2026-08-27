@@ -135,10 +135,76 @@ CHAT_BOT_NAME=Eir
 A test asserts the literal appears in exactly one source file — a name repeated
 across files is a name that drifts the first time one copy is edited.
 
+## Mounting it — Stack A and Stack B
+
+```ts
+// app/api/admin/chat/route.ts          — Next.js App Router
+import { createChatRoute } from "@broberg/chat/next";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";   // never cached, never prerendered
+
+export const POST = createChatRoute({
+  chat,                                              // createChat(), model injected
+  getCaller: async (req) => await readProfile(req),  // YOUR existing pattern
+  getCtx:    async (req, caller) => ({ api: apiFor(caller) }),
+});
+```
+
+```ts
+// Hono (Bun/edge)
+import { chatHandler } from "@broberg/chat/hono";
+app.post("/api/chat", chatHandler({ chat, getCaller, getCtx }));
+```
+
+```ts
+// the browser — framework-free, no dependency
+const res = await fetch("/api/admin/chat", { method: "POST", body: JSON.stringify({ messages }), signal });
+for await (const frame of readChatStream(res)) { … }
+```
+
+Both adapters are the **same code** over web-standard `Request`/`Response`, driven
+by one shared table of test cases. *Fix one half of a pair* is a measured fleet
+defect, so a behaviour that holds in Next and not in Hono is a red test rather
+than a production discovery. `@broberg/chat/http` is that shared half, exported
+for anything else — `Bun.serve`, Workers, Deno.
+
+**Still no dependency, still no version pin.** No subpath imports `@broberg/ai-sdk`;
+the model stays injected. A caret on `0.x` locks the MINOR, so a subpath that
+depended on another `@broberg` package would hand consumers a version they never
+chose — which is exactly how `@broberg/logger` shipped a promise it no longer kept.
+
+### `getCaller` is required, and `null` is a 401
+
+Not an empty tool list. An unauthenticated request that still reaches the model
+is still an LLM bill, on a surface where the stranger decides the volume — and on
+an internal admin chat it is simply the wrong answer. A test asserts the model
+records **zero** calls.
+
+The caller is resolved **server-side, per request**, and can never arrive in the
+request body. Every message is rebuilt from the three fields we know, so a role
+or permission smuggled onto one is dropped rather than carried.
+
+## Two boundaries worth knowing before you ship
+
+**1. The transcript is client-supplied.** A caller can forge their *own* history,
+including a `tool` message. Anything that matters must come from a tool call in
+**this** turn, never from history — the same rule as *a tool that can act must not
+decide whether it may*.
+
+**2. A tool RESULT is passed through verbatim, secrets and all.** Not an oversight:
+it is the consumer's data on their own surface, and quietly rewriting it would be
+a worse surprise than passing it on. If a tool can return a credential, either do
+not return it or wait for redaction (F079.6). A test pins this boundary so nobody
+can believe otherwise.
+
+What the adapter itself puts on the wire is guaranteed: no `ctx`, no permission
+string, no stack trace. Asserted by scanning the emitted bytes.
+
 ## What is NOT in here
 
-Adapters, retrievers, the widget, spend caps, retention. This is the contract
-everything else is an adapter over.
+Retrievers, the widget, spend caps, retention, redaction. The core is the
+contract; `/next`, `/hono`, `/http` and `/client` are the HTTP half of it.
 
 **Retention deserves its own warning.** Both stores measured during this design
 keep whole conversations with **no expiry at all** — and one of them holds GDPR
