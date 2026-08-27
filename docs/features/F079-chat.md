@@ -244,6 +244,14 @@ Christian decided the other way. It is his call, it is made, and this plan follo
 | **F079.3** | Stack A + Stack B adapters | Same shape as `@broberg/device-stats` — thin, structural, no vendor types. |
 | **F079.4** | The widget: streaming, human handoff, feedback, transcript, unread badge | The Dinero surface. Handoff first — it is what sanne missed most. |
 | **F079.5** | Spend cap + per-visitor rate limit + Turnstile | Must exist *before* the first public deploy, not after the first bill. |
+
+> **⚠️ The number a spend cap reads is not yet trustworthy, and this is measured.** ai-sdk's F040 audit found that openai, deepseek, gemini and vertex cache **automatically**, so no money is lost — but their reported price was **too high**, because the SDK neither read their cache figures nor held cache prices for them. `0.32.0` fixed **gemini and vertex** (`promptTokenCount 11408` / `cachedContentTokenCount 11242` → subtract; `$0.003424 → $0.000388`, prices dated and sourced on each row so a stale rate is visible rather than assumed). **`openai` and `deepseek` are still unverified** — there is no key for either on that machine, and ai-sdk wrote nothing rather than writing it from memory. So on those two we still over-report.
+>
+> Two things the cap must therefore be built *after*, not *around*:
+> 1. **Gemini's implicit caching is opportunistic, not guaranteed** — in the live run only call 2 hit; calls 3–6 missed on the identical prefix, while Mistral's key-based caching hit every time. **A cap must never assume a discount that has not arrived.** It is a saving you report correctly, not one you promise.
+> 2. On `openai`/`deepseek` the cap must be **inert rather than permissive** until F040 closes — our own rule, applied to ourselves.
+>
+> And ai-sdk's self-correction is worth carrying: their first run concluded a `systemInstruction` prefix does not cache, because three calls missed while a `contents` prefix hit on call 3. Given the same number of attempts, `systemInstruction` hit on call 5. **The difference was sample size, not placement** — the exact trap they had warned us about the same day, walked into within an hour.
 | **F079.6** | Retention, consent, redaction | A required value, not a default. |
 | **F079.7** | Pilot: Eir migrates to the core, keeping its own prompt and tools | The proof. If Eir cannot adopt it without losing anything, the extraction is wrong. |
 | **F079.8** | **Rules that can FAIL** — a policy seam over the outgoing stream (no-diagnoses · EU residency) | Not in the numbered order: it is **blocked on ai-sdk**, and the core already permits it without a shape change. Carded so it cannot evaporate. |
