@@ -1,0 +1,31 @@
+{
+  "name": "@broberg/chat",
+  "version": "0.1.0",
+  "description": "The fleet's AI-chat core: a conversation loop with a tool registry where a tool without a declared permission is DENIED, streaming typed frames, and the model injected rather than imported — so it carries no dependency it can silently outgrow.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsup && node verify-exports.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": ["ai", "chat", "assistant", "chatbot", "tools", "tool-calling", "streaming", "sse", "permissions", "authorization", "rag", "broberg"],
+  "repository": { "type": "git", "url": "git+https://github.com/broberg-ai/components.git", "directory": "packages/chat" },
+  "publishConfig": { "access": "public" }
+}

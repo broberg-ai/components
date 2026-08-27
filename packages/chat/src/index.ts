@@ -1,0 +1,320 @@
+/**
+ * @broberg/chat — the fleet's AI-chat core (F079.1).
+ *
+ * A conversation loop with a tool registry, streaming typed frames. Framework-
+ * free, storage-free, and with the MODEL INJECTED rather than imported.
+ *
+ * THE LINE THIS PACKAGE EXISTS TO MAKE UNWRITABLE, measured by the cms session
+ * in their own 64-tool chat, 2026-08-27:
+ *
+ *     tools.filter(t => !t.permission || hasPermission(user, t.permission))
+ *
+ * `!t.permission ||` — a tool that declared no permission PASSED. 60 of their 64
+ * declared none, so a read-only user was handed 61 tools, 30 of them mutating.
+ * It reads exactly like a permission check. It IS one, for the four tools that
+ * declared something. For the rest the default pointed the wrong way.
+ *
+ * So `permission` is required, enforced twice: the type rejects a literal
+ * without it, and `defineTool()` throws — because a registry built at runtime
+ * has no compiler.
+ */
+
+/** The bot's name, in ONE place. Override per site with CHAT_BOT_NAME. */
+export const DEFAULT_BOT_NAME = "Aidan";
+
+/**
+ * The name this assistant answers to.
+ *
+ * One value, one place, trickling down — a site that wants something else sets
+ * a single environment variable rather than editing a prompt in five repos.
+ */
+export function botName(env?: Record<string, string | undefined>): string {
+  const source = env ?? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const name = source?.CHAT_BOT_NAME?.trim();
+  return name ? name : DEFAULT_BOT_NAME;
+}
+
+// ---------------------------------------------------------------------------
+// tools
+// ---------------------------------------------------------------------------
+
+/** What the model is shown about a tool. Never includes `run` or `permission`. */
+export interface ToolSpec {
+  name: string;
+  description: string;
+  /** JSON Schema for the arguments. Passed through to the model verbatim. */
+  parameters: Record<string, unknown>;
+}
+
+export interface ChatTool<Ctx = unknown> extends ToolSpec {
+  /**
+   * REQUIRED. The permission a caller must hold. There is no default and no
+   * fallback: a tool that does not declare one cannot be registered.
+   */
+  permission: string;
+  /**
+   * Does this tool CHANGE anything? Declared so a consumer can assert that a
+   * read-only caller was offered nothing mutating — fd-sundhed's roles make
+   * that a real test rather than a label.
+   */
+  mutates?: boolean;
+  /**
+   * Do the work.
+   *
+   * `ctx` is whatever the CONSUMER passed to `run()` and nothing else. The core
+   * never hands a tool a database, an engine or a client — so the consumer's
+   * own routes stay the authorization boundary.
+   *
+   * sanne's rule, and the reason acting is safe at all: A TOOL THAT CAN ACT
+   * MUST NOT DECIDE WHETHER IT MAY. Their `book_appointment` calls an endpoint
+   * that answers `consent_required`. cms's defect was the mirror image — their
+   * tools called the engine directly and skipped every HTTP permission gate.
+   */
+  run(args: Record<string, unknown>, ctx: Ctx): Promise<unknown> | unknown;
+}
+
+/**
+ * Register a tool. Throws unless it declares a permission.
+ *
+ * The type already forbids omitting it; this covers the paths a compiler cannot
+ * — a JS consumer, a registry built from config, a tool assembled at runtime.
+ * That is exactly where cms's 60 permission-less tools came from.
+ */
+export function defineTool<Ctx = unknown>(tool: ChatTool<Ctx>): ChatTool<Ctx> {
+  if (!tool || typeof tool !== "object") throw new TypeError("defineTool: expected a tool object");
+  const { name, permission, run } = tool;
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new TypeError("defineTool: `name` is required");
+  }
+  if (typeof permission !== "string" || permission.trim() === "") {
+    throw new TypeError(
+      `defineTool: tool "${name}" declares no \`permission\`. This is required and has no default — ` +
+        "a tool without one is DENIED, never allowed. (A filter written as " +
+        "`!t.permission || hasPermission(...)` handed a read-only user 30 mutating tools.)",
+    );
+  }
+  if (typeof run !== "function") throw new TypeError(`defineTool: tool "${name}" has no \`run\` function`);
+  return tool;
+}
+
+/**
+ * Does this caller hold this permission?
+ *
+ * Async because a real answer is a lookup, not a list. fd-sundhed measured why
+ * that matters: their role is not the gate on its own — `access_revoked_at`
+ * sits beside it, and an admin whose access had been revoked got in until a
+ * guard checked BOTH. So the core asks the consumer rather than matching roles.
+ */
+export type Can<Caller = unknown> = (permission: string, caller: Caller) => boolean | Promise<boolean>;
+
+// ---------------------------------------------------------------------------
+// the model, injected
+// ---------------------------------------------------------------------------
+
+export interface ChatMessage {
+  role: "user" | "assistant" | "tool";
+  content: string;
+  /** Present on `tool` messages — which call this answers. */
+  toolCallId?: string;
+}
+
+export interface ModelRequest {
+  system: string;
+  messages: ChatMessage[];
+  /** Only the tools this caller may actually use. A denied tool is never here. */
+  tools: ToolSpec[];
+}
+
+export type ModelEvent =
+  | { type: "text"; text: string }
+  | { type: "tool-call"; id: string; name: string; args: Record<string, unknown> };
+
+/**
+ * The one thing the core needs from an LLM.
+ *
+ * Structural on purpose. Consumers call `@broberg/ai-sdk` (the fleet chokepoint
+ * for cost-tracking and provider policy) and hand the result in. Two reasons,
+ * and the second was bought the day this was written: the core is testable
+ * against a fake model with no key and no network, AND it carries no version
+ * pin. F061.2 found `@broberg/logger` promising it "cannot leak a secret" while
+ * pinned to a `secret-scan` four minors stale, because a caret on 0.x locks the
+ * minor. A core with zero dependencies cannot rot that way.
+ */
+export type ModelFn = (req: ModelRequest) => AsyncIterable<ModelEvent>;
+
+// ---------------------------------------------------------------------------
+// frames
+// ---------------------------------------------------------------------------
+
+export type ChatFrame =
+  | { type: "text"; text: string }
+  | { type: "tool-call"; id: string; name: string; args: Record<string, unknown> }
+  | { type: "tool-result"; id: string; name: string; result: unknown }
+  | { type: "error"; scope: "tool" | "model"; name?: string; message: string }
+  | { type: "done"; reason: "complete" | "max-rounds" };
+
+// ---------------------------------------------------------------------------
+// the prompt fragment the core owns
+// ---------------------------------------------------------------------------
+
+/**
+ * What the core contributes to the system prompt. The consumer owns everything
+ * else — Eir's 391 lines are 100% Sanne and must never live in a package.
+ *
+ * The middle rule is the one bought with an incident. Christian asked Eir
+ * whether Sanne sells anything and Eir said NO — confidently — because the shop
+ * tool was missing. The model was not confused; it was blind and sounded
+ * certain, and a missing capability became a false statement about a business.
+ */
+export function corePrompt(name = botName()): string {
+  return [
+    `You are ${name}.`,
+    "",
+    "You have a limited set of tools. If no tool can answer a question, say plainly that you cannot look it up — DO NOT answer from assumption, and never turn a missing tool into a negative fact. \"I can't look that up\" and \"no\" are different answers, and only one of them is honest when you have no way to check.",
+    "",
+    "Never claim an action succeeded unless a tool result says so.",
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// the loop
+// ---------------------------------------------------------------------------
+
+export interface CreateChatOptions<Ctx = unknown, Caller = unknown> {
+  model: ModelFn;
+  tools?: ChatTool<Ctx>[];
+  /** Required whenever there are tools: the core will not guess a permission. */
+  can?: Can<Caller>;
+  /** The consumer's own prompt. `corePrompt()` is prepended. */
+  systemPrompt?: string;
+  /** Bot name override; defaults to CHAT_BOT_NAME or "Aidan". */
+  name?: string;
+  /** Safety stop on tool→model→tool cycles. Default 6. */
+  maxRounds?: number;
+}
+
+export interface RunInput<Ctx = unknown, Caller = unknown> {
+  messages: ChatMessage[];
+  caller: Caller;
+  ctx: Ctx;
+}
+
+export interface Chat<Ctx = unknown, Caller = unknown> {
+  /** The tools this caller may use — denied ones are absent, not flagged. */
+  toolsFor(caller: Caller): Promise<ChatTool<Ctx>[]>;
+  run(input: RunInput<Ctx, Caller>): AsyncIterable<ChatFrame>;
+}
+
+export function createChat<Ctx = unknown, Caller = unknown>(
+  opts: CreateChatOptions<Ctx, Caller>,
+): Chat<Ctx, Caller> {
+  const tools = (opts.tools ?? []).map((t) => defineTool(t));
+  if (tools.length && typeof opts.can !== "function") {
+    // Refusing here rather than defaulting to allow. An "everyone may use
+    // everything" default is the same mistake as `!t.permission ||`, moved one
+    // level up: it looks like configuration and behaves like an open door.
+    throw new TypeError("createChat: `can` is required when tools are registered — there is no permissive default");
+  }
+  const can = opts.can;
+  const maxRounds = opts.maxRounds ?? 6;
+  const name = opts.name ?? botName();
+  const system = [corePrompt(name), opts.systemPrompt?.trim()].filter(Boolean).join("\n\n");
+
+  async function toolsFor(caller: Caller): Promise<ChatTool<Ctx>[]> {
+    if (!tools.length) return [];
+    const allowed: ChatTool<Ctx>[] = [];
+    for (const t of tools) {
+      // No `||`, no truthiness on the permission itself — the ONLY question is
+      // whether the consumer says yes.
+      if (await can!(t.permission, caller)) allowed.push(t);
+    }
+    return allowed;
+  }
+
+  async function* run(input: RunInput<Ctx, Caller>): AsyncIterable<ChatFrame> {
+    const allowed = await toolsFor(input.caller);
+    const byName = new Map(allowed.map((t) => [t.name, t]));
+    const specs: ToolSpec[] = allowed.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    }));
+    const messages = [...input.messages];
+
+    for (let round = 0; round < maxRounds; round++) {
+      const calls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+      let text = "";
+
+      try {
+        for await (const ev of opts.model({ system, messages, tools: specs })) {
+          if (ev.type === "text") {
+            text += ev.text;
+            yield { type: "text", text: ev.text }; // streamed, not batched
+          } else {
+            calls.push({ id: ev.id, name: ev.name, args: ev.args });
+          }
+        }
+      } catch (err) {
+        yield { type: "error", scope: "model", message: messageOf(err) };
+        yield { type: "done", reason: "complete" };
+        return;
+      }
+
+      if (!calls.length) {
+        yield { type: "done", reason: "complete" };
+        return;
+      }
+
+      if (text) messages.push({ role: "assistant", content: text });
+
+      for (const call of calls) {
+        yield { type: "tool-call", id: call.id, name: call.name, args: call.args };
+        const tool = byName.get(call.name);
+
+        if (!tool) {
+          // THE SECOND GATE. The name could only arrive here by the model
+          // inventing it or a transcript being replayed — but in cms's case the
+          // tool list WAS the only gate, so this one exists on purpose.
+          const why = `no tool named "${call.name}" is available to you`;
+          yield { type: "error", scope: "tool", name: call.name, message: why };
+          messages.push({ role: "tool", toolCallId: call.id, content: `Error: ${why}` });
+          continue;
+        }
+
+        try {
+          const result = await tool.run(call.args, input.ctx);
+          yield { type: "tool-result", id: call.id, name: call.name, result };
+          messages.push({ role: "tool", toolCallId: call.id, content: serialise(result) });
+        } catch (err) {
+          // A broken tool degrades the ANSWER, never the conversation — the
+          // model is told and can try something else. Same rule as the
+          // device-stats middleware: a failing sub-part never takes the whole
+          // request down.
+          const why = messageOf(err);
+          yield { type: "error", scope: "tool", name: call.name, message: why };
+          messages.push({ role: "tool", toolCallId: call.id, content: `Error: ${why}` });
+        }
+      }
+    }
+
+    // Distinct from "complete": the conversation was cut off mid-work, and a
+    // caller that cannot tell those apart will report a truncated answer as a
+    // finished one.
+    yield { type: "done", reason: "max-rounds" };
+  }
+
+  return { toolsFor, run };
+}
+
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function serialise(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
