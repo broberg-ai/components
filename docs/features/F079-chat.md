@@ -37,7 +37,24 @@ A shared module that lets each site write its own authorization inherits this fa
 
 > Thirteen seconds of blank screen on a public page decides whether someone stays. Streaming is a requirement, not a feature.
 
-**Cost per conversation: unknown — and the reason matters more than a number.** Every measured conversation ran on `claude-cli`: Christian's Max subscription as a subprocess. $0, because it is *his* quota. That cannot serve strangers on a public page — no cap, no attribution, and a vendor agreement not written for it. A public chat must go through a paid API via `@broberg/ai-sdk`, at which point the cost is unknown **on a surface where strangers decide the volume**. Hence: spend cap and rate limit are architecture.
+**Cost per conversation: unknown — and the reason matters more than a number.**
+
+The conversations trail could measure had all run on `claude-cli` — Christian's Max subscription as a subprocess, $0 because it is *his* quota. I reported that as the current state of the public chat. **It is not, and trail corrected it with both controls:**
+
+```
+which bun    → /usr/local/bin/bun   (positive control — the probe works)
+which claude → exit 1               (negative — not in the prod image)
+```
+
+Production backends per chat turn tell the same story: Eir's public traffic has been `openrouter/gemini-2.5-flash` and `mistral-small` since 20 May; the last `claude-cli` turn was **29 April**. So a stranger's question on sanneandersen.dk was billed to Christian's personal quota in April/May, and has not been since.
+
+**But the fix was an accident, and that is the finding.** `chain.ts` still has `{ backend: 'claude-cli' }` as step 1, `CHAT_BACKEND` is not set as a Fly secret, and the only thing preventing it is that the binary is absent from the image. Build an image that includes the CLI one day — say, to get free ingest — and public visitor traffic silently starts spending a personal subscription that nobody decided to spend.
+
+> There is no guard. There is an absence. This week's recurring shape, in its purest form: a property that is true by luck reads exactly like a property that is enforced.
+
+So it becomes a rule the package can fail on rather than a fact it hopes for: **`claude-cli` may never be step 1 in a cloud image**, and a public surface must resolve to a paid API through `@broberg/ai-sdk` — at which point the cost is genuinely unknown **on a surface where strangers decide the volume**. Hence: spend cap and per-visitor rate limit are architecture, not settings.
+
+trail also confirmed the token gap is real: `tokens_in`/`tokens_out` are NULL on every `claude-cli` turn, so the free runs cannot be costed backwards. Stamping tokens even when the price is 0 is the cheapest true number anyone can get, and they agreed to it.
 
 **No retention limit anywhere.** sanne stores whole conversations — role, content, tool calls, user-agent, referer, session token, `user_id` — with no purge, no cron, no expiry. On a zone-therapy clinic that is **GDPR article 9** data kept indefinitely. Their gap and their report to Christian; the package's lesson is that every other site would discover it the same way.
 
