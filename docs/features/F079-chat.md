@@ -145,6 +145,32 @@ The two things that would otherwise be hardest arrive first, and the two that wo
 
 Eir and the CMS chat are **not** migrating on schedule. They migrate *if* the module proves strong enough, and each already does something the module must match before it earns the swap: Eir streams with 8 tools and a 391-line bespoke prompt; cms drives 64 tools and generates its prompt from a live schema. **A module that cannot absorb those without loss has not passed** — and saying so before building is the point of writing it down.
 
+## Two blockers for fd-sundhed specifically — measured by trail, 2026-08-27
+
+Asked whether Trail could carry health data for a municipality. The answer is **not yet**, and they said so plainly rather than packaging it.
+
+### 1. The EU guarantee has a hole the module cannot see
+
+`ai-sdk-backend.ts:36` — the primary provider is `mistral` (EU, same as Eir). **The next step in the chain is hard-coded to `openrouter` + `google/gemini-2.5-flash`.** OpenRouter is a US proxy; Gemini is Google.
+
+So if Mistral fails — quota, 5xx, timeout — **the conversation moves out of the EU automatically.** No error, nobody asked. For ~18.000 municipal employees' health data that is not a caveat, it is the thing that must not happen.
+
+Per-KB pinning exists (`knowledge_bases.chat_fallback_chain`, precedence 1) and can hold an EU-only chain. **But it has never been run end to end.** trail's own words: treat it as *probably enough*, not as a guarantee anyone can sign in front of a municipality. That distinction is the whole reason to write it down — this is the exact shape as everything else this week, a property that reads as enforced and is true by configuration nobody has exercised.
+
+### 2. There is no retention at all, and Trail stores more than sanne does
+
+`chat_turns.content` holds **the whole conversation in cleartext** — question and answer — in the tenant's `trail.db`, plus backend/model/tokens/latency/cost per turn. Deletion is one manual route (`DELETE /chat/sessions/:id`) called by a human. trail searched specifically for purge/prune/retention/expire and found **nothing**.
+
+The truth fd-sundhed must be told, not softened: the conversation sits on a Fly volume in Stockholm, in their own tenant database, **with no expiry, until someone actively deletes the session.**
+
+Our contract — retention is a required value with no default — is right, and it **cannot be enforced down into Trail's layer today**. A module cannot promise what its store does not do. (buddy's sentence, from a different bug the same day: *a package cannot know its promise has become untrue because of something underneath it.* Here we DO know, in advance, which is the only reason this is a plan and not an incident.)
+
+### 3. And provisioning is a human, not an API
+
+A Trail tenant is created **only** as a side effect of a first Google login on an unknown address (`routes/auth.ts:121`). No `POST /tenants`, no admin UI, no key that can do it. So "set up a separate Trail for fd-sundhed" is: someone logs in, creates the KB, mints a `trail_` key. The module can automate steps 2–3, never step 1.
+
+**None of this blocks F079.1** — the core is model-injected and stores nothing, so it is exactly the right thing to build while these are settled. It blocks fd-sundhed *going live on Trail*, which is a different date and a decision for Christian.
+
 ## Rollout — smallest first, each one useful alone
 
 | # | Story | Why this order |
