@@ -189,6 +189,32 @@ So a rule like "never state a diagnosis" cannot live only in `systemPrompt` if a
 
 **The core already permits this without a shape change** — `run()` yields an async iterable, so a policy is a transform over it. That is deliberate and is the reason this section exists now rather than after the adapters: nothing built today forecloses it, and nothing is being built for it speculatively either.
 
+### What screens 4 + 4b actually demand — Christian, 2026-08-27
+
+> *"Quick-replies er kun genveje — skrivefeltet nederst gør det tydeligt, at Britta kan svare frit med sine egne ord … assistenten stiller ét opklarende spørgsmål ad gangen og afslutter med et konkret tilbud: «Skal jeg finde en tid?» Ja-knappen fører direkte ind i booking-flowet (skærm 10), når lederen har godkendt. Men den første AI-chat vi starter med er Admin chatten."*
+
+Three requirements, and **none of them changes the core's shape** — which is the useful finding, because it means the admin chat can be built first without painting the employee chat into a corner:
+
+| What the screen does | Where it lives |
+|---|---|
+| **Quick-replies are shortcuts, never the interface.** The free-text field is always present and always the primary input. | The **widget** (F079.4). A chip that replaces the text field would be a menu, not a chat. |
+| **One clarifying question at a time.** | The **consumer's prompt**. Ours contributes nothing to it. |
+| **It ends in an OFFER that becomes a button into another flow** — and only when the leader has approved. | An ordinary **permission-gated tool**. Nothing new. |
+
+The third is the one worth writing down, because it is where a needless frame type would otherwise get invented. *"Shall I find you a time?"* with a Yes button is **a tool whose result carries the offer** — `tool-result` already carries `result: unknown`, so the widget renders the button from it. And modelling it as a tool is strictly better than a chip frame, because the offer then inherits the authorization contract: **"when the leader has approved" is a permission, checked per caller, exactly like everything else.** An offer the employee must not yet see is a tool she is not yet granted — so the model is never even told the offer exists.
+
+> A "suggested replies" frame would have put the same decision *outside* the permission gate. That is how the guard ends up in the wrong place, which is the defect this whole epic exists to prevent.
+
+### And a residency hole that only opens when we mount
+
+fd-sundhed asked for one more thing the same day: **"this caller may never leave the EU" must be able to FAIL, not be configured.** Read from Discovery rather than assumed — `@broberg/ai-sdk` v0.28.0 says every default tier has been **Mistral EU since v0.21**, and *"the SDK never leaves the EU on its own — one region, one attempt, tested."*
+
+**But:** *"a caller-supplied fallback to a US route WILL be taken when the EU call fails"*, and *"a fallback is a route, and it is the ROUTE that decides residency, never the model name."*
+
+So the hole is not in ai-sdk's defaults — it is in what the **caller** hands it, and this module *is* the caller. fd-sundhed measured their own exposure rather than acknowledging ours: they have exactly **one** LLM call in the whole repo, pinned to Mistral with **no fallback chain**, carrying no personal data. **They are not exposed today. The hole opens the second our module mounts**, because that is the call that gets a fallback chain and article-9 content at the same time.
+
+That is [F079.8](./F079.8-policy-seam.md) — one seam carrying both this and the no-diagnoses rule, and it is **blocked on a question asked of ai-sdk**, not on a guess: can they report the provider/model/region that *actually* answered, including after a fallback fired?
+
 ## Rollout — smallest first, each one useful alone
 
 | # | Story | Why this order |
@@ -200,6 +226,7 @@ So a rule like "never state a diagnosis" cannot live only in `systemPrompt` if a
 | **F079.5** | Spend cap + per-visitor rate limit + Turnstile | Must exist *before* the first public deploy, not after the first bill. |
 | **F079.6** | Retention, consent, redaction | A required value, not a default. |
 | **F079.7** | Pilot: Eir migrates to the core, keeping its own prompt and tools | The proof. If Eir cannot adopt it without losing anything, the extraction is wrong. |
+| **F079.8** | **Rules that can FAIL** — a policy seam over the outgoing stream (no-diagnoses · EU residency) | Not in the numbered order: it is **blocked on ai-sdk**, and the core already permits it without a shape change. Carded so it cannot evaporate. |
 
 **External dependencies — two, both proposed to trail, neither promised:**
 
