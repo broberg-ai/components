@@ -22,6 +22,34 @@ name: fly-server-deploy
 #       secrets:
 #         FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 #
+# F033.10 — IF YOUR APP KEEPS ITS DATA IN A FILE ON A FLY VOLUME, READ THIS:
+#
+#   `flyctl deploy` runs the app on TWO machines by default. An app whose
+#   database is a file on one attached volume cannot be run twice — the second
+#   machine either cannot take the volume or the pair write over each other.
+#   There is no error and no failed deploy. The job goes green and the data is
+#   wrong. So:
+#
+#       with:
+#         ha: false                       # one machine
+#         health_commit_path: .commit     # prove the NEW build is answering
+#
+#   You do not have to remember this: if your fly.toml declares `[mounts]` and
+#   `ha` is still true, this workflow REFUSES to deploy and tells you which
+#   input to set. `ha` defaults to true, so nothing changes for an app that
+#   really is stateless.
+#
+#   `health_commit_path` is a jq path to whatever your health endpoint reports
+#   as its commit. Without it, health-verify accepts the first HTTP 200 — and if
+#   the new release failed to boot, THE OLD VERSION IS STILL SERVING 200. With
+#   it, the poll continues until the sha this run deployed is the one answering.
+#   (That needs the F033.8 consumer half: `ARG GIT_SHA` + `ENV GIT_SHA=$GIT_SHA`
+#   in your Dockerfile, and your app reporting it.)
+#
+#   `extra_deploy_args` is an escape hatch for flags this workflow has no input
+#   for. It sits beside the typed inputs, not instead of them. Never put a
+#   secret in it — the deploy command is echoed to the log.
+#
 # Ship-dark: with no FLY_API_TOKEN the deploy is SKIPPED (job stays green) — a
 # fork/PR without the secret never red-fails. The token is only ever read via
 # env, never interpolated into a shell command.
@@ -102,6 +130,32 @@ on:
         required: false
         type: number
         default: 120
+      health_commit_path:
+        description: >
+          jq path to the commit the app reports on health_url (e.g. `.commit`).
+          When set, health-verify keeps polling until the SHA THIS RUN DEPLOYED
+          answers — a 200 from the version that was already running does NOT
+          satisfy it. Empty = accept any 200 (old behaviour).
+        required: false
+        type: string
+        default: ""
+      ha:
+        description: >
+          Run the app on Fly's default TWO machines. Set false for an app whose
+          data is a FILE on a single attached volume — two writers on one volume
+          is silent corruption, not an error. Default true so existing consumers
+          are unchanged.
+        required: false
+        type: boolean
+        default: true
+      extra_deploy_args:
+        description: >
+          Extra arguments appended to `flyctl deploy`. An escape hatch BESIDE
+          the typed inputs, not instead of them. Word-split, so multiple args
+          work. Never put a secret here — the deploy command is echoed.
+        required: false
+        type: string
+        default: ""
       required_secrets:
         description: >
           Comma-separated Fly secret NAMES that must exist on the app (checked
@@ -199,6 +253,42 @@ jobs:
           fi
           echo "All required secrets present."
 
+      - name: Single-writer guard (a volume + two machines is silent data loss)
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          CONFIG: ${{ inputs.config }}
+          HA: ${{ inputs.ha }}
+        run: |
+          # F033.10 — `flyctl deploy` runs the app on TWO machines by default.
+          # An app whose database is a FILE on one attached volume cannot be run
+          # twice: the second machine either cannot take the volume or the pair
+          # write over each other. There is no error and no failed deploy — the
+          # job goes green and the data is wrong.
+          #
+          # An `ha` input ALONE would only help someone who already knows this,
+          # which is exactly not the person about to hit it. The fly.toml we were
+          # handed already says whether there is a volume, so we read it.
+          if [ ! -r "$CONFIG" ]; then
+            # TWO STATES, NOT ONE (the form F033.8 and F033.9 were both about):
+            # "there is no [mounts] section" and "I could not look" are different
+            # facts. A guard that reports success because it never ran is worse
+            # than no guard, so this says so out loud instead of passing quietly.
+            echo "::notice::Single-writer check SKIPPED — no readable config at '$CONFIG'. This did NOT verify that the app is safe to run on two machines; it means the check could not look."
+            exit 0
+          fi
+          # A real TOML section header, not the substring "mounts" — so a
+          # commented-out `# [mounts]` or the word inside another value cannot
+          # trigger a stop people would then route around.
+          if grep -Eq '^[[:space:]]*\[\[?mounts\]\]?' "$CONFIG"; then
+            if [ "$HA" != "false" ]; then
+              echo "::error::$CONFIG declares a [mounts] volume, so this app keeps its data in a file on ONE disk — but the deploy would start TWO machines. Two writers on one volume corrupts data silently: no error, no failed deploy, a green job and wrong data. Set the workflow input 'ha: false' to deploy a single machine. (If you really do want two, this app must not keep state on a local volume.)"
+              exit 1
+            fi
+            echo "✓ [mounts] found and ha=false — deploying a single machine."
+          else
+            echo "✓ No [mounts] in $CONFIG — no single-writer constraint."
+          fi
+
       - name: Deploy (flyctl --remote-only)
         if: steps.guard.outputs.skip == 'false'
         env:
@@ -206,32 +296,73 @@ jobs:
           APP: ${{ inputs.app }}
           CONFIG: ${{ inputs.config }}
           DOCKERFILE: ${{ inputs.dockerfile }}
+          HA: ${{ inputs.ha }}
+          EXTRA_DEPLOY_ARGS: ${{ inputs.extra_deploy_args }}
         run: |
           APP_ARG=""; [ -n "$APP" ] && APP_ARG="--app $APP"
           DF_ARG=""; [ -n "$DOCKERFILE" ] && DF_ARG="--dockerfile $DOCKERFILE"
+          # F033.10 — only ha:false adds a flag. The default composes the exact
+          # same command as before this input existed, so no existing consumer
+          # changes behaviour by upgrading.
+          HA_ARG=""; [ "$HA" = "false" ] && HA_ARG="--ha=false"
           # F033.8 — stamp the build with the commit so a deploy-register can say WHICH
           # version shipped. 7 chars, matching `git rev-parse --short HEAD`, so a CI deploy
           # and a local ship of the same commit produce ONE id, not two rows for one release.
           SHA="${GITHUB_SHA:0:7}"
           set -x
-          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG --build-arg GIT_SHA="$SHA"
+          # EXTRA_DEPLOY_ARGS is deliberately unquoted so multiple arguments split
+          # into separate words rather than arriving as one blob.
+          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
 
-      - name: Health-verify (prove it serves 200)
+      - name: Health-verify (prove the NEW version serves 200)
         if: steps.guard.outputs.skip == 'false' && inputs.health_url != ''
         env:
           HEALTH_URL: ${{ inputs.health_url }}
           HEALTH_TIMEOUT: ${{ inputs.health_timeout }}
+          HEALTH_COMMIT_PATH: ${{ inputs.health_commit_path }}
         run: |
-          echo "Polling $HEALTH_URL for HTTP 200 (up to ${HEALTH_TIMEOUT}s)…"
+          # F033.10 — a plain 200 does not prove the deploy worked. If the new
+          # release failed to boot, the OLD version is still answering 200, so
+          # this step used to go green on the thing that was already there.
+          # With HEALTH_COMMIT_PATH we keep polling until the sha THIS RUN
+          # deployed is the one answering (F033.8 stamps it into the build).
+          SHA="${GITHUB_SHA:0:7}"
+          if [ -n "$HEALTH_COMMIT_PATH" ]; then
+            echo "Polling $HEALTH_URL until it serves commit $SHA at '$HEALTH_COMMIT_PATH' (up to ${HEALTH_TIMEOUT}s)…"
+          else
+            echo "Polling $HEALTH_URL for HTTP 200 (up to ${HEALTH_TIMEOUT}s)…"
+          fi
           deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
+          # Three outcomes get three DIFFERENT messages. Collapsing them is how
+          # F033.9 sent someone to fix secrets that were already set.
+          last_reason="never returned 200"
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$HEALTH_URL" || echo 000)
+            resp=$(curl -s --max-time 10 -w $'\n%{http_code}' "$HEALTH_URL" || printf '\n000')
+            code=$(printf '%s' "$resp" | tail -n1)
+            body=$(printf '%s' "$resp" | sed '$d')
             if [ "$code" = "200" ]; then
-              echo "✓ 200 from $HEALTH_URL — deploy proven healthy."
-              exit 0
+              if [ -z "$HEALTH_COMMIT_PATH" ]; then
+                echo "✓ 200 from $HEALTH_URL — deploy proven healthy."
+                exit 0
+              fi
+              served=$(printf '%s' "$body" | jq -r "$HEALTH_COMMIT_PATH // empty" 2>/dev/null || true)
+              if [ -z "$served" ]; then
+                last_reason="answered 200 but reported NO commit at '$HEALTH_COMMIT_PATH'"
+                echo "  … 200, but no commit at '$HEALTH_COMMIT_PATH', retrying in 5s"
+              elif [ "${served:0:7}" = "$SHA" ]; then
+                # Normalised to 7 chars so an app reporting the full sha and one
+                # reporting the short form both match — same choice as F033.8.
+                echo "✓ $HEALTH_URL serves commit $served — the NEW version is live."
+                exit 0
+              else
+                last_reason="answered 200 while still serving commit ${served} (expected ${SHA}) — the OLD version is up; the new one did not take over"
+                echo "  … 200 from commit $served, waiting for $SHA, retrying in 5s"
+              fi
+            else
+              last_reason="never returned 200"
+              echo "  … got $code, retrying in 5s"
             fi
-            echo "  … got $code, retrying in 5s"
             sleep 5
           done
-          echo "::error::$HEALTH_URL never returned 200 within ${HEALTH_TIMEOUT}s — deploy not proven healthy."
+          echo "::error::$HEALTH_URL — deploy NOT proven healthy within ${HEALTH_TIMEOUT}s: ${last_reason}."
           exit 1

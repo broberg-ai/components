@@ -7,10 +7,12 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "turbo run build",
-    "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "test": "node scripts/test-fly-deploy-workflow.mjs && turbo run test",
+    "typecheck": "turbo run typecheck",
+    "test:workflows": "node scripts/test-fly-deploy-workflow.mjs"
   },
   "devDependencies": {
-    "turbo": "^2.3.0"
+    "turbo": "^2.3.0",
+    "yaml": "^2.9.0"
   }
 }

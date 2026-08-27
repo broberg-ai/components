@@ -11,6 +11,9 @@ importers:
       turbo:
         specifier: ^2.3.0
         version: 2.9.16
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   packages/apikey:
     devDependencies:
