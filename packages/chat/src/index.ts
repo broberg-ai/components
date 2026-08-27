@@ -127,7 +127,18 @@ export interface ModelRequest {
 
 export type ModelEvent =
   | { type: "text"; text: string }
-  | { type: "tool-call"; id: string; name: string; args: Record<string, unknown> };
+  | { type: "tool-call"; id: string; name: string; args: Record<string, unknown> }
+  /**
+   * What this round cost. ADDITIVE (F079.5): a `ModelFn` that never yields it
+   * keeps working exactly as before — but a chat configured with a spend cap
+   * REFUSES rather than allowing when nothing arrives, because a ceiling that
+   * treats silence as "within budget" can never be reached and never says why.
+   *
+   * Deliberately NOT forwarded to the browser as a frame. What a stranger's
+   * question cost us is our number, not theirs; the consumer wrote this
+   * `ModelFn` and already holds it.
+   */
+  | ({ type: "usage" } & UsageReport);
 
 /**
  * The one thing the core needs from an LLM.
@@ -147,6 +158,13 @@ export type ModelFn = (req: ModelRequest) => AsyncIterable<ModelEvent>;
 // ---------------------------------------------------------------------------
 
 import { assertHistoryConfig, prepareHistory, type HistoryConfig } from "./history.js";
+import {
+  assertSpendCapConfig,
+  createSpendTracker,
+  type SpendCapConfig,
+  type SpendRefusalReason,
+  type UsageReport,
+} from "./guard.js";
 
 export type ChatFrame =
   | { type: "text"; text: string }
@@ -161,7 +179,17 @@ export type ChatFrame =
    * provider's raw 400 to the user today, which is the behaviour this replaces.
    */
   | { type: "history"; action: "warned" | "reduced" | "failed"; note: string; dropped?: number }
-  | { type: "done"; reason: "complete" | "max-rounds" | "too-large" };
+  /**
+   * The guard stopped the conversation. Reaching a ceiling is an ANSWER — the
+   * visitor is told plainly, never with a provider error and never by the
+   * stream simply ending.
+   *
+   * Its own frame, distinct from `error`, because "we are out of budget", "the
+   * model failed" and "I could not look that up" are three different things and
+   * merging them is what this epic's rule 6 forbids.
+   */
+  | { type: "limit"; reason: SpendRefusalReason; note: string }
+  | { type: "done"; reason: "complete" | "max-rounds" | "too-large" | "limited" };
 
 // ---------------------------------------------------------------------------
 // the prompt fragment the core owns
@@ -210,6 +238,15 @@ export interface CreateChatOptions<Ctx = unknown, Caller = unknown> {
    * than degrades.
    */
   history?: HistoryConfig;
+  /**
+   * A ceiling on ONE conversation, in USD. Optional; if you pass it, it must be
+   * a real number (there is no "off" that looks like a setting).
+   *
+   * It bounds a runaway tool->model->tool loop, which is the actual threat. It
+   * never stops the FIRST answer — you cannot know what a call costs before you
+   * have made it.
+   */
+  spend?: SpendCapConfig;
 }
 
 export interface RunInput<Ctx = unknown, Caller = unknown> {
@@ -222,6 +259,13 @@ export interface Chat<Ctx = unknown, Caller = unknown> {
   /** The tools this caller may use — denied ones are absent, not flagged. */
   toolsFor(caller: Caller): Promise<ChatTool<Ctx>[]>;
   run(input: RunInput<Ctx, Caller>): AsyncIterable<ChatFrame>;
+  /**
+   * Whether a ceiling was configured. Read by `createChatHandler` so a PUBLIC
+   * endpoint cannot be constructed over an uncapped chat — the handler owns the
+   * door, the core owns the money, and neither can enforce the other's half
+   * without being told.
+   */
+  readonly spendCapped: boolean;
 }
 
 export function createChat<Ctx = unknown, Caller = unknown>(
@@ -237,6 +281,10 @@ export function createChat<Ctx = unknown, Caller = unknown>(
   const can = opts.can;
   const maxRounds = opts.maxRounds ?? 6;
   const history = assertHistoryConfig(opts.history);
+  // Refused at construction, not at 3am: a cap given "0", NaN, or a string
+  // straight off an env var looks configured and enforces nothing.
+  if (opts.spend !== undefined) assertSpendCapConfig(opts.spend);
+  const spend = opts.spend;
   const name = opts.name ?? botName();
   const system = [corePrompt(name), opts.systemPrompt?.trim()].filter(Boolean).join("\n\n");
 
@@ -259,6 +307,9 @@ export function createChat<Ctx = unknown, Caller = unknown>(
   }
 
   async function* run(input: RunInput<Ctx, Caller>): AsyncIterable<ChatFrame> {
+    // Per RUN, not per chat: the ceiling bounds one conversation. A shared
+    // tracker would make the second visitor pay for the first one's loop.
+    const tracker = spend ? createSpendTracker(spend) : null;
     const allowed = await toolsFor(input.caller);
     const byName = new Map(allowed.map((t) => [t.name, t]));
     const specs: ToolSpec[] = allowed.map((t) => ({
@@ -302,8 +353,13 @@ export function createChat<Ctx = unknown, Caller = unknown>(
           if (ev.type === "text") {
             text += ev.text;
             yield { type: "text", text: ev.text }; // streamed, not batched
-          } else {
+          } else if (ev.type === "tool-call") {
             calls.push({ id: ev.id, name: ev.name, args: ev.args });
+          } else {
+            // Explicit rather than `else`. This used to be an else-branch over a
+            // two-member union, so adding `usage` to it would have pushed a cost
+            // report onto the call list as a tool named `undefined`.
+            tracker?.record(ev);
           }
         }
       } catch (err) {
@@ -347,6 +403,18 @@ export function createChat<Ctx = unknown, Caller = unknown>(
           messages.push({ role: "tool", toolCallId: call.id, content: `Error: ${why}` });
         }
       }
+
+      // The ceiling is checked HERE — after a round that produced tool calls,
+      // so another model call is about to happen, and never before the first
+      // one. That ordering is the whole design: a single question is always
+      // answered (the money is spent by the time an answer exists), and it is
+      // the tool->model->tool loop that gets bounded.
+      const verdict = tracker?.endRound();
+      if (verdict?.status === "refused") {
+        yield { type: "limit", reason: verdict.reason, note: verdict.note };
+        yield { type: "done", reason: "limited" };
+        return;
+      }
     }
 
     // Distinct from "complete": the conversation was cut off mid-work, and a
@@ -355,7 +423,7 @@ export function createChat<Ctx = unknown, Caller = unknown>(
     yield { type: "done", reason: "max-rounds" };
   }
 
-  return { toolsFor, run };
+  return { toolsFor, run, spendCapped: spend !== undefined };
 }
 
 function messageOf(err: unknown): string {

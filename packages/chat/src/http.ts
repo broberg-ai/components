@@ -15,6 +15,7 @@
  * 0.x locks the MINOR. Every @broberg package is 0.x.
  */
 import type { Chat, ChatFrame, ChatMessage } from "./index.js";
+import { assertPublicChatGuard, checkPublicRequest, type PublicChatGuard } from "./public.js";
 
 export interface ChatHandlerOptions<Ctx = unknown, Caller = unknown> {
   /** Built with `createChat()` — the model is injected there, not here. */
@@ -35,6 +36,21 @@ export interface ChatHandlerOptions<Ctx = unknown, Caller = unknown> {
    * to `run()` untouched and never serialised onto the wire.
    */
   getCtx?: (req: Request, caller: Caller) => Promise<Ctx> | Ctx;
+  /**
+   * Who can reach this endpoint. Defaults to `"authenticated"`.
+   *
+   * `"public"` is not a relaxation — it is the STRICTER setting: it refuses to
+   * construct without a rate limit, Turnstile and a spend ceiling. Opening a
+   * door has to cost more than leaving it shut.
+   *
+   * NOTE that `getCaller` stays required in public mode. A public chat has no
+   * user, so return your own anonymous marker (`{ anonymous: true }`) rather
+   * than `null` — `null` still means 401 — and let `can` decide which tools an
+   * anonymous caller may reach. Almost always: none of the ones that act.
+   */
+  mode?: "authenticated" | "public";
+  /** Required in `"public"` mode, refused at construction when absent. */
+  guard?: PublicChatGuard;
 }
 
 export type ChatHandler = (req: Request) => Promise<Response>;
@@ -61,6 +77,19 @@ export function createChatHandler<Ctx = unknown, Caller = unknown>(
     );
   }
 
+  const mode = opts.mode ?? "authenticated";
+  if (mode === "public") {
+    assertPublicChatGuard(opts.guard);
+    if (!opts.chat.spendCapped) {
+      throw new TypeError(
+        'createChatHandler: mode "public" requires the chat to carry a spend ceiling — pass `spend: ' +
+          "{ limitUsd }` to createChat(). A public endpoint with a bot wall and no ceiling still lets one " +
+          "authenticated-looking visitor run a tool loop until the bill arrives.",
+      );
+    }
+  }
+  const guard = opts.guard;
+
   return async function handle(req: Request): Promise<Response> {
     if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
@@ -73,6 +102,17 @@ export function createChatHandler<Ctx = unknown, Caller = unknown>(
 
     const messages = readMessages(body);
     if (!messages) return json(400, { error: "invalid_messages" });
+
+    // The wall, BEFORE the caller is resolved and long before the model — a
+    // refused request must not cost a session lookup, let alone a token.
+    if (mode === "public") {
+      const refusal = await checkPublicRequest(guard!, req, body);
+      if (refusal) {
+        const headers: Record<string, string> = {};
+        if (refusal.status === 429) headers["retry-after"] = String(refusal.retryAfterSeconds);
+        return json(refusal.status, { error: refusal.error }, headers);
+      }
+    }
 
     const caller = await opts.getCaller(req);
     // 401, NOT an empty tool list. A chat that answers strangers with no tools
@@ -186,9 +226,9 @@ function sse(frame: ChatFrame): string {
   return `data: ${JSON.stringify(frame)}\n\n`;
 }
 
-function json(status: number, body: unknown): Response {
+function json(status: number, body: unknown, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8" },
+    headers: { "content-type": "application/json; charset=utf-8", ...extra },
   });
 }

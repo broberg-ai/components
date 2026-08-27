@@ -14,6 +14,8 @@ export default defineConfig([
       client: "src/client.ts",
       trail: "src/trail.ts",
       history: "src/history.ts",
+      guard: "src/guard.ts",
+      public: "src/public.ts",
     },
     format: ["esm", "cjs"],
     dts: true,

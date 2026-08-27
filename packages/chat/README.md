@@ -396,6 +396,69 @@ that does not exist fails in your editor.
 0.31.0 turned it on by default with a content-derived key. Measured live:
 `$0.004411 → $0.000458`.
 
+## A ceiling, and a wall in front of a public endpoint
+
+A public chat is **an open LLM-spend faucet on a surface where strangers decide the volume**. An internal admin chat is not, which is why none of this is on by default — and why `mode: "public"` is the *stricter* setting, not the relaxed one.
+
+### The number the ceiling reads
+
+The first thing measured when this was built: **the core had no cost channel at all.** `ModelEvent` yielded `text` and `tool-call` and nothing else, so the figure a cap reads was discarded one layer below the guard that would read it. `usage` was added to that union — additively, so a `ModelFn` that never yields it keeps working:
+
+```ts
+const model: ModelFn = async function* (req) {
+  const res = await ai.chat({ tier: "smart", ... });
+  yield { type: "text", text: res.text };
+  yield { type: "usage", provider: res.usage.provider, model: res.usage.model, costUsd: res.usage.costUsd };
+};
+
+const chat = createChat({ model, tools, can, spend: { limitUsd: 0.50 } });
+```
+
+### Silence refuses. This is the whole point.
+
+`costUsd` is optional, and **every `ModelFn` in the fleet reported nothing when this was written.** A cap that reads *no number* as *within budget* is a ceiling that can never be reached and never says why — the consumer sets a limit, sees no error, and concludes they are protected.
+
+So the guard has **three** answers, not two:
+
+| | |
+|---|---|
+| `ok` | counted, under the ceiling |
+| `spend_cap` | the ceiling was reached |
+| `unmeasurable_cost` | **nothing usable arrived — refused** |
+| `untrusted_provider` | the provider's price is not one we enforce on — refused |
+
+`openai` and `deepseek` are **absent from `TRUSTED_COST_PROVIDERS` on purpose.** ai-sdk's F040 audit found both cache automatically while the SDK's reported price was too high; gemini and vertex were corrected in 0.32.0 against measured live figures, but openai and deepseek could not be measured — there was no key for either, and ai-sdk wrote nothing rather than writing it from memory. A cap built on a number we invented would be worse than no cap, **because it would be believed.**
+
+**The ceiling never stops the first answer.** You cannot know what a call costs before making it, so it bounds the runaway tool→model→tool loop — which is the actual threat — and a single question is always answered. Reaching it arrives as its own `limit` frame, never as a provider error and never as a stream that simply stops.
+
+### The public wall
+
+```ts
+import { SlidingWindowRateLimiter } from "@broberg/apikey";
+import { verifyTurnstile, hashIp } from "@broberg/forms-turnstile/server";
+
+export const POST = toNextHandler(createChatHandler({
+  chat,                                  // must carry `spend` — enforced
+  mode: "public",
+  getCaller: () => ({ anonymous: true }), // NOT null; null is still 401
+  guard: {
+    rateLimit: {
+      limiter: new SlidingWindowRateLimiter({ windowMs: 60_000, max: 10 }),
+      keyFor: (req) => hashIp(req.headers.get("x-forwarded-for") ?? ""),
+    },
+    turnstile: { verify: (t) => verifyTurnstile(t, process.env.TURNSTILE_SECRET!) },
+  },
+}));
+```
+
+Nothing here is re-rolled — the window is `@broberg/apikey`'s and the bot wall is `@broberg/forms-turnstile`'s, both taken **structurally** so you inherit no version pin from us. Both are installed here as devDependencies purely so a test proves those shapes still match, rather than asserting it in prose.
+
+Three things worth knowing:
+
+- **A public deployment cannot be constructed with a hole in it.** No rate limit, no Turnstile, or a capped-looking chat with no ceiling — each throws at construction. "Must exist before the first public deploy, not after the first bill" only means something if it is enforceable.
+- **The rate limit runs first**, because it is local and free. A flood is refused without paying Cloudflare a round-trip per bot.
+- **A Turnstile outage fails CLOSED**, with its own 503. Failing open would be exactly backwards: an outage is the cheapest possible moment for a flood, and the thing behind this wall costs money per request. A rejection tells a real person she is not human; an outage is not her fault, and the two must not share a status.
+
 ## What is NOT in here
 
 The widget, spend caps, retention, redaction, RAG-over-history. The core is the

@@ -29,7 +29,12 @@ function edges() {
     } catch {
       continue;
     }
-    for (const field of ["dependencies", "peerDependencies"]) {
+    // devDependencies are in scope too. They ship nothing, so the transitive
+    // harm above does not apply — but a CONFORMANCE TEST pinned by a caret
+    // proves our types match 0.3.x while consumers install 0.7.x, which is a
+    // test that stays green for the wrong reason. @broberg/chat's apikey +
+    // forms-turnstile edges (F079.5) are the first of these in the workspace.
+    for (const field of ["dependencies", "peerDependencies", "devDependencies"]) {
       for (const [name, range] of Object.entries(pkg[field] ?? {})) {
         if (name.startsWith("@broberg/")) out.push({ from: pkg.name, to: name, range, field });
       }

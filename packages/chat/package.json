@@ -1,7 +1,7 @@
 {
   "name": "@broberg/chat",
-  "version": "0.2.1",
-  "description": "The fleet's AI-chat core: a conversation loop with a tool registry where a tool without a declared permission is DENIED, streaming typed frames, and the model injected rather than imported — so it carries no dependency it can silently outgrow.",
+  "version": "0.3.0",
+  "description": "The fleet's AI-chat core: a conversation loop with a tool registry where a tool without a declared permission is DENIED, streaming typed frames, and the model injected rather than imported \u2014 so it carries no dependency it can silently outgrow.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -82,6 +82,26 @@
         "types": "./dist/history.d.cts",
         "default": "./dist/history.cjs"
       }
+    },
+    "./guard": {
+      "import": {
+        "types": "./dist/guard.d.ts",
+        "default": "./dist/guard.js"
+      },
+      "require": {
+        "types": "./dist/guard.d.cts",
+        "default": "./dist/guard.cjs"
+      }
+    },
+    "./public": {
+      "import": {
+        "types": "./dist/public.d.ts",
+        "default": "./dist/public.js"
+      },
+      "require": {
+        "types": "./dist/public.d.cts",
+        "default": "./dist/public.cjs"
+      }
     }
   },
   "scripts": {
@@ -90,6 +110,8 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@broberg/apikey": ">=0.3.1 <1",
+    "@broberg/forms-turnstile": ">=0.3.0 <1",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
