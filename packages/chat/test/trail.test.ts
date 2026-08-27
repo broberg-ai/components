@@ -110,6 +110,8 @@ describe("the request is the one sanne measured against the live engine", () => 
       path: "/ordning/adgang",
       breadcrumb: "Ordningen › Adgang",
       content: "En medarbejder på deltid er omfattet af ordningen.",
+      // no updatedAt: this fixture predates trail's F213.1, and an absent date
+      // must stay absent rather than becoming a field with a guess in it
     });
   });
 
@@ -258,18 +260,106 @@ describe("a model cannot choose the knowledge base", () => {
 // freshness — stated even though Trail does not report it
 // ---------------------------------------------------------------------------
 
-describe("freshness is explicit, including when it is unknown", () => {
+describe("freshness — Trail's updatedAt, labelled and never converted", () => {
+  // ⚠️ THE TRAP IS IN THIS TEST, NOT IN THE CODE. `bun test` defaults to TZ=UTC
+  // and CI containers are UTC — and under UTC local time and UTC COINCIDE, so
+  // the whole class of defect does not exist there. trail's own first test was
+  // green against the naive implementation for exactly that reason.
+  process.env.TZ = "Europe/Copenhagen";
+
+  it("CHECK ON THE CHECK: the timezone pin actually took effect, summer AND winter", () => {
+    // These two expressions are precisely the ones that hide the bug under UTC.
+    expect(new Date("2026-06-22 12:00:00").toISOString()).toBe("2026-06-22T10:00:00.000Z"); // +2
+    expect(new Date("2026-01-22 12:00:00").toISOString()).toBe("2026-01-22T11:00:00.000Z"); // +1
+    // …and one offset alone would not distinguish +1 from +2.
+    expect(new Date("2026-06-22 12:00:00").getTime()).not.toBe(new Date("2026-01-22 12:00:00").getTime() + 151 * 86400000);
+  });
+
+  const dated = (updatedAt: string | null, i = 0) => ({
+    title: `t${i}`,
+    content: `c${i}`,
+    neuronPath: `/p/${i}`,
+    ...(updatedAt === null ? {} : { updatedAt }),
+  });
+
+  it("carries Trail's string VERBATIM — the value is labelled, not re-derived", async () => {
+    const raw = "2026-04-20T21:42:57.000Z";
+    const result = await lookup(fakeFetch(() => ok({ hitCount: 1, chunks: [dated(raw)] })).fn);
+    expect(result.status).toBe("hit");
+    if (result.status !== "hit") return;
+    expect(result.passages[0]!.updatedAt).toBe(raw);
+    expect(result.freshness.oldestUpdatedAt).toBe(raw);
+    // If we had re-parsed and re-emitted under Europe/Copenhagen, this would
+    // have moved. trail measured the same thing on their own column.
+    expect(result.freshness.oldestUpdatedAt).not.toContain("19:42");
+    expect(result.freshness.oldestUpdatedAt).not.toContain("23:42");
+  });
+
+  it("reports the OLDEST date, not the newest — an answer is as current as its stalest source", async () => {
+    const result = await lookup(
+      fakeFetch(() =>
+        ok({ hitCount: 3, chunks: [dated("2026-06-01T10:00:00.000Z", 0), dated("2026-04-16T16:31:49.278Z", 1), dated("2026-08-27T09:00:00.000Z", 2)] }),
+      ).fn,
+    );
+    if (result.status !== "hit") throw new Error("expected a hit");
+    expect(result.freshness.oldestUpdatedAt).toBe("2026-04-16T16:31:49.278Z");
+    expect(result.freshness.unknown).toBe(0);
+    expect(result.freshness.note).toContain("2026-04-16T16:31:49.278Z");
+  });
+
+  it("THREE STATES: all dated · some undated · none dated are three different answers", async () => {
+    const all = await lookup(fakeFetch(() => ok({ hitCount: 2, chunks: [dated("2026-06-01T10:00:00.000Z", 0), dated("2026-07-01T10:00:00.000Z", 1)] })).fn);
+    const some = await lookup(fakeFetch(() => ok({ hitCount: 2, chunks: [dated("2026-06-01T10:00:00.000Z", 0), dated(null, 1)] })).fn);
+    const none = await lookup(fakeFetch(() => ok({ hitCount: 2, chunks: [dated(null, 0), dated(null, 1)] })).fn);
+    if (all.status !== "hit" || some.status !== "hit" || none.status !== "hit") throw new Error("expected hits");
+
+    expect(all.freshness.unknown).toBe(0);
+    expect(some.freshness.unknown).toBe(1);
+    expect(none.freshness.unknown).toBe(2);
+
+    // and the three notes are genuinely different sentences, not one with a number in it
+    expect(some.freshness.note).toMatch(/carry no date at all/);
+    expect(none.freshness.note).toMatch(/None of this knowledge carries a date/);
+    expect(all.freshness.note).not.toBe(some.freshness.note);
+    expect(some.freshness.note).not.toBe(none.freshness.note);
+    // a partial result must NOT read as fully dated
+    expect(some.freshness.oldestUpdatedAt).toBe("2026-06-01T10:00:00.000Z");
+    expect(none.freshness.oldestUpdatedAt).toBeNull();
+  });
+
   it.each([
-    ["a hit", () => ok(MEASURED_RESPONSE)],
-    ["an empty result", () => ok({ hitCount: 0, chunks: [] })],
-  ])("%s says IN WORDS that no update date is known", async (_l, handler) => {
-    // MEASURED by sanne across all 5 top-level and all 8 chunk keys: Trail
-    // reports no updatedAt/createdAt/version anywhere. So the field is present
-    // and says so — a missing date must never be read as "current".
-    const result = await lookup(fakeFetch(handler as never).fn);
-    const freshness = (result as { freshness?: { known: boolean; note: string } }).freshness;
-    expect(freshness?.known).toBe(false);
-    expect(freshness?.note).toMatch(/may be out of date/i);
+    ["prose", "engang i juni"],
+    ["Trail's RAW sqlite form, if their normalisation ever regressed", "2026-06-22 12:07:09"],
+    ["a local-time ISO with no zone", "2026-06-22T12:07:09"],
+    ["an offset that is not Z", "2026-06-22T12:07:09+02:00"],
+  ])("%s counts as UNKNOWN — never as a confident date", async (_label, value) => {
+    // The second row is the one that matters. Under Europe/Copenhagen `Date`
+    // reads it as LOCAL, so accepting it would produce a date two hours out
+    // that looks entirely plausible. Refusing degrades to unknown instead.
+    const result = await lookup(fakeFetch(() => ok({ hitCount: 1, chunks: [dated(value)] })).fn);
+    if (result.status !== "hit") throw new Error("expected a hit");
+    expect(result.freshness.oldestUpdatedAt).toBeNull();
+    expect(result.freshness.unknown).toBe(1);
+    // the raw value is still on the passage — we refuse to DATE it, we do not hide it
+    expect(result.passages[0]!.updatedAt).toBe(value);
+  });
+
+  it("freshness describes what we RETURNED, not what Trail sent", async () => {
+    // The oldest passage is dropped by our ceiling, so it is not part of this
+    // answer and must not date it.
+    const chunks = [dated("2026-08-01T10:00:00.000Z", 0), dated("2026-01-01T10:00:00.000Z", 1)];
+    const result = await lookup(fakeFetch(() => ok({ hitCount: 2, chunks })).fn, { query: "q" }, { maxPassages: 1 });
+    if (result.status !== "hit") throw new Error("expected a hit");
+    expect(result.freshness.oldestUpdatedAt).toBe("2026-08-01T10:00:00.000Z");
+    expect(result.truncated?.droppedPassages).toBe(1);
+  });
+
+  it("an EMPTY result still says the date is unknown rather than omitting it", async () => {
+    const result = await lookup(fakeFetch(() => ok({ hitCount: 0, chunks: [] })).fn);
+    expect(result.status).toBe("empty");
+    if (result.status !== "empty") return;
+    expect(result.freshness.oldestUpdatedAt).toBeNull();
+    expect(result.freshness.note).toMatch(/may be out of date/i);
   });
 });
 

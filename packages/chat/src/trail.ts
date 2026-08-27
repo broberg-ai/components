@@ -38,23 +38,44 @@ export interface TrailPassage {
   path?: string;
   breadcrumb?: string;
   content: string;
+  /**
+   * ISO-8601 UTC with Z, exactly as Trail sent it — LABELLED, NEVER CONVERTED.
+   * Absent when Trail could not date it. See TrailFreshness.
+   */
+  updatedAt?: string;
 }
 
 /**
- * Freshness, stated even when it is unknown.
+ * How old the knowledge behind this answer is.
  *
- * MEASURED by sanne across all five top-level and all eight chunk keys of a
- * real response: Trail reports no `updatedAt`, `createdAt` or `version`
- * anywhere. fd-sundhed's objection — their prose answers are DECISIONS that
- * change, one of which flipped twice in four hours — therefore cannot be
- * answered from a retrieve response today.
+ * Trail shipped `updatedAt` (their F213.1) after sanne measured that no date
+ * existed anywhere in a retrieve response. The contract they give us:
+ * ISO-8601 UTC with Z, or null when the stored value could not be read.
  *
- * So the field is present and says so. An absent date must never be read as
- * "current"; an absence read as a verdict is a failure this fleet has now
- * measured in both directions.
+ * TWO THINGS THAT LOOK LIKE DETAIL AND ARE NOT:
+ *
+ * 1. THE OLDEST DATE, NOT THE NEWEST. An answer is only as current as its
+ *    stalest source: if it rests on three passages and one is from April, then
+ *    part of the answer is from April. Reporting the newest would flatter it.
+ *
+ * 2. `unknown` IS COUNTED SEPARATELY, never folded into the date. Some
+ *    passages may carry a date and others none; saying only "as of June" would
+ *    hide that the rest is undated. Three states, not two — the rule this
+ *    package is built on.
+ *
+ * fd-sundhed's objection is what this exists for: their prose answers are
+ * DECISIONS that change, one of which flipped twice in four hours. A
+ * confidently stale answer is worse than none.
  */
 export interface TrailFreshness {
-  known: false;
+  /**
+   * The OLDEST update date among the passages returned, verbatim from Trail,
+   * or null when none of them carried one. Never a date we derived.
+   */
+  oldestUpdatedAt: string | null;
+  /** How many returned passages carry NO date at all. */
+  unknown: number;
+  /** What the model should say about it. */
   note: string;
 }
 
@@ -145,10 +166,77 @@ export interface TrailRetrieverOptions {
   maxTotalChars?: number;
 }
 
-const NO_FRESHNESS: TrailFreshness = {
-  known: false,
-  note: "Trail does not report when this knowledge was last updated, so it may be out of date. Say so if the answer depends on a decision that could have changed.",
-};
+const UNDATED_NOTE =
+  "None of this knowledge carries a date, so it may be out of date. Say so if the answer depends on a decision that could have changed.";
+
+const NO_FRESHNESS: TrailFreshness = { oldestUpdatedAt: null, unknown: 0, note: UNDATED_NOTE };
+
+/**
+ * Summarise the dates on the passages we are actually returning.
+ *
+ * Ordering uses Date.parse; the STRING we hand on is always Trail's own. That
+ * distinction is the whole point — parsing to compare is safe (an ISO string
+ * with Z is timezone-independent), parsing to re-emit is how a date moves two
+ * hours. trail measured the version of this that bites: their column holds both
+ * `2026-06-22 12:07:09` and `2026-04-16T16:31:49.278Z`, both UTC, and only one
+ * says so, so `new Date()` on the first reads it as LOCAL time.
+ */
+/**
+ * Trail's promised shape: ISO-8601 UTC with Z. Anything else is UNKNOWN.
+ *
+ * Strict on purpose. Their column holds `2026-06-22 12:07:09` alongside
+ * `2026-04-16T16:31:49.278Z` — both UTC, only one saying so — and they
+ * normalise server-side. Should that normalisation ever regress, a bare
+ * `2026-06-22 12:07:09` reaching us would be read by `Date` as LOCAL time and
+ * become a confidently wrong date two hours out. Refusing it degrades to
+ * "unknown" instead, which is the whole rule: a wrong date is worse than none.
+ *
+ * This is also why there is no mutation for "re-derive the string": a Z-form
+ * ISO string round-trips through Date unchanged, so no test could tell the two
+ * apart. The invariant is held by this gate, not by an assertion.
+ */
+const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+function freshnessOf(passages: TrailPassage[]): TrailFreshness {
+  let oldest: string | null = null;
+  let oldestAt = Infinity;
+  let unknown = 0;
+
+  for (const passage of passages) {
+    const raw = passage.updatedAt;
+    if (!raw) {
+      unknown++;
+      continue;
+    }
+    if (!ISO_UTC.test(raw)) {
+      unknown++;
+      continue;
+    }
+    const at = Date.parse(raw);
+    if (!Number.isFinite(at)) {
+      unknown++;
+      continue;
+    }
+    if (at < oldestAt) {
+      oldestAt = at;
+      oldest = raw; // Trail's own string, never a re-derived one
+    }
+  }
+
+  if (!oldest) return { oldestUpdatedAt: null, unknown, note: UNDATED_NOTE };
+  if (unknown > 0) {
+    return {
+      oldestUpdatedAt: oldest,
+      unknown,
+      note: `The oldest dated knowledge here is from ${oldest}, and ${unknown} passage(s) carry no date at all — so part of this may be older. Say so if the answer depends on a decision that could have changed.`,
+    };
+  }
+  return {
+    oldestUpdatedAt: oldest,
+    unknown: 0,
+    note: `The knowledge here was last updated ${oldest} at the oldest. Say so if the answer depends on a decision that could have changed since.`,
+  };
+}
 
 const DEFAULT_DESCRIPTION =
   "Look this up in the knowledge base before answering. Call it for ANY question about this organisation, its rules, its services or its decisions — the knowledge base takes precedence over what you already know.";
@@ -260,7 +348,9 @@ export function trailRetriever<Ctx = unknown>(opts: TrailRetrieverOptions): Chat
       return {
         status: "hit",
         passages: kept,
-        freshness: NO_FRESHNESS,
+        // Computed on what we ACTUALLY return, not on what Trail sent — a
+        // passage dropped by the ceiling is not part of this answer.
+        freshness: freshnessOf(kept),
         ...(dropped > 0 ? { truncated: { droppedPassages: dropped, reason } } : {}),
       };
     },
@@ -305,6 +395,9 @@ function readTrailBody(body: unknown): TrailPassage[] | null {
         ...(typeof c.neuronPath === "string" ? { path: c.neuronPath } : {}),
         ...(typeof c.headerBreadcrumb === "string" ? { breadcrumb: c.headerBreadcrumb } : {}),
         content,
+        // Taken verbatim. `null` from Trail means UNKNOWN, never "now", so it
+        // simply does not become a field.
+        ...(typeof c.updatedAt === "string" && c.updatedAt ? { updatedAt: c.updatedAt } : {}),
       });
     }
     return passages;

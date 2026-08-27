@@ -254,13 +254,38 @@ scoped to several tenants, with `X-Trail-Tenant` choosing between them. A partne
 scope bound to a single knowledge base is carded at trail (their F205.1) and **not
 built** — so until it is, the configuration here is the real barrier, not theirs.
 
-### 3. Freshness is stated even though Trail does not report it
+### 3. Freshness — the oldest date, and what is undated counted separately
 
-Measured by sanne across all five top-level and all eight chunk keys of a live
-response: **there is no `updatedAt` anywhere.** So every result carries
-`freshness: { known: false, note: … }` in words, because a missing date must
-never be read as "current" — fd-sundhed's prose answers are decisions that
-change, one of which flipped twice in four hours.
+Trail ships `updatedAt` per passage (their F213.1, live 2026-08-27): **ISO-8601 UTC
+with Z, or nothing.** Two decisions in how we use it:
+
+**The OLDEST date, not the newest.** An answer is only as current as its stalest
+source — if it rests on three passages and one is from April, part of the answer
+*is* from April. Reporting the newest would flatter it.
+
+**`unknown` is counted separately, never folded into the date.** Some passages
+may carry a date and others none; saying only *"as of June"* would hide that the
+rest is undated. Three states, not two:
+
+```ts
+{ oldestUpdatedAt: "2026-04-16T16:31:49.278Z", unknown: 0, note: "…last updated … at the oldest" }
+{ oldestUpdatedAt: "2026-06-01T10:00:00.000Z", unknown: 2, note: "…and 2 passage(s) carry no date at all" }
+{ oldestUpdatedAt: null,                       unknown: 2, note: "None of this knowledge carries a date" }
+```
+
+**Only ISO-8601 UTC with Z is accepted; anything else is UNKNOWN.** Trail's own
+column holds `2026-06-22 12:07:09` beside `2026-04-16T16:31:49.278Z` — **both
+UTC, only one saying so** — and they normalise server-side. Should that ever
+regress, a bare `2026-06-22 12:07:09` reaching us would be read by `Date` as
+*local* time and become a confidently wrong date two hours out. Refusing it
+degrades to "unknown" instead: **a wrong date is worse than none.**
+
+> ⚠️ **If you build on this, pin a non-UTC timezone in your test — and assert the
+> pin took effect.** `bun test` defaults to `TZ=UTC` and CI containers are UTC,
+> and under UTC local time and UTC coincide, so **this entire class of defect
+> does not exist there.** trail's own first test was green against the naive
+> implementation for exactly that reason. Test summer *and* winter, or `+1` and
+> `+2` both pass on a single offset.
 
 There is also **our own ceiling** on top of Trail's `maxChars`/`topK`, and what
 it dropped is reported. sanne cap nothing client-side, so the day Trail stops
