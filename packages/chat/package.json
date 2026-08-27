@@ -62,6 +62,16 @@
         "types": "./dist/client.d.cts",
         "default": "./dist/client.cjs"
       }
+    },
+    "./trail": {
+      "import": {
+        "types": "./dist/trail.d.ts",
+        "default": "./dist/trail.js"
+      },
+      "require": {
+        "types": "./dist/trail.d.cts",
+        "default": "./dist/trail.cjs"
+      }
     }
   },
   "scripts": {

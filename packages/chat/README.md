@@ -185,6 +185,72 @@ The caller is resolved **server-side, per request**, and can never arrive in the
 request body. Every message is rebuilt from the three fields we know, so a role
 or permission smuggled onto one is dropped rather than carried.
 
+## Knowledge comes from Trail, as a tool
+
+```ts
+import { trailRetriever } from "@broberg/chat/trail";
+
+const knowledge = trailRetriever({
+  baseUrl: "https://engine.trailmem.com",
+  kbId: "fd-sundhed-admin",          // CONFIG. Never an argument the model supplies.
+  token: process.env.TRAIL_API_KEY!,
+  permission: "knowledge.read",
+  fetch,                             // injected — every state below is testable with no network
+});
+```
+
+**Christian, 2026-08-27:** *"ALLE CHATS SKAL anvende trail — det er IKKE til diskussion."*
+So this is the fleet's one knowledge path, which means a defect here is a defect
+in every chat at once. Three properties follow from that.
+
+### 1. Three outcomes, never two
+
+```ts
+{ status: "hit",         passages, freshness, truncated? }
+{ status: "empty",       freshness, note }
+{ status: "unavailable", reason, note }     // ← no passages field at all
+```
+
+**A typed result, not a string, and this is the whole point.** sanne's tool
+*does* distinguish four failures — and their prompt merges them again:
+*"# Hvis trail_retrieve returnerer ingenting **eller fejler**"*, one branch,
+telling the model to answer from its own general training knowledge and never to
+say it cannot answer. So when Trail is down, a zone-therapy clinic's assistant
+answers **health** questions from generic training knowledge, in the
+practitioner's voice, and nobody can see the knowledge base was never asked.
+
+That is the Eir shop incident one storey down. **A prompt cannot merge two states
+it receives as different values** — so `unavailable` is a different value, and its
+instruction is the opposite one: *do not answer from your own general knowledge.*
+
+Errors never travel in the content channel either: `unavailable` carries a short
+machine reason, never the provider's body. A model handed `[error] HTTP 500 …`
+reads an error message as knowledge.
+
+### 2. The knowledge base is configuration, never an argument
+
+`kbId` does not appear in the schema the model sees, and one arriving in the
+model's arguments is *ignored*. If it were an argument, a model could be talked
+into another tenant's knowledge — and fd-sundhed alone is getting two knowledge
+bases, written for readers with different rights.
+
+### 3. Freshness is stated even though Trail does not report it
+
+Measured by sanne across all five top-level and all eight chunk keys of a live
+response: **there is no `updatedAt` anywhere.** So every result carries
+`freshness: { known: false, note: … }` in words, because a missing date must
+never be read as "current" — fd-sundhed's prose answers are decisions that
+change, one of which flipped twice in four hours.
+
+There is also **our own ceiling** on top of Trail's `maxChars`/`topK`, and what
+it dropped is reported. sanne cap nothing client-side, so the day Trail stops
+honouring `maxChars` they have none at all.
+
+> **Not live-verified.** Every state above is proven against a recorded response
+> measured from production, with `fetch` injected. No call has been made against
+> a real Trail from this package — a Trail tenant exists only after a human
+> Google login, so the first live run waits on that.
+
 ## Two boundaries worth knowing before you ship
 
 **1. The transcript is client-supplied.** A caller can forge their *own* history,
@@ -203,8 +269,9 @@ string, no stack trace. Asserted by scanning the emitted bytes.
 
 ## What is NOT in here
 
-Retrievers, the widget, spend caps, retention, redaction. The core is the
-contract; `/next`, `/hono`, `/http` and `/client` are the HTTP half of it.
+The widget, spend caps, retention, redaction, history management. The core is
+the contract; `/next`, `/hono`, `/http` and `/client` are the HTTP half, and
+`/trail` is the knowledge half.
 
 **Retention deserves its own warning.** Both stores measured during this design
 keep whole conversations with **no expiry at all** — and one of them holds GDPR

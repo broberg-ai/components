@@ -12,6 +12,7 @@ export default defineConfig([
       next: "src/next.ts",
       hono: "src/hono.ts",
       client: "src/client.ts",
+      trail: "src/trail.ts",
     },
     format: ["esm", "cjs"],
     dts: true,
