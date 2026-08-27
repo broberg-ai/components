@@ -119,6 +119,32 @@ sanne's sharpest observation is the reason the third one exists: **their tools a
 
 **A site cannot give Trail its own tools.** Prompt, tools and guardrails are all server-side there. Without that socket a shared module is a FAQ box — it can never say *"here are your free slots"*. That is a **proposal to trail**, not something built around them, and it is the epic's only external dependency.
 
+## GO, and the first consumer — Christian, 2026-08-27
+
+> *"FD Sundhed skal være første kunde … FD Sundhed skal anvende modulet internt i appen og kun udvalgte grupper skal have initial adgang, Ejer og Admins. Den skal selvfølgelig køre på en selvstændig trail … Når admin chatten er oppe at køre kan vi se på at indlejre en chat i selve flow i FD Sundhed som det initialt er mocked."*
+
+**This is a better first consumer than a public site, and it reorders the build in our favour.**
+
+| | |
+|---|---|
+| **Surface** | Internal, inside the fd-sundhed app — **not** a public visitor widget |
+| **Access** | Owner + Admins only, initially |
+| **Knowledge** | Its **own** Trail KB — Trail stays the brain, one tenant per consumer |
+| **Then** | Embed a chat in the fd-sundhed flow itself (mocked today) |
+| **Then** | Judge whether the module is strong enough to swap Eir and the CMS chat onto it |
+
+### Why this order is lucky
+
+The two things that would otherwise be hardest arrive first, and the two that would be riskiest arrive later:
+
+- **Authorization is exercised on day one.** An admin chat gated to Owner + Admins *is* the deny-by-default contract under load — the exact thing cms found broken in their own 64-tool chat. Building it against a real role model beats designing it against an imagined one.
+- **The spend faucet is closed by construction.** An authenticated group of a handful of people is not a surface where strangers decide the volume. The cost guard still gets built (F079.5), but it is not the thing standing between us and the first deploy.
+- **Health data is a hard constraint from the first line, not a retrofit.** fd-sundhed serves ~18.000 municipal employees, so EU-tier models and a retention limit are not options that can be added in v2 — which is precisely the mistake the sanne measurement exposed.
+
+### The swap is a test, not a promise
+
+Eir and the CMS chat are **not** migrating on schedule. They migrate *if* the module proves strong enough, and each already does something the module must match before it earns the swap: Eir streams with 8 tools and a 391-line bespoke prompt; cms drives 64 tools and generates its prompt from a live schema. **A module that cannot absorb those without loss has not passed** — and saying so before building is the point of writing it down.
+
 ## Rollout — smallest first, each one useful alone
 
 | # | Story | Why this order |
