@@ -191,13 +191,28 @@ or permission smuggled onto one is dropped rather than carried.
 import { trailRetriever } from "@broberg/chat/trail";
 
 const knowledge = trailRetriever({
-  baseUrl: "https://engine.trailmem.com",
-  kbId: "fd-sundhed-admin",          // CONFIG. Never an argument the model supplies.
+  baseUrl: "https://app.trailmem.com",   // ← see the two-host trap below
+  kbId: "fd-sundhed-admin",              // CONFIG. Never an argument the model supplies.
+  tenant: "fd-sundhed",                  // required on the app route
   token: process.env.TRAIL_API_KEY!,
   permission: "knowledge.read",
-  fetch,                             // injected — every state below is testable with no network
+  fetch,                                 // injected — every state below is testable with no network
 });
 ```
+
+> ### ⚠️ Two hosts, and one key does not fit both
+>
+> Measured by trail on a live call — and they fell into it themselves while
+> answering us:
+>
+> | | |
+> |---|---|
+> | `app.trailmem.com` | the admin proxy. **App key + `X-Trail-Tenant`.** It resolves the tenant and forwards with the tenant's own bearer. **Use this unless someone handed you a tenant key.** |
+> | `engine.trailmem.com` | wants the **tenant** key directly. sanne call this one because they were given that key. |
+>
+> The same key returns **200** on the first and **401 `"Invalid or revoked API key"`** on the second. The error blames the key. That is why `unauthorized` is its own
+> `reason` here rather than a generic `http_error` — otherwise you rotate a
+> credential that was never the problem.
 
 **Christian, 2026-08-27:** *"ALLE CHATS SKAL anvende trail — det er IKKE til diskussion."*
 So this is the fleet's one knowledge path, which means a defect here is a defect
@@ -229,10 +244,15 @@ reads an error message as knowledge.
 
 ### 2. The knowledge base is configuration, never an argument
 
-`kbId` does not appear in the schema the model sees, and one arriving in the
-model's arguments is *ignored*. If it were an argument, a model could be talked
-into another tenant's knowledge — and fd-sundhed alone is getting two knowledge
-bases, written for readers with different rights.
+`kbId` **and `tenant`** do not appear in the schema the model sees, and either
+arriving in the model's arguments is *ignored*. If they were arguments, a model
+could be talked into another tenant's knowledge — and fd-sundhed alone is getting
+two knowledge bases, written for readers with different rights.
+
+**And this lock is currently the only one.** trail measured that an app key can be
+scoped to several tenants, with `X-Trail-Tenant` choosing between them. A partner
+scope bound to a single knowledge base is carded at trail (their F205.1) and **not
+built** — so until it is, the configuration here is the real barrier, not theirs.
 
 ### 3. Freshness is stated even though Trail does not report it
 
@@ -250,6 +270,13 @@ honouring `maxChars` they have none at all.
 > measured from production, with `fetch` injected. No call has been made against
 > a real Trail from this package — a Trail tenant exists only after a human
 > Google login, so the first live run waits on that.
+>
+> **Set your own timeout, and mean the `unavailable` branch.** trail have no rate
+> limit on retrieve, and they volunteered why the third state matters: their
+> engine was down for ~75 minutes the evening this shipped, 502 to its own health
+> endpoint — a full volume, no successful deploy since 23 August, and a process
+> that had not restarted since 4 July, so nothing ever noticed. Their words:
+> *our uptime does not carry the assumption that we always answer.*
 
 ## Two boundaries worth knowing before you ship
 

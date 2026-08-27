@@ -69,8 +69,17 @@ export type TrailResult =
   | { status: "empty"; freshness: TrailFreshness; note: string }
   | {
       status: "unavailable";
-      /** A short machine reason. NEVER the provider's body — see the file header. */
-      reason: "timeout" | "network" | "http_error" | "bad_response";
+      /**
+       * A short machine reason. NEVER the provider's body — see the file header.
+       *
+       * `unauthorized` is separate from `http_error` on purpose. Trail answers a
+       * key used against the WRONG HOST with 401 "Invalid or revoked API key" —
+       * a message that blames the key. Measured by trail: the same key returns
+       * 200 on app.trailmem.com and 401 on engine.trailmem.com. Folding that
+       * into a generic http_error would leave a consumer rotating a key that
+       * was never the problem.
+       */
+      reason: "timeout" | "network" | "unauthorized" | "http_error" | "bad_response";
       note: string;
     };
 
@@ -90,6 +99,28 @@ export interface TrailRetrieverOptions {
   kbId: string;
   /** Trail bearer token. Read inside run(), never placed on a frame. */
   token: string;
+  /**
+   * The tenant slug, sent as `X-Trail-Tenant`. REQUIRED on the app route.
+   *
+   * THERE ARE TWO HOSTS AND ONE KEY DOES NOT FIT BOTH — measured by trail on a
+   * live call, and they fell into it themselves while answering us:
+   *
+   *   app.trailmem.com     the admin proxy. Takes an APP key + X-Trail-Tenant,
+   *                        looks the tenant up and forwards with the tenant's
+   *                        OWN bearer. This is the route to use unless someone
+   *                        has handed you a tenant key.
+   *   engine.trailmem.com  wants the TENANT key directly. sanne call this one
+   *                        because they were given that key.
+   *
+   * The same key returns 200 on the first and 401 "Invalid or revoked API key"
+   * on the second — an error that blames the key rather than the address.
+   *
+   * NOTE ON ISOLATION: an app key can be scoped to several tenants, and
+   * `X-Trail-Tenant` chooses between them. A partner scope bound to ONE
+   * knowledge base is carded at trail (F205.1) but NOT BUILT — so until it is,
+   * the configuration lock here is the real barrier, not theirs.
+   */
+  tenant?: string;
   /** Required, like every tool in this package. There is no default. */
   permission: string;
   /** Injected — so every state below is provable with no network and no key. */
@@ -144,6 +175,11 @@ export function trailRetriever<Ctx = unknown>(opts: TrailRetrieverOptions): Chat
   if (!token) throw new TypeError("trailRetriever: `token` is required");
 
   const doFetch = fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+    ...(opts.tenant ? { "x-trail-tenant": opts.tenant } : {}),
+  };
   const url = `${baseUrl.replace(/\/+$/, "")}/api/v1/knowledge-bases/${encodeURIComponent(kbId)}/retrieve`;
 
   return defineTool<Ctx>({
@@ -174,7 +210,7 @@ export function trailRetriever<Ctx = unknown>(opts: TrailRetrieverOptions): Chat
       try {
         response = await doFetch(url, {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          headers,
           body: JSON.stringify({ query, audience, maxChars, topK }),
           signal: AbortSignal.timeout(timeoutMs),
         });
@@ -186,6 +222,7 @@ export function trailRetriever<Ctx = unknown>(opts: TrailRetrieverOptions): Chat
         return unavailable(timedOut ? "timeout" : "network");
       }
 
+      if (response.status === 401 || response.status === 403) return unavailable("unauthorized");
       if (!response.ok) return unavailable("http_error");
 
       let body: unknown;
@@ -230,7 +267,7 @@ export function trailRetriever<Ctx = unknown>(opts: TrailRetrieverOptions): Chat
   });
 }
 
-function unavailable(reason: "timeout" | "network" | "http_error" | "bad_response"): TrailResult {
+function unavailable(reason: "timeout" | "network" | "unauthorized" | "http_error" | "bad_response"): TrailResult {
   return {
     status: "unavailable",
     reason,

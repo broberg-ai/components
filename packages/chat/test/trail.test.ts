@@ -152,6 +152,22 @@ describe("found · nothing found · COULD NOT ASK are three different values", (
     if (result.status === "unavailable") expect(result.reason).toBe(reason);
   });
 
+  it("401 and 403 get their OWN reason — the key is not always the problem", async () => {
+    // MEASURED by trail on a live call tonight, and they fell into it while
+    // answering us: the SAME key returns 200 on app.trailmem.com and 401
+    // "Invalid or revoked API key" on engine.trailmem.com. The message blames
+    // the key. Folded into a generic http_error, a consumer rotates a
+    // credential that was never wrong.
+    for (const status of [401, 403]) {
+      const result = await lookup(fakeFetch(() => new Response('{"error":"Invalid or revoked API key"}', { status })).fn);
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") expect(result.reason).toBe("unauthorized");
+    }
+    // and it is still distinct from an ordinary server failure
+    const five = await lookup(fakeFetch(() => new Response("boom", { status: 500 })).fn);
+    if (five.status === "unavailable") expect(five.reason).toBe("http_error");
+  });
+
   it("`unavailable` carries NO passages field at all — errors never ride the content channel", async () => {
     const { fn } = fakeFetch(() => new Response("nope", { status: 503 }));
     const result = await lookup(fn);
@@ -206,6 +222,30 @@ describe("a model cannot choose the knowledge base", () => {
     await lookup(fn, { query: "hej", kbId: "en-anden-lejer", kb: "en-anden-lejer", tenant: "x" });
     expect(calls[0]!.url).toContain(`/knowledge-bases/${KB}/`);
     expect(calls[0]!.url).not.toContain("en-anden-lejer");
+    expect(String(calls[0]!.init.body)).not.toContain("en-anden-lejer");
+  });
+
+  it("sends X-Trail-Tenant on the app route, and omits it when there is no tenant", async () => {
+    // The app route (app.trailmem.com) is an admin proxy: it takes an APP key
+    // plus this header, resolves the tenant and forwards with the tenant's own
+    // bearer. Without the header the request cannot be resolved at all.
+    const withTenant = fakeFetch(() => ok(MEASURED_RESPONSE));
+    await lookup(withTenant.fn, { query: "q" }, { tenant: "fd-sundhed" });
+    expect((withTenant.calls[0]!.init.headers as Record<string, string>)["x-trail-tenant"]).toBe("fd-sundhed");
+
+    const without = fakeFetch(() => ok(MEASURED_RESPONSE));
+    await lookup(without.fn);
+    expect((without.calls[0]!.init.headers as Record<string, string>)["x-trail-tenant"]).toBeUndefined();
+  });
+
+  it("the tenant is CONFIGURATION too — the model cannot supply one", async () => {
+    // An app key can be scoped to several tenants and X-Trail-Tenant chooses
+    // between them, so a model-supplied tenant would be a model-supplied
+    // TENANT SWITCH. trail's per-KB partner scope (their F205.1) is not built,
+    // which makes this lock the real barrier rather than theirs.
+    const { fn, calls } = fakeFetch(() => ok(MEASURED_RESPONSE));
+    await lookup(fn, { query: "q", tenant: "en-anden-lejer" }, { tenant: "fd-sundhed" });
+    expect((calls[0]!.init.headers as Record<string, string>)["x-trail-tenant"]).toBe("fd-sundhed");
     expect(String(calls[0]!.init.body)).not.toContain("en-anden-lejer");
   });
 
