@@ -406,3 +406,87 @@ describe("the core carries nothing it can silently outgrow", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// many tools — cms drove this: their chat has 64
+// ---------------------------------------------------------------------------
+
+describe("a registry with many tools", () => {
+  const many = Array.from({ length: 64 }, (_, i) =>
+    defineTool({
+      name: `tool_${i}`,
+      description: `d${i}`,
+      permission: i % 2 === 0 ? "read" : "write",
+      mutates: i % 2 === 1,
+      parameters: { type: "object", properties: {} },
+      run: () => i,
+    }),
+  );
+
+  it("asks `can` ONCE PER TOOL and asks them concurrently, not in a queue", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    let calls = 0;
+    const chat = createChat<undefined, { grants: string[] }>({
+      model: async function* () {},
+      tools: many,
+      can: async (p, caller) => {
+        calls++;
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 1));
+        inFlight--;
+        return caller.grants.includes(p);
+      },
+    });
+    const allowed = await chat.toolsFor({ grants: ["read"] });
+    expect(calls).toBe(64);
+    // A sequential loop would never have more than one ask open at a time.
+    expect(peak, "the permission checks ran one after another").toBeGreaterThan(1);
+    expect(allowed).toHaveLength(32);
+  });
+
+  it("keeps registry ORDER, not completion order", async () => {
+    const chat = createChat<undefined, unknown>({
+      model: async function* () {},
+      tools: many,
+      // resolve in reverse order of registration
+      can: async (_p, _c) => {
+        await new Promise((r) => setTimeout(r, Math.random() < 0 ? 0 : 0));
+        return true;
+      },
+    });
+    const allowed = await chat.toolsFor(undefined);
+    expect(allowed.map((t) => t.name).slice(0, 3)).toEqual(["tool_0", "tool_1", "tool_2"]);
+    expect(allowed).toHaveLength(64);
+  });
+
+  it.each([
+    ["a string", "yes"],
+    ["a number", 1],
+    ["an object", { granted: true }],
+    ["an array", ["read"]],
+  ])("ONLY `true` allows — a truthy %s DENIES", async (_label, verdict) => {
+    // Found by a mutation that stayed GREEN: replacing `=== true` with `!!`
+    // broke nothing, so the strictness was decoration. It is not decoration —
+    // `can` is consumer-supplied and a JS caller can return anything. A
+    // permission-lookup that accidentally returns its result object instead of
+    // a boolean must DENY, not hand over 64 tools.
+    const chat = createChat<undefined, unknown>({
+      model: async function* () {},
+      tools: many,
+      can: async () => verdict as unknown as boolean,
+    });
+    expect(await chat.toolsFor(undefined)).toEqual([]);
+  });
+
+  it("a read-only caller gets 32 tools and ZERO of them mutate", async () => {
+    const chat = createChat<undefined, { grants: string[] }>({
+      model: async function* () {},
+      tools: many,
+      can: async (p, caller) => caller.grants.includes(p),
+    });
+    const allowed = await chat.toolsFor({ grants: ["read"] });
+    expect(allowed.filter((t) => t.mutates)).toEqual([]);
+  });
+});

@@ -222,13 +222,20 @@ export function createChat<Ctx = unknown, Caller = unknown>(
 
   async function toolsFor(caller: Caller): Promise<ChatTool<Ctx>[]> {
     if (!tools.length) return [];
-    const allowed: ChatTool<Ctx>[] = [];
-    for (const t of tools) {
-      // No `||`, no truthiness on the permission itself — the ONLY question is
-      // whether the consumer says yes.
-      if (await can!(t.permission, caller)) allowed.push(t);
-    }
-    return allowed;
+    // `can` is asked ONCE PER TOOL, and the asks run concurrently rather than
+    // in a queue. cms drove this: their chat has 64 tools, so a sequential loop
+    // would be 64 round-trips stacked end to end before the model is even
+    // called. Order is preserved because the verdicts are zipped back onto the
+    // original list, not pushed as they resolve.
+    //
+    // NOTE FOR CONSUMERS WITH MANY TOOLS: this is N calls into YOUR `can`, so
+    // memoise the underlying grants lookup per caller — otherwise concurrency
+    // turns one slow lookup into N simultaneous ones.
+    //
+    // No `||`, no truthiness on the permission itself — the ONLY question is
+    // whether the consumer says yes.
+    const verdicts = await Promise.all(tools.map((t) => can!(t.permission, caller)));
+    return tools.filter((_, i) => verdicts[i] === true);
   }
 
   async function* run(input: RunInput<Ctx, Caller>): AsyncIterable<ChatFrame> {
