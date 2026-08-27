@@ -59,6 +59,23 @@ name: fly-server-deploy
 #   Fix: set `busy_timeout` BEFORE `journal_mode`. Mentioned here because the set
 #   of apps that need `ha: false` and the set that hit this are the same set.
 #
+# A DISCRIMINATING CHECK — the rule every input in this file has to meet, named
+# by coverletter after proving the guards above in their own pipeline.
+#
+#   The test is not "is it green". The test is: WOULD IT BE GREEN ANYWAY?
+#
+#   A check that cannot fail for the reason you care about fails in the GREEN
+#   direction, and that is exactly why it survives review — a red check gets
+#   investigated, a green one does not. Measured examples from two days:
+#     · health-verify polling for any 200 was green when the OLD version served it
+#     · a `busy_timeout` test matched the WORD and went green off a code comment
+#     · a mutation check read the exit code of `head`, not of the script
+#
+#   So when you add a `with:` input here, do not document its error message.
+#   Document THE OBSERVATION THAT SEPARATES THE TWO STATES. `health_commit_path`
+#   is the template: "200 from the old build" and "200 from the new one" are the
+#   same status code and different commits — the commit is what discriminates.
+#
 # Ship-dark: with no FLY_API_TOKEN the deploy is SKIPPED (job stays green) — a
 # fork/PR without the secret never red-fails. The token is only ever read via
 # env, never interpolated into a shell command.
