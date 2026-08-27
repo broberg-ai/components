@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as mod from "../src/index";
-import { deriveDevice, bucketWidth } from "../src/index";
+import { deriveDevice, bucketWidth, deviceFromRequest } from "../src/index";
 import { UA_FIXTURES } from "./fixtures";
 
 const ua = (s: string) => ({ "user-agent": s });
@@ -260,5 +260,43 @@ describe("evidence source", () => {
     const s = UA_FIXTURES.find((x) => x.expect.osFamily === "iOS")!.ua;
     const got = deriveDevice({ headers: { "user-agent": s, "sec-ch-ua-platform": '"Windows"' } });
     expect(got.os.family).toBe("iOS"); // the UA said iOS; a hint does not override it
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the page is not a dimension — a scope boundary, enforced
+// ---------------------------------------------------------------------------
+
+describe("no page path ever reaches the result", () => {
+  const SENSITIVE = "/da/behandlinger/psych";
+
+  it("reads the launch marker out of the query and nothing else from the URL", () => {
+    const facts = deviceFromRequest({
+      headers: { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1" },
+      url: `https://klinik.example${SENSITIVE}?src=pwa&utm_source=nyhedsbrev`,
+    });
+
+    // The marker WAS found — so the URL really was read, and the assertion
+    // below is about what was kept, not about a path that never arrived.
+    expect(facts.launch).toBe("installed");
+
+    const json = JSON.stringify(facts);
+    expect(json).not.toContain("behandlinger");
+    expect(json).not.toContain("psych");
+    expect(json).not.toContain("klinik.example");
+    expect(json).not.toContain("utm_source");
+    expect(json).not.toContain("nyhedsbrev");
+  });
+
+  it("has no field for a page, a URL, an id or a session", () => {
+    const facts = deriveDevice({ headers: { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" } });
+    // An exact key list, so a future dimension cannot be added quietly.
+    // sanneandersen measured why this matters: 543 rows, 119 with a user id,
+    // paths like /da/vidensbank/burnout — a named person plus the treatment
+    // she read about is GDPR article 9 data.
+    expect(Object.keys(facts).sort()).toEqual(["browser", "formFactor", "launch", "os", "source"]);
+    for (const forbidden of ["path", "url", "page", "referrer", "userId", "user_id", "sessionId", "session"]) {
+      expect(facts).not.toHaveProperty(forbidden);
+    }
   });
 });

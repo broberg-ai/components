@@ -194,6 +194,32 @@ until the first consumer who wants a bit more detail.
 Sessionisation is not an option here and never will be without its own decision
 and legal review.
 
+### Deliberately NOT collected — page paths, user ids, session tokens
+
+There is no field for the page. Not the path, not the URL, not a page title, and
+no option that adds one. This is a **scope boundary, not an omission** — a
+future reader who "needs one more dimension" should find this paragraph before
+they add it.
+
+The package does receive a URL (that is where the `?src=pwa` marker lives), and
+it reads **only that one query parameter**. The path is never parsed, never
+derived from, and never appears in the result.
+
+The reason is measured, not theoretical. `sanneandersen` — a zone-therapy clinic
+— ran a hand-rolled beacon that did store the path: **543 rows over 106 days,
+119 of them carrying a user id**. On that site a path is not "page 4"; it is
+`/da/behandlinger/psych` and `/da/vidensbank/burnout`. A user id next to one of
+those is a named person plus the treatment she was reading about — GDPR
+**article 9** special-category data, which needs explicit consent, on a site
+whose own privacy policy said it did not track.
+
+So deriving everything server-side with **no identifier and no path** is not a
+simplification. It is the only version that can run without a consent prompt at
+all, which is the whole reason Tier 0 exists.
+
+Page-level analytics is a different module, and a decision for the owner — not
+something to graft on here.
+
 ## `unknown` is an answer, not a gap
 
 The most important behaviour in the package:
