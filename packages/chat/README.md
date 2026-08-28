@@ -351,6 +351,12 @@ string, no stack trace. Asserted by scanning the emitted bytes.
 ## An overflowing conversation must not become a dead one
 
 ```ts
+const chat = createChat({ model, history: "standard" });   // a named profile
+```
+
+…or the full object, when you want the numbers yourself:
+
+```ts
 const chat = createChat({
   model,
   history: {
@@ -362,6 +368,51 @@ const chat = createChat({
   },
 });
 ```
+
+### It is one product question, not two numeric fields
+
+`{ strategy, maxInputTokens }` asks in a unit nobody decides in. The question a
+person actually answers is:
+
+> *What happens when the conversation gets too long — and how long may it get?*
+
+That has a different answer for someone authoring content for hours than for a
+visitor asking three questions. **cms put it to Christian in these words and he
+answered in two seconds; it could not have been asked in tokens.** So the
+translation lives here, once, instead of in every consumer:
+
+| you say | what happens when it runs long | what it costs |
+|---|---|---|
+| `"visitor-qa"` | **forget the oldest** — a stranger asks a handful of questions and leaves | free and instant |
+| `"standard"` | **forget the oldest** | free and instant, **but see the warning below** |
+| `"long-authoring"` | **summarise the oldest**, so the thread survives | one extra model call each time it fires — you supply `summarise` |
+| *(omit `history`)* | **no limit** — a choice, not the absence of one | the dead conversation above. See below. |
+
+**⚠️ "Forget the oldest" usually drops the user's opening instruction.** Tone,
+language, role, "answer in Danish, and always mention the free consultation" —
+that is turn one, so it is the first thing to go. The conversation then carries
+on without it **and everything looks entirely normal.** If the opening
+instruction matters, either put it in your `systemPrompt` (which is never
+dropped) or use `"long-authoring"` so it is summarised rather than lost.
+
+**⚠️ Omitting `history` is "no limit", and it is a choice with a name.** It is
+what every consumer has today if they skip the field, and the consequence is the
+whole reason this module exists: the conversation does not get expensive, it
+**dies**, and a retry resends the same oversized payload for ever.
+
+The numbers behind the profiles (`HISTORY_PROFILES`) are ours, **derived and not
+measured** — chosen to sit comfortably inside a 128k context even with a large
+tool set. They are a safe floor to start from, not the most your model can take.
+Steer one without leaving it:
+
+```ts
+import { resolveHistoryProfile } from "@broberg/chat/history";
+const config = resolveHistoryProfile("long-authoring", { summarise, maxInputTokens: 96_000 });
+```
+
+An unknown profile name **throws**, naming the valid ones. It never falls back to
+a default — that would be us making a silent decision about your bill, and about
+which of your user's turns survive, on the strength of a typo.
 
 **The defect this exists for, measured by cms in their own chat:** nothing
 truncates, so the client sends the whole conversation every message; the route's
@@ -386,18 +437,45 @@ system prompt, MINUS your tool schemas, MINUS room for the answer. The tool
 schemas are the part people forget, and they are sent on **every** call.
 
 > **Measured by cms, 2026-08-28, over their 64 tools:** names 967 chars,
-> descriptions 8,543, input schemas 18,756 — **28,266 characters, ≈7,000 tokens
-> before the conversation starts.** Two thirds of it is JSON schema, not prose.
-> And it grows every time somebody adds a tool.
+> descriptions 8,543, input schemas 18,756 — **28,266 characters: ≈7,100 tokens
+> at our default rate, ≈8,300 at the Danish rate they measured** (below), before
+> the conversation starts. Two thirds of it is JSON schema, not prose. And it
+> grows every time somebody adds a tool.
 
-The same measurement found their own prompt-size alarm was watching the system
-prompt and **not** the tool schemas — under-reporting the fixed cost by those
-7,000 tokens, in the green direction. Measure yours; do not assume.
+**Since 0.4.0 we count it for you.** `createChat` hands `prepareHistory` the
+tools *this caller may actually use*, so the number compared against your limit
+is what goes on the wire — a tool added tomorrow is counted tomorrow, and a
+caller denied a tool is not charged for it. There is nothing to keep in step.
+
+> Until 0.4.0 the guard counted only messages and the system prompt, so for any
+> consumer with a real tool set it was low by the whole cost of the schemas — and
+> **low is the green direction**: it reported room while the provider was already
+> over. Reported by cms the day they went to production on 0.3.0. The same
+> measurement found their own prompt-size alarm watching the system prompt and
+> **not** the tool schemas, under-reporting the fixed cost the same way.
+
+Calling `prepareHistory` yourself? Pass your tools as the fourth argument. And if
+something *else* fixed rides along on every call — a gateway preamble — declare
+it as `fixedOverheadTokens`; a value that is not a number is refused rather than
+counted as zero.
+
+**If the tool schemas alone exceed your limit**, you get `overhead_exceeds_limit`
+rather than `cannot_reduce`. They are different problems with different fixes:
+one says *shorten the conversation*, the other says *offer this caller fewer
+tools, or raise the limit*. Merged into one state, it would send you to trim a
+message that was never the problem.
 
 **2. `estimateTokens` is ~4 chars/token, and that is an ENGLISH rule of thumb.**
 Danish (æ ø å, longer word forms) costs more tokens per character, so the default
 estimate **under-counts** — the dangerous direction, because you believe you have
-room you do not have. `estimateTokens` is injectable for exactly this reason:
+room you do not have.
+
+> **Measured by cms on their own Danish prose, 2026-08-28: 3.41 characters per
+> token.** That is ~17 % more tokens than our default assumes, in exactly the
+> direction we warn about. It is recorded here as *evidence that you should
+> inject your own estimator* — **not** as a new default. One consumer's corpus is
+> not the fleet's, and a second number pretending to be universal would be worth
+> less than the measurement that shows why to take your own. `estimateTokens` is injectable for exactly this reason:
 pass your provider's real tokenizer, or set the ceiling low enough that the
 estimate's error cannot reach it. Write down which of the two you chose.
 
@@ -423,11 +501,12 @@ chat as a working tool and may expect to re-read a session word for word.
 ```ts
 { status: "unchanged", messages, estimatedTokens, warning? }
 { status: "reduced",   messages, estimatedTokens, dropped, strategy }
-{ status: "failed",    reason: "compaction_failed" | "cannot_reduce", messages, note }
+{ status: "failed",    reason: "compaction_failed" | "cannot_reduce" | "overhead_exceeds_limit", messages, note }
 ```
 
-`compaction_failed` (your summariser threw) and `cannot_reduce` (there was
-nothing left to remove) are **never the same value**, and a failure returns the
+`compaction_failed` (your summariser threw), `cannot_reduce` (there was nothing
+left to remove) and `overhead_exceeds_limit` (the tool schemas and fixed prompt
+do not fit on their own) are **never the same value**, and a failure returns the
 transcript **unchanged** — never half-shortened. sanne's rule, generalised: when
 a layer beneath the chat can fail, the failure carries its own state all the way
 up and never merges with "nothing found".

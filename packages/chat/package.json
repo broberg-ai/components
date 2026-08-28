@@ -1,7 +1,7 @@
 {
   "name": "@broberg/chat",
-  "version": "0.3.0",
-  "description": "The fleet's AI-chat core: a conversation loop with a tool registry where a tool without a declared permission is DENIED, streaming typed frames, and the model injected rather than imported \u2014 so it carries no dependency it can silently outgrow.",
+  "version": "0.4.0",
+  "description": "The fleet's AI-chat core: a conversation loop with a tool registry where a tool without a declared permission is DENIED, streaming typed frames, and the model injected rather than imported — so it carries no dependency it can silently outgrow.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,

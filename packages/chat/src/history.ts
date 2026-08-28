@@ -17,7 +17,7 @@
  * working tool and may expect to re-read a session word for word. This module
  * never mutates the array it is given — the caller keeps the original, always.
  */
-import type { ChatMessage } from "./index.js";
+import type { ChatMessage, ToolSpec } from "./index.js";
 
 /**
  * Chosen, never assumed.
@@ -62,6 +62,16 @@ export interface HistoryConfig {
   summarise?: (older: ChatMessage[]) => Promise<string> | string;
   /** Warn at this fraction of the limit. Default 0.8. Set 0 to disable. */
   warnAt?: number;
+  /**
+   * Anything ELSE that goes out with every call and is neither a message nor a
+   * tool schema — a provider preamble, a prefix your gateway injects. Optional.
+   *
+   * The tool schemas are NOT this: they are counted from the specs themselves
+   * (see `prepareHistory`'s fourth argument), because a number you have to
+   * remember to keep in step with your tool list is a number that goes stale
+   * the first time somebody adds a tool.
+   */
+  fixedOverheadTokens?: number;
 }
 
 export type HistoryOutcome =
@@ -83,8 +93,15 @@ export type HistoryOutcome =
        * nothing left to remove. sanne's rule, generalised: when a layer beneath
        * the chat can fail, the failure carries its own state all the way up and
        * never merges with "nothing found".
+       *
+       * `overhead_exceeds_limit` is the THIRD, added in F079.10 for the same
+       * reason: the fixed cost that goes out with every call (tool schemas +
+       * system prompt) does not fit on its own, so no amount of shortening the
+       * conversation can help. Folded into `cannot_reduce` it would tell the
+       * consumer to trim a message that is not the problem — the fix is fewer
+       * tools or a higher limit, and only a distinct state can say so.
        */
-      reason: "compaction_failed" | "cannot_reduce";
+      reason: "compaction_failed" | "cannot_reduce" | "overhead_exceeds_limit";
       /** UNCHANGED. A failure never returns a half-shortened transcript. */
       messages: ChatMessage[];
       estimatedTokens: number;
@@ -99,6 +116,39 @@ export function estimateTokens(messages: ChatMessage[], system?: string): number
   let chars = system ? system.length : 0;
   for (const m of messages) chars += m.content.length + m.role.length + 8;
   return Math.ceil(chars / 4);
+}
+
+/**
+ * The text a tool set actually costs on the wire: name, description and the
+ * full JSON Schema for the arguments, for every tool the caller may use.
+ *
+ * cms measured their own 64 tools on the day they adopted this package:
+ * names 967 chars, descriptions 8,543, input schemas 18,756 — 28,266 characters,
+ * about 8,300 tokens, ON EVERY CALL. Two thirds of it is schema rather than
+ * prose, and it grows every time somebody adds a tool.
+ */
+export function toolSchemaText(tools: readonly ToolSpec[]): string {
+  let text = "";
+  for (const t of tools) text += `${t.name}\n${t.description}\n${JSON.stringify(t.parameters)}\n`;
+  return text;
+}
+
+/**
+ * What the tool schemas cost, counted with the SAME estimator as everything
+ * else — so a consumer who injects a tokenizer calibrated for their language
+ * gets one rate applied to the whole payload, not their rate on the messages
+ * and ours on the schemas.
+ *
+ * The text is handed over as the `system` argument because that is what a tool
+ * set is from the counter's point of view: fixed text prepended to every call,
+ * belonging to no turn in the conversation.
+ */
+export function estimateToolTokens(
+  tools: readonly ToolSpec[],
+  estimate: (messages: ChatMessage[], system?: string) => number = estimateTokens,
+): number {
+  if (!tools.length) return 0;
+  return estimate([], toolSchemaText(tools));
 }
 
 export function assertHistoryConfig(config: HistoryConfig | undefined): HistoryConfig | undefined {
@@ -121,20 +171,61 @@ export function assertHistoryConfig(config: HistoryConfig | undefined): HistoryC
   if (config.strategy === "compact" && typeof config.summarise !== "function") {
     throw new TypeError('history: strategy "compact" requires a `summarise` function — this package makes no model calls of its own.');
   }
+  if (config.fixedOverheadTokens !== undefined) {
+    // Same refusal as the spend cap: a value that arrived as a string off an
+    // env var, or as NaN from a failed parse, LOOKS configured and counts
+    // nothing. Absent is a legitimate answer; present-and-not-a-number is not.
+    if (!Number.isFinite(config.fixedOverheadTokens) || config.fixedOverheadTokens < 0) {
+      throw new TypeError(
+        "history: `fixedOverheadTokens` must be a non-negative number when present. Leave it out if there is no extra " +
+          "fixed cost — do not pass a string, NaN, or a negative, which would silently under-count what you send.",
+      );
+    }
+  }
   return config;
 }
 
 /**
  * Decide what to SEND. Never mutates `messages`.
+ *
+ * `tools` — THE FOURTH ARGUMENT — is the fix F079.10 exists for. Until it
+ * existed this function counted only the messages and the system prompt, so
+ * for any consumer with a real tool set the number it compared against the
+ * limit was systematically LOW by the whole cost of the tool schemas. Low is
+ * the green direction: the guard reports room while the provider is already
+ * over, and the conversation dies in the exact way this module was written to
+ * prevent — on the consumer who did everything we asked.
+ *
+ * `createChat` passes the caller's ALLOWED tools automatically, so nothing has
+ * to be remembered there. Pass them yourself if you call this directly.
  */
 export async function prepareHistory(
   messages: ChatMessage[],
   config: HistoryConfig,
   system?: string,
+  tools: readonly ToolSpec[] = [],
 ): Promise<HistoryOutcome> {
   const estimate = config.estimate ?? estimateTokens;
   const limit = config.maxInputTokens;
-  const before = estimate(messages, system);
+  // Fixed: it rides along with every candidate payload, so it is added to each
+  // one rather than compared once and forgotten.
+  const overhead = estimateToolTokens(tools, estimate) + (config.fixedOverheadTokens ?? 0);
+  const before = estimate(messages, system) + overhead;
+
+  // Checked BEFORE any shortening. If the fixed cost alone is over the limit,
+  // every candidate below is over it too, and reporting that as "this turn is
+  // too large" would point the consumer at the wrong thing entirely.
+  if (overhead > limit) {
+    return {
+      status: "failed",
+      reason: "overhead_exceeds_limit",
+      messages,
+      estimatedTokens: before,
+      note:
+        `The tool definitions and fixed prompt come to about ${overhead} tokens, which is already over the ${limit}-token limit ` +
+        "before a single message is added. Shortening the conversation cannot help — offer this caller fewer tools, or raise the limit.",
+    };
+  }
 
   if (before <= limit) {
     const warnAt = config.warnAt ?? DEFAULT_WARN_AT;
@@ -151,7 +242,7 @@ export async function prepareHistory(
     for (let keep = Math.min(keepRecent, messages.length); keep >= 1; keep--) {
       const kept = trimLeadingToolMessages(messages.slice(messages.length - keep));
       if (!kept.length) continue;
-      const size = estimate(kept, system);
+      const size = estimate(kept, system) + overhead;
       if (size <= limit) {
         return { status: "reduced", messages: kept, estimatedTokens: size, dropped: messages.length - kept.length, strategy: "window" };
       }
@@ -201,7 +292,7 @@ export async function prepareHistory(
   for (let keep = keepRecent; keep >= 0; keep--) {
     const recent = trimLeadingToolMessages(messages.slice(messages.length - keep));
     const compacted: ChatMessage[] = [head, ...recent];
-    const size = estimate(compacted, system);
+    const size = estimate(compacted, system) + overhead;
     if (size <= limit) {
       return {
         status: "reduced",
@@ -234,4 +325,113 @@ function trimLeadingToolMessages(messages: ChatMessage[]): ChatMessage[] {
   let i = 0;
   while (i < messages.length && messages[i]!.role === "tool") i++;
   return messages.slice(i);
+}
+
+// ---------------------------------------------------------------------------
+// profiles — the question a person can actually answer (F079.10)
+// ---------------------------------------------------------------------------
+
+/**
+ * `{ strategy, maxInputTokens }` is two numbers. The question a person actually
+ * decides is: *what happens when the conversation gets too long, and how long
+ * may it get?* — and that has a different answer when someone authors content
+ * for hours than when a visitor asks three questions.
+ *
+ * cms put it to Christian in these words and he answered in two seconds. It
+ * could not have been asked in tokens. So the translation lives here, once,
+ * instead of in every consumer.
+ */
+export type HistoryProfile = "visitor-qa" | "standard" | "long-authoring";
+
+export interface HistoryProfileSpec {
+  strategy: HistoryStrategy;
+  maxInputTokens: number;
+  keepRecent: number;
+  /** What this profile is FOR, in the words the decision is made in. */
+  describes: string;
+  /** True when it cannot be used without a `summarise` you supply. */
+  requiresSummarise: boolean;
+}
+
+/**
+ * THESE NUMBERS ARE DERIVED, NOT MEASURED, and the difference is on the record.
+ *
+ * They are chosen to sit comfortably inside a 128k-token context even with a
+ * large tool set and a full-length answer — deliberately conservative, because
+ * we cannot hold a key for every model in every repo and a ceiling table
+ * without dates rots. They are a safe floor to start from, not the most your
+ * model can take: measure yours, then raise it with the object form.
+ *
+ * cms could not run the empirical ceiling test either (no Mistral key outside
+ * production), and said so rather than presenting a derivation as a
+ * measurement. Same standard here.
+ */
+export const HISTORY_PROFILES: Record<HistoryProfile, HistoryProfileSpec> = {
+  "visitor-qa": {
+    strategy: "window",
+    maxInputTokens: 8_000,
+    keepRecent: 8,
+    describes:
+      "A stranger asks a handful of questions and leaves. Short by nature, so the oldest turns are simply dropped — there is no long-lived instruction to lose, and dropping costs nothing and takes no time.",
+    requiresSummarise: false,
+  },
+  standard: {
+    strategy: "window",
+    maxInputTokens: 24_000,
+    keepRecent: 10,
+    describes:
+      "An ordinary back-and-forth. The oldest turns are dropped when it runs long. Free and instant — but see the warning on `window`: what goes first is usually the opening instruction.",
+    requiresSummarise: false,
+  },
+  "long-authoring": {
+    strategy: "compact",
+    maxInputTokens: 60_000,
+    keepRecent: 12,
+    describes:
+      "Someone works in the chat for hours and refers back to things agreed early on. The oldest turns are summarised rather than dropped, so the thread survives; it costs one extra model call each time it fires.",
+    requiresSummarise: true,
+  },
+};
+
+/**
+ * Resolve a named profile to a real `HistoryConfig`. The object form still
+ * works everywhere a profile does — a profile is a starting point you can
+ * steer, never a replacement for the numbers.
+ */
+export function resolveHistoryProfile(
+  profile: HistoryProfile,
+  overrides?: Partial<HistoryConfig>,
+): HistoryConfig {
+  const spec = HISTORY_PROFILES[profile];
+  if (!spec) {
+    // No fallback to a default. Picking one silently would be us making a
+    // decision about somebody's bill and about which of their turns survive,
+    // on the strength of a typo.
+    throw new TypeError(
+      `history: "${String(profile)}" is not a profile. Valid profiles are ${Object.keys(HISTORY_PROFILES)
+        .map((p) => `"${p}"`)
+        .join(", ")} — or pass the full { strategy, maxInputTokens } object.`,
+    );
+  }
+
+  const config: HistoryConfig = {
+    strategy: spec.strategy,
+    maxInputTokens: spec.maxInputTokens,
+    keepRecent: spec.keepRecent,
+    ...overrides,
+  };
+
+  if (config.strategy === "compact" && typeof config.summarise !== "function") {
+    // The doc IS the error. A profile that quietly fell back to dropping turns
+    // would take the user's opening instruction with it and look completely
+    // normal doing so — which is the hidden cost this profile exists to avoid.
+    throw new TypeError(
+      `history: profile "${profile}" summarises the oldest turns so the thread survives, and a summary is a model call ` +
+        `this package does not make. Pass your own: resolveHistoryProfile("${profile}", { summarise }). If you would rather ` +
+        `DROP the oldest turns instead — free and instant, but it usually takes the user's opening instruction (tone, ` +
+        `language, role) with it — use the "standard" profile.`,
+    );
+  }
+
+  return assertHistoryConfig(config)!;
 }

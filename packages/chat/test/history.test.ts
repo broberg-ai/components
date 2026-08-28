@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { createChat, defineTool, type ChatFrame, type ChatMessage, type ModelFn } from "../src/index.js";
-import { prepareHistory, estimateTokens, assertHistoryConfig, type HistoryConfig } from "../src/history.js";
+import { createChat, defineTool, type ChatFrame, type ChatMessage, type ModelFn, type ToolSpec } from "../src/index.js";
+import {
+  prepareHistory,
+  estimateTokens,
+  estimateToolTokens,
+  assertHistoryConfig,
+  resolveHistoryProfile,
+  HISTORY_PROFILES,
+  type HistoryConfig,
+  type HistoryProfile,
+} from "../src/history.js";
 
 /**
  * F079.9 — history management.
@@ -309,5 +318,265 @@ describe("through the conversation loop", () => {
     const chat = createChat<undefined, undefined>({ model: spy });
     for await (const _ of chat.run({ messages: conversation(40), caller: undefined, ctx: undefined })) void _;
     expect(seen).toBe(40); // today's fleet-wide behaviour, and why this story exists
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F079.10 — the estimate could not see the tool schemas
+//
+// Reported by cms the day they went to production on 0.3.0. Their 64 tools cost
+// ~28,266 characters (~8,300 tokens) on EVERY call, and none of it was counted.
+// The failure runs in the GREEN direction: the guard reports room while the
+// provider is already over.
+//
+// MUTATION, named so the next reader knows which way it fails: delete
+// `+ overhead` from the sums in prepareHistory and the tests below go
+// green-and-wrong — they are the only thing standing between a consumer and a
+// dead conversation they did everything right to avoid.
+// ---------------------------------------------------------------------------
+
+const bigTool = (name: string, schemaChars: number): ToolSpec => ({
+  name,
+  description: "d",
+  parameters: { type: "object", properties: { q: { type: "string", description: "x".repeat(schemaChars) } } },
+});
+
+describe("the ceiling is compared against what is actually SENT", () => {
+  it("a conversation that fits ALONE does not fit once the tool schemas are counted", async () => {
+    const convo = conversation(3);
+    const tools = [bigTool("search", 600)];
+
+    // The control, one line above the finding: without tools this same
+    // conversation is comfortably under the limit. If it were not, the second
+    // assertion would pass for a reason that has nothing to do with tools.
+    const withoutTools = await prepareHistory(convo, window40);
+    expect(withoutTools.status, "the fixture must fit on its own, or it proves nothing").toBe("unchanged");
+
+    const withTools = await prepareHistory(convo, window40, undefined, tools);
+    expect(withTools.status).toBe("reduced");
+    expect(withTools.estimatedTokens).toBeLessThanOrEqual(window40.maxInputTokens);
+  });
+
+  it("the reported token count INCLUDES the overhead — it is what goes on the wire, not what we kept", async () => {
+    const convo = conversation(1, 100);
+    const tools = [bigTool("search", 800)];
+    const bare = await prepareHistory(convo, { ...window40, maxInputTokens: 100_000 });
+    const withTools = await prepareHistory(convo, { ...window40, maxInputTokens: 100_000 }, undefined, tools);
+    expect(withTools.estimatedTokens).toBeGreaterThan(bare.estimatedTokens);
+    expect(withTools.estimatedTokens - bare.estimatedTokens).toBe(estimateToolTokens(tools));
+  });
+
+  it("every tool a caller may use is counted — the cost grows with the tool list", () => {
+    const one = estimateToolTokens([bigTool("a", 500)]);
+    const three = estimateToolTokens([bigTool("a", 500), bigTool("b", 500), bigTool("c", 500)]);
+    expect(three).toBeGreaterThan(one * 2);
+    expect(estimateToolTokens([])).toBe(0); // NEGATIVE CONTROL: no tools, no charge
+  });
+
+  it("counts the schemas with the CONSUMER's estimator, not ours — one rate over the whole payload", async () => {
+    // cms measured 3.41 chars/token on their Danish prose against our ~4. A
+    // consumer who injects that rate must have it applied to the schemas too,
+    // or the half we count for them is the half that does not overflow.
+    const danish = (messages: ChatMessage[], system?: string) => {
+      let chars = system ? system.length : 0;
+      for (const m of messages) chars += m.content.length;
+      return Math.ceil(chars / 3.41);
+    };
+    const tools = [bigTool("search", 1000)];
+    const ours = estimateToolTokens(tools);
+    const theirs = estimateToolTokens(tools, danish);
+    expect(theirs).toBeGreaterThan(ours);
+
+    const outcome = await prepareHistory(conversation(1, 100), { ...window40, estimate: danish, maxInputTokens: 100_000 }, undefined, tools);
+    expect(outcome.estimatedTokens).toBe(danish(conversation(1, 100)) + theirs);
+  });
+
+  it("THROUGH THE LOOP: createChat passes the caller's tools itself — there is nothing to remember", async () => {
+    // The wiring is the part that would otherwise be deferred: prepareHistory
+    // can be right and the loop can still never hand it the tools.
+    //
+    // Asserted as a DIFFERENCE rather than an absolute size, deliberately. An
+    // absolute threshold depends on the length of our own system prompt, so it
+    // would go red the day somebody edits corePrompt — a test that fails for a
+    // reason it is not about is a test people learn to ignore.
+    const heavy = defineTool<undefined>({
+      name: "search",
+      description: "d",
+      permission: "read",
+      parameters: { type: "object", properties: { q: { type: "string", description: "x".repeat(4000) } } },
+      run: () => "r",
+    });
+    async function sentToModel(tools: (typeof heavy)[]) {
+      let seen = -1;
+      const spy: ModelFn = async function* (req) {
+        seen = req.messages.length;
+        yield { type: "text", text: "ok" };
+      };
+      const chat = createChat<undefined, { ok: true }>({
+        model: spy,
+        tools,
+        ...(tools.length ? { can: () => true } : {}),
+        history: { strategy: "window", maxInputTokens: 4_000, keepRecent: 40 },
+      });
+      for await (const _ of chat.run({ messages: conversation(40), caller: { ok: true }, ctx: undefined })) void _;
+      return seen;
+    }
+
+    const withoutTools = await sentToModel([]);
+    const withTools = await sentToModel([heavy]);
+    expect(withoutTools, "the fixture never reached the model at all").toBeGreaterThan(0);
+    expect(withTools).toBeGreaterThan(0);
+    expect(withTools, "the tool schemas were not counted — this is the defect").toBeLessThan(withoutTools);
+  });
+
+  it("a caller DENIED a tool is not charged for it", async () => {
+    const heavy = defineTool<undefined>({
+      name: "search",
+      description: "d",
+      permission: "admin",
+      parameters: { type: "object", properties: { q: { type: "string", description: "x".repeat(4000) } } },
+      run: () => "r",
+    });
+    async function sentToModel(admin: boolean) {
+      let seen = -1;
+      const spy: ModelFn = async function* (req) {
+        seen = req.messages.length;
+        yield { type: "text", text: "ok" };
+      };
+      const chat = createChat<undefined, { admin: boolean }>({
+        model: spy,
+        tools: [heavy],
+        can: (perm, caller) => caller.admin && perm === "admin",
+        history: { strategy: "window", maxInputTokens: 4_000, keepRecent: 40 },
+      });
+      for await (const _ of chat.run({ messages: conversation(40), caller: { admin }, ctx: undefined })) void _;
+      return seen;
+    }
+    const asAdmin = await sentToModel(true);
+    const asReader = await sentToModel(false);
+    expect(asAdmin).toBeGreaterThan(0);
+    expect(asReader, "the denied caller paid for a tool they were never offered").toBeGreaterThan(asAdmin);
+  });
+});
+
+describe("compaction is sized against the same payload", () => {
+  it("COMPACT counts it too — measured, this was the one mutation that stayed green", async () => {
+    // The compact step-down had its own `+ overhead`, and nothing exercised it:
+    // deleting it left all 180 tests passing. A consumer on `compact` with a
+    // real tool set would have been under-counted in exactly the way this
+    // story exists to fix, and the suite would have agreed with the code.
+    const cfg = (): HistoryConfig => ({ strategy: "compact", maxInputTokens: 400, keepRecent: 6, summarise: async () => "s" });
+    const convo = conversation(20);
+    const tools = [bigTool("search", 600)];
+
+    const bare = await prepareHistory(convo, cfg());
+    const withTools = await prepareHistory(convo, cfg(), undefined, tools);
+    expect(bare.status).toBe("reduced");
+    expect(withTools.status).toBe("reduced");
+    if (bare.status === "reduced" && withTools.status === "reduced") {
+      expect(withTools.dropped, "the summary + recent turns were sized without the tool schemas").toBeGreaterThan(bare.dropped);
+    }
+  });
+});
+
+describe("'the tools alone do not fit' is its own state", () => {
+  it("reports overhead_exceeds_limit — never cannot_reduce, which would point at the wrong fix", async () => {
+    const outcome = await prepareHistory(conversation(1, 40), window40, undefined, [bigTool("search", 4000)]);
+    expect(outcome.status).toBe("failed");
+    if (outcome.status === "failed") {
+      expect(outcome.reason).toBe("overhead_exceeds_limit");
+      expect(outcome.note).toContain("fewer tools");
+      expect(outcome.messages).toHaveLength(1); // unchanged, as every failure is
+    }
+  });
+
+  it("NEGATIVE CONTROL: one oversized message with small tools is still cannot_reduce", async () => {
+    const outcome = await prepareHistory(conversation(1, 4000), window40, undefined, [bigTool("t", 10)]);
+    expect(outcome.status).toBe("failed");
+    if (outcome.status === "failed") expect(outcome.reason).toBe("cannot_reduce");
+  });
+});
+
+describe("a fixed overhead that is not a number is refused, never counted as zero", () => {
+  // AC#2, the REFUSAL half. The other half — "or must compute it itself" — is
+  // the branch createChat takes: it owns the tools, so it cannot be missing
+  // them, and the loop test above is what proves it.
+  it("refuses a string off an env var, NaN, and a negative", () => {
+    for (const bad of ["8300", Number.NaN, -1]) {
+      expect(() => assertHistoryConfig({ ...window40, fixedOverheadTokens: bad as number })).toThrow(/fixedOverheadTokens/);
+    }
+  });
+
+  it("the SAME config with a real number is accepted", () => {
+    expect(() => assertHistoryConfig({ ...window40, fixedOverheadTokens: 8300 })).not.toThrow();
+    expect(() => assertHistoryConfig({ ...window40, fixedOverheadTokens: 0 })).not.toThrow();
+  });
+
+  it("and it is actually ADDED, not merely validated", async () => {
+    const convo = conversation(3);
+    expect((await prepareHistory(convo, window40)).status).toBe("unchanged");
+    expect((await prepareHistory(convo, { ...window40, fixedOverheadTokens: 150 })).status).toBe("reduced");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F079.10 part 2 — the config asked in a unit nobody decides in
+// ---------------------------------------------------------------------------
+
+describe("named profiles resolve to numbers WE own", () => {
+  it("every profile resolves to a config that passes our own validator", () => {
+    for (const name of Object.keys(HISTORY_PROFILES) as HistoryProfile[]) {
+      const spec = HISTORY_PROFILES[name];
+      // long-authoring summarises, and a summary is a model call this package
+      // does not make — so it resolves WITH the caller's summariser and refuses
+      // without one. That refusal is the feature, not a gap in the profile.
+      const overrides = spec.requiresSummarise ? { summarise: async () => "s" } : undefined;
+      const config = resolveHistoryProfile(name, overrides);
+      expect(() => assertHistoryConfig(config)).not.toThrow();
+      expect(config.strategy).toBe(spec.strategy);
+      expect(config.maxInputTokens).toBe(spec.maxInputTokens);
+    }
+  });
+
+  it("'long-authoring' refuses without a summariser, and the error says what to do instead", () => {
+    expect(() => resolveHistoryProfile("long-authoring")).toThrow(/summarise/);
+    expect(() => resolveHistoryProfile("long-authoring")).toThrow(/"standard"/);
+    expect(() => resolveHistoryProfile("long-authoring", { summarise: async () => "s" })).not.toThrow();
+  });
+
+  it("an unknown name THROWS naming the valid ones — it never falls back to a default", () => {
+    // A fallback would be us making a silent decision about somebody's bill and
+    // about which of their turns survive, on the strength of a typo.
+    expect(() => resolveHistoryProfile("standrd" as HistoryProfile)).toThrow(/not a profile/);
+    expect(() => resolveHistoryProfile("standrd" as HistoryProfile)).toThrow(/"visitor-qa"/);
+  });
+
+  it("overrides steer a profile without replacing it", () => {
+    const config = resolveHistoryProfile("visitor-qa", { maxInputTokens: 999 });
+    expect(config.maxInputTokens).toBe(999);
+    expect(config.keepRecent).toBe(HISTORY_PROFILES["visitor-qa"].keepRecent); // the rest survives
+  });
+
+  it("createChat takes a profile NAME and behaves exactly as the object form", async () => {
+    const model: ModelFn = async function* () {
+      yield { type: "text", text: "ok" };
+    };
+    async function sent(history: "visitor-qa" | HistoryConfig) {
+      let seen = 0;
+      const spy: ModelFn = async function* (req) {
+        seen = req.messages.length;
+        yield* model({ system: "", messages: [], tools: [] });
+      };
+      const chat = createChat<undefined, undefined>({ model: spy, history });
+      for await (const _ of chat.run({ messages: conversation(400), caller: undefined, ctx: undefined })) void _;
+      return seen;
+    }
+    const spec = HISTORY_PROFILES["visitor-qa"];
+    expect(await sent("visitor-qa")).toBe(await sent({ strategy: spec.strategy, maxInputTokens: spec.maxInputTokens, keepRecent: spec.keepRecent }));
+    expect(await sent("visitor-qa")).toBeLessThan(400); // it really did bite
+  });
+
+  it("the raw object form still works unchanged — a profile never replaces the numbers", async () => {
+    expect((await prepareHistory(conversation(40), window40)).status).toBe("reduced");
   });
 });

@@ -157,7 +157,13 @@ export type ModelFn = (req: ModelRequest) => AsyncIterable<ModelEvent>;
 // frames
 // ---------------------------------------------------------------------------
 
-import { assertHistoryConfig, prepareHistory, type HistoryConfig } from "./history.js";
+import {
+  assertHistoryConfig,
+  prepareHistory,
+  resolveHistoryProfile,
+  type HistoryConfig,
+  type HistoryProfile,
+} from "./history.js";
 import {
   assertSpendCapConfig,
   createSpendTracker,
@@ -236,8 +242,12 @@ export interface CreateChatOptions<Ctx = unknown, Caller = unknown> {
    * WITHOUT IT this loop sends whatever it is given, which is what every chat
    * in the fleet does today and why an overflowing conversation dies rather
    * than degrades.
+   *
+   * Takes a NAMED PROFILE — `"visitor-qa"`, `"standard"`, `"long-authoring"` —
+   * as well as the full object. The profile is the same question in the words
+   * a person can answer; the object is still there when you want the numbers.
    */
-  history?: HistoryConfig;
+  history?: HistoryConfig | HistoryProfile;
   /**
    * A ceiling on ONE conversation, in USD. Optional; if you pass it, it must be
    * a real number (there is no "off" that looks like a setting).
@@ -280,7 +290,10 @@ export function createChat<Ctx = unknown, Caller = unknown>(
   }
   const can = opts.can;
   const maxRounds = opts.maxRounds ?? 6;
-  const history = assertHistoryConfig(opts.history);
+  const history =
+    typeof opts.history === "string"
+      ? resolveHistoryProfile(opts.history)
+      : assertHistoryConfig(opts.history);
   // Refused at construction, not at 3am: a cap given "0", NaN, or a string
   // straight off an env var looks configured and enforces nothing.
   if (opts.spend !== undefined) assertSpendCapConfig(opts.spend);
@@ -327,7 +340,11 @@ export function createChat<Ctx = unknown, Caller = unknown>(
       // — is never rewritten; only the payload for this call is.
       let outgoing = messages;
       if (history) {
-        const outcome = await prepareHistory(messages, history, system);
+        // `specs` — the tools THIS caller may use — goes in so the ceiling is
+        // compared against what is actually sent. Nothing to remember and
+        // nothing to keep in step: a tool added tomorrow is counted tomorrow,
+        // and a caller denied a tool is not charged for it.
+        const outcome = await prepareHistory(messages, history, system, specs);
         if (outcome.status === "reduced") {
           outgoing = outcome.messages;
           yield {
