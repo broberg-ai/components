@@ -224,14 +224,38 @@ export type ChatFrame =
        * "Chat error" ON TOP OF a half-written answer that was fine. One silent
        * tool took the whole turn down.
        *
-       * Pick your own default — this is a decision, not a formality:
+       * ⚠️ AND THE EMPTY STRING IS NOT THE NEUTRAL CHOICE. It is the one that
+       * makes a model INVENT an answer, and it is the one a consumer reaches for
+       * precisely because it looks like it asserts nothing.
        *
-       *     JSON.stringify(frame.result) ?? ""            // empty is nothing
-       *     JSON.stringify(frame.result) ?? "(no result)" // empty is a message
+       * cms measured it against a real provider (2026-08-28, mistral-small,
+       * 5 runs per candidate, one question: "how many documents are on the
+       * site?"). What the USER was told when the tool returned:
        *
-       * Use `??`, NOT `||`. A tool answering `0` HAS answered, and `||` merges
-       * "zero documents found" with "no answer at all" — cms's distinction,
-       * with six tests on it, and it is the whole reason we do not choose for you.
+       *     ""              INVENTED A NUMBER in 3 of 5 —
+       *                     «Der er pt. 12 dokumenter på sitet.», as a fact
+       *     "(no result)"   0 of 5 — «I cannot see the number.»
+       *     "undefined"     0 of 5 — the same honest answer
+       *
+       * Five runs demonstrates the failure mode; it does not quantify it. But
+       * the direction is the point: an empty string gives the model NOTHING TO
+       * CONTRADICT, so it fills the gap. `"undefined"` is ugly and fails safe.
+       *
+       * So: still your choice of words — but not the empty one.
+       *
+       *     JSON.stringify(frame.result) ?? "(no result)"   // says nothing was found
+       *     JSON.stringify(frame.result) ?? ""              // ⚠️ invites invention
+       *
+       * THE FULL RULE, cms's, after they corrected their own first fix:
+       *
+       *   `0` and `false` ARE answers   → never merge them with "no answer"
+       *   undefined, null and "" ARE "no answer" → and must SAY so, not be empty
+       *
+       * The halves pull opposite ways, which is why `||` is wrong AND `?? ""` is
+       * wrong. Use `??` — `||` would merge "zero documents found" with "no answer
+       * at all". And watch `null` specifically: `JSON.stringify(null)` is the
+       * STRING "null", which is truthy, so a truthiness check on the serialised
+       * result lets it through as an answer.
        *
        * (Our own transcript is not affected: `serialise()` already falls back
        * with `?? String(value)`, so the model never receives a non-string. The
