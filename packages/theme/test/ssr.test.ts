@@ -4,7 +4,7 @@ import { initTheme, getTheme, setTheme, toggleTheme, onThemeChange } from "../sr
 
 describe("SSR safety (node env — no document/localStorage)", () => {
   it("does not throw when DOM/localStorage are absent", () => {
-    expect(typeof document).toBe("object"); // F080.1 DELIBERATE BREAK — proving the gate goes red
+    expect(typeof document).toBe("undefined");
     expect(() => initTheme({ defaultTheme: "dark" })).not.toThrow();
     expect(() => setTheme("light")).not.toThrow();
     expect(() => toggleTheme()).not.toThrow();
