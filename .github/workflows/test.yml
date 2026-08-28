@@ -1,0 +1,72 @@
+name: test
+
+# THE WORKSPACE GATE. Runs the same thing a human runs at the root — every
+# package, every push, every PR.
+#
+# Why this file exists (F080, 2026-08-28): it did not, and nothing replaced it.
+# publish.yml has 38 jobs and every one of them runs `pnpm test` with
+# `working-directory: packages/<the-one-being-released>`, so a release has never
+# run another package's tests. The root script — check-internal-pins ·
+# test-fly-deploy-workflow · turbo run test across 39 packages — was something
+# only a person ran by hand, when they remembered.
+#
+# What that cost: @broberg/cron went red because cronjobs.webhouse.net improved
+# one sentence in its published API contract. Nothing in this repo had changed.
+# main was red, every publish in the workspace was blocked by it, and nothing
+# said so — it was found by running the root script by hand before a release.
+#
+# ⚠️ A PR YOU DID NOT CAUSE CAN GO RED HERE, and the fix is not a revert.
+# @broberg/cron's test ends with:
+#     vitest run && (node scripts/contract-drift.mjs || [ $? -eq 2 ])
+# which compares our generated src/schema.ts against the contract the LIVE
+# cronjobs.webhouse.net serves. Three outcomes, and only the middle one is a
+# failure:
+#     exit 0  reachable, matches                → pass
+#     exit 2  could not reach the service       → tolerated, pass
+#     exit 1  reachable, and we have DRIFTED    → FAIL
+# If this job is red on cron alone, run `pnpm --filter @broberg/cron gen` and
+# commit the regenerated schema. Do not delete the check to get merged: the
+# split above is precisely what keeps an outage at that service from reddening
+# every PR here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push should not queue behind a run nobody wants any more.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    # contract-drift.mjs makes a network call; a hung connection must not hold a
+    # runner open for the default six hours.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same toolchain as publish.yml — pnpm version from the root package.json
+      # "packageManager", node 22. A gate running a different toolchain than the
+      # release uses does not gate the release.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install (workspace)
+        run: pnpm install --frozen-lockfile
+
+      # Kept as two steps on purpose: a type error and a failing assertion are
+      # different problems, and one red X for both means opening the log to learn
+      # which one you have.
+      - name: Typecheck (39 packages)
+        run: pnpm typecheck
+
+      # No separate build step — `turbo run test` already builds what a test needs
+      # through its task graph. A second build would double the work and blur
+      # which stage failed.
+      - name: Test (workspace)
+        run: pnpm test
