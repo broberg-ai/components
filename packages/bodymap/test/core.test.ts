@@ -214,6 +214,16 @@ describe("requestVibration — four states, because four things can happen", () 
   it("a vibrate that THROWS is `declined` — an embedded webview must not crash the pick", () => {
     const boom = () => { throw new Error("NotAllowedError"); };
     expect(requestVibration([12], navWith(boom) as never)).toBe("declined");
+    // …and the whole point of catching it: emitFeedback is called BEFORE the
+    // renderer sets or clears the mark, so if a refused buzz escaped as an
+    // exception the user's pain mark would silently not be recorded. Assert
+    // that it does not throw, not merely that it returns a word.
+    const onFeedback = vi.fn();
+    expect(() => emitFeedback("select", "neck", { onFeedback, nav: navWith(boom) })).not.toThrow();
+    expect(onFeedback, "the signal was lost with the exception").toHaveBeenCalledWith({
+      outcome: "select",
+      region: "neck",
+    });
   });
 
   it("`requested` is not a delivery claim — it is the only word the API can support", () => {

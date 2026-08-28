@@ -430,6 +430,29 @@ describe("onFeedback — the 2D renderer reports what happened (F052.22)", () =>
     expect(seen).toEqual([{ outcome: "select", region: "neck" }]);
   });
 
+  it("a browser whose vibrate THROWS still records the mark (haptics default ON)", () => {
+    // The failure this guards against is invisible: emitFeedback runs BEFORE the
+    // mark is set, so an escaping exception from a refused buzz would lose the
+    // user's pain point with nothing on screen to say so. Embedded webviews and
+    // cross-origin iframes throw rather than return false.
+    const original = globalThis.navigator;
+    vi.stubGlobal("navigator", {
+      ...original,
+      vibrate: () => { throw new Error("NotAllowedError"); },
+    });
+    try {
+      let last: PainReport | undefined;
+      render(<BodyMap onChange={(r) => (last = r)} />);   // no haptics prop ⇒ default ON
+      fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+      fireEvent.click(screen.getByTestId("bodymap-intensity-6"));
+      expect(last, "a throwing vibrate swallowed the mark").toEqual([
+        expect.objectContaining({ region: "knee_right", intensity: 6 }),
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("readOnly emits nothing — a display-only report is not interactive", () => {
     const seen: unknown[] = [];
     render(
