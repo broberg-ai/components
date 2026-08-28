@@ -235,6 +235,34 @@ Christian decided the other way. It is his call, it is made, and this plan follo
 
 **Two knowledge bases, not one.** Admin and end-user are separate Trails. The employee chat's KB is written for someone who cannot ask Christian; the admin KB is written for someone who can. Mixing them would let an employee's question reach an answer written for a manager.
 
+## cms is the GATE, not merely the first consumer — Christian, 2026-08-28
+
+> *"Dig og CMS kan jo godt fortsætte med jeres ai-chat samarbejde så det bliver gennemført godt og testet 100% af før vi begynder at rulle den ind i Sanne og fd-sundhed."*
+
+Nothing reaches sanne or fd-sundhed until cms's swap is **proven**. That is an ordering decision, and the reason is where a defect lands:
+
+| | if the engine is wrong here | |
+|---|---|---|
+| **cms** | an employee of ours gets a bad answer | a bug report |
+| **sanne / Eir** | a client gets health guidance in the practitioner's own voice | an incident |
+| **fd-sundhed** | 16,830 municipal employees | an incident |
+
+Prove it where being wrong is cheapest.
+
+### "Tested 100%" has to mean measured, not felt
+
+Three claims, agreed with cms **before** they swap rather than argued about afterwards:
+
+1. **All 64 tools produce the SAME allow/deny result per role as their existing filter — the diff must be EMPTY.** And if it is not, that is not a discrepancy to smooth over: either their old filter was right or we are, and it gets decided. Their own measured defect is the reason this is claim number one — `!t.permission || hasPermission(...)` handed a read-only user 61 tools, 30 of them mutating.
+2. **A conversation that previously DIED on overflow completes — and the next turn on the SAME conversation also succeeds.** "The message got shorter" is not the proof; surviving the round after is.
+3. **A denied tool is invisible to the model AND refused again at execution.** Both gates, not whichever one is easier to observe.
+
+**"cms installed it and nothing crashed" is not on the list.** An engine swap that silently changes which tools a role may reach looks exactly like a working one from outside — absence of a complaint is not evidence.
+
+### And the collaboration rule that applies here
+
+If cms finds a defect in the engine, it gets fixed **here**, not worked around there. A local patch in a consumer is precisely the drift this package exists to remove, and the fleet co-solve rule forbids each side patching its own half and trading diagnoses.
+
 ## Rollout — smallest first, each one useful alone
 
 | # | Story | Why this order |
