@@ -149,6 +149,8 @@ export interface BodyMapLabels {
   intensity: string;
   quality: string;
   remove: string;
+  /** Close the picker without marking anything (F052.26). */
+  close: string;
   front: string;
   back: string;
   empty: string;
@@ -185,6 +187,7 @@ export const LABELS_DA: BodyMapLabels = {
   intensity: "Intensitet (0-10)",
   quality: "Kvalitet",
   remove: "Fjern punkt",
+  close: "Luk",
   front: "Forfra",
   back: "Bagfra",
   empty: "Vælg en kropsdel for at markere smerte.",
@@ -208,6 +211,7 @@ export const LABELS_EN: BodyMapLabels = {
   intensity: "Intensity (0-10)",
   quality: "Quality",
   remove: "Remove point",
+  close: "Close",
   front: "Front",
   back: "Back",
   empty: "Pick a body part to mark pain.",
@@ -329,6 +333,10 @@ const STYLE = `
 .bmap__panel--empty{color:var(--bmap-muted);font-size:13.5px}
 .bmap__ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
 .bmap__ph b{font-size:16px}
+.bmap__close{margin-left:auto;font:inherit;font-size:20px;line-height:1;cursor:pointer;background:none;border:1px solid transparent;border-radius:8px;width:32px;height:32px;color:var(--bmap-muted,#475569)}
+.bmap__close:hover{background:var(--bmap-badge-bg,#f1f5f9)}
+.bmap__close:active{transform:scale(.94)}
+.bmap__close:focus-visible{outline:2px solid var(--bmap-accent,#0e8f8a);outline-offset:2px}
 .bmap__code{font:11px ui-monospace,monospace;color:var(--bmap-muted);background:var(--bmap-badge-bg);border-radius:6px;padding:2px 7px}
 .bmap__lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bmap-muted);margin:0 0 7px}
 .bmap__scale{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -680,6 +688,18 @@ export function BodyMap({
           <div className="bmap__ph">
             <b>{nameOf(region.key)}</b>
             <span className="bmap__code">{region.code}</span>
+            {/* F052.26 — the way OUT. Opening a region writes nothing, so there
+                was no exit that did not write something: mark it, or open a
+                different region you did not mean either. Always available, not
+                only when nothing is marked — closing is "stop editing this
+                region", which is a different act from removing the mark. */}
+            <button
+              type="button"
+              className="bmap__close"
+              data-testid="bodymap-close"
+              aria-label={L.close}
+              onClick={() => setSelected(null)}
+            >×</button>
           </div>
           <p className="bmap__lbl" id="bmap-intensity-lbl">{L.intensity}</p>
           <div className="bmap__scale" role="group" aria-labelledby="bmap-intensity-lbl">

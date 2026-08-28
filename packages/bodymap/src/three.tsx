@@ -555,8 +555,14 @@ export function BodyMap3D(props: BodyMap3DProps) {
   // Escape leaves fullscreen — a viewport-filling overlay with no keyboard way
   // out is a trap, and F052.11 made this component's accessibility a legal duty.
   useEffect(() => {
-    if (!isFullscreen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    if (!isFullscreen && !selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Innermost first: Escape closes the open region before it leaves
+      // fullscreen, so one press never does two things at once. (F052.26)
+      if (selected) setSelected(null);
+      else setFullscreen(false);
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -681,6 +687,20 @@ export function BodyMap3D(props: BodyMap3DProps) {
                 {showRegionCode && (
                   <span data-testid="bodymap3d-region-code" style={{ font: "11px ui-monospace, monospace", color: chrome.mutedText, background: chrome.badgeBg, borderRadius: 6, padding: "2px 7px" }}>{region.code}{region.side ? " · " + region.side : ""}</span>
                 )}
+                {/* F052.26 — the way OUT. Opening a region writes nothing, so
+                    until now there was no exit that did not write something:
+                    mark it, or open a different region you did not mean either.
+                    Always shown, not only when nothing is marked — closing is
+                    "stop editing this region", a different act from removing
+                    the mark. Both renderers get it: this package has been
+                    bitten three times today by fixing one half of a pair. */}
+                <button
+                  type="button"
+                  data-testid="bodymap3d-close"
+                  aria-label={L.close}
+                  onClick={() => setSelected(null)}
+                  style={{ ...btn, width: 32, height: 32, padding: 0, fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
+                >×</button>
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.intensity}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>

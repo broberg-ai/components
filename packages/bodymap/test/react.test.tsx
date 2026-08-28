@@ -468,3 +468,65 @@ describe("onFeedback — the 2D renderer reports what happened (F052.22)", () =>
     expect(seen).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F052.26 — the way OUT of an accidental tap.
+//
+// Found by fd-sundhed asking about something else. Opening a region writes
+// NOTHING, so before this the only exits were: mark it (writing something you
+// did not mean), or open a different region (which you also did not mean).
+// Every existing test taps a region IN ORDER TO MARK IT — nobody had ever
+// tested changing their mind, which is why a path with no exit went unnoticed.
+// ---------------------------------------------------------------------------
+
+describe("closing the picker without marking anything (F052.26)", () => {
+  it("an accidental tap can be undone: panel gone, report still empty", () => {
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Knæ");
+
+    fireEvent.click(screen.getByTestId("bodymap-close"));
+
+    // The panel is back to its empty state…
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Vælg en kropsdel");
+    // …and — the assertion that matters — nothing was written. Asserted on the
+    // report, not on the panel: closing a view must never touch the record.
+    expect(last ?? [], "closing wrote to the report").toEqual([]);
+  });
+
+  it("the REMOVE button's gating is unchanged — absent with nothing marked, present once marked", () => {
+    // The fix must not quietly widen this. fd-sundhed's read was right: a
+    // «Fjern punkt» button with an empty report tells the user something was
+    // stored when nothing was.
+    render(<BodyMap />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.queryByTestId("bodymap-remove"), "remove offered before anything was marked").toBeNull();
+
+    fireEvent.click(screen.getByTestId("bodymap-intensity-6"));
+    expect(screen.getByTestId("bodymap-remove")).toBeTruthy();
+  });
+
+  it("close is still available AFTER marking — stop editing is not the same act as remove", () => {
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    fireEvent.click(screen.getByTestId("bodymap-intensity-6"));
+    expect(last).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("bodymap-close"));
+    expect(screen.getByTestId("bodymap-panel").textContent).toContain("Vælg en kropsdel");
+    // CONTROL: closing kept the mark. If close and remove had been conflated,
+    // this is the line that would fail.
+    expect(last, "closing removed the mark").toHaveLength(1);
+  });
+
+  it("the close control is keyboard-reachable and labelled (F052.11 is a legal duty here)", () => {
+    render(<BodyMap />);
+    fireEvent.click(screen.getByTestId("bodymap-region-neck"));
+    const close = screen.getByTestId("bodymap-close");
+    expect(close.tagName).toBe("BUTTON");           // focusable by default
+    expect(close.getAttribute("aria-label")).toBe("Luk");
+  });
+});

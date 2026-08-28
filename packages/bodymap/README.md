@@ -211,6 +211,34 @@ had *arrived* on a device that never *showed* it.)
 `VIBRATION_PATTERNS.ignore` is empty on purpose: a tap that changed nothing must
 not feel like it did.
 
+## Closing the picker without marking anything
+
+Opening a region writes **nothing** to the report — only choosing an intensity
+does. So until 0.7.0 there was no exit from a region you opened by accident: your
+options were to mark it (writing something you did not mean) or to open a
+different region (which you also did not mean).
+
+Both renderers now carry a close control (`bodymap-close` / `bodymap3d-close`),
+and in the 3D renderer `Escape` closes the open region — falling through to
+leaving fullscreen only when no region is open, so one press never does two
+things.
+
+**Close is not remove, and the distinction is deliberate:**
+
+| | |
+|---|---|
+| **Close** | always available. Stops editing this region. **Never touches the report.** |
+| **Remove** | only when something is actually marked. Deletes the mark. |
+
+A «Remove» button offered while the report is empty tells the user something was
+stored when nothing was — so it stays gated, and the close control is what fills
+the gap.
+
+**Why it went unnoticed for so long:** every test and demo in this package taps a
+region *in order to mark it*. Nobody had ever tested changing their mind. Nothing
+was behaving wrongly — it was a path with no exit, and paths with no exit do not
+fail, they strand people.
+
 ## Fullscreen — fill the viewport with the body
 
 ```tsx
