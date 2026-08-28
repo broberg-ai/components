@@ -185,6 +185,8 @@ import {
   resolveHistoryProfile,
   type HistoryConfig,
   type HistoryProfile,
+  type HistoryStrategy,
+  type HistoryFailureReason,
 } from "./history.js";
 import {
   assertSpendCapConfig,
@@ -206,7 +208,34 @@ export type ChatFrame =
    * `warned` arrives while there is still room to act — cms's route passes the
    * provider's raw 400 to the user today, which is the behaviour this replaces.
    */
-  | { type: "history"; action: "warned" | "reduced" | "failed"; note: string; dropped?: number }
+  | {
+      type: "history";
+      action: "warned" | "reduced" | "failed";
+      /**
+       * ⚠️ DEVELOPER-FACING, AND IN ENGLISH. Written for someone reading a log,
+       * never for the person whose conversation was just shortened.
+       *
+       * cms passed this straight through to an end user (2026-08-28): an English
+       * sentence describing a mechanism turned up mid-conversation with a Danish
+       * customer. They were not being careless — until F079.12 there was NOTHING
+       * ELSE on this frame to act on, so the prose was the only signal.
+       *
+       * Switch on `action`, `reason` and `strategy`. Write your own sentence, in
+       * your own language, for your own user. Log this one.
+       */
+      note: string;
+      dropped?: number;
+      /**
+       * Present when `action` is "failed". The three states F079.9 and F079.11
+       * kept separate on purpose — and they mean different things to a user:
+       * `cannot_reduce` is "this one message is too long", while
+       * `overhead_exceeds_limit` is "your tools do not fit" and no amount of
+       * shortening helps.
+       */
+      reason?: HistoryFailureReason;
+      /** Present when `action` is "reduced" — were older turns summarised or dropped? */
+      strategy?: HistoryStrategy;
+    }
   /**
    * The guard stopped the conversation. Reaching a ceiling is an ANSWER — the
    * visitor is told plainly, never with a provider error and never by the
@@ -373,13 +402,14 @@ export function createChat<Ctx = unknown, Caller = unknown>(
             type: "history",
             action: "reduced",
             dropped: outcome.dropped,
+            strategy: outcome.strategy,
             note: `${outcome.dropped} earlier message(s) were ${outcome.strategy === "compact" ? "summarised" : "left out"} to stay within the limit. The full conversation is unchanged.`,
           };
         } else if (outcome.status === "failed") {
           // Stop here rather than send a payload we know is too large. Sending
           // it is how cms's conversation dies: the provider 400s, and a retry
           // sends exactly the same thing again, for ever.
-          yield { type: "history", action: "failed", note: outcome.note };
+          yield { type: "history", action: "failed", reason: outcome.reason, note: outcome.note };
           yield { type: "done", reason: "too-large" };
           return;
         } else if (outcome.warning) {

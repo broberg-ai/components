@@ -74,6 +74,13 @@ export interface HistoryConfig {
   fixedOverheadTokens?: number;
 }
 
+/**
+ * The machine-readable half of a failure. Named so it can travel — F079.12: the
+ * loop used to drop it, leaving a consumer nothing to switch on but our English
+ * prose, and one of them passed that prose straight to a customer.
+ */
+export type HistoryFailureReason = "compaction_failed" | "cannot_reduce" | "overhead_exceeds_limit";
+
 export type HistoryOutcome =
   | { status: "unchanged"; messages: ChatMessage[]; estimatedTokens: number; warning?: string }
   | {
@@ -101,7 +108,7 @@ export type HistoryOutcome =
        * consumer to trim a message that is not the problem — the fix is fewer
        * tools or a higher limit, and only a distinct state can say so.
        */
-      reason: "compaction_failed" | "cannot_reduce" | "overhead_exceeds_limit";
+      reason: HistoryFailureReason;
       /** UNCHANGED. A failure never returns a half-shortened transcript. */
       messages: ChatMessage[];
       estimatedTokens: number;

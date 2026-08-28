@@ -541,6 +541,72 @@ transcript **unchanged** — never half-shortened. sanne's rule, generalised: wh
 a layer beneath the chat can fail, the failure carries its own state all the way
 up and never merges with "nothing found".
 
+### ⚠️ `note` is written for a developer. Never show it to your user.
+
+Every `history` frame carries a `note` — an **English** sentence describing what
+happened, for someone reading a log. It is not for the person whose conversation
+was just shortened.
+
+**cms passed it straight through to an end user (2026-08-28)**: an English
+sentence about a mechanism turned up mid-conversation with a Danish customer.
+They were not being careless — **until 0.6.0 there was nothing else on the frame
+to act on**, so the prose was the only signal. That was our defect, not theirs.
+
+Switch on the codes and write your own sentence:
+
+```ts
+if (f.type === "history") {
+  log.info(f.note);                                  // ours, English, for you
+  if (f.action === "reduced")
+    tell(f.strategy === "compact"
+      ? "Jeg har skrevet de ældste beskeder sammen for at gøre plads."
+      : "De ældste beskeder er ikke længere med. Gentag gerne det vigtigste.");
+  if (f.action === "failed")
+    tell(f.reason === "overhead_exceeds_limit"
+      ? "Der er for mange værktøjer slået til. Kontakt din administrator."
+      : "Den sidste besked er for lang. Prøv at dele den op.");
+}
+```
+
+`reason` is on every `failed` frame and `strategy` on every `reduced` one — the
+same three states the module keeps apart internally, now reaching the boundary
+where somebody needs them. **We ship no user-facing prose**: we do not know your
+language, tone or audience, and a sentence we invented would need translating
+anyway. The code is ours; the words are yours.
+
+### ⚠️ `window` losing the opening instruction is MEASURED, not predicted
+
+Run live by cms against Mistral in their production container, 2026-08-28, with
+a marker planted in the first message that the final answer could not produce
+without it:
+
+```
+--- window ---   maxInputTokens lowered until the ceiling was actually reached
+history frames : reduced(3), reduced(5), reduced(7), reduced(9), reduced(12)
+error frames   : 0
+marker         : GONE
+last answer    : «Jeg kan ikke opsummere noget, medmindre du giver mig noget at opsummere.»
+```
+
+**It is worse than this README used to say.** The model had forgotten the *whole*
+conversation and said so politely, with **zero errors**. A user does not read
+that as *"the system dropped my context"* — she reads it as *"this assistant is
+unreliable"*.
+
+| | |
+|---|---|
+| `window` loses the opening instruction | **measured** — mistral-small, 5 reductions, 0 errors |
+| `compact` preserves it | **not measured yet** |
+| `cannot_reduce` as its own state | measured useful — it told them the problem was not the old messages |
+
+**The second row is not covered by the first.** `compact` preserving the thread
+is still our claim, not a measurement.
+
+*Their first run never reached the ceiling, and the probe said "PROVES NOTHING"
+of its own accord rather than passing. If you run this yourself, build that in —
+a probe that checks only "no errors, text came back" is green on exactly the loss
+it exists to find.*
+
 The loop surfaces all of it as typed `history` frames (`warned` · `reduced` ·
 `failed`), and an unshrinkable turn ends with `done: "too-large"` **without
 calling the model** — sending a payload you know is too large is how the

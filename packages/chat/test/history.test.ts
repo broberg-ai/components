@@ -580,3 +580,105 @@ describe("named profiles resolve to numbers WE own", () => {
     expect((await prepareHistory(conversation(40), window40)).status).toBe("reduced");
   });
 });
+
+// ---------------------------------------------------------------------------
+// F079.12 — the frame carried English prose and no code, so our note reached a
+// customer. cms measured it live, then passed `note` verbatim to an end user:
+// an English sentence about a mechanism, mid-conversation, to a Danish customer.
+// They were not careless — there was nothing else on the frame to act on.
+// ---------------------------------------------------------------------------
+
+describe("a consumer can act on the frame without reading our prose", () => {
+  async function historyFrame(messages: ChatMessage[], history: HistoryConfig, tools: typeof heavyTool[] = []) {
+    const model: ModelFn = async function* () {
+      yield { type: "text", text: "ok" };
+    };
+    const chat = createChat<undefined, { ok: true }>({
+      model,
+      tools,
+      ...(tools.length ? { can: () => true } : {}),
+      history,
+    });
+    const out: ChatFrame[] = [];
+    for await (const f of chat.run({ messages, caller: { ok: true }, ctx: undefined })) out.push(f);
+    return out.find((f) => f.type === "history");
+  }
+
+  const heavyTool = defineTool<undefined>({
+    name: "big",
+    description: "d",
+    permission: "read",
+    parameters: { type: "object", properties: { q: { type: "string", description: "x".repeat(8000) } } },
+    run: () => "r",
+  });
+
+  it("ALL THREE failure reasons survive to the frame — not just to the outcome object", async () => {
+    const cannot = await historyFrame(conversation(1, 4000), { strategy: "window", maxInputTokens: 10, keepRecent: 1 });
+    expect(cannot).toMatchObject({ type: "history", action: "failed", reason: "cannot_reduce" });
+
+    const overhead = await historyFrame(conversation(2), { strategy: "window", maxInputTokens: 100, keepRecent: 4 }, [heavyTool]);
+    expect(overhead).toMatchObject({ type: "history", action: "failed", reason: "overhead_exceeds_limit" });
+
+    const broke = await historyFrame(conversation(40), {
+      strategy: "compact",
+      maxInputTokens: 400,
+      keepRecent: 4,
+      summarise: () => {
+        throw new Error("summariser down");
+      },
+    });
+    expect(broke).toMatchObject({ type: "history", action: "failed", reason: "compaction_failed" });
+  });
+
+  it("a REDUCED frame says WHICH strategy ran — 'we summarised' and 'we dropped' are different news", async () => {
+    const dropped = await historyFrame(conversation(40), window40);
+    expect(dropped).toMatchObject({ action: "reduced", strategy: "window" });
+    const summarised = await historyFrame(conversation(40), compact40());
+    expect(summarised).toMatchObject({ action: "reduced", strategy: "compact" });
+  });
+
+  it("THE INTENDED USE: write your own sentence, in your own language, never touching `note`", async () => {
+    // This is the test cms could not have written against 0.5.2 — there was
+    // nothing to switch on, so `note` was the only signal and it went to a user.
+    const danish = (f: ChatFrame): string => {
+      if (f.type !== "history") return "";
+      if (f.action === "warned") return "Samtalen er ved at blive lang.";
+      if (f.action === "reduced")
+        return f.strategy === "compact"
+          ? "Jeg har skrevet de ældste beskeder sammen for at gøre plads."
+          : "De ældste beskeder er ikke længere med. Gentag gerne det vigtigste.";
+      switch (f.reason) {
+        case "overhead_exceeds_limit":
+          return "Der er for mange værktøjer slået til. Kontakt din administrator.";
+        case "cannot_reduce":
+          return "Den sidste besked er for lang. Prøv at dele den op.";
+        default:
+          return "Jeg kunne ikke korte samtalen ned. Prøv igen.";
+      }
+    };
+
+    const cases: Array<[ChatFrame | undefined, string]> = [
+      [await historyFrame(conversation(40), window40), "De ældste beskeder er ikke længere med. Gentag gerne det vigtigste."],
+      [await historyFrame(conversation(40), compact40()), "Jeg har skrevet de ældste beskeder sammen for at gøre plads."],
+      [await historyFrame(conversation(1, 4000), { strategy: "window", maxInputTokens: 10, keepRecent: 1 }), "Den sidste besked er for lang. Prøv at dele den op."],
+      [
+        await historyFrame(conversation(2), { strategy: "window", maxInputTokens: 100, keepRecent: 4 }, [heavyTool]),
+        "Der er for mange værktøjer slået til. Kontakt din administrator.",
+      ],
+    ];
+    for (const [frame, expected] of cases) {
+      expect(frame, "no history frame was produced — the fixture proves nothing").toBeTruthy();
+      expect(danish(frame!)).toBe(expected);
+    }
+
+    // …and the four cases are genuinely DISTINGUISHABLE. Without this, a mapping
+    // that returned one sentence for everything would pass every line above that
+    // happened to expect that sentence.
+    expect(new Set(cases.map(([, s]) => s)).size).toBe(4);
+  });
+
+  it("`note` is still there for the log — we removed nothing", async () => {
+    const f = await historyFrame(conversation(40), window40);
+    expect(f?.type === "history" && f.note.length).toBeGreaterThan(0);
+  });
+});
