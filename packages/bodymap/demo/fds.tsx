@@ -23,6 +23,7 @@ function App() {
         palette={palette}
         autoRotate={false}
         showSexToggle={false}
+        sex="female"
         showRegionCode={false}
         canvasHeight="36vh"
       />

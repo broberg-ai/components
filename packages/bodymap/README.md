@@ -211,6 +211,42 @@ had *arrived* on a device that never *showed* it.)
 `VIBRATION_PATTERNS.ignore` is empty on purpose: a tap that changed nothing must
 not feel like it did.
 
+## Fullscreen — fill the viewport with the body
+
+```tsx
+// built-in control (default)
+<BodyMap3D models={models} />
+
+// your own button — you own the state
+const [big, setBig] = useState(false);
+<BodyMap3D models={models} fullscreen={big} onFullscreenChange={setBig} showFullscreenButton={false} />
+<button onClick={() => setBig(true)}>Se stor</button>
+```
+
+`Escape` leaves it. The pain report is untouched by entering or leaving.
+
+**It is a viewport fill, not the browser Fullscreen API — deliberately.** iOS
+Safari does not support fullscreen on an arbitrary element at all, and a phone is
+this component's primary surface. A `position: fixed; inset: 0` overlay behaves
+identically on every platform, needs no user-gesture dance, and cannot leave you
+with a control that silently does nothing on the one device that matters most.
+
+### It ships with a `ResizeObserver`, and that is not incidental
+
+Before 0.6.0 the canvas measured the element **once at mount** and only re-measured
+on a **window** resize. Everything below changes the ELEMENT without touching the
+window, and each one left the picture at its old size — a body that renders small,
+off-centre, or clipped, with nothing wrong in the code because the camera maths is
+correct and the numbers it was handed are stale:
+
+- entering or leaving fullscreen
+- switching `canvasHeight` at your own breakpoint
+- a container animating open, or a wizard step revealing the panel
+- **a phone's URL bar collapsing, which changes what `vh` means**
+
+If you saw a badly framed body on a phone before 0.6.0, this is the first thing to
+retest.
+
 ## `seam` — soft region edges are OPT-IN, and here is why
 
 ```tsx

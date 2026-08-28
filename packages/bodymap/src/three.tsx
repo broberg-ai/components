@@ -54,13 +54,17 @@ export interface BodyMap3DModels {
 
 /** The 3D-only control strings (the shared labels come from `locale`/`labels`). */
 export interface BodyMap3DUiLabels {
+  /** Label for the built-in fullscreen control (F052.24). */
+  expand?: string;
+  /** Label for the same control while fullscreen. */
+  collapse?: string;
   male: string;
   female: string;
   hoverHint: string;
 }
 
-const UI_DA: BodyMap3DUiLabels = { male: "Mand", female: "Kvinde", hoverHint: "Hover for at fremhæve · klik en kropsdel for at markere smerte." };
-const UI_EN: BodyMap3DUiLabels = { male: "Male", female: "Female", hoverHint: "Hover to highlight · tap a body part to mark pain." };
+const UI_DA: BodyMap3DUiLabels = { male: "Mand", female: "Kvinde", hoverHint: "Hover for at fremhæve · klik en kropsdel for at markere smerte.", expand: "Vis stor", collapse: "Luk stor visning" };
+const UI_EN: BodyMap3DUiLabels = { male: "Male", female: "Female", hoverHint: "Hover to highlight · tap a body part to mark pain.", expand: "Expand", collapse: "Close" };
 
 // Region anchors in normalised body space (height ~1.9, feet y=0, front +z),
 // then x-flipped so the patient's own left maps to "venstre" (self-view).
@@ -172,6 +176,19 @@ export interface BodyMap3DProps {
    *  (default true). Set false for a patient/employee-facing flow where the code is
    *  internal jargon and the readable region name is enough. */
   showRegionCode?: boolean;
+  /** Fill the viewport with the body (F052.24). Controlled: pass it and you own
+   *  it; `onFullscreenChange` still fires so your own button can drive it.
+   *
+   *  This is a VIEWPORT FILL, not the browser Fullscreen API. iOS Safari does not
+   *  support fullscreen on an arbitrary element at all, and the iPhone is this
+   *  component's primary surface — so the mechanism that works everywhere is the
+   *  one that ships, and it behaves identically on every platform. */
+  fullscreen?: boolean;
+  /** Fired when the built-in control or the Escape key changes it. */
+  onFullscreenChange?: (fullscreen: boolean) => void;
+  /** Show the built-in expand/collapse control (default true). Set false and
+   *  drive `fullscreen` from your own button. */
+  showFullscreenButton?: boolean;
   /** Soften the colour transition between neighbouring regions (F052.21).
    *
    *  DEFAULT FALSE, and the default is the accessible one (F052.23). The blend
@@ -208,7 +225,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
     models, value, defaultValue, onChange, config, palette = defaultPalette,
     locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
     autoRotate = true, canvasHeight = "60vh", showRegionCode = true,
-    onFeedback, haptics, seam = false, className,
+    onFeedback, haptics, seam = false,
+    fullscreen: fullscreenProp, onFullscreenChange, showFullscreenButton = true,
+    className,
   } = props;
 
   // Panel chrome — consumer palette wins, AA-safe defaults fill every gap. (F052.19)
@@ -249,6 +268,14 @@ export function BodyMap3D(props: BodyMap3DProps) {
   // The scene closure reads this at PAINT time, so toggling `seam` recolours
   // without rebuilding the model (F052.23).
   const seamRef = useRef(seam); seamRef.current = seam;
+  // Controlled when `fullscreen` is passed, internal otherwise — same shape as
+  // `sex` (F052.14), so a consumer can drive it from their own button.
+  const [internalFs, setInternalFs] = useState(false);
+  const isFullscreen = fullscreenProp ?? internalFs;
+  const setFullscreen = (v: boolean) => {
+    if (fullscreenProp === undefined) setInternalFs(v);
+    onFullscreenChange?.(v);
+  };
   const apiRef = useRef<{ setSex: (s: BodyMap3DSex) => void; refresh: () => void } | null>(null);
 
   useEffect(() => {
@@ -494,9 +521,24 @@ export function BodyMap3D(props: BodyMap3DProps) {
     document.addEventListener("visibilitychange", onVis);
     const onResize = () => { W = el.clientWidth || 520; H = el.clientHeight || 600; camera.aspect = W / H; camera.updateProjectionMatrix(); renderer.setSize(W, H); renderFrame(); };
     window.addEventListener("resize", onResize);
+    /**
+     * F052.24 — the ELEMENT can change size without the WINDOW doing so, and
+     * before this the canvas kept whatever size it was measured at on mount.
+     * Every way that happens is ordinary, not exotic:
+     *   · entering/leaving fullscreen (this card's whole feature)
+     *   · a consumer switching `canvasHeight` at a breakpoint
+     *   · a container animating open, or a step/wizard revealing the panel
+     *   · a phone's URL bar collapsing, which changes what `vh` means
+     * A stale size shows as a body that is small, off-centre, or clipped — with
+     * nothing to see in the code, because the camera maths is correct and the
+     * numbers it was given are old.
+     */
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => onResize()) : null;
+    ro?.observe(el);
 
     return () => {
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVis);
       controls.removeEventListener("change", kick);
@@ -509,6 +551,15 @@ export function BodyMap3D(props: BodyMap3DProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Escape leaves fullscreen — a viewport-filling overlay with no keyboard way
+  // out is a trap, and F052.11 made this component's accessibility a legal duty.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   // React → scene: recolour on selection / report / palette change; swap model on sex change.
   useEffect(() => { apiRef.current?.refresh(); }, [selected, report, palette, seam]);
@@ -550,7 +601,30 @@ export function BodyMap3D(props: BodyMap3DProps) {
   const showEmptyHint = anySelectable || ui?.hoverHint !== undefined;
 
   return (
-    <div data-testid="bodymap3d-root" className={className} style={{ fontFamily: "system-ui, sans-serif", color: "#1e293b" }}>
+    <div
+      data-testid="bodymap3d-root"
+      className={className}
+      data-fullscreen={isFullscreen ? "true" : undefined}
+      style={{
+        fontFamily: "system-ui, sans-serif",
+        color: "#1e293b",
+        // A viewport fill, not the Fullscreen API — see the `fullscreen` prop.
+        // `fixed`+`inset:0` behaves the same on iOS Safari, where element
+        // fullscreen does not exist at all, as it does everywhere else.
+        ...(isFullscreen
+          ? {
+              position: "fixed" as const,
+              inset: 0,
+              zIndex: 2147483000,
+              background: chrome.panelBg,
+              padding: 12,
+              display: "flex",
+              flexDirection: "column" as const,
+              overflow: "auto" as const,
+            }
+          : null),
+      }}
+    >
       {showSexToggle && (
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12, fontSize: 13 }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -561,13 +635,43 @@ export function BodyMap3D(props: BodyMap3DProps) {
       )}
       <span ref={loadedRef} data-testid="bodymap3d-loaded" style={{ display: "none" }} />
       {ready && <span data-testid="bodymap3d-ready" style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />}
-      <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+      {showFullscreenButton && !unsupported && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <button
+            type="button"
+            data-testid="bodymap3d-fullscreen"
+            aria-pressed={isFullscreen}
+            aria-label={isFullscreen ? (UI.collapse ?? "Close") : (UI.expand ?? "Expand")}
+            onClick={() => setFullscreen(!isFullscreen)}
+            style={{ ...btn, color: chrome.text, borderColor: chrome.border, background: chrome.panelBg }}
+          >
+            {isFullscreen ? (UI.collapse ?? "Close") : (UI.expand ?? "Expand")}
+          </button>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", ...(isFullscreen ? { flex: "1 1 auto", minHeight: 0 } : null) }}>
         {unsupported ? (
           <div data-testid="bodymap3d-unsupported" style={{ flex: "1 1 520px", minWidth: 320, height: canvasH, borderRadius: 16, background: "#0e1424", color: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontSize: 14 }}>
             3D kræver WebGL, som ikke er tilgængeligt her.
           </div>
         ) : (
-          <div ref={mountRef} data-testid="bodymap3d-canvas" style={{ flex: "1 1 520px", height: canvasH, minWidth: 320, borderRadius: 16, overflow: "hidden", background: "#0e1424", touchAction: "none" }} />
+          <div
+            ref={mountRef}
+            data-testid="bodymap3d-canvas"
+            style={{
+              flex: "1 1 520px",
+              // In fullscreen the box takes the height it is GIVEN rather than a
+              // fixed `canvasHeight`; the ResizeObserver above is what makes the
+              // picture follow it.
+              height: isFullscreen ? "100%" : canvasH,
+              minWidth: 320,
+              minHeight: isFullscreen ? 0 : undefined,
+              borderRadius: 16,
+              overflow: "hidden",
+              background: "#0e1424",
+              touchAction: "none",
+            }}
+          />
         )}
         <div style={{ flex: "1 1 300px", minWidth: 260 }}>
           {region ? (
