@@ -375,6 +375,42 @@ the user. And the part that makes it serious:
 So the test that matters is not *"the message got shorter"*. It is **the next
 turn on the same conversation succeeds.**
 
+### Choosing `maxInputTokens` — three things that decide it, and none is the model's spec sheet
+
+We do **not** have a measured number for you, and the field is required precisely
+because there is no safe default. But three things decide yours, and a consumer
+should not have to discover them one at a time:
+
+**1. The ceiling is not the model's context window.** It is the window MINUS your
+system prompt, MINUS your tool schemas, MINUS room for the answer. The tool
+schemas are the part people forget, and they are sent on **every** call.
+
+> **Measured by cms, 2026-08-28, over their 64 tools:** names 967 chars,
+> descriptions 8,543, input schemas 18,756 — **28,266 characters, ≈7,000 tokens
+> before the conversation starts.** Two thirds of it is JSON schema, not prose.
+> And it grows every time somebody adds a tool.
+
+The same measurement found their own prompt-size alarm was watching the system
+prompt and **not** the tool schemas — under-reporting the fixed cost by those
+7,000 tokens, in the green direction. Measure yours; do not assume.
+
+**2. `estimateTokens` is ~4 chars/token, and that is an ENGLISH rule of thumb.**
+Danish (æ ø å, longer word forms) costs more tokens per character, so the default
+estimate **under-counts** — the dangerous direction, because you believe you have
+room you do not have. `estimateTokens` is injectable for exactly this reason:
+pass your provider's real tokenizer, or set the ceiling low enough that the
+estimate's error cannot reach it. Write down which of the two you chose.
+
+**3. The two errors are not symmetric.** Too low costs some premature compaction
+— you lose a little context. Too high brings back the dead conversation this
+whole module exists to prevent. Let that decide how conservative you are.
+
+**The method, because it is a measurement and not a lookup:** send increasing
+payloads with your REAL system prompt and REAL tool schemas until the provider
+400s. Set the limit 20 % below that. Record both numbers **with the date** — a
+provider ceiling is not a constant, and an undated figure looks like a
+measurement a year later.
+
 ### Compaction changes what the MODEL sees, never what the USER can read
 
 This module **never mutates the array you give it**, and neither does the loop.
