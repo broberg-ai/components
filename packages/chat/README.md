@@ -334,6 +334,12 @@ honouring `maxChars` they have none at all.
 
 ## Two boundaries worth knowing before you ship
 
+**0. An assistant turn that called a tool carries the call.** `ChatMessage` has
+`toolCalls?: { id, name, args }[]`, set by the loop on the assistant turn that
+asked — **even when the model said nothing before calling**, which is the case
+that took cms down. Your adapter reads it to build the provider's `tool_calls`
+array. Ignore it and a chat without tools is unaffected.
+
 **1. The transcript is client-supplied.** A caller can forge their *own* history,
 including a `tool` message. Anything that matters must come from a tool call in
 **this** turn, never from history — the same rule as *a tool that can act must not
@@ -602,6 +608,65 @@ Three things worth knowing:
 - **A public deployment cannot be constructed with a hole in it.** No rate limit, no Turnstile, or a capped-looking chat with no ceiling — each throws at construction. "Must exist before the first public deploy, not after the first bill" only means something if it is enforceable.
 - **The rate limit runs first**, because it is local and free. A flood is refused without paying Cloudflare a round-trip per bot.
 - **A Turnstile outage fails CLOSED**, with its own 503. Failing open would be exactly backwards: an outage is the cheapest possible moment for a flood, and the thing behind this wall costs money per request. A rejection tells a real person she is not human; an outage is not her fault, and the two must not share a status.
+
+## Test it against something that can say no (`/testing`)
+
+**Every test in this package used to run against a permissive stub, and that is
+how a defect reached production.** cms took the chat live on 0.3.0 and for ~40
+minutes every question requiring a tool ended in an error at the user:
+
+```
+event: tool_call    site_summary
+event: tool_result  (correct: 48 posts, 22 pages, …)
+event: error        mistral 400 — "Unexpected role 'tool' after role 'user'"
+                    type=invalid_request_message_order code=3230
+```
+
+The tool ran. The answer came back. The round that would have turned it into a
+sentence was rejected. **181 tests here and 1,283 in their repo were green
+throughout, and none of them could have caught it** — a fake `ModelFn` accepts
+any message shape you hand it.
+
+> cms named it better than we did: *"attrappen var tro mod GRÆNSEFLADEN og ikke
+> mod VERDEN."* The broken condition belongs to the **provider**, and nothing in
+> either repo had ever spoken to one.
+
+So `/testing` ships the providers' ordering rule as an assertion:
+
+```ts
+import { createStrictModel, assertProviderTranscript } from "@broberg/chat/testing";
+
+const model = createStrictModel([
+  [{ type: "tool-call", id: "c1", name: "search", args: {} }],  // round 1
+  [{ type: "text", text: "48 posts" }],                         // round 2
+]);
+// …or check a transcript you built yourself:
+assertProviderTranscript(messages);   // throws InvalidTranscriptError
+```
+
+**Use it in any test that involves tools.** It refuses a `tool` message that
+answers no assistant turn, a `toolCallId` matching no call, and a turn taken
+while calls are unanswered — the same things Mistral, OpenAI and Anthropic
+refuse.
+
+**Measured on our own history**, running the pre-fix loop:
+
+| suite | against the code that broke production |
+|---|---|
+| 181 stub-based tests | **all green** |
+| 14 strict tests | **7 red** |
+
+**⚠️ It is not a measurement.** We have no provider key outside production, so
+this encodes what the providers *document*, not what they were observed to do.
+**A live tool round-trip against the cheapest model is still the test that would
+have caught this first, and it remains outstanding.**
+
+## `done` is a frame — do not send your own
+
+The loop emits `{ type: "done", reason }` itself, always, on every exit path. A
+consumer that appends its own after the loop ends puts two `done` events in the
+stream. Harmless for a client that ignores the second; load-bearing for the next
+one. (cms shipped exactly this and flagged it.)
 
 ## What is NOT in here
 

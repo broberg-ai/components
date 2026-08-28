@@ -111,11 +111,33 @@ export type Can<Caller = unknown> = (permission: string, caller: Caller) => bool
 // the model, injected
 // ---------------------------------------------------------------------------
 
+/** One call the model asked for, as it must be replayed to the provider. */
+export interface ToolCallRecord {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant" | "tool";
   content: string;
   /** Present on `tool` messages — which call this answers. */
   toolCallId?: string;
+  /**
+   * Present on `assistant` messages that asked for tools (F079.11).
+   *
+   * WITHOUT THIS FIELD THE TRANSCRIPT IS UNREPAIRABLE, and it broke cms's chat
+   * in production for ~40 minutes: the tool ran, the answer came back, and the
+   * round that would have turned it into a sentence was rejected by Mistral with
+   * `Unexpected role 'tool' after role 'user'` (code 3230). Mistral, OpenAI and
+   * Anthropic all require a tool result to answer an assistant turn that asked
+   * for it — and only the following `tool` message knew its own id, while
+   * NOTHING knew the name or the arguments.
+   *
+   * A consumer's adapter reads this to build the provider's `tool_calls` array.
+   * Ignoring it is safe; a chat with no tools never sees it.
+   */
+  toolCalls?: ToolCallRecord[];
 }
 
 export interface ModelRequest {
@@ -390,7 +412,12 @@ export function createChat<Ctx = unknown, Caller = unknown>(
         return;
       }
 
-      if (text) messages.push({ role: "assistant", content: text });
+      // ALWAYS, not `if (text)`. A model that calls a tool without speaking
+      // first left no assistant turn at all, so the next round sent the provider
+      // `[user, tool]` — which is the 400 that took cms's chat down. The turn
+      // that OWNS the calls must exist even when it said nothing, and it must
+      // carry the calls, or nothing downstream can rebuild the pairing.
+      messages.push({ role: "assistant", content: text, toolCalls: calls.map((c) => ({ ...c })) });
 
       for (const call of calls) {
         yield { type: "tool-call", id: call.id, name: call.name, args: call.args };

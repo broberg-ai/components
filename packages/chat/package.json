@@ -1,6 +1,6 @@
 {
   "name": "@broberg/chat",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The fleet's AI-chat core: a conversation loop with a tool registry where a tool without a declared permission is DENIED, streaming typed frames, and the model injected rather than imported — so it carries no dependency it can silently outgrow.",
   "type": "module",
   "license": "MIT",
@@ -101,6 +101,16 @@
       "require": {
         "types": "./dist/public.d.cts",
         "default": "./dist/public.cjs"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "require": {
+        "types": "./dist/testing.d.cts",
+        "default": "./dist/testing.cjs"
       }
     }
   },
