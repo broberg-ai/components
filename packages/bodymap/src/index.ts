@@ -149,6 +149,33 @@ export function resolveRegions(config: RegionConfig = {}): BodyRegion[] {
   return REGIONS.filter((r) => config[r.key]?.visible ?? true);
 }
 
+/**
+ * What a pick on a region should DO (F052.20).
+ *
+ * Lives in the core because the 2D and 3D renderers share no click code, and a
+ * rule written twice is a rule that drifts. This repo measured the cost of that
+ * twice on 2026-08-28 alone: a fix applied to one half of a pair, and a sibling
+ * branch that carried the same defect with no test on it.
+ *
+ *   "clear"   the region is already marked → picking it again removes the mark
+ *   "select"  unmarked → open it for marking
+ *   "ignore"  not selectable (read-only or config) → nothing happens
+ *
+ * Three outcomes, not a boolean: "nothing happened because it is locked" and
+ * "nothing happened because we removed the mark" must never look alike to a
+ * caller.
+ */
+export type PickOutcome = "clear" | "select" | "ignore";
+
+export function decidePick(
+  region: string,
+  report: PainReport,
+  config: RegionConfig = {},
+): PickOutcome {
+  if (!isSelectable(region, config)) return "ignore";
+  return report.some((p) => p.region === region) ? "clear" : "select";
+}
+
 /** Whether a region may be marked. A hidden region is never selectable. */
 export function isSelectable(key: string, config: RegionConfig = {}): boolean {
   const s = config[key];

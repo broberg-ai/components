@@ -19,6 +19,7 @@ import {
   painPointSchema,
   resolveRegions,
   isSelectable,
+  decidePick,
   getRegion,
   heatFor,
   baseColorFor,
@@ -525,9 +526,29 @@ export function BodyMap({
     commit(report.filter((p) => p.region !== key));
     setSelected(null);
   };
-  const pickRegion = (key: string) => {
-    if (suppressClick.current) { suppressClick.current = false; return; } // a pan/pinch just ended — not a tap
+  /**
+   * F052.20 — ONE decision, two entry points (tap and keyboard).
+   *
+   * A region that is ALREADY marked is CLEARED by picking it again. Christian's
+   * call, 2026-08-28, on fd-sundhed's user asking «hvorfor kan jeg ikke bare
+   * trykke på punktet igen og det forsvinder?» — taken with the cost stated:
+   * re-picking a marked region used to be the only way to change its intensity,
+   * so that now means clear it and mark it again.
+   *
+   * The «Fjern» button stays. It is the panel path right after marking a fresh
+   * point, and it is the labelled control a screen-reader user reaches.
+   */
+  const applyPick = (key: string) => {
+    const what = decidePick(key, report, config);
+    if (what === "ignore") return;
+    if (what === "clear") { removePain(key); return; }
     setSelected(key);
+  };
+  const pickRegion = (key: string) => {
+    // A pan/pinch just ended — not a tap. This guard used to protect against
+    // opening a panel by accident; it now protects against DELETING a mark.
+    if (suppressClick.current) { suppressClick.current = false; return; }
+    applyPick(key);
   };
 
   const regions = resolveRegions(config);
@@ -604,7 +625,7 @@ export function BodyMap({
                     "aria-pressed": interactive ? selected === r.key : undefined,
                     onClick: interactive ? () => pickRegion(r.key) : undefined,
                     onKeyDown: interactive
-                      ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); suppressClick.current = false; setSelected(r.key); } }
+                      ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); suppressClick.current = false; applyPick(r.key); } }
                       : undefined,
                   })}
                   {shapeEl(s, { className: visCls, fill, opacity: !readOnly && !isSelectable(r.key, config) ? 0.4 : 1 })}

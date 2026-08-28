@@ -23,6 +23,8 @@ import {
   PAIN_TYPES,
   getRegion,
   isSelectable,
+  decidePick,
+  type PickOutcome,
   serializeReport,
   heatFor,
   baseColorFor,
@@ -172,6 +174,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
   const modelsRef = useRef(models); modelsRef.current = models;
   const sexRef = useRef(sex); sexRef.current = sex;
   const setSelectedRef = useRef(setSelected); setSelectedRef.current = setSelected;
+  // F052.20 — the pick DECISION, reachable from the once-mounted raycast handler.
+  // Assigned below, after removePain exists.
+  const pickRef = useRef<(key: string) => PickOutcome>(() => "ignore");
   const setReadyRef = useRef(setReady); setReadyRef.current = setReady;
   const apiRef = useRef<{ setSex: (s: BodyMap3DSex) => void; refresh: () => void } | null>(null);
 
@@ -332,7 +337,24 @@ export function BodyMap3D(props: BodyMap3DProps) {
     const onUp = (e: PointerEvent) => {
       if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6 || Date.now() - downT > 450) return;
       const k = pick(e.clientX, e.clientY);
-      if (k) setSelectedRef.current(k);
+      if (!k) return;
+      const outcome = pickRef.current(k);
+      // A CLEARED REGION MUST NOT KEEP ITS HIGHLIGHT (F052.20).
+      //
+      // `refresh()` deliberately preserves the hover colour on `hovered`, so
+      // after a removal the region stayed highlighted and looked exactly like it
+      // was still marked. Measured on an iPhone viewport: report correctly
+      // `points: []`, panel closed, chest still turquoise. A finger leaves no
+      // cursor behind, so nothing ever moved away to clear it — the user would
+      // tap again and mark it a second time.
+      //
+      // Dropped unconditionally rather than only for touch: showing a highlight
+      // on something the user just deleted is wrong feedback in every input
+      // mode, and on a mouse the very next pointermove puts it straight back.
+      if (outcome === "clear") {
+        hovered = null;
+        canvas.style.cursor = "default";
+      }
     };
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
@@ -375,6 +397,17 @@ export function BodyMap3D(props: BodyMap3DProps) {
     commit([...report.filter((p) => p.region !== k), { region: k, intensity, type, timestamp: new Date().toISOString() }]);
   };
   const removePain = (k: string) => { commit(report.filter((p) => p.region !== k)); setSelected(null); };
+  /**
+   * F052.20 — a region that is ALREADY marked is CLEARED by picking it again.
+   * The 2D renderer has the identical rule in `applyPick`; they share no click
+   * code, which is exactly why both are asserted separately.
+   */
+  pickRef.current = (k: string): PickOutcome => {
+    const what = decidePick(k, reportRef.current, configRef.current ?? {});
+    if (what === "clear") removePain(k);
+    else if (what === "select") setSelected(k);
+    return what;
+  };
   const changeSex = (s: BodyMap3DSex) => { if (sexProp === undefined) setInternalSex(s); onSexChange?.(s); };
 
   const region = selected ? REGIONS.find((r) => r.key === selected) : null;

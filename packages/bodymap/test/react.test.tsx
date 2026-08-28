@@ -246,3 +246,90 @@ describe("<BodyMap> (2D React adapter)", () => {
     expect(row.textContent).toContain("worse");
   });
 });
+
+// ---------------------------------------------------------------------------
+// F052.20 — the WIRING: does the 2D renderer actually call the core rule?
+// decidePick is proven exhaustively in core.test.ts; these assert that a real
+// tap reaches it. The 3D renderer's raycast cannot run in happy-dom (no WebGL),
+// so its wiring is DEFERRED to Lens and named as such — never absorbed into a
+// green suite.
+// ---------------------------------------------------------------------------
+
+describe("tapping a MARKED region clears it (F052.20)", () => {
+  const mark = (testid: string, intensity = 7) => {
+    fireEvent.click(screen.getByTestId(testid));
+    fireEvent.click(screen.getByTestId(`bodymap-intensity-${intensity}`));
+  };
+
+  it("a second tap REMOVES the point — and a first tap on another region still opens the panel", () => {
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+
+    mark("bodymap-region-knee_right");
+    expect(last?.map((p) => p.region)).toEqual(["knee_right"]);
+
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(last, "the second tap did not reach decidePick").toEqual([]);
+
+    // CONTROL: an UNMARKED region must still open rather than do nothing —
+    // without this, a renderer that ignored every tap would pass the line above.
+    fireEvent.click(screen.getByTestId("bodymap-region-shoulder_left"));
+    expect(screen.getByTestId("bodymap-panel").textContent).not.toContain("Vælg en kropsdel");
+  });
+
+  it("KEYBOARD PARITY: Enter on a marked region clears it, exactly like a tap", () => {
+    // F052.11 made this component's accessibility a legal requirement — a
+    // pointer-only change would break it silently.
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    mark("bodymap-region-knee_right");
+    expect(last).toHaveLength(1);
+    fireEvent.keyDown(screen.getByTestId("bodymap-region-knee_right"), { key: "Enter" });
+    expect(last).toEqual([]);
+  });
+
+  it("Space does the same", () => {
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    mark("bodymap-region-knee_right");
+    fireEvent.keyDown(screen.getByTestId("bodymap-region-knee_right"), { key: " " });
+    expect(last).toEqual([]);
+  });
+
+  it("a NON-SELECTABLE marked region is not cleared by a tap", () => {
+    // A locked report is a display, not an editor. This is the "ignore" outcome
+    // reaching the renderer, and it is why the core returns three states.
+    let last: PainReport | undefined;
+    render(
+      <BodyMap
+        defaultValue={[{ region: "knee_right", intensity: 5, timestamp: "2026-08-28T10:00:00.000Z" }]}
+        config={{ knee_right: { selectable: false } }}
+        onChange={(r) => (last = r)}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(last, "a locked region was cleared").toBeUndefined();
+  });
+
+  it("a readOnly map cannot be cleared by tapping", () => {
+    let last: PainReport | undefined;
+    render(
+      <BodyMap
+        readOnly
+        defaultValue={[{ region: "knee_right", intensity: 5, timestamp: "2026-08-28T10:00:00.000Z" }]}
+        onChange={(r) => (last = r)}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(last).toBeUndefined();
+  });
+
+  it("the «Fjern» button still works — it is the labelled path, and it was NOT deleted", () => {
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    mark("bodymap-region-knee_right");
+    expect(last).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("bodymap-remove"));
+    expect(last).toEqual([]);
+  });
+});

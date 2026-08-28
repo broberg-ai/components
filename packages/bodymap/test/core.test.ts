@@ -7,6 +7,8 @@ import {
   createPainSelection,
   resolveRegions,
   isSelectable,
+  decidePick,
+  type PainReport,
   serializeReport,
   deserializeReport,
   bodymapReportV1Schema,
@@ -123,5 +125,53 @@ describe("bodymap/v1 serialization", () => {
       now,
     );
     expect(back.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F052.20 — picking a marked region CLEARS it.
+//
+// fd-sundhed's user: «Hvorfor kan jeg ikke bare trykke på punktet igen og det
+// forsvinder?» Christian chose "remove immediately" with the cost stated: this
+// tap used to be the only way to re-open a marked region and change its
+// intensity, so that now means clear it and mark it again.
+//
+// The rule lives here, in the core, because the 2D and 3D renderers share no
+// click code — and a rule written twice is a rule that drifts.
+// ---------------------------------------------------------------------------
+
+describe("decidePick — one rule, both renderers", () => {
+  const marked: PainReport = [{ region: "LUMBAR", intensity: 8, timestamp: "2026-08-28T10:00:00.000Z" }];
+
+  it("a MARKED region is cleared; an UNMARKED one is selected", () => {
+    expect(decidePick("LUMBAR", marked)).toBe("clear");
+    // The control, one line below: without it, a function returning "clear" for
+    // everything would pass the line above.
+    expect(decidePick("NECK", marked)).toBe("select");
+  });
+
+  it("an empty report never clears — there is nothing to remove", () => {
+    expect(decidePick("LUMBAR", [])).toBe("select");
+  });
+
+  it("THREE outcomes, not two: a locked region is IGNORED, never cleared", () => {
+    // "nothing happened because it is locked" and "nothing happened because we
+    // removed the mark" must never look alike to a caller.
+    expect(decidePick("LUMBAR", marked, { LUMBAR: { selectable: false } })).toBe("ignore");
+    expect(decidePick("LUMBAR", marked, { LUMBAR: { visible: false } })).toBe("ignore");
+    expect(decidePick("NECK", marked, { NECK: { selectable: false } })).toBe("ignore");
+  });
+
+  it("a lock on ANOTHER region does not protect this one", () => {
+    expect(decidePick("LUMBAR", marked, { NECK: { selectable: false } })).toBe("clear");
+  });
+
+  it("the three outcomes are genuinely distinguishable", () => {
+    const seen = new Set([
+      decidePick("LUMBAR", marked),
+      decidePick("NECK", marked),
+      decidePick("LUMBAR", marked, { LUMBAR: { selectable: false } }),
+    ]);
+    expect(seen.size).toBe(3);
   });
 });
