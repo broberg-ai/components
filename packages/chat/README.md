@@ -717,9 +717,17 @@ about their delivery — which is where both crashes were.
 ```ts
 // give the translation a name, so a mutation of it can go red
 const payload = toProviderMessages(messages);
-expect(payload[1].tool_calls[0].arguments).toEqual({ q: "x" });   // YOUR contract
-assertProviderTranscript(messages);                              // ours + the provider's
+expect(payload[1].toolCalls[0].arguments).toEqual({ q: "x" });   // YOUR contract
+assertProviderTranscript(messages);                             // ours + the provider's
 ```
+
+> **This example was wrong when first published**, and cms caught it within the
+> hour: it said `tool_calls` (snake), which is what the providers put **on the
+> wire** and is the natural thing to write with an API doc open. `@broberg/ai-sdk`
+> normalises to `toolCalls` at the boundary — it even exports
+> `fromProviderToolCall` for exactly that. The paragraph teaching people to check
+> field names had the wrong field name in it, which is the whole point restated:
+> **verify the shape against the type file, not against your memory of the API.**
 
 ## `done` is a frame — do not send your own
 

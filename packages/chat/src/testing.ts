@@ -52,9 +52,15 @@
  * ```ts
  * // your named seam, so a mutation of it can go red
  * const payload = toProviderMessages(messages);
- * expect(payload[1].tool_calls[0].arguments).toEqual({ q: "x" });   // YOUR contract
- * assertProviderTranscript(messages);                              // ours + the provider's
+ * expect(payload[1].toolCalls[0].arguments).toEqual({ q: "x" });   // YOUR contract
+ * assertProviderTranscript(messages);                             // ours + the provider's
  * ```
+ *
+ * (That line said `tool_calls` when 0.5.1 shipped — snake_case is what the
+ * providers put on the WIRE, and @broberg/ai-sdk normalises to `toolCalls` at
+ * the boundary. cms caught it within the hour. The example teaching people to
+ * check field names had the wrong field name in it: verify the shape against the
+ * type file, never against your memory of the API.)
  */
 import type { ChatMessage, ModelEvent, ModelFn, ModelRequest } from "./index.js";
 
