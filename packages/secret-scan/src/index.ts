@@ -199,8 +199,21 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     regex: /\bpiw_[0-9a-f]{64}/g,
   },
   {
+    // VERIFIED WITH THE OWNER, 2026-08-28: `trail_` + exactly 64 LOWERCASE HEX.
+    // trail generated 2000 keys through @broberg/apikey's generateKey('trail')
+    // and counted the alphabet: 0-9a-f only, length 64-64, no `-`, no `_`. Source
+    // is `${prefix}_${randomBytes(bytes).toString("hex")}`, bytes=32, with a hard
+    // floor of 16 — so even a future caller asking for the minimum yields 32 hex
+    // chars, still above {20,}.
+    //
+    // Recorded because the QUESTION is easy to re-ask and the ANSWER is not: this
+    // is one of the few patterns here assuming alphanumerics only, and had trail
+    // used base64url (the more common one-liner) the `-` and `_` would break the
+    // run, {20,} would never be satisfied, and the WHOLE key would pass through
+    // unredacted — not partially, entirely. Measured rather than assumed, because
+    // two sampled keys cannot tell hex from base64url that has not hit a `-` yet.
     label: 'trail-key',
-    description: 'Trail personal API key (trail_…)',
+    description: 'Trail personal API key (trail_ + 64 hex; verified 2026-08-28)',
     regex: /\btrail_[A-Za-z0-9]{20,}/g,
   },
   {
