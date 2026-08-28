@@ -57,13 +57,29 @@ export interface DeviceDetail {
    * this tier is worth a consent prompt.
    */
   os: { family: string; majorVersion: MajorVersion };
+  /** Present only when `permissions: true` was asked for. */
+  permissions?: PermissionFacts;
 }
+
+import {
+  readPermissionFacts,
+  type PermissionFacts,
+  type PermissionsGlobalLike,
+} from "./permissions.js";
 
 export interface CollectOptions {
   /** Anything with `has(category)`. A `ConsentManager` fits without adaptation. */
   consent: ConsentLike;
   /** Which consent category gates this. Default `"analytics"`. */
   category?: string;
+  /**
+   * Also read WHAT IS ALREADY SWITCHED ON — push, location, camera, microphone,
+   * and whether the device offers Face ID / Touch ID.
+   *
+   * OPT-IN, and off by default. Nothing here prompts, but a permission you do
+   * not use is entropy you collected for nothing.
+   */
+  permissions?: boolean;
 }
 
 /** Default gate. Device statistics are analytics, not "strictly necessary". */
@@ -239,6 +255,15 @@ export async function collectDeviceDetail(opts: CollectOptions): Promise<DeviceD
   // defaulted one is a fact we made up.
   if (viewportBucket) detail.viewportBucket = viewportBucket;
   if (screenBucket) detail.screenBucket = screenBucket;
+
+  // AFTER the gate, like every other read here. Asked for explicitly, never by
+  // default — and every one of these is a passive status read.
+  if (opts.permissions) {
+    // Read from the SAME window the rest of this function uses, not from
+    // globalThis — one environment, one source, and it keeps the gate test
+    // honest (a second source could be read while the first was blocked).
+    detail.permissions = await readPermissionFacts(win as PermissionsGlobalLike);
+  }
 
   return detail;
 }

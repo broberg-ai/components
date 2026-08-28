@@ -177,6 +177,56 @@ Every read is guarded on its own. Older Safari has no `userAgentData`, so that
 one fact degrades to `unknown` and the viewport, screen and display-mode facts
 still come back.
 
+## What is already switched on — `permissions: true`
+
+Opt-in, off by default, and behind the same consent gate as the rest of Tier 1.
+
+```ts
+const detail = await collectDeviceDetail({ consent: manager, permissions: true });
+detail?.permissions;
+// { notifications: "granted", geolocation: "prompt", camera: "unsupported",
+//   microphone: "denied", platformAuthenticator: "available" }
+```
+
+**It reads a status. It never asks.** No `requestPermission()`, no `getCurrentPosition()`, no `getUserMedia()` — a grep over `src/` runs as a test to keep it that way. Measuring a permission by requesting it would turn a statistics library into a consent dialog on somebody else's product: invisible in code review, unmissable to the person using the app.
+
+### Five states, not two
+
+| | |
+|---|---|
+| `granted` | on |
+| `denied` | off — the person said no |
+| `prompt` | **not asked yet** — the most actionable state there is; these people can still say yes |
+| `unsupported` | the browser has no answer to give |
+| `error` | asking failed |
+
+The last two are **never** folded into `denied`. Measured 2026-08-28, the same page and the same module in two engines:
+
+```
+WebKit    permissions.query present  →  prompt · prompt · prompt · prompt
+Chromium  permissions.query present  →  denied · denied · denied · denied
+```
+
+Opposite answers for every single name. Whatever a permission read means, it is not engine-independent — so a two-state read reports a browser that declined to answer as a user who refused.
+
+**A number that says "unknown on 38 % of devices" is a finding.** A number that quietly calls those 38 % refusals is a decision made on a fiction.
+
+### Face ID is not a permission
+
+No browser exposes one. `platformAuthenticator` answers *does this DEVICE offer Face ID / Touch ID / Windows Hello* — `available` · `unavailable` · `unsupported` · `error`. It is deliberately outside the permission map and cannot be spelled `granted`, because a field named `faceId: "granted"` is read as consent by everyone who sees it.
+
+Whether someone actually uses it **with you** is your own database's answer: did they register a passkey. Three questions that look like one — *can the device* · *has the user allowed* · *has the user set it up with us*.
+
+### `notifications: "granted"` does not mean a push will arrive
+
+On iOS the PWA must **also** be installed and hold a live subscription — and a subscription can be dead (`410 Gone`) while the permission still reads `granted`.
+
+So *"who has said yes to push"* is the browser's answer **joined with your own subscription record** ([`@broberg/webpush`](https://www.npmjs.com/package/@broberg/webpush) tracks exactly that), and where the two disagree, your record is the true one. The browser's answer is the easier one to reach for and the weaker one to ship.
+
+### Numbers from a headless browser are not user numbers
+
+Headless Chromium answers `denied` to everything by default. A permission statistic gathered from a test run measures the test runner, not your visitors.
+
 ## Anti-fingerprinting is enforced, not documented
 
 Buckets are **not a setting**, and that is the whole guarantee:
