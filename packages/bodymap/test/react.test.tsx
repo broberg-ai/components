@@ -333,3 +333,37 @@ describe("tapping a MARKED region clears it (F052.20)", () => {
     expect(last).toEqual([]);
   });
 });
+
+describe("a pan must never delete a mark (F052.20 raised the stakes on this guard)", () => {
+  it("dragging across a MARKED region does not remove it", () => {
+    // The suppressClick guard is unchanged by F052.20 — but what it protects
+    // against is not. It used to stop a pan from OPENING a panel; it now stops a
+    // pan from DELETING the user's pain mark. An untested guard whose failure
+    // mode just got worse is worth its own assertion.
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    fireEvent.click(screen.getByTestId("bodymap-intensity-6"));
+    expect(last, "the fixture never marked anything").toHaveLength(1);
+
+    const stage = screen.getByTestId("bodymap-svg");
+    const target = screen.getByTestId("bodymap-region-knee_right");
+    fireEvent.pointerDown(stage, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(stage, { pointerId: 1, clientX: 180, clientY: 140 }); // > 6px ⇒ a pan
+    fireEvent.pointerUp(stage, { pointerId: 1, clientX: 180, clientY: 140 });
+    fireEvent.click(target); // the synthetic click a browser fires after a drag
+
+    expect(last, "a pan deleted the mark").toHaveLength(1);
+  });
+
+  it("NEGATIVE CONTROL: without the pan, the very same click DOES remove it", () => {
+    // Without this, a component that had simply stopped responding to clicks
+    // would pass the test above.
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    fireEvent.click(screen.getByTestId("bodymap-intensity-6"));
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(last).toEqual([]);
+  });
+});

@@ -596,6 +596,7 @@ export function BodyMap({
         <svg
           ref={svgRef}
           className="bmap__svg"
+          data-testid="bodymap-svg"
           viewBox="0 0 260 470"
           role="group"
           aria-label={L.svgLabel}
