@@ -116,6 +116,29 @@ sanne's sharpest observation is the reason the third one exists: **their tools a
 >
 > Not three accidents. **A success-shaped answer is never handled, because it does not look like anything that needs handling.** If this module takes one thing from the whole design, it is this rule.
 
+## Rule 7 — a permission must not be BORN in the chat layer (cms, 2026-08-28)
+
+The sibling of rule 2, and it cost nothing to learn because cms went looking.
+
+Christian decided a viewer must not see form submissions. cms could have changed
+the three `forms.read` tools and been done. Instead they asked what ELSE reads
+that data, and found **four doors the chat never touched**: the submissions list
+and the CSV export asked only *is someone logged in*; the single-submission route
+asked **nothing at all** (it leaned on a proxy guarding `/api/admin/*`, which
+answers *authenticated*, not *permitted*); and the `/admin/forms` page checked
+whether the FEATURE was on for the tenant, never whether this person may see it.
+
+The export is the one that matters: **the whole dataset in one file**, behind a
+login check. The chat tool showed 80 characters of each message.
+
+> Had only the tool permission changed, the chat would have refused while the page
+> beside it served the same names — and the refusal would have made it look closed.
+
+**So: `can` READS an authorization your app already has; it is never where one is
+first decided.** A permission string that exists only because a `ChatTool`
+declared it leaves every other route open, with a chat-shaped alibi. This is now
+in the package README, credited to cms.
+
 ## Reuse (F217) — eight existing packages, no new provider integration
 
 `@broberg/ai-sdk` (every model call, EU tier for personal data) · `@broberg/seti-client/sse` (the half-open-stream watchdog three repos already share — do not re-roll it) · `@broberg/forms-turnstile` (a public chat endpoint is an open spend faucet) · `@broberg/notify` (human handoff to Slack/Discord) · `@broberg/consent-cookie` · `@broberg/secret-scan` (redact before persisting a conversation — people paste keys into chats) · `@broberg/logger` · `@broberg/apikey`.

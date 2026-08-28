@@ -50,6 +50,35 @@ The core enforces the structural half: **a tool's `run()` receives only the
 defect could exist — their tools called the engine directly and skipped every
 HTTP permission gate.
 
+## A permission must not be born in the chat layer
+
+**cms measured this on 2026-08-28, and it is the sibling of the rule above.**
+
+Their owner decided a viewer must not see form submissions. The obvious change is
+to deny the three `forms.read` tools — one permission, three tools, done. So they
+checked what else read that data, and found four doors the chat never touched:
+
+| door | what it actually asked |
+|---|---|
+| the submissions list | *is someone logged in* |
+| a single submission | **nothing at all** — it relied on a proxy guarding `/api/admin/*`, which answers *authenticated*, not *permitted* |
+| CSV export | *is someone logged in* — and that is the **whole dataset in one file**, not a preview |
+| the `/admin/forms` page | whether the FEATURE was enabled for the tenant, never whether this person may see it |
+
+Had they changed only the tool permission, the chat would have refused while the
+page beside it served the same names, and the export served all of them at once.
+
+> **A permission enforced only in the chat is not a permission. It is a chat
+> setting.**
+
+`can(permission, caller)` should therefore be a *reader* of authorization your app
+already has, never the place it is first decided. If a permission string exists
+only because a `ChatTool` declared it, every other route in your product is still
+open — and the chat's refusal will make it look closed.
+
+**Before you register a tool, ask what else reaches the same data.** Every answer
+that is not "the same permission" is a door.
+
 ## Permission is asked per caller, not matched against a list
 
 ```ts
