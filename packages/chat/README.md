@@ -685,6 +685,42 @@ this encodes what the providers *document*, not what they were observed to do.
 **A live tool round-trip against the cheapest model is still the test that would
 have caught this first, and it remains outstanding.**
 
+### ⚠️ What it does NOT cover — read this before concluding "tools are tested"
+
+cms hit a **second** crash minutes after adopting the fix above, and
+`assertProviderTranscript` was **green throughout**:
+
+```
+invalid_type · expected object · received undefined
+path: messages.1.toolCalls.0.arguments · "Required"
+```
+
+We emit `toolCalls: [{ id, name, args }]`. The SDK they hand it to wants
+`arguments`. This module validates **our** shape and the **providers'** ordering
+rules — it knows nothing about the library you pass the result to.
+
+> **A strict double is only strict about the contract it was TOLD about, and
+> there is usually more than one.** The guard against *"your stub agrees with
+> you"* is itself a stub for everything nobody described to it.
+
+It covers exactly one seam: *your transcript ↔ the providers' rules*. The seam
+*your code ↔ your own SDK* is yours, and nothing here can see it.
+
+**And the obvious way to use this wrong, which looks entirely right** — cms,
+reported against themselves: they handed `createStrictModel` straight to their
+chat factory, so **their own translation layer never ran**. Mutating that layer
+turned nothing red. The test proved our engine emits a valid stream and *nothing*
+about their delivery — which is where both crashes were.
+
+**Point it at what YOU send:**
+
+```ts
+// give the translation a name, so a mutation of it can go red
+const payload = toProviderMessages(messages);
+expect(payload[1].tool_calls[0].arguments).toEqual({ q: "x" });   // YOUR contract
+assertProviderTranscript(messages);                              // ours + the provider's
+```
+
 ## `done` is a frame — do not send your own
 
 The loop emits `{ type: "done", reason }` itself, always, on every exit path. A

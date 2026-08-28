@@ -22,6 +22,39 @@
  * this encodes what Mistral, OpenAI and Anthropic DOCUMENT, not what they were
  * observed to do. A live tool round-trip against the cheapest model is still
  * the test that would have caught this first, and it remains outstanding.
+ *
+ * ⚠️⚠️ WHAT THIS DOES **NOT** COVER — read this before you conclude "tools are
+ * tested". cms hit a SECOND crash minutes after adopting the fix above, and
+ * `assertProviderTranscript` was **green through all of it**:
+ *
+ *     invalid_type · expected object · received undefined
+ *     path: messages.1.toolCalls.0.arguments · "Required"
+ *
+ * We emit `toolCalls: [{ id, name, args }]`. The SDK they hand it to wants
+ * `arguments`. This file validates OUR shape and the PROVIDERS' ordering rules
+ * — **it knows nothing about the library you pass the result to.**
+ *
+ * > **A strict double is only strict about the contract it was TOLD about, and
+ * > there is usually more than one.** The guard against "your stub agrees with
+ * > you" is itself a stub for everything nobody described to it.
+ *
+ * So it covers exactly one seam: *your transcript ↔ the providers' rules*. The
+ * seam *your code ↔ your own SDK* is yours, and no assertion here can see it.
+ *
+ * AND THE OBVIOUS WAY TO USE THIS WRONG, which looks entirely right — also cms,
+ * reported against themselves: they handed `createStrictModel` straight to their
+ * chat factory, so **their own translation layer never ran**. Mutating that layer
+ * turned nothing red. The test proved our engine emits a valid stream and
+ * NOTHING about their delivery — which is exactly where both crashes were.
+ *
+ * Point it at what YOU send:
+ *
+ * ```ts
+ * // your named seam, so a mutation of it can go red
+ * const payload = toProviderMessages(messages);
+ * expect(payload[1].tool_calls[0].arguments).toEqual({ q: "x" });   // YOUR contract
+ * assertProviderTranscript(messages);                              // ours + the provider's
+ * ```
  */
 import type { ChatMessage, ModelEvent, ModelFn, ModelRequest } from "./index.js";
 
