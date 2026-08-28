@@ -211,6 +211,47 @@ had *arrived* on a device that never *showed* it.)
 `VIBRATION_PATTERNS.ignore` is empty on purpose: a tap that changed nothing must
 not feel like it did.
 
+## `seam` — soft region edges are OPT-IN, and here is why
+
+```tsx
+<BodyMap3D seam />          // soft colour transition between regions
+<BodyMap3D />               // default: flat, full-contrast regions
+```
+
+**Default off, because the default has to be the accessible one.** The blend mixes
+the *body* colour into a marked region near its boundary — and on a **small** mark,
+the boundary is most of the mark.
+
+Measured on a phone (`iphone-15`), a consumer's real palette, one knee marked,
+averaged over every pixel of the mark:
+
+| | mark colour | contrast vs body |
+|---|---|---|
+| `seam` on | `rgb(114, 58, 79)` | **3.59:1** — fails WCAG AA |
+| `seam` off (default) | `rgb(111, 22, 56)` | **4.71:1** — passes |
+
+At the single strongest pixel the cost is small (5.12 → 4.78), which is why a
+spot-check misses it. The average is what a person sees.
+
+**Turn it on** when marked areas are large and you have no accessibility duty — it
+genuinely looks better there. **Leave it off** for anything a public authority,
+a clinician or a partially-sighted user will read.
+
+## Smooth skin: we do not recompute the model's normals
+
+If your `.glb` ships normals, the renderer uses them. It only calls
+`computeVertexNormals()` when the file has none.
+
+This matters more than it sounds. `computeVertexNormals()` averages face normals
+**per vertex index**, and a body mesh has split vertices along its UV seams — two
+copies at the same position averaging different faces. The two sides then light
+differently, drawing a visible crease along every seam: a line down the torso, and
+across the chest, waist, shoulders, knees, elbows and ankles. The figure looks
+assembled from parts. Measured side by side: with the call, every line is there;
+without it, none are.
+
+If you supply your own model, **ship it with normals.**
+
 ## Colour control — `BodymapPalette`
 
 Both renderers theme off one palette (consumer-defined):

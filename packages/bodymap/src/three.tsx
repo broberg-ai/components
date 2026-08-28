@@ -172,6 +172,22 @@ export interface BodyMap3DProps {
    *  (default true). Set false for a patient/employee-facing flow where the code is
    *  internal jargon and the readable region name is enough. */
   showRegionCode?: boolean;
+  /** Soften the colour transition between neighbouring regions (F052.21).
+   *
+   *  DEFAULT FALSE, and the default is the accessible one (F052.23). The blend
+   *  mixes the BODY colour into a marked region near its boundary — which on a
+   *  SMALL mark is most of the mark. Measured on a phone with a consumer's
+   *  palette and one knee marked: the mark's average contrast against the body
+   *  fell from 4.71:1 to 3.59:1, i.e. below the WCAG AA threshold of 4.5:1, on a
+   *  surface a public authority is legally required to meet.
+   *
+   *  At the single strongest pixel the cost is small (5.12 → 4.78) — which is
+   *  why a spot-check misses it and the AVERAGE is what a person sees.
+   *
+   *  Turn it on when the marked areas are LARGE and you have no accessibility
+   *  duty: the soft seam genuinely looks better there, and that is why it is
+   *  still here rather than deleted. */
+  seam?: boolean;
   /** Fired after every pick with what ACTUALLY happened (F052.22): "select",
    *  "clear" or "ignore". Wire it to a sound (`@broberg/soundkit`) or to native
    *  haptics (Capacitor `Haptics.impact()` — the only route to a real buzz on an
@@ -192,7 +208,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
     models, value, defaultValue, onChange, config, palette = defaultPalette,
     locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
     autoRotate = true, canvasHeight = "60vh", showRegionCode = true,
-    onFeedback, haptics, className,
+    onFeedback, haptics, seam = false, className,
   } = props;
 
   // Panel chrome — consumer palette wins, AA-safe defaults fill every gap. (F052.19)
@@ -230,6 +246,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
   // Assigned below, after removePain exists.
   const pickRef = useRef<(key: string) => PickOutcome>(() => "ignore");
   const setReadyRef = useRef(setReady); setReadyRef.current = setReady;
+  // The scene closure reads this at PAINT time, so toggling `seam` recolours
+  // without rebuilding the model (F052.23).
+  const seamRef = useRef(seam); seamRef.current = seam;
   const apiRef = useRef<{ setSex: (s: BodyMap3DSex) => void; refresh: () => void } | null>(null);
 
   useEffect(() => {
@@ -323,7 +342,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
       };
       for (let i = 0; i < vertexRegion.length; i++) {
         tmp.copy(col(vertexRegion[i]!));
-        const w = vertexBlend[i]!;
+        // Off by default: a blended mark is a LOWER-CONTRAST mark, and the
+        // shipped default has to be the one that passes AA. (F052.23)
+        const w = seamRef.current ? vertexBlend[i]! : 0;
         if (w > 0) { tmp2.copy(col(vertexNeighbour[i]!)); tmp.lerp(tmp2, w); }
         colorAttr.setXYZ(i, tmp.r, tmp.g, tmp.b);
       }
@@ -347,7 +368,24 @@ export function BodyMap3D(props: BodyMap3DProps) {
         model.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && !bodyMesh) bodyMesh = m; });
         if (bodyMesh) {
           const geo = (bodyMesh as THREE.Mesh).geometry as THREE.BufferGeometry;
-          geo.computeVertexNormals();
+          // F052.25 — DO NOT recompute normals when the file ships them.
+          //
+          // This one line was the "lines on the body, so it looks assembled"
+          // Christian reported. computeVertexNormals() averages face normals PER
+          // VERTEX INDEX, and this mesh has split vertices along its UV seams —
+          // two copies at the same position, each averaging a different set of
+          // faces. The result is a lighting discontinuity exactly along those
+          // seams: a vertical line down the torso, horizontals at chest, waist,
+          // knees, elbows, ankles. The GLB ships correct smooth normals; we were
+          // throwing them away and reconstructing worse ones.
+          //
+          // Measured side by side, same page, same props, same viewport: with
+          // the call, every one of those lines is visible; without it, none are.
+          //
+          // Kept as a FALLBACK only: a model with no normal attribute would
+          // otherwise render flat/black, so compute them when — and only when —
+          // the file did not provide any.
+          if (!geo.getAttribute("normal")) geo.computeVertexNormals();
           const pos = geo.getAttribute("position") as THREE.BufferAttribute;
           const n = pos.count;
           const cols = new Float32Array(n * 3);
@@ -473,7 +511,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
   }, []);
 
   // React → scene: recolour on selection / report / palette change; swap model on sex change.
-  useEffect(() => { apiRef.current?.refresh(); }, [selected, report, palette]);
+  useEffect(() => { apiRef.current?.refresh(); }, [selected, report, palette, seam]);
   // Swap the model on sex change — but skip the first run: the mount effect
   // already loaded sexRef.current, so this avoids a redundant reload (matters on mobile).
   const sexInited = useRef(false);
