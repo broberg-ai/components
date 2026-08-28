@@ -199,7 +199,46 @@ import {
 export type ChatFrame =
   | { type: "text"; text: string }
   | { type: "tool-call"; id: string; name: string; args: Record<string, unknown> }
-  | { type: "tool-result"; id: string; name: string; result: unknown }
+  | {
+      type: "tool-result";
+      id: string;
+      name: string;
+      /**
+       * WARNING — THIS CAN BE `undefined`, AND undefined DOES NOT SERIALISE.
+       *
+       * `ChatTool.run` returns `unknown`, and a handler that returns nothing —
+       * an early `return;`, a void function, a caught error path — produces
+       * `undefined`. We pass it through unchanged ON PURPOSE: only you know
+       * whether an empty answer means "no results", "not applicable" or "the
+       * handler has a bug".
+       *
+       * The trap is that `JSON.stringify(undefined)` is `undefined`, NOT the
+       * string "undefined". So this crashes, three lines later, on a value that
+       * looked fine:
+       *
+       *     const text = JSON.stringify(frame.result);
+       *     if (text.startsWith("{")) …          // TypeError
+       *
+       * cms hit exactly that in production (2026-08-28): one tool answering
+       * nothing threw into their route's outer catch and ended the stream with
+       * "Chat error" ON TOP OF a half-written answer that was fine. One silent
+       * tool took the whole turn down.
+       *
+       * Pick your own default — this is a decision, not a formality:
+       *
+       *     JSON.stringify(frame.result) ?? ""            // empty is nothing
+       *     JSON.stringify(frame.result) ?? "(no result)" // empty is a message
+       *
+       * Use `??`, NOT `||`. A tool answering `0` HAS answered, and `||` merges
+       * "zero documents found" with "no answer at all" — cms's distinction,
+       * with six tests on it, and it is the whole reason we do not choose for you.
+       *
+       * (Our own transcript is not affected: `serialise()` already falls back
+       * with `?? String(value)`, so the model never receives a non-string. The
+       * hazard is specifically for a consumer serialising THIS frame.)
+       */
+      result: unknown;
+    }
   | { type: "error"; scope: "tool" | "model"; name?: string; message: string }
   /**
    * What history management did before this round. Never silent: a user must

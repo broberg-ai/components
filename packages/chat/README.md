@@ -841,6 +841,42 @@ consumer that appends its own after the loop ends puts two `done` events in the
 stream. Harmless for a client that ignores the second; load-bearing for the next
 one. (cms shipped exactly this and flagged it.)
 
+## ⚠️ A `tool-result` can be `undefined`, and `undefined` does not serialise
+
+`ChatTool.run` returns `unknown`. A handler that returns nothing — an early
+`return;`, a void function, a caught error path — produces `undefined`, and the
+frame carries it through **unchanged, on purpose**: only you know whether an
+empty answer means *"no results"*, *"not applicable"* or *"this handler has a
+bug"*.
+
+The trap is that **`JSON.stringify(undefined)` is `undefined`, not the string
+`"undefined"`.** So this crashes three lines later, on a value that looked fine:
+
+```ts
+const text = JSON.stringify(frame.result);
+if (text.startsWith("{")) …          // TypeError
+```
+
+**cms hit exactly that in production (2026-08-28).** One tool answering nothing
+threw into their route's outer catch, which ended the stream with *"Chat error"*
+**on top of a half-written answer that was fine.** One silent tool took the whole
+turn down.
+
+Pick your own default — it is a decision, not a formality:
+
+```ts
+JSON.stringify(frame.result) ?? ""             // empty is nothing
+JSON.stringify(frame.result) ?? "(no result)"  // empty is a message
+```
+
+**Use `??`, never `||`.** A tool answering `0` **has** answered, and `||` merges
+*"zero documents found"* with *"no answer at all"*. That is cms's distinction,
+with six tests on it, and it is precisely why we do not choose for you.
+
+*Our own transcript is unaffected — `serialise()` already falls back with
+`?? String(value)`, so the model never receives a non-string. The hazard is
+specifically for a consumer serialising the frame.*
+
 ## What is NOT in here
 
 The widget, spend caps, retention, redaction, RAG-over-history. The core is the
