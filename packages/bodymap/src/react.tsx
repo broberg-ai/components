@@ -20,6 +20,8 @@ import {
   resolveRegions,
   isSelectable,
   decidePick,
+  emitFeedback,
+  type FeedbackFn,
   getRegion,
   heatFor,
   baseColorFor,
@@ -408,6 +410,16 @@ export interface BodyMapProps {
   /** Display-only mode (F052.9): render a saved report coloured by intensity
    *  with NO picker and no interactivity. For journals, PDFs, clinician views. */
   readOnly?: boolean;
+  /** Fired after every pick with what ACTUALLY happened (F052.22): "select",
+   *  "clear" or "ignore". Wire it to a sound (`@broberg/soundkit`) or to native
+   *  haptics (Capacitor `Haptics.impact()` — the only route to a real buzz on an
+   *  iPhone, where web vibration does not exist). A pick swallowed by the
+   *  pan/pinch guard fires nothing at all. */
+  onFeedback?: FeedbackFn;
+  /** Web vibration on select/clear. Default true; silently inert where
+   *  `navigator.vibrate` is absent (every browser on iPhone, most desktops).
+   *  Set false to keep the signal but drop the buzz. */
+  haptics?: boolean;
   className?: string;
 }
 
@@ -421,7 +433,7 @@ const clampPan = (p: { x: number; y: number }, z: number) => ({
 /** 2D SVG body pain-map. Click/tap a region → set intensity + quality → PainReport. */
 export function BodyMap({
   value, defaultValue, onChange, config = {}, defaultView = "front", onViewChange,
-  palette, locale = "da", labels, readOnly = false, className,
+  palette, locale = "da", labels, readOnly = false, onFeedback, haptics, className,
 }: BodyMapProps) {
   useEffect(ensureStyles, []);
   const [internal, setInternal] = useState<PainReport>(defaultValue ?? []);
@@ -540,6 +552,11 @@ export function BodyMap({
    */
   const applyPick = (key: string) => {
     const what = decidePick(key, report, config);
+    // The signal carries the outcome that HAPPENED — emitted for all three,
+    // including "ignore", so an app can tell "locked" from "nothing to do".
+    // The buzz is chosen by outcome (VIBRATION_PATTERNS.ignore is empty), so a
+    // tap that changed nothing never feels like it did.
+    emitFeedback(what, key, { onFeedback, haptics });
     if (what === "ignore") return;
     if (what === "clear") { removePain(key); return; }
     setSelected(key);
@@ -624,7 +641,16 @@ export function BodyMap({
                     tabIndex: interactive ? 0 : -1,
                     "aria-label": ariaFor(r, marked, interactive),
                     "aria-pressed": interactive ? selected === r.key : undefined,
-                    onClick: interactive ? () => pickRegion(r.key) : undefined,
+                    // Click is attached whenever the map is EDITABLE, even on a
+                    // locked region — the pick returns "ignore", changes nothing
+                    // and does not buzz, but it reaches onFeedback so an app can
+                    // say WHY nothing happened. Found by measurement (F052.22):
+                    // the 3D renderer raycasts every mesh and already reported
+                    // `ignore`, so gating this on `interactive` made the two
+                    // renderers answer the same tap differently. ARIA is
+                    // deliberately NOT widened — a locked region must not become
+                    // a focusable button that does nothing.
+                    onClick: readOnly ? undefined : () => pickRegion(r.key),
                     onKeyDown: interactive
                       ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); suppressClick.current = false; applyPick(r.key); } }
                       : undefined,

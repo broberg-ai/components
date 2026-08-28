@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   REGIONS,
   getRegion,
@@ -8,6 +8,9 @@ import {
   resolveRegions,
   isSelectable,
   decidePick,
+  requestVibration,
+  emitFeedback,
+  VIBRATION_PATTERNS,
   type PainReport,
   serializeReport,
   deserializeReport,
@@ -173,5 +176,88 @@ describe("decidePick — one rule, both renderers", () => {
       decidePick("LUMBAR", marked, { LUMBAR: { selectable: false } }),
     ]);
     expect(seen.size).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F052.22 — the feedback signal.
+//
+// Christian asked for sound + haptics. The measurement that shaped this: WebKit
+// (every browser on an iPhone) has NO navigator.vibrate at all, so the package
+// ships the SIGNAL and each app wires the effect it can actually deliver —
+// Capacitor Haptics natively, @broberg/soundkit for sound.
+// ---------------------------------------------------------------------------
+
+const navWith = (vibrate: unknown) => ({ vibrate }) as unknown;
+
+describe("requestVibration — four states, because four things can happen", () => {
+  it("distinguishes unsupported · declined · requested — ALL THREE in one test", () => {
+    // The control is the whole test. A stub that always answered "requested"
+    // passes any one of these lines on its own.
+    expect(requestVibration([12], navWith(undefined) as never)).toBe("unsupported");
+    expect(requestVibration([12], navWith(() => false) as never)).toBe("declined");
+    expect(requestVibration([12], navWith(() => true) as never)).toBe("requested");
+  });
+
+  it("an EMPTY pattern is `skipped` and never reaches the browser at all", () => {
+    // VIBRATION_PATTERNS.ignore is empty on purpose: a tap that changed nothing
+    // must not feel like it changed something.
+    const vibrate = vi.fn(() => true);
+    expect(requestVibration([], navWith(vibrate) as never)).toBe("skipped");
+    expect(vibrate, "a no-op tap buzzed").not.toHaveBeenCalled();
+    expect(VIBRATION_PATTERNS.ignore).toEqual([]);
+    // …and the control: a real pattern DOES reach it, with the pattern intact.
+    expect(requestVibration(VIBRATION_PATTERNS.clear, navWith(vibrate) as never)).toBe("requested");
+    expect(vibrate).toHaveBeenCalledWith([8, 40, 8]);
+  });
+
+  it("a vibrate that THROWS is `declined` — an embedded webview must not crash the pick", () => {
+    const boom = () => { throw new Error("NotAllowedError"); };
+    expect(requestVibration([12], navWith(boom) as never)).toBe("declined");
+  });
+
+  it("`requested` is not a delivery claim — it is the only word the API can support", () => {
+    // Documented as an assertion so nobody later renames it to something that
+    // promises the motor moved. Silent mode, no motor, and no user gesture yet
+    // all return true from navigator.vibrate and produce nothing.
+    const outcomes = new Set([
+      requestVibration([12], navWith(undefined) as never),
+      requestVibration([12], navWith(() => false) as never),
+      requestVibration([12], navWith(() => true) as never),
+      requestVibration([], navWith(() => true) as never),
+    ]);
+    expect(outcomes.size).toBe(4);
+    expect(outcomes.has("delivered" as never)).toBe(false);
+  });
+});
+
+describe("emitFeedback — the signal always, the buzz optionally", () => {
+  it("passes the outcome and region through, for all three outcomes", () => {
+    const onFeedback = vi.fn();
+    emitFeedback("select", "neck", { onFeedback, nav: navWith(() => true) });
+    emitFeedback("clear", "lumbar", { onFeedback, nav: navWith(() => true) });
+    emitFeedback("ignore", "chest", { onFeedback, nav: navWith(() => true) });
+    expect(onFeedback.mock.calls.map((c) => c[0])).toEqual([
+      { outcome: "select", region: "neck" },
+      { outcome: "clear", region: "lumbar" },
+      { outcome: "ignore", region: "chest" },
+    ]);
+  });
+
+  it("haptics defaults ON: select and clear buzz, ignore does not", () => {
+    const vibrate = vi.fn(() => true);
+    const nav = navWith(vibrate);
+    expect(emitFeedback("select", "neck", { nav })).toBe("requested");
+    expect(emitFeedback("clear", "neck", { nav })).toBe("requested");
+    expect(emitFeedback("ignore", "neck", { nav })).toBe("skipped");
+    expect(vibrate.mock.calls).toEqual([[[12]], [[8, 40, 8]]]);
+  });
+
+  it("haptics:false drops the buzz and KEEPS the signal — an app may want sound only", () => {
+    const vibrate = vi.fn(() => true);
+    const onFeedback = vi.fn();
+    expect(emitFeedback("select", "neck", { onFeedback, haptics: false, nav: navWith(vibrate) })).toBe("skipped");
+    expect(vibrate).not.toHaveBeenCalled();
+    expect(onFeedback).toHaveBeenCalledWith({ outcome: "select", region: "neck" });
   });
 });

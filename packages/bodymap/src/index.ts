@@ -183,6 +183,112 @@ export function isSelectable(key: string, config: RegionConfig = {}): boolean {
   return s?.selectable ?? true;
 }
 
+// ---- feedback signal: sound + haptics (F052.22) -----------------------------
+
+/**
+ * What a pick did, handed to the consuming app so it can make a sound or a buzz.
+ *
+ * The outcome is the one `decidePick` ACTUALLY returned, never the intent to tap
+ * — so a tap on a locked region can not announce itself as a removal, and a tap
+ * the pan/pinch guard swallowed emits nothing at all (it never gets here).
+ *
+ * It deliberately reuses `PickOutcome` rather than introducing a second
+ * three-word vocabulary. Two enums meaning the same thing is a drift bug waiting
+ * for the first person who adds a fourth outcome to only one of them.
+ */
+export interface FeedbackSignal {
+  outcome: PickOutcome;
+  /** The region key that was picked. */
+  region: string;
+}
+
+export type FeedbackFn = (signal: FeedbackSignal) => void;
+
+/**
+ * What the BROWSER did with a vibration request.
+ *
+ * ⚠️ `requested` does NOT mean the phone buzzed. `navigator.vibrate()` returns
+ * true for a request it accepted, and all of these accept it and then produce
+ * nothing: silent / do-not-disturb mode, a device with no vibration motor (most
+ * laptops), a page that has not yet had a qualifying user gesture.
+ *
+ * Same lesson `@broberg/webpush` 0.3.1 recorded — a push that provably ARRIVED
+ * on a device that never SHOWED it. "Accepted" and "happened" are two claims,
+ * and only one of them is observable from here.
+ */
+export type VibrateOutcome = "unsupported" | "skipped" | "declined" | "requested";
+
+/**
+ * The buzz for each outcome.
+ *
+ * `ignore` is empty ON PURPOSE: a tap that changed nothing must not feel like it
+ * changed something. That is the whole reason this is keyed by outcome and not
+ * fired from the tap handler.
+ */
+export const VIBRATION_PATTERNS: Record<PickOutcome, readonly number[]> = {
+  select: [12],
+  clear: [8, 40, 8],
+  ignore: [],
+};
+
+interface Vibrator {
+  vibrate?: (pattern: number | number[]) => boolean;
+}
+
+/**
+ * Ask the browser to vibrate. Never throws, never claims delivery.
+ *
+ * `nav` is injectable so a test can supply all four cases; it defaults to the
+ * real `navigator` and is `unsupported` when there is not one (SSR, and every
+ * browser on iPhone — WebKit has no `vibrate` at all).
+ */
+export function requestVibration(
+  pattern: readonly number[],
+  nav: Vibrator | undefined = (globalThis as { navigator?: Vibrator }).navigator,
+): VibrateOutcome {
+  if (pattern.length === 0) return "skipped";
+  if (typeof nav?.vibrate !== "function") return "unsupported";
+  try {
+    return nav.vibrate([...pattern]) ? "requested" : "declined";
+  } catch {
+    // Embedded webviews and cross-origin iframes throw rather than return false.
+    // A refused buzz must never take the pain report down with it.
+    return "declined";
+  }
+}
+
+export interface FeedbackOptions {
+  onFeedback?: FeedbackFn;
+  /** Web vibration on select/clear. Default true; inert where the API is absent. */
+  haptics?: boolean;
+  /** Injectable for tests. */
+  nav?: unknown;
+}
+
+/**
+ * Emit one pick's feedback: always the signal, optionally the buzz.
+ *
+ * Lives in the core because the 2D and 3D renderers share no click code, and a
+ * rule written twice is a rule that drifts — the same reason `decidePick` is
+ * here (F052.20).
+ *
+ * Sound is NOT here and never will be: `@broberg/soundkit` already exists, and
+ * pulling Web Audio into a component that is often rendered read-only (a
+ * journal, a PDF, a clinician view) is a cost every consumer would pay for a
+ * feature most will not switch on. Wire `onFeedback` to it in four lines.
+ */
+export function emitFeedback(
+  outcome: PickOutcome,
+  region: string,
+  opts: FeedbackOptions = {},
+): VibrateOutcome {
+  opts.onFeedback?.({ outcome, region });
+  if (opts.haptics === false) return "skipped";
+  // `undefined` falls through to requestVibration's own default (the real
+  // navigator) — so an omitted `nav` and a passed-in one take the same path.
+  return requestVibration(VIBRATION_PATTERNS[outcome], opts.nav as Vibrator | undefined);
+}
+
 // ---- palette (consumer-defined colours — shared by the 2D + 3D renderers) ---
 
 /** Colour control for the body renderers. Consumers pass a palette to theme the

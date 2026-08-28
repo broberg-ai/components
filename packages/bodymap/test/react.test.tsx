@@ -367,3 +367,81 @@ describe("a pan must never delete a mark (F052.20 raised the stakes on this guar
     expect(last).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F052.22 — the feedback signal, 2D half.
+//
+// The vibration MECHANICS are proven in core.test.ts with an injectable
+// navigator (all four states + a throwing implementation). What is proven here
+// is the WIRING: that a real tap reaches emitFeedback with the outcome that
+// actually happened.
+// ---------------------------------------------------------------------------
+
+describe("onFeedback — the 2D renderer reports what happened (F052.22)", () => {
+  it("select · clear · ignore — the three outcomes a tap can have", () => {
+    const seen: Array<{ outcome: string; region: string }> = [];
+    render(
+      <BodyMap
+        onFeedback={(f) => seen.push(f)}
+        haptics={false}
+        config={{ chest: { selectable: false } }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));   // unmarked
+    fireEvent.click(screen.getByTestId("bodymap-intensity-7"));
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));   // now marked
+    fireEvent.click(screen.getByTestId("bodymap-region-chest"));        // locked
+
+    expect(seen).toEqual([
+      { outcome: "select", region: "knee_right" },
+      { outcome: "clear", region: "knee_right" },
+      { outcome: "ignore", region: "chest" },
+    ]);
+  });
+
+  it("a tap swallowed by the PAN GUARD emits nothing at all — not even `ignore`", () => {
+    // Asserted separately from the locked case on purpose. "Nothing happened
+    // because you were panning" and "nothing happened because it is locked" are
+    // different events, and one assertion covering both would hide either one:
+    // a buzz on every aborted pan is exactly the noise that makes people turn
+    // haptics off.
+    const seen: Array<{ outcome: string; region: string }> = [];
+    render(<BodyMap onFeedback={(f) => seen.push(f)} haptics={false} />);
+
+    const stage = screen.getByTestId("bodymap-svg");
+    fireEvent.pointerDown(stage, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(stage, { pointerId: 1, clientX: 180, clientY: 140 }); // > 6px ⇒ a pan
+    fireEvent.pointerUp(stage, { pointerId: 1, clientX: 180, clientY: 140 });
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+
+    expect(seen, "an aborted pan buzzed").toEqual([]);
+
+    // CONTROL: the very same click, without the pan, DOES emit — otherwise a
+    // renderer that had stopped emitting entirely would pass the line above.
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(seen).toEqual([{ outcome: "select", region: "knee_right" }]);
+  });
+
+  it("KEYBOARD PARITY: Enter emits the same signal as a tap (F052.11 is a legal duty here)", () => {
+    const seen: Array<{ outcome: string; region: string }> = [];
+    render(<BodyMap onFeedback={(f) => seen.push(f)} haptics={false} />);
+    fireEvent.keyDown(screen.getByTestId("bodymap-region-neck"), { key: "Enter" });
+    expect(seen).toEqual([{ outcome: "select", region: "neck" }]);
+  });
+
+  it("readOnly emits nothing — a display-only report is not interactive", () => {
+    const seen: unknown[] = [];
+    render(
+      <BodyMap
+        readOnly
+        value={[{ region: "chest", intensity: 8, timestamp: "2026-08-28T10:00:00.000Z" }]}
+        onFeedback={(f) => seen.push(f)}
+      />,
+    );
+    // chest, not lumbar: lumbar is a BACK region and the default view is front,
+    // so the element would simply not exist and the test would pass vacuously.
+    fireEvent.click(screen.getByTestId("bodymap-region-chest"));
+    expect(seen).toEqual([]);
+  });
+});

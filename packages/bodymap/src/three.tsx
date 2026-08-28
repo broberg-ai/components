@@ -25,6 +25,8 @@ import {
   isSelectable,
   decidePick,
   type PickOutcome,
+  emitFeedback,
+  type FeedbackFn,
   serializeReport,
   heatFor,
   baseColorFor,
@@ -170,6 +172,15 @@ export interface BodyMap3DProps {
    *  (default true). Set false for a patient/employee-facing flow where the code is
    *  internal jargon and the readable region name is enough. */
   showRegionCode?: boolean;
+  /** Fired after every pick with what ACTUALLY happened (F052.22): "select",
+   *  "clear" or "ignore". Wire it to a sound (`@broberg/soundkit`) or to native
+   *  haptics (Capacitor `Haptics.impact()` — the only route to a real buzz on an
+   *  iPhone, where web vibration does not exist). */
+  onFeedback?: FeedbackFn;
+  /** Web vibration on select/clear. Default true; silently inert where
+   *  `navigator.vibrate` is absent (every browser on iPhone, most desktops).
+   *  Set false to keep the signal but drop the buzz. */
+  haptics?: boolean;
   className?: string;
 }
 
@@ -180,7 +191,8 @@ export function BodyMap3D(props: BodyMap3DProps) {
   const {
     models, value, defaultValue, onChange, config, palette = defaultPalette,
     locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
-    autoRotate = true, canvasHeight = "60vh", showRegionCode = true, className,
+    autoRotate = true, canvasHeight = "60vh", showRegionCode = true,
+    onFeedback, haptics, className,
   } = props;
 
   // Panel chrome — consumer palette wins, AA-safe defaults fill every gap. (F052.19)
@@ -482,6 +494,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
    */
   pickRef.current = (k: string): PickOutcome => {
     const what = decidePick(k, reportRef.current, configRef.current ?? {});
+    // Same call as the 2D renderer, from the same decision — the signal cannot
+    // drift between the two bodies because neither of them decides it. (F052.22)
+    emitFeedback(what, k, { onFeedback, haptics });
     if (what === "clear") removePain(k);
     else if (what === "select") setSelected(k);
     return what;

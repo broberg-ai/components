@@ -136,6 +136,81 @@ import { BodyMap3D } from "@broberg/bodymap/three";
   `bodymap3d-intensity-<n>`, `bodymap3d-type-<quality>`, `bodymap3d-region-code`,
   `bodymap3d-ready`).
 
+## Sound + haptics — the package emits the SIGNAL, you wire the effect
+
+Both renderers take `onFeedback`, called after **every** pick with what actually
+happened:
+
+```tsx
+<BodyMap onFeedback={({ outcome, region }) => { /* "select" | "clear" | "ignore" */ }} />
+<BodyMap3D onFeedback={({ outcome, region }) => { /* same three outcomes */ }} />
+```
+
+The outcome is the one the core decision returned, never the intent to tap — so a
+tap on a locked region cannot announce itself as a removal, and a tap the
+pan/pinch guard swallowed emits **nothing at all**.
+
+### What the package ships, and what it deliberately does not
+
+| | |
+|---|---|
+| **Web vibration** | shipped, `haptics` prop, **on by default**, inert where the API is absent |
+| **Sound** | **not shipped** — wire `onFeedback` to [`@broberg/soundkit`](https://www.npmjs.com/package/@broberg/soundkit) |
+| **Native haptics** | **not shipped** — wire `onFeedback` to Capacitor `Haptics.impact()` |
+
+Sound and native haptics are left to you on purpose. `@broberg/soundkit` already
+exists, and pulling Web Audio (or a Capacitor dependency) into a component that is
+frequently rendered read-only — a journal, a PDF, a clinician view — is a cost
+every consumer would pay for a feature most will not switch on.
+
+```tsx
+// sound: any web app
+import { play } from "@broberg/soundkit";
+<BodyMap onFeedback={({ outcome }) => outcome !== "ignore" && play(outcome === "clear" ? "undo" : "tap")} />
+
+// real Taptic: a Capacitor app (the ONLY route that works on an iPhone)
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
+<BodyMap3D
+  haptics={false}                                  // the web API is not there on iOS anyway
+  onFeedback={({ outcome }) => {
+    if (outcome === "ignore") return;
+    Haptics.impact({ style: outcome === "clear" ? ImpactStyle.Medium : ImpactStyle.Light });
+  }}
+/>
+```
+
+### The platform fact you need before promising a buzz
+
+**Measured, with a control:**
+
+| Engine | `navigator.vibrate` |
+|---|---|
+| WebKit — Safari, and **every** browser on an iPhone | **absent** |
+| Chromium — Android web | present |
+
+So on an **iPhone web page there is no route to a buzz at all.** Not a permission
+you have not asked for — the API is not there. Real Taptic on iOS requires the
+**native app**. Plan the feature accordingly rather than discovering it on a
+device.
+
+### `requestVibration` never claims delivery
+
+```ts
+import { requestVibration, VIBRATION_PATTERNS } from "@broberg/bodymap";
+requestVibration(VIBRATION_PATTERNS.clear);
+// → "unsupported" | "skipped" | "declined" | "requested"
+```
+
+`requested` means **the browser accepted the request**, not that the phone moved.
+Silent mode, a device with no vibration motor, and a page that has not yet had a
+user gesture all return `true` from `navigator.vibrate` and produce nothing. There
+is no word for "delivered" because nothing observable from a web page can support
+one. (Same lesson `@broberg/webpush` 0.3.1 recorded when a consumer proved a push
+had *arrived* on a device that never *showed* it.)
+
+`VIBRATION_PATTERNS.ignore` is empty on purpose: a tap that changed nothing must
+not feel like it did.
+
 ## Colour control — `BodymapPalette`
 
 Both renderers theme off one palette (consumer-defined):
