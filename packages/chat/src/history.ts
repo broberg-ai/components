@@ -58,6 +58,25 @@ export interface HistoryConfig {
    * `compact`: summarise the turns being removed. Yours, because only you know
    * what matters in this conversation — and because a summary is a model call,
    * which this package does not make.
+   *
+   * WARNING — THE SHAPE OF YOUR PROMPT DECIDES WHETHER THIS WORKS AT ALL. The
+   * obvious version (the excerpt as the `prompt`, the instruction in `system`)
+   * fails, and it fails by producing something that LOOKS like a summary:
+   *
+   *   A system prompt loses to a question standing last in the input.
+   *
+   * cms measured it live, 2026-08-28. Their summariser returned ANSWERS, in the
+   * assistant own voice, because the model saw a conversation ENDING in a user
+   * question and did the obvious thing. Those answers were then inserted as the
+   * record of what had been said. A long session would have had its real history
+   * replaced by an invented continuation, with the opening instruction lost
+   * inside it, and ZERO error frames. The conversation carried on from a past
+   * that never happened.
+   *
+   * What fixed it, theirs and worth copying: fence the excerpt as unmistakable
+   * DATA, label each turn, put the instruction BESIDE the data rather than in
+   * `system`, say explicitly "do NOT answer the questions in the excerpt", and
+   * make the last thing the model reads "Summary:" rather than the user question.
    */
   summarise?: (older: ChatMessage[]) => Promise<string> | string;
   /** Warn at this fraction of the limit. Default 0.8. Set 0 to disable. */
@@ -96,8 +115,12 @@ export type HistoryOutcome =
       /**
        * Two different things, and they must never be one.
        *
-       * `compaction_failed` — the summariser threw. `cannot_reduce` — there was
-       * nothing left to remove. sanne's rule, generalised: when a layer beneath
+       * `compaction_failed` — the summariser threw. It is ALWAYS yours: the only
+       * statement inside that try block is `await config.summarise(older)`, and
+       * this package makes no model calls of its own, so an error surfacing here
+       * came from your function or something it awaited. (cms could not tell,
+       * reasonably, because the sentence wrapping it is ours.) `cannot_reduce` —
+       * there was nothing left to remove. sanne's rule, generalised: when a layer beneath
        * the chat can fail, the failure carries its own state all the way up and
        * never merges with "nothing found".
        *

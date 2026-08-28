@@ -596,11 +596,50 @@ unreliable"*.
 | | |
 |---|---|
 | `window` loses the opening instruction | **measured** — mistral-small, 5 reductions, 0 errors |
-| `compact` preserves it | **not measured yet** |
+| `compact` preserves it | **measured, WITH A CAVEAT** — see below |
 | `cannot_reduce` as its own state | measured useful — it told them the problem was not the old messages |
 
-**The second row is not covered by the first.** `compact` preserving the thread
-is still our claim, not a measurement.
+**The caveat is load-bearing, so it is written as they measured it:** *`compact`
+preserved the instruction in their run, with a summariser written to preserve
+it.* Not *"`compact` preserves it"*. Three of four summaries named the
+instruction explicitly; **the fourth did not, and the marker survived anyway** —
+probably because `keepRecent` held the newest turns. So preservation is
+**likely, not guaranteed, per summary.**
+
+That distinction is not pedantry. The next consumer writes their own
+`summarise`, and with the naive version the same team measured **the opposite**:
+
+### ⚠️ Your `summarise` prompt: a system instruction loses to a question standing last
+
+cms's first version passed the excerpt as the `prompt` and the instruction in
+`system`. The model saw a conversation **ending in a user question** and did the
+obvious thing — it **answered it**, in the assistant's own voice:
+
+```
+[summarise] RETURNED: "En typisk misforståelse om zoneterapi er, at det kan
+                       helbrede alvorlige sygdomme … \n\nBananflue"
+```
+
+Those answers were then inserted **as the record of what had been said**. A long
+session would have had its real history replaced by an invented continuation,
+with the opening instruction lost inside it — and **zero error frames.** The
+conversation carried on from a past that never happened.
+
+**Before and after, same setup, real provider:**
+
+| | |
+|---|---|
+| naive prompt | 4 reductions → marker **GONE**, last answer about something else |
+| fenced prompt | 6 reductions → marker **still there** |
+
+**What fixed it** — theirs, and the part to copy: fence the excerpt as
+unmistakable **data**, label each turn, put the instruction **beside the data**
+rather than in `system`, say explicitly *"do NOT answer the questions in the
+excerpt"*, and make the last thing the model reads `"Summary:"` — not the user's
+question.
+
+We cannot write that prompt for you (only you know what matters in your
+conversations). We can tell you the shape that fails.
 
 *Their first run never reached the ceiling, and the probe said "PROVES NOTHING"
 of its own accord rather than passing. If you run this yourself, build that in —
