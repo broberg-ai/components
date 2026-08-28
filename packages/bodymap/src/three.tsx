@@ -78,6 +78,46 @@ const ANCHORS: Record<string, [number, number, number]> = {
   ankle_left: [-0.1, 0.05, 0.02], ankle_right: [0.1, 0.05, 0.02],
   foot_left: [-0.1, 0.02, 0.11], foot_right: [0.1, 0.02, 0.11],
 };
+/**
+ * How much of the RUNNER-UP region bleeds into this vertex (F052.21).
+ *
+ * Takes SQUARED distances (what the assignment loop already has). Returns 0 at
+ * an anchor and 0.5 where two anchors are equidistant — never above 0.5, so the
+ * nearest region always dominates and a vertex can never be painted mostly as
+ * its neighbour.
+ *
+ * `SEAM` decides how wide the fade is. Raised toward 1 the whole body turns to
+ * mush and a marked region stops reading as a region; at 0 you get the old hard
+ * plane back. It is a look, not a contract — hit-testing never sees this number.
+ */
+/** How wide the fade is, in ratio units below the seam. 0 = the old hard plane. */
+const SEAM = 0.18;
+
+/**
+ * How much of the RUNNER-UP region bleeds into this vertex (F052.21).
+ *
+ * Takes SQUARED distances — what the assignment loop already has.
+ *
+ *   ratio = d1 / (d1 + d2)   → 0 at the anchor · 0.5 where two anchors are equidistant
+ *
+ * Returns 0 well inside a region and rises to 0.5 exactly at the seam, so the
+ * nearest region ALWAYS dominates and a vertex can never be painted mostly as
+ * its neighbour. Smoothstepped, so the fade has no visible start line of its own.
+ *
+ * This is a look, not a contract: hit-testing never sees this number, and the
+ * PainReport is unchanged.
+ */
+export function seamBlend(nearestSq: number, secondSq: number): number {
+  const d1 = Math.sqrt(nearestSq), d2 = Math.sqrt(secondSq);
+  const sum = d1 + d2;
+  if (!(sum > 0)) return 0;
+  const ratio = d1 / sum;
+  const t = (ratio - (0.5 - SEAM)) / SEAM;
+  if (t <= 0) return 0;
+  if (t >= 1) return 0.5;
+  return t * t * (3 - 2 * t) * 0.5; // smoothstep
+}
+
 const ANCHOR_KEYS = Object.keys(ANCHORS);
 for (const k of ANCHOR_KEYS) ANCHORS[k][0] = -ANCHORS[k][0];
 
@@ -231,7 +271,13 @@ export function BodyMap3D(props: BodyMap3DProps) {
 
     let modelRoot: THREE.Object3D | null = null;
     let bodyMesh: THREE.Mesh | null = null;
+    // F052.21 — the hard assignment stays (it is what HIT-TESTING answers with);
+    // `vertexNeighbour` + `vertexBlend` exist only so the COLOUR can fade at a
+    // seam instead of stopping at a plane. A soft LOOK must never become a soft
+    // ANSWER in a clinical record.
     let vertexRegion: string[] = [];
+    let vertexNeighbour: string[] = [];
+    let vertexBlend: Float32Array = new Float32Array(0);
     let colorAttr: THREE.BufferAttribute | null = null;
     let hovered: string | null = null;
     const loader = new GLTFLoader();
@@ -244,13 +290,34 @@ export function BodyMap3D(props: BodyMap3DProps) {
       if (selectedRef.current === key) return paletteRef.current.selected;
       return baseColorFor(key, paletteRef.current);
     };
-    const colorRegion = (key: string, hex: string) => {
+    const tmp2 = new THREE.Color();
+    const colourOf = (key: string): string => (hovered === key ? paletteRef.current.hover : restingHex(key));
+
+    /**
+     * ONE pass over the vertices, blending the two nearest regions.
+     *
+     * The old paint walked every vertex once PER REGION (20x) and set a flat
+     * colour, so a boundary was a hard plane through the mesh — the "sharp
+     * transitions" Christian saw. It was never the model: 21,160 triangles with
+     * smooth normals, and the body renders smooth in every screenshot.
+     */
+    const paint = () => {
       if (!colorAttr) return;
-      tmp.set(hex);
-      for (let i = 0; i < vertexRegion.length; i++) if (vertexRegion[i] === key) colorAttr.setXYZ(i, tmp.r, tmp.g, tmp.b);
+      const cache = new Map<string, THREE.Color>();
+      const col = (k: string) => {
+        let c = cache.get(k);
+        if (!c) { c = new THREE.Color(colourOf(k)); cache.set(k, c); }
+        return c;
+      };
+      for (let i = 0; i < vertexRegion.length; i++) {
+        tmp.copy(col(vertexRegion[i]!));
+        const w = vertexBlend[i]!;
+        if (w > 0) { tmp2.copy(col(vertexNeighbour[i]!)); tmp.lerp(tmp2, w); }
+        colorAttr.setXYZ(i, tmp.r, tmp.g, tmp.b);
+      }
       colorAttr.needsUpdate = true;
     };
-    const refresh = () => { for (const k of ANCHOR_KEYS) colorRegion(k, hovered === k ? paletteRef.current.hover : restingHex(k)); renderFrame(); };
+    const refresh = () => { paint(); renderFrame(); };
 
     const loadModel = (which: BodyMap3DSex) => {
       const url = which === "female" ? modelsRef.current.female : modelsRef.current.male;
@@ -273,12 +340,21 @@ export function BodyMap3D(props: BodyMap3DProps) {
           const n = pos.count;
           const cols = new Float32Array(n * 3);
           vertexRegion = new Array(n);
+          vertexNeighbour = new Array(n);
+          vertexBlend = new Float32Array(n);
           const v = new THREE.Vector3();
           for (let i = 0; i < n; i++) {
             v.fromBufferAttribute(pos, i).applyMatrix4((bodyMesh as THREE.Mesh).matrixWorld);
-            let best = 0, bd = Infinity;
-            for (let a = 0; a < anchorVecs.length; a++) { const d = v.distanceToSquared(anchorVecs[a]); if (d < bd) { bd = d; best = a; } }
-            vertexRegion[i] = ANCHOR_KEYS[best];
+            // nearest AND runner-up, in one pass
+            let best = 0, second = 0, bd = Infinity, sd = Infinity;
+            for (let a = 0; a < anchorVecs.length; a++) {
+              const d = v.distanceToSquared(anchorVecs[a]);
+              if (d < bd) { sd = bd; second = best; bd = d; best = a; }
+              else if (d < sd) { sd = d; second = a; }
+            }
+            vertexRegion[i] = ANCHOR_KEYS[best]!;
+            vertexNeighbour[i] = ANCHOR_KEYS[second]!;
+            vertexBlend[i] = seamBlend(bd, sd);
           }
           colorAttr = new THREE.BufferAttribute(cols, 3);
           geo.setAttribute("color", colorAttr);
@@ -328,9 +404,11 @@ export function BodyMap3D(props: BodyMap3DProps) {
       if ((e.buttons || 0) !== 0) return;
       const k = pick(e.clientX, e.clientY);
       if (k === hovered) return;
-      const prev = hovered; hovered = k;
-      if (prev) colorRegion(prev, restingHex(prev));
-      if (k) colorRegion(k, paletteRef.current.hover);
+      hovered = k;
+      // One pass over the vertices repaints everything, including both seams the
+      // hover just moved across — a per-region repaint cannot, now that a vertex
+      // can carry colour from TWO regions.
+      paint();
       canvas.style.cursor = k ? "pointer" : "default";
       renderFrame();
     };

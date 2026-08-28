@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { BodyMap3D } from "../src/three.js";
+import { BodyMap3D, seamBlend } from "../src/three.js";
 import { REGIONS } from "../src/index.js";
 
 afterEach(cleanup);
@@ -101,5 +101,47 @@ describe("BodyMap3D", () => {
     expect(screen.getByTestId("bodymap3d-unsupported").style.height).toBe("45vh");
     rerender(<BodyMap3D models={models} canvasHeight={360} />);
     expect(screen.getByTestId("bodymap3d-unsupported").style.height).toBe("360px");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F052.21 — the seam blend. Christian saw "sharp transitions" and read them as a
+// model problem; measured, the model is 21,160 triangles with smooth normals and
+// the sharpness was a hard nearest-anchor partition. This is the fade.
+// ---------------------------------------------------------------------------
+
+describe("seamBlend — a soft LOOK, never a soft ANSWER", () => {
+  it("is 0 at an anchor and 0.5 exactly at the seam", () => {
+    expect(seamBlend(0, 1)).toBe(0);        // standing on the anchor
+    expect(seamBlend(1, 1)).toBe(0.5);      // equidistant from two anchors
+  });
+
+  it("is 0 well INSIDE a region — a marked chest is fully its own colour at the centre", () => {
+    // Without this the whole body turns to mush and a marked region stops
+    // reading as a region at all.
+    expect(seamBlend(1, 81)).toBe(0);       // 1 unit away vs 9 — deep inside
+    expect(seamBlend(1, 25)).toBe(0);       // 1 vs 5
+  });
+
+  it("NEVER exceeds 0.5 — the nearest region always dominates", () => {
+    // A vertex painted mostly as its NEIGHBOUR would put the colour on the wrong
+    // body part, which in a pain map is a wrong answer, not a wrong look.
+    const samples = [[0, 1], [1, 81], [0.81, 1], [1, 1], [1, 1.0001], [4, 4]];
+    for (const [a, b] of samples) expect(seamBlend(a!, b!)).toBeLessThanOrEqual(0.5);
+  });
+
+  it("rises monotonically as the runner-up gets closer", () => {
+    const near = seamBlend(1, 4);   // d1=1, d2=2
+    const closer = seamBlend(1, 1.44); // d1=1, d2=1.2
+    const seam = seamBlend(1, 1);
+    expect(near).toBeLessThanOrEqual(closer);
+    expect(closer).toBeLessThan(seam);
+    // …and it genuinely moves — a function returning one value would pass the
+    // inequalities above if they were all <=.
+    expect(seam).toBeGreaterThan(near);
+  });
+
+  it("degenerate input does not produce NaN", () => {
+    expect(seamBlend(0, 0)).toBe(0);
   });
 });
