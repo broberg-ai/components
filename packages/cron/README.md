@@ -66,6 +66,55 @@ const { key } = await cron.mintKey({ name: "xrt81 production", scope: "xrt81" })
 The admin token that mints per-repo tokens lives with **buddy** (one audited
 privileged path); ordinary repos consume a scoped token they were provisioned.
 
+## Three things the types cannot tell you
+
+### `externalId` uses a COLON — `repo:job-name`
+
+Thirteen of the fifteen jobs on the fleet follow it, and **nothing on either side normalises it.** So a deviation does not fail — it silently **creates a duplicate job** instead of updating the one you meant.
+
+> From the call site, *"the upsert missed"* and *"the upsert updated"* look identical. Only `201` versus `200` separates them, and nobody reads that.
+
+Pick the convention and stay on it. This client deliberately does **not** rewrite your identifier for you: silently normalising someone's id is how you create the duplicate you were trying to prevent.
+
+### `connectTimeout` defaults to `null`, and that is deliberate
+
+Two different questions, which `timeout` alone used to answer at once:
+
+| | |
+|---|---|
+| `timeout` | how long the **work** may take |
+| `connectTimeout` | how long we wait for a response to **begin** |
+
+`fetch()` resolves at the response *headers*, so for a job that computes first and answers afterwards, **time-to-header is work time** — a short default would kill exactly those jobs. Set it only when your endpoint answers promptly.
+
+Where it does apply the gain is real: buddy's ingest job answers in 201 ms, and with `timeout: 120000` it hung for the full two minutes through a 16-second outage, burning its whole retry budget on one dead attempt. **Long patience makes a job more fragile, not more robust.**
+
+### A partial update no longer resets what you left out — but send everything anyway
+
+Server-side defaults now apply **only on creation**, so a minimal spec is safe. `tags: undefined` keeps them; `tags: []` clears them.
+
+It was not always so, and the bug hit the exact pattern we recommend — an idempotent re-registration by `externalId`, which every integration runs on **every deploy**. Each run silently cleared all tags, reset timeout/retry/timezone, turned a POST job into a GET, and **re-enabled a job someone had deliberately paused.**
+
+Fixed upstream. Still send your full configuration, so your job does not depend on server behaviour you cannot see from here.
+
+## Is this client still current?
+
+```bash
+npm run check:drift
+```
+
+Fetches the published contract, regenerates, and compares. **Three outcomes, never two:**
+
+| | exit | |
+|---|---|---|
+| `✓` | 0 | in sync |
+| `✗ DRIFTED` | 1 | regenerate with `npm run gen` — it names the first line that differs |
+| `? COULD NOT ASK` | 2 | the spec could not be reached or parsed |
+
+It runs as part of `npm test`, where **drift blocks and "could not ask" does not.** That asymmetry is on purpose: a check that goes red on a flaky network is a check that gets switched off, and the real drift gets switched off with it. The trade is that an unreachable spec is *reported* rather than *enforced* — so read the line, don't just read the exit code.
+
+**Why it exists:** on 2026-08-28 four public-API changes landed in a single day, two of which had already made these types wrong — and the only reason we found out is that somebody on the other side chose to write to us. A signal that exists only while a person remembers to send it is not a signal.
+
 ## API
 
 - `createCron(config?) → CronClient` — `config: { token?, baseUrl?, fetch? }`.

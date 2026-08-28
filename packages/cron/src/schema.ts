@@ -297,7 +297,7 @@ export interface paths {
                 query?: {
                     limit?: number;
                     offset?: number;
-                    status?: "success" | "failure" | "timeout" | "running";
+                    status?: "success" | "failure" | "timeout" | "running" | "deferred" | "missed";
                 };
                 header?: never;
                 path: {
@@ -339,7 +339,12 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** List notifications for a job */
+        /**
+         * List notifications for a job
+         * @description Accepts an API key as well as a browser session. A repo-scoped key may only
+         *     read notifications for its own jobs; another repo's job answers 404 (not 403,
+         *     so job ids cannot be probed).
+         */
         get: {
             parameters: {
                 query?: never;
@@ -359,10 +364,15 @@ export interface paths {
                         "application/json": components["schemas"]["Notification"][];
                     };
                 };
+                404: components["responses"]["NotFound"];
             };
         };
         put?: never;
-        /** Add a notification to a job */
+        /**
+         * Add a notification to a job
+         * @description Set up alerting for a job: email, Discord or webhook, with onFailure /
+         *     onRecovery / onSuccess. Accepts an API key; scope-enforced as above.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -387,6 +397,7 @@ export interface paths {
                     };
                 };
                 400: components["responses"]["BadRequest"];
+                404: components["responses"]["NotFound"];
             };
         };
         /** Remove a notification */
@@ -640,7 +651,7 @@ export interface paths {
             parameters: {
                 query?: {
                     jobId?: string;
-                    status?: "success" | "failure" | "timeout";
+                    status?: "success" | "failure" | "timeout" | "deferred" | "missed";
                     limit?: number;
                     offset?: number;
                 };
@@ -991,8 +1002,10 @@ export interface components {
             /** @description JSON string */
             headers?: string | null;
             body?: string | null;
-            /** @description ms */
+            /** @description ms — how long the work may take */
             timeout?: number;
+            /** @description ms — how long to wait for a response to begin; null = no separate deadline */
+            connectTimeout?: number | null;
             retryCount?: number;
             /** @description ms */
             retryDelay?: number;
@@ -1031,8 +1044,13 @@ export interface components {
             /** @description JSON string of key/value headers */
             headers?: string;
             body?: string;
-            /** @default 30000 */
+            /**
+             * @description How long the WORK may take, ms. Raised from 120000 (F010).
+             * @default 30000
+             */
             timeout: number;
+            /** @description How long to wait for a response to BEGIN, ms. Omit (null) for no separate deadline — the default, because a job that computes first and answers afterwards sends its headers only at the end. Set it when your endpoint answers quickly: a dead connection is then detected in seconds instead of consuming the whole work limit and the retry budget (F010). */
+            connectTimeout?: number | null;
             /** @default 0 */
             retryCount: number;
             /** @default 5000 */
@@ -1057,7 +1075,7 @@ export interface components {
             /** @description ms */
             duration?: number | null;
             /** @enum {string} */
-            status?: "success" | "failure" | "timeout" | "running" | "skipped";
+            status?: "success" | "failure" | "timeout" | "running" | "skipped" | "deferred" | "missed";
             statusCode?: number | null;
             /** @description Truncated at 10KB */
             responseBody?: string | null;
@@ -1089,7 +1107,7 @@ export interface components {
             lastExecution?: {
                 id?: string;
                 /** @enum {string} */
-                status?: "success" | "failure" | "timeout" | "running" | "skipped";
+                status?: "success" | "failure" | "timeout" | "running" | "skipped" | "deferred" | "missed";
                 /** @description Unix ms */
                 startedAt?: number;
                 completedAt?: number | null;

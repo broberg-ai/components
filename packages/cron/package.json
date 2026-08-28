@@ -1,11 +1,14 @@
 {
   "name": "@broberg/cron",
-  "version": "0.1.0",
-  "description": "Typed self-service client for cronjobs.webhouse.net — register + manage HTTP cron jobs over the Bearer-authed /api/jobs API (create/list/update/delete/pause/run), with a per-repo scoped token and per-job target headers kept server-side (never in the URL or logs). Dependency-free; runs in Node, Bun and edge.",
+  "version": "0.2.0",
+  "description": "Typed self-service client for cronjobs.webhouse.net \u2014 register + manage HTTP cron jobs over the Bearer-authed /api/jobs API (create/list/update/delete/pause/run), with a per-repo scoped token and per-job target headers kept server-side (never in the URL or logs). Dependency-free; runs in Node, Bun and edge.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,9 +21,10 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
+    "test": "vitest run && (node scripts/contract-drift.mjs || [ $? -eq 2 ])",
     "typecheck": "tsc --noEmit",
-    "gen": "openapi-typescript https://cronjobs.webhouse.net/api/openapi.json -o src/schema.ts"
+    "gen": "openapi-typescript https://cronjobs.webhouse.net/api/openapi.json -o src/schema.ts",
+    "check:drift": "node scripts/contract-drift.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -43,5 +47,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/cron"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }
