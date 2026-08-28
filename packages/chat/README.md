@@ -79,6 +79,30 @@ open — and the chat's refusal will make it look closed.
 **Before you register a tool, ask what else reaches the same data.** Every answer
 that is not "the same permission" is a door.
 
+### The pattern behind the three questions
+
+The same owner was asked three visibility questions in one day, and answered all
+three the same way — **a reader may read what is published, never the record
+behind it**:
+
+| may a viewer see… | answer |
+|---|---|
+| form submissions | no |
+| deleted content (trash) | no |
+| old versions (revisions) | no |
+
+They look like three features. They are one rule about **the data**, and it is
+worth deriving rather than deciding tool by tool: *published* is what a reader
+was given; a submission, a deletion and a superseded draft are all the
+**record of how it got there**, and none of them was written for that audience.
+
+So when a tool exposes a history, a bin, or anything a person submitted, the
+default is no — and the question to put to the owner is the one about the data,
+not the one about the tool. Ask *"may a reader see what other people submitted?"*
+and you get an answer in two seconds. Ask *"should `list_form_submissions`
+require `forms.read`?"* and you get a shrug, because it is not a question anyone
+outside the code can answer.
+
 ## Permission is asked per caller, not matched against a list
 
 ```ts
