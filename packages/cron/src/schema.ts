@@ -1049,7 +1049,7 @@ export interface components {
              * @default 30000
              */
             timeout: number;
-            /** @description How long to wait for a response to BEGIN, ms. Omit (null) for no separate deadline — the default, because a job that computes first and answers afterwards sends its headers only at the end. Set it when your endpoint answers quickly: a dead connection is then detected in seconds instead of consuming the whole work limit and the retry budget (F010). */
+            /** @description How long to wait for a response to BEGIN, ms. Omit (null) for no separate deadline — the default. Set it by how long the endpoint PLATFORM may take to start replying, NOT by how fast the endpoint usually replies. It does NOT help against a call already in flight when the far side disappears — `timeout` is what cuts that off. Measured during a platform swap: a call received 0 bytes for 21s and then a real 200, so a 20s deadline would have killed a request that succeeded. Use it when an endpoint may never start replying at all (F010). */
             connectTimeout?: number | null;
             /** @default 0 */
             retryCount: number;
