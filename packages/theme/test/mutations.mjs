@@ -14,7 +14,7 @@
 //
 //   node test/mutations.mjs
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -104,16 +104,33 @@ const MUTATIONS = [
 
 function redSet() {
   const out = join(HERE, "node_modules/.mutation-report.json");
+  // A CRASH REPORTS SUCCESS. Measured 2026-08-29 on @broberg/theme: removing the
+  // alias cycle guard made resolveAlias loop forever, node died with
+  // "FATAL ERROR: JavaScript heap out of memory" — and vitest still wrote a
+  // report saying numFailedTests: 0, success: true, 11/11 passing. Reading only
+  // the assertions, this harness called a load-bearing guard UNDEFENDED.
+  //
+  // So the exit code is kept, and a stale report can never stand in for a fresh
+  // one. A measuring instrument that cannot tell "nothing broke" from "the run
+  // never finished" is the same success-shaped non-answer it exists to find.
+  rmSync(out, { force: true });
+  let code = 0;
   try {
-    execFileSync("npx", ["vitest", "run", "--reporter=json", "--outputFile", out], { cwd: HERE, stdio: "pipe" });
-  } catch {
-    /* non-zero exit is the expected case here */
+    execFileSync("npx", ["vitest", "run", "--reporter=json", "--outputFile", out], {
+      cwd: HERE,
+      stdio: "pipe",
+    });
+  } catch (err) {
+    code = typeof err?.status === "number" ? err.status : 1;
   }
+  if (!existsSync(out)) return [`<the suite wrote no report at all — exit ${code}>`];
   const report = JSON.parse(readFileSync(out, "utf8"));
   const failed = [];
   for (const suite of report.testResults ?? []) {
     for (const t of suite.assertionResults ?? []) if (t.status === "failed") failed.push(t.fullName);
   }
+  // Non-zero exit with nothing failing means the run DIED rather than passed.
+  if (!failed.length && code !== 0) failed.push(`<the suite did not complete — exit ${code} (crash, OOM or hang)>`);
   return failed.sort();
 }
 
