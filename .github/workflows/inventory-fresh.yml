@@ -3,9 +3,18 @@ name: discovery
 # GATE + DEPLOY for Discovery — the surface every repo in the fleet is told to
 # read BEFORE building anything.
 #
-# `check` ensures the generated surfaces (landing + onboarding + llms.txt) never
-# drift from their single source (scripts/inventory-data.mjs). `deploy` then
-# ships the app, and `live-fresh` READS THE LIVE API BACK to prove it.
+# THREE DIFFERENT CLAIMS, ONE PER CHECK. Stating them here because conflating
+# two of them is the mistake this file's header itself made until 2026-08-29:
+#
+#   check / roster-vs-npm     THIS REPO agrees with NPM          (F038.10)
+#   check / docs-not-stale    THE PAGES agree with this repo
+#   live-fresh                THE LIVE SITE agrees with this repo (F038.6)
+#   live-fresh / featured     the LIVE hero card names npm's newest (F038.7)
+#
+# Only the first and last ask the registry anything. Without them the pipeline
+# can be perfectly self-consistent and perfectly wrong — which is exactly what
+# happened when @broberg/notifications 0.3.0 shipped and the roster was not
+# bumped: the site matched the repo, both were behind, and live-fresh went green.
 #
 # F038.6 — WHY THE LAST JOB EXISTS, measured twice:
 #   · 2026-08-14  `check` was GREEN (the repo was self-consistent) while the live
@@ -83,6 +92,37 @@ jobs:
             fi
           done
           echo "All three parse."
+
+      # F038.10 — THE ONE DIRECTION NOTHING ELSE COVERED.
+      #
+      #   this step   the repo agrees with NPM
+      #   the step below + the next one   the pages agree with the repo
+      #   live-fresh  the live site agrees with the repo
+      #
+      # The last two prove the pipeline is consistent with itself. Neither can
+      # see a roster that is simply WRONG — and a wrong roster is the failure
+      # with victims, because every repo's CLAUDE.md sends sessions here before
+      # they build anything.
+      #
+      # It gates the DEPLOY on purpose (this job is what `deploy` needs): shipping
+      # a roster we already know is stale publishes the wrong answer to the fleet.
+      #
+      # EXIT 2 IS NOT A FAILURE HERE. npm being unreachable is not our defect, and
+      # a hard red on it would let an outage at the registry block every push in
+      # this repo. It is loud, it is a distinct message, and it is never silent —
+      # which is the whole of the F038.9 lesson. Same three-outcome shape already
+      # used for @broberg/cron's contract-drift check (see test.yml).
+      - name: The roster names what npm actually serves
+        run: |
+          set +e
+          node scripts/check-roster-versions.mjs
+          code=$?
+          set -e
+          if [ $code -eq 2 ]; then
+            echo "::warning::Could not reach the npm registry for some rows — those were NOT verified. Nothing was found wrong in the rows that did answer."
+            exit 0
+          fi
+          exit $code
 
       - name: Regenerate the surfaces from the single source
         run: |
@@ -165,3 +205,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: The live roster serves what the repo says
         run: bun scripts/check-live-fresh.mjs https://discovery.broberg.ai
+
+      # F038.10 — this guard was written for F038.7, hardened for F038.9, and had
+      # NEVER RUN IN CI: it appeared in no workflow and in no npm script. A guard
+      # nobody has watched fail is not a gate; this one had not even been watched
+      # pass. Pointed at the LIVE url, which is the thing it was built to check —
+      # its own header says a local file cannot prove a deploy landed.
+      - name: The "Just shipped" card on the LIVE site names the newest release
+        run: bun scripts/check-featured-fresh.mjs https://discovery.broberg.ai
