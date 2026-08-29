@@ -84,9 +84,31 @@ const answers = await Promise.all(rows.map((r) => latestOnNpm(r.pkg)));
 const behind = [];
 const ahead = [];
 const unaskable = [];
+// F038.10 — A PACKAGE MAY LEGITIMATELY APPEAR ON MORE THAN ONE ROW. Two
+// components can ship in one npm (@broberg/theme is F001 + F015; @broberg/mail-core
+// is F043 + F023). That means two copies of one version number, which can drift
+// from each other — and two rows disagreeing is a WORSE finding than one row being
+// behind, because there is no way to tell which the fleet should believe. The
+// first run of this check reported the same package twice and read as two
+// problems; it was one, plus this.
+const rowsByPkg = new Map();
+for (const r of rows) {
+  const seen = rowsByPkg.get(r.pkg);
+  if (seen && seen !== r.ver) {
+    console.error(
+      `\n  ✗ ${r.pkg} appears on more than one roster row with DIFFERENT versions: ${seen} and ${r.ver}.` +
+        `\n  One package, two answers — nothing can tell the fleet which to install. Fix both rows before anything else.\n`,
+    );
+    process.exit(1);
+  }
+  rowsByPkg.set(r.pkg, r.ver);
+}
 
+const reported = new Set();
 rows.forEach((r, i) => {
   const a = answers[i];
+  if (reported.has(r.pkg)) return; // same package, second row — already judged above
+  reported.add(r.pkg);
   if (a === null) return unaskable.push(r);
   if (a.missing) return ahead.push({ ...r, npm: "not published at all" });
   if (a.version === r.ver) return;
@@ -136,4 +158,4 @@ if (unaskable.length) {
   console.error(`\n  ${rows.length - unaskable.length} of ${rows.length} rows checked, all in sync.\n`);
   process.exit(2);
 }
-console.log(`✓ roster matches npm: ${rows.length} shipped packages, 0 behind, 0 ahead, 0 unreachable`);
+console.log(`✓ roster matches npm: ${rowsByPkg.size} shipped packages across ${rows.length} rows, 0 behind, 0 ahead, 0 unreachable`);
