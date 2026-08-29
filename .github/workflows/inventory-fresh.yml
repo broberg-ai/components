@@ -1,17 +1,40 @@
-name: inventory-fresh
+name: discovery
 
-# Ensures the generated Discovery surfaces (landing + onboarding + llms.txt) never
-# drift from their single source (scripts/inventory-data.mjs). Prod regenerates at
-# Docker build time; this gate keeps the COMMITTED snapshots honest too (they back
-# the local preview + the F060 mockup raw URL). If you add a package or a tip and
-# forget to regenerate, this job goes red with the exact fix.
+# GATE + DEPLOY for Discovery — the surface every repo in the fleet is told to
+# read BEFORE building anything.
+#
+# `check` ensures the generated surfaces (landing + onboarding + llms.txt) never
+# drift from their single source (scripts/inventory-data.mjs). `deploy` then
+# ships the app, and `live-fresh` READS THE LIVE API BACK to prove it.
+#
+# F038.6 — WHY THE LAST JOB EXISTS, measured twice:
+#   · 2026-08-14  `check` was GREEN (the repo was self-consistent) while the live
+#     site had served four stale versions for three days. Nothing deployed it. A
+#     self-consistent repo and a correct site are different claims.
+#   · 2026-08-15  flyctl printed "WARNING The app is not listening on the expected
+#     address" and then reported SUCCESS. A step trusting the exit code would have
+#     gone green on that output.
+# So the run does not end on a deploy succeeding. It ends on the fleet's own
+# endpoint agreeing with the repo.
 on:
   push:
     branches: [main]
   pull_request:
+  # A RELEASE must refresh Discovery too, not only an edit to the roster file.
+  # Christian: "hver gang du releaser en ny version af dine komponenter så bliver
+  # Discovery også automatisk opdateret". Publishing and remembering to bump the
+  # roster are two acts, and the second one is the one that gets forgotten — so
+  # the release itself is a trigger, and if the roster was NOT bumped the
+  # live-fresh job says so by name instead of leaving it to be noticed.
+  workflow_run:
+    workflows: [publish]
+    types: [completed]
+  workflow_dispatch:
 
 jobs:
   check:
+    # A publish that FAILED must not gate-and-deploy off the back of it.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,3 +85,71 @@ jobs:
             exit 1
           fi
           echo "Discovery docs are in sync with the single source."
+
+  # DOES THIS PUSH ACTUALLY CHANGE WHAT DISCOVERY SERVES?
+  #
+  # `check` runs on every push — the greppable guard and the parse check are
+  # cheap and belong everywhere. The DEPLOY must not. A push that touches only a
+  # package's src/ changes nothing the site serves, and deploying anyway would
+  # make the deploy count meaningless as a signal and spend a build for nothing.
+  #
+  # A release is the exception and is why `workflow_run` skips this: publishing
+  # a package IS a change to what the fleet should install, even when this repo's
+  # Discovery files did not move — and if the roster was not bumped, `live-fresh`
+  # is what says so.
+  changes:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.f.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - id: f
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ github.event_name }} — deploying regardless of paths."
+            exit 0
+          fi
+          CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+          echo "$CHANGED" | sed 's/^/    /'
+          if echo "$CHANGED" | grep -Eq '^(scripts/inventory-data\.mjs|scripts/build-.*\.mjs|scripts/npm-latest\.mjs|apps/discovery/|docs/(inventory|onboarding)\.html|docs/llms.*\.txt|\.github/workflows/(inventory-fresh|fly-server-deploy)\.yml)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Nothing Discovery serves changed — not deploying."
+          fi
+
+  # THE DEPLOY IS GATED ON THE CHECK, not merely ordered after it: `needs` means
+  # a red gate blocks the ship. And it is the repo's OWN reusable workflow
+  # (F033.7), not a second hand-rolled deploy path.
+  deploy:
+    needs: [check, changes]
+    if: needs.changes.outputs.relevant == 'true'
+    uses: ./.github/workflows/fly-server-deploy.yml
+    with:
+      app: broberg-discovery
+      # THE BUILD CONTEXT IS THE REPO ROOT while the config lives in the app dir.
+      # The Dockerfile COPYs scripts/inventory-data.mjs, so running from
+      # apps/discovery fails with a not-found on a file that is right there. This
+      # cost a manual deploy attempt on 2026-08-15; the three inputs below are the
+      # whole reason that is not a trap any more.
+      working_directory: "."
+      config: apps/discovery/fly.toml
+      dockerfile: apps/discovery/Dockerfile
+      health_url: https://discovery.broberg.ai/api
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # The run does not end on a successful deploy — see the header.
+  live-fresh:
+    needs: [changes, deploy]
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: The live roster serves what the repo says
+        run: bun scripts/check-live-fresh.mjs https://discovery.broberg.ai
