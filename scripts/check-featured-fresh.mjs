@@ -12,9 +12,31 @@ import { DATA } from "./inventory-data.mjs";
 import { fetchLatestReleases } from "./npm-latest.mjs";
 
 const target = process.argv[2] ?? new URL("../docs/inventory.html", import.meta.url);
-const html = String(target).startsWith("http")
-  ? await (await fetch(String(target))).text()
-  : readFileSync(target, "utf8");
+
+/**
+ * F038.9 — "the site did not answer" and "the card is stale" are two findings,
+ * and they send the reader to two different places.
+ *
+ * This used to be `await (await fetch(url)).text()`. A 502 or a 404 returns an
+ * error PAGE, `.text()` succeeds, the regex finds no card, and the script threw
+ * «could not find the "Just shipped" card» — which reads as a broken generator
+ * and is not. This guard exists precisely for a misbehaving endpoint: its own
+ * header notes that flyctl printed a not-listening WARNING and then reported
+ * success (F038.6). It was the one case it could not describe.
+ */
+async function readTarget(t) {
+  if (!String(t).startsWith("http")) return readFileSync(t, "utf8");
+  const res = await fetch(String(t));
+  if (!res.ok) {
+    // Deliberately says nothing about the card. Naming it here is what sent
+    // someone to the wrong file.
+    console.error(`\n  ${res.status} ${res.statusText} from ${t}\n  The site did not answer; nothing was checked.\n`);
+    process.exit(1);
+  }
+  return res.text();
+}
+
+const html = await readTarget(target);
 
 const m = html.match(/Just shipped<\/div>\s*<h2>([^<]*)<\/h2>\s*<div class="pkg">(@broberg\/[a-z0-9-]+) · v([0-9][^ ]*) /);
 if (!m) throw new Error(`could not find the "Just shipped" card in ${target}`);
