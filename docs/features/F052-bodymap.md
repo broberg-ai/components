@@ -88,3 +88,35 @@ A `PainReport` tied to a patient is **health PII**. The package itself is UI + d
 - Exact region list + clinical codes — **needs FD clinical sign-off** before F052.5.
 - Which FD app pilots the 2D MVP first?
 - `PainReport` destination (Trail Neuron vs FD backend) — decides the compliance wiring on the consumer side.
+
+
+## The 3D path cannot be photographed — and that is where the bugs were
+
+Reported by **fd-sundhed**, 2026-08-29, from their own Lens run (2b85eebf,
+iphone-15, against production): **the WebGL canvas captures as a black square.**
+The canvas appears, they tapped 50%,28%, hit no region — and they cannot see
+where the body is standing, so they cannot aim.
+
+Not reproduced independently here; it is their measurement, and it is filed as a
+Lens capability gap (`lens-gap`, idea 01a04e70) rather than worked around. The
+fleet contract is explicit that reaching for raw Playwright to get past a Lens
+limitation is a violation, and the escalation is the correct path.
+
+**Two facts that belong next to each other:**
+
+1. The 3D path cannot be photographed by any consumer.
+2. On the same day, **four separate defects** were found in that same
+   `three.tsx` WebGL path — the hint falling off the bottom of the phone
+   (F052.31), the intensity control sitting 14px under the 44px touch floor
+   (F052.34), a 450ms tap ceiling discarding a careful press (F052.32), and the
+   hint covering the panel's close button (F052.33).
+
+Every one of those was found by **reading a screenshot semantically** — which is
+exactly what stops working when the screenshot is a black rectangle. The
+causation runs the obvious way: nobody can look at it, so nobody sees what is
+wrong with it.
+
+**The consequence, stated plainly:** when we tell a consumer "that is fixed",
+they cannot confirm it with an image. They can read the code and trust our run.
+**A shared component whose correctness can only be asserted by its author has no
+independent check** — and this one is going into a municipal health product.
