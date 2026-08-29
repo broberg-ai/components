@@ -1,7 +1,7 @@
 {
   "name": "@broberg/secret-scan",
   "version": "0.5.1",
-  "description": "Pure, dependency-free secret/credential redaction for the broberg.ai fleet \u2014 redactSecrets / hasSecret over a curated, ordered SECRET_PATTERNS set. Redact at write + egress boundaries so keys never land in a DB, chat, or KB. Lifted from broberg/trail F197.",
+  "description": "Pure, dependency-free secret/credential redaction for the broberg.ai fleet — redactSecrets / hasSecret over a curated, ordered SECRET_PATTERNS set. Redact at write + egress boundaries so keys never land in a DB, chat, or KB. Lifted from broberg/trail F197.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -17,7 +17,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",

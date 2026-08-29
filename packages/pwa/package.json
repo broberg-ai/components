@@ -37,7 +37,8 @@
       "types": "./dist/preact.d.ts",
       "import": "./dist/preact.js",
       "require": "./dist/preact.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",

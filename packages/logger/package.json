@@ -1,7 +1,7 @@
 {
   "name": "@broberg/logger",
   "version": "0.2.0",
-  "description": "Fleet server logging that cannot leak a secret: four levels, one-line JSON in production or readable text locally, env-driven level, nesting child bindings \u2014 and every message and metadata value run through @broberg/secret-scan before it leaves the process. Never throws. Node/Bun/edge, one dependency.",
+  "description": "Fleet server logging that cannot leak a secret: four levels, one-line JSON in production or readable text locally, env-driven level, nesting child bindings — and every message and metadata value run through @broberg/secret-scan before it leaves the process. Never throws. Node/Bun/edge, one dependency.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -22,7 +22,8 @@
       "types": "./dist/hono.d.ts",
       "import": "./dist/hono.js",
       "require": "./dist/hono.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",

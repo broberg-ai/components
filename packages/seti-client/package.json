@@ -27,7 +27,8 @@
       "types": "./dist/sse.d.ts",
       "import": "./dist/sse.js",
       "require": "./dist/sse.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",

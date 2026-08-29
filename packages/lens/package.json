@@ -5,7 +5,10 @@
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,7 +32,8 @@
       "types": "./dist/next-auth.d.ts",
       "import": "./dist/next-auth.js",
       "require": "./dist/next-auth.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",
@@ -41,8 +45,12 @@
     "next-auth": ">=5.0.0-beta.0"
   },
   "peerDependenciesMeta": {
-    "hono": { "optional": true },
-    "next-auth": { "optional": true }
+    "hono": {
+      "optional": true
+    },
+    "next-auth": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
@@ -67,5 +75,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/lens"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

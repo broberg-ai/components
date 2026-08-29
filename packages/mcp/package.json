@@ -31,7 +31,8 @@
       "types": "./dist/oauth-web.d.ts",
       "import": "./dist/oauth-web.js",
       "require": "./dist/oauth-web.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",

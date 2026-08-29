@@ -41,7 +41,8 @@
     },
     "./css": "./css/neutral-preset.css",
     "./css/neutral-preset.css": "./css/neutral-preset.css",
-    "./DESIGN.md": "./DESIGN.md"
+    "./DESIGN.md": "./DESIGN.md",
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",

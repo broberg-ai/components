@@ -1,7 +1,7 @@
 {
   "name": "@broberg/cron",
   "version": "0.2.0",
-  "description": "Typed self-service client for cronjobs.webhouse.net \u2014 register + manage HTTP cron jobs over the Bearer-authed /api/jobs API (create/list/update/delete/pause/run), with a per-repo scoped token and per-job target headers kept server-side (never in the URL or logs). Dependency-free; runs in Node, Bun and edge.",
+  "description": "Typed self-service client for cronjobs.webhouse.net — register + manage HTTP cron jobs over the Bearer-authed /api/jobs API (create/list/update/delete/pause/run), with a per-repo scoped token and per-job target headers kept server-side (never in the URL or logs). Dependency-free; runs in Node, Bun and edge.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -17,7 +17,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",

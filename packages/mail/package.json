@@ -27,7 +27,8 @@
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js",
       "require": "./dist/verify.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup",

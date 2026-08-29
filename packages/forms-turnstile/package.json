@@ -37,7 +37,8 @@
       "types": "./dist/hono.d.ts",
       "import": "./dist/hono.js",
       "require": "./dist/hono.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsup && node add-use-client.mjs",

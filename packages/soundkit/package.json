@@ -5,7 +5,10 @@
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,7 +32,8 @@
       "types": "./dist/presets.d.ts",
       "import": "./dist/presets.js",
       "require": "./dist/presets.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
@@ -43,10 +47,18 @@
     "@preact/signals": ">=1.0.0"
   },
   "peerDependenciesMeta": {
-    "howler": { "optional": true },
-    "react": { "optional": true },
-    "preact": { "optional": true },
-    "@preact/signals": { "optional": true }
+    "howler": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "preact": {
+      "optional": true
+    },
+    "@preact/signals": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@preact/signals": "^1.3.0",
@@ -79,5 +91,7 @@
     "url": "git+https://github.com/broberg-ai/components.git",
     "directory": "packages/soundkit"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

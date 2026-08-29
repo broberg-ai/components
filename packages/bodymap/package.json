@@ -29,7 +29,8 @@
       "import": "./dist/three.js",
       "require": "./dist/three.cjs"
     },
-    "./models/*": "./models/*"
+    "./models/*": "./models/*",
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",

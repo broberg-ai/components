@@ -1,7 +1,7 @@
 {
   "name": "@broberg/device-stats",
   "version": "0.3.0",
-  "description": "Framework-free device statistics primitive: derive bucketed device facts (form factor, OS/browser major version, installed-PWA vs browser, screen bucket) from what the browser already sends. No identifier, no fingerprint, no storage \u2014 coarse buckets are baked in, not configurable.",
+  "description": "Framework-free device statistics primitive: derive bucketed device facts (form factor, OS/browser major version, installed-PWA vs browser, screen bucket) from what the browser already sends. No identifier, no fingerprint, no storage — coarse buckets are baked in, not configurable.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -62,7 +62,8 @@
         "types": "./dist/permissions.d.cts",
         "default": "./dist/permissions.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
