@@ -100,3 +100,17 @@ not "the workflow file exists and is green":
 
 Without step 1 the workflow is a green light nobody has proved is connected to
 anything — see [[signals-indistinguishable-from-silence]].
+
+## Reuse
+
+Discovery searched for `github actions`, `workflow`, `ci`, `test gate`. The
+fleet does share reusable workflows — `components` owns the
+`fly-server-deploy` reusable workflow (F033.7) — but there is no shared
+*test* workflow, and there is a reason not to build one: every repo's test
+command differs (`pnpm test`, `vitest`, `xcodebuild test`), so the shared part
+would be three lines of YAML wrapping a variable.
+
+What the fleet shares is the RULE, not the file: the Harness-kontrakt in every
+repo's CLAUDE.md says the release job must depend on the test job so one red
+test blocks the deploy. This card is that rule applied here, which is what
+"wire your own gate" means.
