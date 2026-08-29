@@ -71,6 +71,13 @@ on:
       - "sms-v*"
       - "device-stats-v*"
       - "chat-v*"
+      - "cmdk-v*"
+      - "consent-cookie-v*"
+      - "event-log-v*"
+      - "http-v*"
+      - "i18n-v*"
+      - "soundkit-v*"
+      - "ui-controls-core-v*"
   workflow_dispatch:
 
 jobs:
