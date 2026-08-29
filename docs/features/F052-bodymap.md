@@ -120,3 +120,35 @@ wrong with it.
 they cannot confirm it with an image. They can read the code and trust our run.
 **A shared component whose correctness can only be asserted by its author has no
 independent check** — and this one is going into a municipal health product.
+
+### CORRECTION, same day — the cause is NOT ours, and I nearly shipped a fix for it
+
+fd-sundhed then measured that the package sets no `preserveDrawingBuffer`
+(confirmed here: `new THREE.WebGLRenderer({ antialias: true })` is the only
+renderer construction in `src/three.tsx`) and offered it as a hypothesis, marked
+as a hypothesis. It is the textbook cause of a WebGL canvas reading back black.
+
+**I reproduced the opposite, twice, against the packaged build:**
+
+```
+run c082f324   390x844 viewport, waitFor 4000ms    -> the body renders fully
+run 4f14129e   device iphone-15, NO waitFor, 675ms -> the body renders fully
+```
+
+Chromium, no `preserveDrawingBuffer`, and Lens photographs the canvas correctly
+anyway — including on their exact device preset and with no wait at all.
+
+**So the missing flag is real and is not the cause.** I was one step from
+changing a published package's renderer configuration on a plausible diagnosis my
+own measurement contradicts, and the only reason I did not is that this package
+ships a demo I could serve and shoot in ninety seconds.
+
+**What survives:** their inability to photograph their body map is real; my
+explanation of it was not. And a consumer genuinely cannot configure the
+renderer — a real limitation on its own merits, not a fix for this.
+
+**Cheaper explanations to eliminate first**, since a black canvas has several:
+does the `.glb` 200 from their *deployed* url (a canvas with no model is black —
+a deploy problem wearing a capture problem's clothes); is the canvas inside an
+ancestor with a transform/filter/backdrop-filter; is it mounted lazily behind
+something their run never opens.
