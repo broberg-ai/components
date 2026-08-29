@@ -316,9 +316,11 @@ different names.
   `onCountChanged`; this package has no runtime dependencies at all.
 - **A prune/TTL policy** — still absent, and `remove()` is not one. Deleting rows
   on a user's instruction and deleting them on a schedule are different features;
-  the second needs numbers we do not have. fd-sundhed goes live in September with
-  16,838 users against xrt81's 15, three orders of magnitude apart, so a policy
-  designed today would be designed on a guess. Neither production consumer prunes today. xrt81
+  the second needs numbers we do not have. fd-sundhed goes live **Tuesday 1
+  September at 07:00** with 16,838 users against xrt81's 15 — three orders of
+  magnitude apart. Their real figures start existing that morning and are usable
+  after a week of running, so a policy designed today would be designed on a guess
+  three days before the guess becomes unnecessary. Neither production consumer prunes today. xrt81
   measured ~11,000 rows/year for a 15-person club and calls the absence a gap;
   cardmem warned against designing a TTL from an assumption they have one. It
   gets its own release, with real numbers.

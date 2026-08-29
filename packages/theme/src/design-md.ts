@@ -349,3 +349,178 @@ export function checkContrastAA(content: string, required = 4.5): ContrastIssue[
   }
   return issues;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * F001.13 — THE OTHER DIRECTION: an existing stylesheet → DESIGN.md tokens.
+ *
+ * Requested by cardmem (intercom #23847) and lifted from the pure function they
+ * wrote for it (broberg-ai/cardmem a624ca06). They needed it to seed a DESIGN.md
+ * into ~30 repos that already have a look, and their argument is the right one:
+ * an empty skeleton is a file nobody fills in, while a generated seed is true on
+ * day one and the repo's job shrinks to CORRECTING it.
+ *
+ * ─── The one constraint that shapes everything here ──────────────────────────
+ *
+ * The forward direction is DETERMINISTIC: a DESIGN.md fully decides the CSS.
+ * This direction cannot be. A real stylesheet holds hundreds of declarations and
+ * WHICH of them are tokens is a judgement, so every honest implementation here
+ * is a heuristic.
+ *
+ * That is why it returns `{ tokens, skipped }` and never a bare token object.
+ * Without the second half the misses are invisible and expensive: a repo opens
+ * its seed, sees no shadow tokens, and concludes it HAS none — when the truth
+ * was that we could not read them. The file looks complete. Nobody flags the
+ * hole. Same family as F001.12, closed hours before this was written.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * A declaration this extractor did not turn into a token, and why.
+ *
+ * Deliberately the same THREE-FIELD SHAPE as {@link SkippedNamespace} — what,
+ * how many, why — rather than that exact type: the forward direction skips whole
+ * NAMESPACES and this one skips individual DECLARATIONS, so reusing the field
+ * name `namespace` for a list of property names would have been a label that
+ * lies. Same channel, correct unit.
+ */
+export interface SkippedDeclaration {
+  /** Up to four example property names, comma-joined, then `+N more`. */
+  property: string;
+  count: number;
+  reason: string;
+}
+
+export interface ExtractedTokens {
+  /**
+   * The same {@link DesignTokens} shape `parseDesignMd` produces, so the result
+   * feeds straight back into {@link generateTailwindV4} without a translation
+   * step — which is also what makes the round-trip testable.
+   */
+  tokens: DesignTokens;
+  skipped: SkippedDeclaration[];
+}
+
+/** `@theme { … }` and `:root { … }` — where Tailwind v4 and plain CSS
+ *  respectively keep custom properties. Both, because the fleet has both.
+ *
+ *  The closing brace is matched WITHOUT requiring a preceding newline (cardmem's
+ *  note, and it is a good one): the first version required one, so it read every
+ *  real stylesheet correctly and silently found nothing in a single-line block —
+ *  exactly the shape a test fixture takes. Green guard, untested subject. */
+const CSS_BLOCK = /(?:@theme|:root)[^{]*\{([\s\S]*?)\}/g;
+
+/** A theme VARIANT block. Deliberately not read — see the skip reason. */
+const VARIANT_BLOCK = /\[data-theme[^\]]*\][^{]*\{/g;
+
+const COLOUR_VALUE = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\))$/;
+const LENGTH_VALUE = /^\d+(\.\d+)?(px|rem|em)$/;
+/** Names that mean "radius" across the conventions the fleet actually uses. */
+const RADIUS_NAME = /(^--radius|-radius$|^--rounded)/;
+const VAR_ALIAS = /^var\(\s*(--[\w-]+)\s*\)$/;
+
+/**
+ * Read an existing stylesheet and report which of its custom properties are
+ * design tokens — and, just as importantly, which ones are not and why.
+ *
+ * CLASSIFICATION IS BY VALUE FIRST, NAME SECOND (cardmem's decision, kept). A
+ * repo that calls its accent `--brand-2` still has a colour; a repo with
+ * `--color-transition: 200ms` does not. Trusting the name would drop a duration
+ * into the palette of any repo whose conventions differ from ours, and the whole
+ * point of a generated seed is that it is true for THAT repo.
+ *
+ * Named for its OUTPUT. cardmem's working name was `cssFromTheme`, which reads
+ * as the direction we already ship — CSS *from* a theme is
+ * {@link designMdToTailwindV4} — and in a shared package a name that lies about
+ * the direction is worse than a clumsy one.
+ */
+export function designTokensFromCss(css: string): ExtractedTokens {
+  const colors: Record<string, string> = {};
+  const rounded: Record<string, string> = {};
+  const skips = new Map<string, { count: number; sample: string[] }>();
+  const skip = (property: string, reason: string): void => {
+    const e = skips.get(reason) ?? { count: 0, sample: [] };
+    e.count++;
+    if (e.sample.length < 4) e.sample.push(property);
+    skips.set(reason, e);
+  };
+
+  // PASS 1 — collect every declaration before classifying any of it, so a value
+  // can be checked against the OTHER names in the file. Needed for the bridge
+  // case below, which a single pass gets wrong in the direction that matters.
+  const declared = new Map<string, string>();
+  let blocks = 0;
+  for (const block of css.matchAll(CSS_BLOCK)) {
+    blocks++;
+    // Split on `;`, not on the line start: a declaration is terminated by a
+    // semicolon and both layouts occur in the wild.
+    for (const raw of block[1]!.split(";")) {
+      const d = /(--[\w-]+)\s*:\s*([^;]+)$/.exec(raw.replace(/\/\*[\s\S]*?\*\//g, "").trim());
+      // First declaration of a name wins — later blocks are overrides, and the
+      // seed describes the base theme.
+      if (d && !declared.has(d[1]!)) declared.set(d[1]!, d[2]!.trim());
+    }
+  }
+
+  // AC#5 — "nothing here" and "we could not find anywhere to look" are different
+  // answers, and a caller must be able to tell them apart WITHOUT reading our
+  // source. An empty-and-happy result is the failure shape this repo has now
+  // named six times in a week.
+  if (blocks === 0) {
+    skip(
+      "(none)",
+      "no :root or @theme block was found in this stylesheet — nothing was read, which is not the same as finding no tokens",
+    );
+    return { tokens: {}, skipped: [...skips.entries()].map(toSkipped) };
+  }
+
+  const variants = [...css.matchAll(VARIANT_BLOCK)].length;
+  if (variants) {
+    skip(
+      "(theme variants)",
+      `${variants} [data-theme] block(s) were NOT read — a variant re-declares the same names with different values, and merging them would silently overwrite the base palette with whichever block came last`,
+    );
+  }
+
+  for (const [name, value] of declared) {
+    // THE @theme BRIDGE IS NOT A MISS. Found by running this against our own
+    // css/neutral-preset.css before trusting it: the preset declares --background
+    // in :root and --color-background: var(--background) in @theme. The second is
+    // not a colour, so the naive pass reported ~16 of our own tokens as
+    // unreadable — a seed that says "we could not read 16 of your colours" when
+    // it read all of them is worse than one that says nothing.
+    const alias = VAR_ALIAS.exec(value);
+    if (alias && declared.has(alias[1]!)) {
+      skip(name, "a var() alias of a custom property declared in the same file — the @theme bridge, not a missed token");
+      continue;
+    }
+    const short = name.replace(/^--(color-)?/, "");
+    if (COLOUR_VALUE.test(value)) {
+      // First name wins, so the raw :root name beats its --color- bridge twin.
+      if (!(short in colors)) colors[short] = value;
+    } else if (LENGTH_VALUE.test(value) && RADIUS_NAME.test(name)) {
+      // BOTH prefixes are stripped, not just `radius`. RADIUS_NAME accepts
+      // `--rounded-*`, and stripping only `radius` left `rounded-sm` as the token
+      // name — which regenerates as `--radius-rounded-sm`, so every
+      // `var(--rounded-sm)` in that repo would resolve to nothing. Found by the
+      // round-trip invariant, not by reading.
+      const key = short.replace(/^(radius|rounded)-?/, "") || "DEFAULT";
+      if (!(key in rounded)) rounded[key] = value;
+    } else if (/shadow/.test(name)) skip(name, "shadow — DESIGN.md has no shadow namespace yet");
+    else if (/font|family/.test(name)) skip(name, "font family — DESIGN.md has no fontFamily namespace yet");
+    else if (/duration|dur|ease|transition/.test(name)) skip(name, "motion — DESIGN.md has no motion namespace yet");
+    else if (LENGTH_VALUE.test(value)) skip(name, "a length that is not a radius — spacing and sizing are not extracted");
+    else skip(name, "value is neither a colour nor a length this extractor can express");
+  }
+
+  const tokens: DesignTokens = {};
+  if (Object.keys(colors).length) tokens.colors = colors;
+  if (Object.keys(rounded).length) tokens.rounded = rounded;
+  return { tokens, skipped: [...skips.entries()].map(toSkipped) };
+}
+
+function toSkipped([reason, e]: [string, { count: number; sample: string[] }]): SkippedDeclaration {
+  return {
+    property: e.sample.join(", ") + (e.count > e.sample.length ? `, +${e.count - e.sample.length} more` : ""),
+    count: e.count,
+    reason,
+  };
+}
