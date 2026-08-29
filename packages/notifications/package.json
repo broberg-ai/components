@@ -32,12 +32,19 @@
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.react.json"
   },
   "devDependencies": {
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@testing-library/react": "^16.0.0",
+    "happy-dom": "^15.0.0",
+    "@broberg/ui-controls-core": "0.1.1"
   },
   "keywords": [
     "a11y",
@@ -63,5 +70,17 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "@broberg/ui-controls-core": ">=0.1.1"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "@broberg/ui-controls-core": {
+      "optional": true
+    }
   }
 }

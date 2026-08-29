@@ -1,0 +1,19 @@
+{
+  "_comment": "F074.4 \u2014 DOM + JSX live HERE and only here. Adding them to the core config would silently permit a DOM global in a package moovyy runs headlessly.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  },
+  "include": [
+    "src/react.tsx",
+    "src/shell.ts",
+    "src/types.ts",
+    "test/react.test.tsx"
+  ],
+  "exclude": []
+}

@@ -121,6 +121,10 @@ export interface BellState {
 }
 
 export interface BellShell {
+  /** The strings the consumer supplied. Exposed so a wrapper's components can
+   *  reach them without every one of them taking a prop — and so there is no
+   *  second place a label could come from. */
+  readonly labels: BellLabels;
   getState(): BellState;
   subscribe(fn: (s: BellState) => void): () => void;
 
@@ -164,6 +168,7 @@ export function createBellShell(config: BellShellConfig): BellShell {
   };
 
   return {
+    labels,
     getState: () => state,
     subscribe(fn) {
       subs.add(fn);
