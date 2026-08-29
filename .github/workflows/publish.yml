@@ -81,7 +81,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  # THE WORKSPACE GATE, AND EVERY PUBLISH JOB DEPENDS ON IT (F080.3).
+  #
+  # Before this existed, each publish-* job ran only its OWN package's tests, and
+  # the workspace suite (`test.yml`) ran on branch pushes a tag never matches. So
+  # a release could not see a red gate even in principle.
+  #
+  # Measured 2026-08-29: `test` had been failing for ELEVEN consecutive runs when
+  # @broberg/notifications 0.3.0 was published, and nothing stopped it. Eleven
+  # chances to notice, eleven missed — which is the honest measure of how much
+  # attention an advisory red actually gets. A gate nothing depends on is a
+  # notification.
+  #
+  # `uses:` rather than duplicated steps on purpose: the gate and the release it
+  # guards must not be able to drift apart.
+  gate:
+    uses: ./.github/workflows/test.yml
+
   publish-theme:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/theme-v')
     runs-on: ubuntu-latest
     permissions:
@@ -145,6 +163,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-secret-scan:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/secret-scan-v')
     runs-on: ubuntu-latest
     permissions:
@@ -208,6 +227,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-lens:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/lens-v')
     runs-on: ubuntu-latest
     permissions:
@@ -271,6 +291,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-seti-client:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/seti-client-v')
     runs-on: ubuntu-latest
     permissions:
@@ -334,6 +355,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-greppable:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/greppable-v')
     runs-on: ubuntu-latest
     permissions:
@@ -397,6 +419,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-forms-turnstile:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/forms-turnstile-v')
     runs-on: ubuntu-latest
     permissions:
@@ -460,6 +483,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-sms:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sms-v')
     runs-on: ubuntu-latest
     permissions:
@@ -523,6 +547,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-device-stats:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/device-stats-v')
     runs-on: ubuntu-latest
     permissions:
@@ -586,6 +611,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-seti-server:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/seti-server-v')
     runs-on: ubuntu-latest
     permissions:
@@ -649,6 +675,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-mail:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mail-v')
     runs-on: ubuntu-latest
     permissions:
@@ -712,6 +739,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-config:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/config-v')
     runs-on: ubuntu-latest
     permissions:
@@ -775,6 +803,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-media:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/media-v')
     runs-on: ubuntu-latest
     permissions:
@@ -838,6 +867,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-apikey:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/apikey-v')
     runs-on: ubuntu-latest
     permissions:
@@ -901,6 +931,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-webpush:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/webpush-v')
     runs-on: ubuntu-latest
     permissions:
@@ -971,6 +1002,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-cron:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cron-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1034,6 +1066,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-media-transform:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/media-transform-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1097,6 +1130,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-auth:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/auth-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1172,6 +1206,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-deploy-core:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/deploy-core-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1235,6 +1270,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-gravatar:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/gravatar-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1298,6 +1334,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-mail-core:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mail-core-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1361,6 +1398,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-speech-dictionary:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/speech-dictionary-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1424,6 +1462,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-notify:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/notify-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1487,6 +1526,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-lens-engine:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/lens-engine-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1561,6 +1601,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-lens-client:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/lens-client-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1624,6 +1665,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-bodymap:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/bodymap-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1687,6 +1729,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-stripe:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/stripe-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1750,6 +1793,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-pwa:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/pwa-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1813,6 +1857,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-soundkit:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/soundkit-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1876,6 +1921,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-consent-cookie:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/consent-cookie-v')
     runs-on: ubuntu-latest
     permissions:
@@ -1939,6 +1985,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-i18n:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/i18n-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2002,6 +2049,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-cmdk:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cmdk-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2065,6 +2113,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-ui-controls-core:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/ui-controls-core-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2128,6 +2177,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-event-log:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/event-log-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2191,6 +2241,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-http:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/http-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2254,6 +2305,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-chat:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/chat-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2317,6 +2369,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-logger:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/logger-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2380,6 +2433,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-mcp:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mcp-v')
     runs-on: ubuntu-latest
     permissions:
@@ -2442,6 +2496,7 @@ jobs:
         run: npm publish --access public --provenance
 
   publish-notifications:
+    needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/notifications-v')
     runs-on: ubuntu-latest
     permissions:

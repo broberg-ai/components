@@ -46,9 +46,39 @@ if (triggersWithoutJob.length) {
   );
 }
 
+/**
+ * F080.3 — and every publish job must DEPEND ON THE GATE.
+ *
+ * The trigger check above proves a tag can start a job. This one proves the job
+ * cannot run while the workspace suite is red. Both are the same failure shape —
+ * a release path that looks configured and is not — and both are invisible from
+ * the GitHub page, which shows a job without `needs:` exactly like one with it.
+ *
+ * Derived from the file rather than a hand-kept list, so adding package 39
+ * without the gate is caught here instead of at the next incident.
+ */
+const jobBlocks = [...src.matchAll(/^  (publish-[a-z0-9-]+):\n((?:    [^\n]*\n|\n)*)/gm)];
+const ungated = jobBlocks.filter(([, , body]) => !/^    needs:.*\bgate\b/m.test(body)).map(([, name]) => name).sort();
+if (ungated.length) {
+  problems.push(
+    `publish job(s) that do NOT depend on the workspace gate:\n` +
+      ungated.map((p) => `    ${p}  (add: needs: gate)`).join("\n") +
+      `\n  A job without \`needs: gate\` publishes to npm while \`pnpm test\` is red.` +
+      `\n  Measured 2026-08-29: notifications 0.3.0 shipped through ELEVEN consecutive red runs.`,
+  );
+}
+if (!/^  gate:\n    uses: \.\/\.github\/workflows\/test\.yml$/m.test(src)) {
+  problems.push(
+    `publish.yml has no \`gate\` job calling ./.github/workflows/test.yml.\n` +
+      `  Every needs: gate above would then point at nothing, and GitHub rejects the workflow —\n` +
+      `  but a gate job that runs something OTHER than the workspace suite would not be rejected,\n` +
+      `  and that is the version worth failing on here.`,
+  );
+}
+
 if (problems.length) {
   console.error(`✗ publish.yml: job/trigger mismatch\n\n  ${problems.join("\n\n  ")}\n`);
   process.exit(1);
 }
 
-console.log(`✓ publish.yml: ${jobs.size} publish jobs, ${triggers.size} tag triggers, all matched`);
+console.log(`✓ publish.yml: ${jobs.size} publish jobs, ${triggers.size} tag triggers, all matched — and all ${jobBlocks.length} depend on the workspace gate`);

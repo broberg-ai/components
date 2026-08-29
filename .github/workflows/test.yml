@@ -33,6 +33,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # CALLED BY publish.yml SO A RELEASE RUNS THIS EXACT GATE (F080.3).
+  #
+  # Not a copy of these steps pasted into publish.yml: a gate and the release it
+  # guards must not be able to drift apart, and the way they drift is that
+  # somebody fixes one of the two. A tag push does not match `branches` above, so
+  # without this entry publish.yml had nothing to depend on — which is precisely
+  # how @broberg/notifications 0.3.0 shipped through eleven consecutive red runs.
+  workflow_call:
 
 # A second push should not queue behind a run nobody wants any more.
 concurrency:

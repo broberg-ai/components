@@ -7,7 +7,7 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "turbo run build",
-    "test": "node scripts/check-internal-pins.mjs && node scripts/check-publish-triggers.mjs && node scripts/test-fly-deploy-workflow.mjs && turbo run test",
+    "test": "node scripts/check-internal-pins.mjs && node scripts/test-internal-pins.mjs && node scripts/check-publish-triggers.mjs && node scripts/test-fly-deploy-workflow.mjs && turbo run test",
     "typecheck": "turbo run typecheck",
     "test:workflows": "node scripts/test-fly-deploy-workflow.mjs",
     "test:pins": "node scripts/check-internal-pins.mjs"
