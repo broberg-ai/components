@@ -457,9 +457,20 @@ export interface RenamedToken {
 
 export interface ExtractedTokens {
   /**
-   * The same {@link DesignTokens} shape `parseDesignMd` produces, so the result
-   * feeds straight back into {@link generateTailwindV4} without a translation
-   * step — which is also what makes the round-trip testable.
+   * The same {@link DesignTokens} shape `parseDesignMd` produces.
+   *
+   * THIS DOES NOT MEAN YOU CAN PASS IT TO {@link generateTailwindV4}. That
+   * function takes the markdown STRING, so `generateTailwindV4(tokens)` throws
+   * `content.match is not a function`. To regenerate CSS you must serialise
+   * these tokens into a DESIGN.md first — and this package does not yet export
+   * a serialiser for that (F001.15).
+   *
+   * An earlier version of this comment said the result "feeds straight back
+   * into generateTailwindV4 without a translation step". It does not, and the
+   * sentence survived because our own round-trip test serialises inline —
+   * `---\n${JSON.stringify(tokens)}\n---\n`, which works only because JSON is
+   * valid YAML. cardmem read it the way a consumer would and measured it
+   * against the published tarball. The code was right; the sentence was not.
    */
   tokens: DesignTokens;
   skipped: SkippedDeclaration[];
