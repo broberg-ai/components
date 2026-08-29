@@ -310,6 +310,11 @@ export function BodyMap3D(props: BodyMap3DProps) {
   // The scene closure reads this at PAINT time, so toggling `seam` recolours
   // without rebuilding the model (F052.23).
   const seamRef = useRef(seam); seamRef.current = seam;
+  // The stage colour reaches the three.js scene through a ref, because the
+  // scene is built once in a mount effect while the palette can change at any
+  // time. `refresh` re-applies it, so a consumer swapping palettes repaints the
+  // backdrop and not just the body. (F052.29)
+  const stageRef = useRef(chrome.stageBg); stageRef.current = chrome.stageBg;
   // Controlled when `fullscreen` is passed, internal otherwise — same shape as
   // `sex` (F052.14), so a consumer can drive it from their own button.
   const [internalFs, setInternalFs] = useState(false);
@@ -327,7 +332,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
     let W = el.clientWidth || 520, H = el.clientHeight || 600;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0e1424);
+    scene.background = new THREE.Color(stageRef.current);
     const camera = new THREE.PerspectiveCamera(32, W / H, 0.1, 100);
     camera.position.set(0, 1.05, 4.4);
     let renderer: THREE.WebGLRenderer;
@@ -419,7 +424,11 @@ export function BodyMap3D(props: BodyMap3DProps) {
       }
       colorAttr.needsUpdate = true;
     };
-    const refresh = () => { paint(); renderFrame(); };
+    const refresh = () => {
+      scene.background = new THREE.Color(stageRef.current);
+      paint();
+      renderFrame();
+    };
 
     const loadModel = (which: BodyMap3DSex) => {
       const url = which === "female" ? modelsRef.current.female : modelsRef.current.male;
@@ -664,7 +673,12 @@ export function BodyMap3D(props: BodyMap3DProps) {
               position: "fixed" as const,
               inset: 0,
               zIndex: 2147483000,
-              background: chrome.panelBg,
+              // THE STAGE, not the panel. This used to be `chrome.panelBg`,
+              // the same field that paints the picker card — so a consumer with
+              // a dark canvas got a white void around a dark body in fullscreen,
+              // and could not fix it: darkening panelBg hid the 0-10 buttons.
+              // One field, two surfaces, opposite needs. (F052.29)
+              background: chrome.stageBg,
               // F052.27 — a fixed inset:0 surface in a standalone/Capacitor
               // webview covers the STATUS BAR too, so a control laid out at the
               // top lands on the clock and the battery. Measured by fd-sundhed
@@ -720,7 +734,11 @@ export function BodyMap3D(props: BodyMap3DProps) {
       )}
       <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", ...(isFullscreen ? { flex: "1 1 auto", minHeight: 0 } : null) }}>
         {unsupported ? (
-          <div data-testid="bodymap3d-unsupported" style={{ flex: "1 1 520px", minWidth: 320, height: canvasH, borderRadius: 16, background: "#0e1424", color: "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontSize: 14 }}>
+          <div data-testid="bodymap3d-unsupported" /* A message, not a stage: it takes the PANEL pair, whose contrast the
+             suite already asserts (7.58:1). Following stageBg would make it
+             unreadable the moment a consumer chose a light stage, and no prop
+             could rescue it. (F052.29) */
+            style={{ flex: "1 1 520px", minWidth: 320, height: canvasH, borderRadius: 16, background: chrome.panelBg, color: chrome.mutedText, border: `1px solid ${chrome.border}`, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontSize: 14 }}>
             3D kræver WebGL, som ikke er tilgængeligt her.
           </div>
         ) : (
@@ -737,7 +755,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
               minHeight: isFullscreen ? 0 : undefined,
               borderRadius: 16,
               overflow: "hidden",
-              background: "#0e1424",
+              background: chrome.stageBg,
               touchAction: "none",
             }}
           />

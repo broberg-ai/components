@@ -320,8 +320,22 @@ export interface BodymapUiColors {
   text?: string;
   /** Secondary text — section labels, the empty-state hint. */
   mutedText?: string;
-  /** Panel background. */
+  /** Panel background — the card, its buttons, the empty hint. */
   panelBg?: string;
+  /**
+   * THE STAGE: the fullscreen backdrop, the canvas frame, and the three.js
+   * scene behind the body. A different surface from `panelBg` with an opposite
+   * need — see F052.29, where one field paints both and no value is right for
+   * either.
+   *
+   * 3D only. The 2D renderer has no canvas and no fullscreen, so it ignores
+   * this; it is declared here because a stage is a shared idea, not because
+   * every renderer has one.
+   *
+   * Defaults to {@link STAGE_BG}. Pass `'#fff'` for the pre-0.8.0 white
+   * fullscreen backdrop.
+   */
+  stageBg?: string;
   /** Panel + control borders. */
   border?: string;
   /** Background behind the region-code badge. */
@@ -338,10 +352,21 @@ export interface BodymapUiColors {
  *   danger     #dc2626   4.8:1  (was #ef4444 at 3.76:1 — WCAG AA failure)
  * `mutedText` on `badgeBg` (#f1f5f9) is 6.9:1 (was #64748b at 4.34:1).
  */
+/**
+ * The stage colour — the ONE place this value lives.
+ *
+ * It used to be a literal in three places in `three.tsx` (the three.js scene,
+ * the canvas frame, the unsupported placeholder), which meant a consumer could
+ * recolour the backdrop and still get OUR navy inside it. That seam is
+ * invisible on a desktop and obvious on a phone. (F052.29)
+ */
+export const STAGE_BG = "#0e1424";
+
 export const defaultUi: Required<BodymapUiColors> = {
   text: "#1e293b",
   mutedText: "#475569",
   panelBg: "#fff",
+  stageBg: STAGE_BG,
   border: "#e2e8f0",
   badgeBg: "#f1f5f9",
   danger: "#dc2626",

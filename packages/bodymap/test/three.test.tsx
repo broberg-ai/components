@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { BodyMap3D, seamBlend, seamWeight, ensureNormals } from "../src/three.js";
-import { REGIONS } from "../src/index.js";
+import { REGIONS, defaultPalette, defaultUi, STAGE_BG, type BodymapPalette } from "../src/index.js";
 
 afterEach(cleanup);
 
@@ -217,5 +217,64 @@ describe("ensureNormals — the one line that drew lines on the body", () => {
     const geo = geometry({ position: { count: 12010 } });
     ensureNormals(geo);
     expect(geo.state.computed).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F052.29 — a stage is not a panel.
+//
+// `chrome.panelBg` painted the fullscreen backdrop AND the picker card. fd-sundhed
+// hit the consequence in production: outside fullscreen their screen looked right
+// (dark canvas, white card), in fullscreen the whole surface went white with a
+// dark body floating in it — and no value of that one field fixed both, because
+// darkening it hid the 0-10 buttons.
+// ---------------------------------------------------------------------------
+
+describe("stageBg — the split, asserted with a palette where the two DIFFER", () => {
+  // A palette whose stage and panel are different colours. Every assertion below
+  // is worthless with a palette where they happen to match — the old, broken
+  // code would pass that.
+  const split: BodymapPalette = {
+    ...defaultPalette,
+    ui: { stageBg: "#0e1424", panelBg: "#ffffff" },
+  };
+
+  it("paints the FULLSCREEN root with stageBg, not panelBg", () => {
+    render(<BodyMap3D models={models} palette={split} fullscreen />);
+    const root = screen.getByTestId("bodymap3d-root");
+    expect(root.style.background).toBe("#0e1424");
+    // THE INVARIANT, not a second case: in one render the stage and the panel
+    // must differ. The old code read one field for both, so it cannot pass this
+    // no matter which colour is chosen.
+    expect(root.style.background).not.toBe(screen.getByTestId("bodymap3d-empty").style.background);
+  });
+
+  it("leaves the PANEL on panelBg in the same render — proving the split separated them", () => {
+    // The empty hint is the panel surface that exists without a selection.
+    render(<BodyMap3D models={models} palette={split} fullscreen />);
+    expect(screen.getByTestId("bodymap3d-empty").style.background).toBe("#ffffff");
+  });
+
+  it("restores the pre-0.8.0 white backdrop with ui.stageBg = '#fff'", () => {
+    // The escape hatch promised to anyone who liked the old default.
+    const white: BodymapPalette = { ...defaultPalette, ui: { stageBg: "#ffffff" } };
+    render(<BodyMap3D models={models} palette={white} fullscreen />);
+    expect(screen.getByTestId("bodymap3d-root").style.background).toBe("#ffffff");
+  });
+
+  it("does not paint the root at all when NOT fullscreen — the stage only exists as a stage", () => {
+    render(<BodyMap3D models={models} palette={split} />);
+    expect(screen.getByTestId("bodymap3d-root").style.background).toBe("");
+  });
+
+  it("the WebGL-unsupported message takes the PANEL pair, not the stage", () => {
+    // It is a message, not a stage. Hardcoded #cbd5e1 on a consumer-chosen
+    // background would be unreadable with no prop able to rescue it.
+    render(<BodyMap3D models={models} palette={split} />);
+    const box = screen.getByTestId("bodymap3d-unsupported");
+    expect(box.style.background).toBe(split.ui!.panelBg);   // the palette's panel, not the default
+    expect(box.style.color).toBe(defaultUi.mutedText);
+    // and specifically NOT the stage, which is what it used to hardcode
+    expect(box.style.background).not.toBe(STAGE_BG);
   });
 });

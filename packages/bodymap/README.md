@@ -350,6 +350,43 @@ heatFor(8, palette);               // → "#D61C64"  (intensity → heat colour)
 baseColorFor("chest", palette);    // → "#e6e9f2"  (per-region override, else body)
 ```
 
+### `ui.stageBg` vs `ui.panelBg` — the stage is not the panel
+
+Two different surfaces, and until 0.8.0 they were one field:
+
+| | what it paints | default |
+|---|---|---|
+| `ui.stageBg` | the **fullscreen backdrop**, the canvas frame, and the three.js scene behind the body | `#0e1424` |
+| `ui.panelBg` | the **picker card**, its buttons, the empty hint | `#fff` |
+
+```ts
+const palette: BodymapPalette = {
+  ...defaultPalette,
+  ui: { stageBg: "#0e1424", panelBg: "#fff" },
+};
+```
+
+**⚠️ The fullscreen backdrop changed colour in 0.8.0** — from white to the canvas
+colour. Pass `ui: { stageBg: "#fff" }` to keep the old look.
+
+It changed because it was never chosen. The backdrop read `panelBg`, the same
+field as the picker card, so a consumer with a dark canvas got a white void with
+a dark body floating in it — and could not fix it, because darkening `panelBg`
+also darkened the card and hid the 0–10 buttons. One field, two surfaces,
+opposite needs. Fullscreen is a stage around the model, not a panel.
+
+`stageBg` is the **single source** for all three stage surfaces, including the
+three.js scene. That matters more than it sounds: if it only repainted the
+backdrop, your colour would surround a canvas that is still ours, and that seam
+is invisible on a desktop monitor and obvious on a phone.
+
+3D only — the 2D renderer has no canvas and no fullscreen, so it ignores it.
+
+The **WebGL-unsupported message** deliberately does *not* follow `stageBg`. It is
+a message, not a stage, so it uses `panelBg` + `mutedText` — a pair whose contrast
+the test suite asserts. Tied to the stage it would become unreadable the moment
+you chose a light one, with no prop able to rescue it.
+
 ## Roadmap
 
 - True **per-zone mesh segmentation** for the 3D renderer (v0.2.0 assigns each

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defaultUi, uiColors, type BodymapPalette } from "../src/index.js";
+import { defaultUi, uiColors, STAGE_BG, type BodymapPalette } from "../src/index.js";
 
 /**
  * F052.19 — the anti-drift seal.
@@ -80,6 +80,31 @@ describe("renderer sources carry no sub-AA hardcoded text colour", () => {
   it("react.tsx does not hardcode #ef4444 as a text colour", () => {
     // #ef4444 remains legitimate as a HEAT fill (body colour, not text).
     expect(src("react.tsx")).not.toContain("color:#ef4444");
+  });
+
+  /**
+   * F052.29 — the stage colour lives in exactly ONE place.
+   *
+   * It used to be a literal three times in three.tsx: the three.js scene, the
+   * canvas frame, and the unsupported placeholder. A `stageBg` prop that only
+   * repainted the backdrop would have left the SCENE hard-coded, so a consumer
+   * choosing another colour would get their backdrop around our navy — a seam
+   * invisible on a desktop and obvious on a phone. That is the exact trap
+   * fd-sundhed said they were avoiding by reading our number out of dist rather
+   * than picking their own near-identical navy.
+   */
+  it("the stage colour appears as a literal in exactly one place in src", () => {
+    const files = ["index.ts", "three.tsx", "react.tsx"];
+    const hits = files.flatMap((f) =>
+      [...src(f).matchAll(/#0e1424/gi)].map(() => f),
+    );
+    // The one permitted occurrence is the STAGE_BG constant itself.
+    expect(hits).toEqual(["index.ts"]);
+  });
+
+  it("the stage constant is what the default palette actually ships", () => {
+    // Guards the other half: a constant nobody uses is not a single source.
+    expect(defaultUi.stageBg).toBe(STAGE_BG);
   });
 });
 
