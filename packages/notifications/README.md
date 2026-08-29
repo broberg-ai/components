@@ -263,6 +263,13 @@ Filed by fd-sundhed, who read it out of the published 0.3.0 rather than guessing
 their bell lets a user **delete** a notification, not only mark it read — built
 after a sync sent 42 false messages the owner had to clear one at a time.
 
+**They are not a consumer**, and they said so within the hour because the first
+version of this paragraph read as though they were. The package is not in their
+`package.json`. Their contribution was a review of the *design*; the deletion
+case is real and theirs, and it runs on their own hand-rolled implementation.
+Worth keeping straight: a design review and a report from production are
+different kinds of evidence, and only one of them has users behind it.
+
 On 0.3.0 the store had no delete, so that deletion happened **around** the core:
 `onCountChanged` never fired, the badge kept its number, the list was empty. That
 is verbatim the defect this package exists to prevent, in the one corner it did
