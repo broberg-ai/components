@@ -13,7 +13,7 @@
  * a generated baseline covers the `:root` theme; variants stay package-owned.
  */
 import { parse as parseYaml } from "yaml";
-import { wcagContrast } from "culori";
+import { wcagContrast, parse as parseColor } from "culori";
 
 export interface TypographyToken {
   fontFamily?: string;
@@ -102,6 +102,68 @@ function themeVar(namespace: string, name: string): string {
 }
 
 /**
+ * F001.12 — WHAT THE GENERATOR REFUSES, AND WHAT IT DELIBERATELY DOES NOT.
+ *
+ * Until 0.5.0 it threw on missing YAML front matter and on NOTHING else, so
+ * "the generator ran" and "the generator checked nothing" were the same
+ * observation. cardmem's phrasing, and it was exact — measured on 0.4.0:
+ *
+ *   colors.brand "#ZZZZZZ"           ->  --brand: #ZZZZZZ;
+ *   colors.alias "{colors.missing}"  ->  --alias: {colors.missing};
+ *
+ * The alias is the worse of the two. `{colors.missing}` is DESIGN.md's OWN
+ * reference syntax naming a token that does not exist, and it landed in the CSS
+ * as a literal string. It does not look like corruption; it looks deliberate.
+ *
+ * LENGTHS ARE NOT VALIDATED, on purpose. There is no reliable oracle: CSS
+ * accepts clamp(), calc(), min(), a bare var(), and units a regex will not
+ * know next year. A generator that refuses valid CSS is worse than one that
+ * passes an odd string through, and the failure mode is opposite — a refusal
+ * blocks a build, a passed-through string is visible in the output and ignored
+ * by the browser. Colours get checked because culori is a real oracle for them.
+ */
+const ALIAS = /^\{([\w.-]+)\}$/;
+
+/** Walk a dotted DESIGN.md path (`colors.ink`) against the parsed tokens. */
+function resolvePath(tokens: DesignTokens, path: string): unknown {
+  return path.split(".").reduce<unknown>((node, key) => {
+    if (node && typeof node === "object" && key in (node as Record<string, unknown>)) {
+      return (node as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, tokens);
+}
+
+/**
+ * Refuse a value that names a token which does not exist.
+ *
+ * Applied to EVERY namespace, not just colours — an alias is DESIGN.md syntax,
+ * not a colour feature, and fixing only the namespace that was reported is how
+ * the three-namespace self-reference (F001.11) survived.
+ */
+function assertResolvable(tokens: DesignTokens, where: string, value: string): void {
+  const m = ALIAS.exec(String(value).trim());
+  if (!m) return;
+  if (resolvePath(tokens, m[1]) === undefined) {
+    throw new Error(
+      `DESIGN.md: ${where} references {${m[1]}}, which is not defined in this file. ` +
+        `Emitting it would put the literal string "{${m[1]}}" into your CSS, where it looks deliberate and does nothing.`,
+    );
+  }
+}
+
+/** Refuse a colour no colour engine can read. culori is the oracle. */
+function assertColour(where: string, value: string): void {
+  if (ALIAS.test(String(value).trim())) return; // resolvability is the other check
+  if (parseColor(String(value)) === undefined) {
+    throw new Error(
+      `DESIGN.md: ${where} is ${JSON.stringify(value)}, which is not a colour. ` +
+        `It would be emitted as a custom property the browser silently discards, and the contrast check cannot read it either.`,
+    );
+  }
+}
+
+/**
  * Convert a DESIGN.md into a Tailwind v4 baseline: a `:root` block of raw token
  * custom properties + an `@theme inline` bridge mapping them into Tailwind's
  * utility namespaces (`--color-*`, `--radius-*`, `--spacing-*`, `--text-*`).
@@ -156,22 +218,27 @@ export function generateTailwindV4(content: string, options: GenerateV4Options =
   const skipped: SkippedNamespace[] = [];
 
   for (const [name, value] of Object.entries(tokens.colors ?? {})) {
+    assertResolvable(tokens, `colors.${name}`, String(value));
+    assertColour(`colors.${name}`, String(value));
     // The one namespace where raw and theme names differ, so `var()` is safe —
     // and the one where it EARNS its keep, since data-theme swaps colours.
     root.push(`  --${name}: ${value};`);
     theme.push(`  ${themeVar("color", name)}: var(--${name});`);
   }
   for (const [name, value] of Object.entries(tokens.rounded ?? {})) {
+    assertResolvable(tokens, `rounded.${name}`, String(value));
     root.push(`  ${themeVar("radius", name)}: ${value};`);
     theme.push(`  ${themeVar("radius", name)}: ${value};`);
   }
   for (const [name, value] of Object.entries(tokens.spacing ?? {})) {
+    assertResolvable(tokens, `spacing.${name}`, String(value));
     const v = typeof value === "number" ? `${value}px` : value;
     root.push(`  ${themeVar("spacing", name)}: ${v};`);
     theme.push(`  ${themeVar("spacing", name)}: ${v};`);
   }
   for (const [name, token] of Object.entries(tokens.typography ?? {})) {
     if (token.fontSize) {
+      assertResolvable(tokens, `typography.${name}.fontSize`, String(token.fontSize));
       root.push(`  ${themeVar("text", name)}: ${token.fontSize};`);
       theme.push(`  ${themeVar("text", name)}: ${token.fontSize};`);
     }
@@ -244,6 +311,31 @@ export function checkContrastAA(content: string, required = 4.5): ContrastIssue[
   const issues: ContrastIssue[] = [];
   for (const [fg, bg] of CONTRAST_PAIRS) {
     if (colors[fg] && colors[bg]) {
+      /**
+       * F001.12 — NAME THE TOKEN, never let culori's TypeError out.
+       *
+       * Measured on 0.4.0, and I had it BACKWARDS before I measured: I assumed
+       * an unreadable colour would return [] — a silent pass, because that is
+       * this week's pattern — and it does not. It CRASHES, from inside a
+       * dependency:
+       *
+       *   TypeError: undefined is not an object (evaluating 'c.r')
+       *     at luminance (culori/src/wcag.js:12)
+       *
+       * Wrong in the other direction, and still wrong: a consumer got a
+       * third-party stack trace instead of being told which of THEIR tokens is
+       * unreadable, and the WCAG checker is precisely the tool whose failure
+       * must be legible.
+       */
+      for (const [role, value] of [[fg, colors[fg]], [bg, colors[bg]]] as const) {
+        // BOTH checks, and the order matters. assertColour deliberately skips an
+        // alias (resolvability is the other check's job) — so wiring only that
+        // one in left `{colors.missing}` leaking culori's TypeError anyway. My
+        // own fix had the same shape as the defect: split in two, one half
+        // wired. Caught only because the AC demanded both cases be asserted.
+        assertResolvable(tokens, `colors.${role}`, String(value));
+        assertColour(`colors.${role}`, String(value));
+      }
       const ratio = wcagContrast(colors[fg], colors[bg]);
       if (typeof ratio === "number" && Number.isFinite(ratio) && ratio < required) {
         issues.push({

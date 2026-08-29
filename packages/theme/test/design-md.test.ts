@@ -190,3 +190,76 @@ body`;
     expect(themeDecls(css).filter(([n, v]) => v === `var(${n})`)).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F001.12 — the generator used to check nothing.
+//
+// Until 0.5.0 it threw on missing YAML front matter and on NOTHING else, so
+// "the generator ran" and "the generator checked nothing" were the same
+// observation (cardmem's phrasing, and it was exact).
+// ---------------------------------------------------------------------------
+describe("F001.12 — what the generator refuses", () => {
+  const doc = (body: string) => `---\n${body}\n---\nb`;
+
+  it("refuses a colour no colour engine can read", () => {
+    expect(() => designMdToTailwindV4(doc('colors:\n  brand: "#ZZZZZZ"'))).toThrow(/colors\.brand/);
+    expect(() => designMdToTailwindV4(doc('colors:\n  brand: "#ZZZZZZ"'))).toThrow(/not a colour/);
+  });
+
+  it("refuses an alias naming a token that does not exist", () => {
+    // The worse of the two: {colors.missing} is DESIGN.md's OWN reference
+    // syntax, and it used to land in the CSS as a literal string. It does not
+    // look like corruption; it looks deliberate.
+    expect(() => designMdToTailwindV4(doc('colors:\n  a: "{colors.missing}"'))).toThrow(/\{colors\.missing\}/);
+  });
+
+  it("ACCEPTS an alias that DOES resolve", () => {
+    // The negative control. Without it, the test above passes on a generator
+    // that refuses every alias, which would break the syntax entirely.
+    const css = designMdToTailwindV4(doc('colors:\n  ink: "#112233"\n  body: "{colors.ink}"'));
+    expect(css).toContain("--body: {colors.ink};");
+  });
+
+  it("checks aliases in EVERY namespace, not only colours", () => {
+    // An alias is DESIGN.md syntax, not a colour feature. Fixing only the
+    // namespace that was reported is exactly how F001.11's three-namespace
+    // self-reference survived.
+    expect(() => designMdToTailwindV4(doc('rounded:\n  lg: "{rounded.nope}"'))).toThrow(/rounded\.lg/);
+    expect(() => designMdToTailwindV4(doc('spacing:\n  md: "{spacing.nope}"'))).toThrow(/spacing\.md/);
+    expect(() =>
+      designMdToTailwindV4(doc("typography:\n  body:\n    fontSize: \"{typography.nope}\"")),
+    ).toThrow(/typography\.body\.fontSize/);
+  });
+
+  it("does NOT refuse a length it merely does not recognise", () => {
+    // Deliberate. There is no reliable oracle for a CSS length: clamp(), calc(),
+    // min(), a bare var(), and units a regex will not know next year. A
+    // generator that refuses valid CSS is worse than one that passes an odd
+    // string through — a refusal blocks a build, a passed-through string is
+    // visible in the output and ignored by the browser.
+    for (const v of ["clamp(4px,1vw,12px)", "calc(var(--r) * 2)", "min(2rem, 5%)", "var(--x)"]) {
+      expect(() => designMdToTailwindV4(doc(`rounded:\n  lg: "${v}"`))).not.toThrow();
+    }
+  });
+
+  it("checkContrastAA names the token instead of leaking culori's TypeError", () => {
+    // I had this BACKWARDS before measuring: I assumed an unreadable colour
+    // would return [] — a silent pass, because that is this week's pattern.
+    // It crashed instead, from inside a dependency, with "undefined is not an
+    // object (evaluating 'c.r')". Wrong in the other direction, still wrong.
+    const pair = (fg: string) => doc(`colors:\n  foreground: "${fg}"\n  background: "#FFFFFF"`);
+    expect(() => checkContrastAA(pair("#ZZZZZZ"))).toThrow(/colors\.foreground/);
+    // BOTH cases. assertColour deliberately skips an alias, so wiring only that
+    // one in left this path leaking the TypeError — my own fix had the same
+    // shape as the defect, and only asserting both cases caught it.
+    expect(() => checkContrastAA(pair("{colors.missing}"))).toThrow(/colors\.foreground/);
+    expect(() => checkContrastAA(pair("{colors.missing}"))).not.toThrow(/c\.r/);
+  });
+
+  it("still reports a REAL contrast failure, and still passes a real pass", () => {
+    // The fix must not turn the checker into something that only ever complains.
+    const pair = (fg: string) => doc(`colors:\n  foreground: "${fg}"\n  background: "#FFFFFF"`);
+    expect(checkContrastAA(pair("#777777"))).toHaveLength(1);
+    expect(checkContrastAA(pair("#000000"))).toEqual([]);
+  });
+});

@@ -175,6 +175,36 @@ measured before accepting it: **zero** `data-theme` variants in
 `css/neutral-preset.css` redefine a radius, spacing or text token. Only colours
 vary per theme, and colours keep `var()`.
 
+### 0.5.0 — the generator now refuses what it cannot emit
+
+Until 0.5.0 it threw on missing YAML front matter and on **nothing else**, so
+*"the generator ran"* and *"the generator checked nothing"* were the same
+observation. Two things are now refused, with the token named:
+
+```
+colors.brand: "#ZZZZZZ"          → refused: not a colour
+colors.a:     "{colors.missing}" → refused: references a token not defined here
+```
+
+The alias is the worse of the two. `{colors.missing}` is DESIGN.md's **own**
+reference syntax naming a token that does not exist, and it used to land in your
+CSS as the literal string `{colors.missing}` — which does not look like
+corruption, it looks deliberate. Aliases are checked in **every** namespace, not
+just colours.
+
+**Lengths are deliberately NOT validated.** There is no reliable oracle: CSS
+accepts `clamp()`, `calc()`, `min()`, a bare `var()`, and units a regex will not
+know next year. A generator that refuses valid CSS is worse than one that passes
+an odd string through — a refusal blocks your build, a passed-through string is
+visible in the output and ignored by the browser. Colours are checked because
+culori is a real oracle for them.
+
+**`checkContrastAA` now names the token instead of crashing.** Given a colour it
+cannot read it used to throw from inside culori — `TypeError: undefined is not an
+object (evaluating 'c.r')` — so you got a third-party stack trace instead of
+being told which of *your* tokens is unreadable. The WCAG checker is precisely
+the tool whose failure has to be legible.
+
 **Also fixed:** `DEFAULT` now maps to the bare namespace name. `rounded: { DEFAULT: "8px" }`
 emits `--radius`, not `--radius-DEFAULT` — one consumer had 30 uses of
 `border-radius: var(--radius)` with nothing behind them, and `vite build` said
