@@ -325,6 +325,50 @@ export interface BodyMap3DProps {
  * They take `chrome` now, which is why they are functions rather than
  * constants: there is no correct value to compute before the palette is known.
  */
+/**
+ * The intensity circle — 46px, and every one of the eleven takes it.
+ *
+ * THE SIZE IS NOT A DESIGN CHOICE, it is the sibling's. Measured while making
+ * these round: the 2D renderer's `.bmap__i` is 38px and **46px on touch**; this
+ * renderer's were **30px with no touch override at all**. F052.8 set a >=44px
+ * floor for this component because a phone is its primary surface, and F052.11
+ * made accessibility a legal duty here — so the 3D half had been under the floor
+ * since it shipped, and the two halves had quietly diverged.
+ *
+ * Same shape as F052.32's tap guard: 2D correct, 3D not, nobody looking. Asking
+ * for circles is what surfaced it — the second time this week that making
+ * something explicit uncovered a defect that was already there (F052.30's accent
+ * was the first).
+ *
+ * 46 rather than 44 so the two renderers carry ONE number instead of two that
+ * both happen to pass. The widest label («10») fits at the shipped font size,
+ * and all eleven take the same box so none is an ellipse among circles.
+ */
+export const INTENSITY_SIZE = 46;
+
+/**
+ * F052.33 — should the help note be on screen at all?
+ *
+ * Extracted because the renderer's own answer is unreachable from a unit test:
+ * happy-dom has no WebGL, so no region can be selected, and a test written
+ * against the component asserts the note is PRESENT twice and never that it
+ * disappears. I wrote that test and it was green and vacuous.
+ *
+ * `openRegion` wins over everything. A note reading «tap a body part» while the
+ * picker is open is wrong advice, not a layering problem — and it was covering
+ * the panel's close control, the third exit hidden under something this week.
+ */
+export function shouldShowHint(opts: {
+  openRegion: string | null;
+  hint: false | BodyMap3DHint | undefined;
+  anySelectable: boolean;
+  hasExplicitHoverHint: boolean;
+}): boolean {
+  if (opts.openRegion) return false;
+  if (opts.hint === false) return false;
+  return opts.anySelectable || opts.hasExplicitHoverHint;
+}
+
 const btn = (c: Required<BodymapUiColors>): React.CSSProperties => ({
   font: "inherit", cursor: "pointer", borderRadius: 8,
   border: `1px solid ${c.border}`, background: c.panelBg, padding: "6px 9px",
@@ -732,7 +776,22 @@ export function BodyMap3D(props: BodyMap3DProps) {
   // `hint={false}` is the explicit "do not show this" the consumer never had.
   // It short-circuits BEFORE the old condition, so a selectable map no longer
   // forces the note on. (F052.31)
-  const showEmptyHint = hint === false ? false : anySelectable || ui?.hoverHint !== undefined;
+  // F052.33 — a note reading «tap a body part» is WRONG ADVICE while the picker
+  // is open, so it is not a layering problem and a z-index would leave the wrong
+  // sentence on screen. It is guidance for the EMPTY state; the panel IS the
+  // non-empty state, and the two must never coexist.
+  //
+  // Measured by fd-sundhed in fullscreen: the stage-anchored note sat on top of
+  // the panel and hid its close ×. That is the THIRD covered exit this week
+  // (the fullscreen control under the iOS status bar, their own × under our
+  // fixed overlay, and now this) — every one present in the DOM, passing every
+  // test that asks whether it EXISTS, and unreachable.
+  const showEmptyHint = shouldShowHint({
+    openRegion: selected,
+    hint,
+    anySelectable,
+    hasExplicitHoverHint: ui?.hoverHint !== undefined,
+  });
   const hintText = (hint ? hint.text : undefined) ?? UI.hoverHint;
   const hintAtStage = isFullscreen && !!hint && hint.placement === "stage-bottom";
 
@@ -859,13 +918,22 @@ export function BodyMap3D(props: BodyMap3DProps) {
                   data-testid="bodymap3d-close"
                   aria-label={L.close}
                   onClick={() => setSelected(null)}
-                  style={{ ...btn(chrome), width: 32, height: 32, padding: 0, fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
+                  /* Round, like every other close in a consuming app. (F052.34) */
+                  style={{ ...btn(chrome), width: 40, height: 40, minWidth: 40, padding: 0, borderRadius: "50%", fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
                 >×</button>
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.intensity}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
                 {Array.from({ length: 11 }, (_, i) => (
-                  <button key={i} data-testid={`bodymap3d-intensity-${i}`} onClick={() => setPain(region.key, i, current?.type)} style={{ ...btn(chrome), display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 30, height: 30, padding: 0, background: current?.intensity === i ? chrome.accent : chrome.panelBg, color: current?.intensity === i ? chrome.accentText : chrome.text }}>{i}</button>
+                  /* F052.34 — CIRCLES, and all eleven the same size.
+                     Dimensioned by «10», the widest label: sizing by the average
+                     would make the two-digit one an ellipse among circles, which
+                     is worse than eleven rounded squares because the odd one out
+                     becomes a different SHAPE rather than slightly wider.
+                     46px is the SIBLING's touch size, not a new number: the 2D
+                     renderer already used it and this one was on 30px, under the
+                     >=44px floor F052.8 set. See INTENSITY_SIZE. */
+                  <button key={i} data-testid={`bodymap3d-intensity-${i}`} onClick={() => setPain(region.key, i, current?.type)} style={{ ...btn(chrome), display: "inline-flex", alignItems: "center", justifyContent: "center", width: INTENSITY_SIZE, height: INTENSITY_SIZE, minWidth: INTENSITY_SIZE, padding: 0, borderRadius: "50%", background: current?.intensity === i ? chrome.accent : chrome.panelBg, color: current?.intensity === i ? chrome.accentText : chrome.text }}>{i}</button>
                 ))}
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.quality}</div>

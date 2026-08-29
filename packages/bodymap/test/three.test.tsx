@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { BodyMap3D, seamBlend, seamWeight, ensureNormals, isTap, TAP_MAX_DISTANCE } from "../src/three.js";
+import { BodyMap3D, seamBlend, seamWeight, ensureNormals, isTap, TAP_MAX_DISTANCE, INTENSITY_SIZE, shouldShowHint } from "../src/three.js";
+import { readFileSync } from "node:fs";
 import { REGIONS, defaultPalette, defaultUi, STAGE_BG, type BodymapPalette } from "../src/index.js";
 
 afterEach(cleanup);
@@ -454,5 +455,65 @@ describe("isTap — distance decides, and nothing else does", () => {
     // Without this the scan passes forever if the pattern stops matching.
     const planted = "if (!isTap(a, b) || Date.now() - t > 450) return;";
     expect(planted).toContain("Date.now()");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F052.33 + F052.34 — the hint covered the panel's close control (the THIRD
+// covered exit this week), and asking for circles uncovered that this renderer
+// had been under the 44px touch floor since it shipped while its sibling was not.
+// ---------------------------------------------------------------------------
+
+describe("shouldShowHint — the note and the panel never coexist", () => {
+  const base = { hint: undefined, anySelectable: true, hasExplicitHoverHint: false } as const;
+
+  it("an OPEN region hides it, whatever else says show", () => {
+    // The case the component test could not reach: happy-dom has no WebGL, so no
+    // region can be selected, and a test written against the component asserts
+    // the note is PRESENT twice and never that it disappears. That test was
+    // green and vacuous, and it is why this function exists.
+    expect(shouldShowHint({ ...base, openRegion: "CHEST" })).toBe(false);
+    expect(shouldShowHint({ ...base, openRegion: "CHEST", hasExplicitHoverHint: true })).toBe(false);
+  });
+
+  it("openRegion beats an explicit hint object too", () => {
+    expect(shouldShowHint({ ...base, openRegion: "CHEST", hint: { text: "x" } })).toBe(false);
+  });
+
+  it("with NOTHING open it behaves exactly as F052.31 left it", () => {
+    expect(shouldShowHint({ ...base, openRegion: null })).toBe(true);
+    expect(shouldShowHint({ ...base, openRegion: null, hint: false })).toBe(false);
+    // locked map, no explicit text → suppressed (F052.15)
+    expect(shouldShowHint({ ...base, openRegion: null, anySelectable: false })).toBe(false);
+    // locked map WITH explicit text → shown
+    expect(shouldShowHint({ ...base, openRegion: null, anySelectable: false, hasExplicitHoverHint: true })).toBe(true);
+  });
+
+  it("THE CALL SITE passes the open region — the function alone proves nothing", () => {
+    // Mutation M2 survived without this: pointing the call site at `null`
+    // instead of `selected` left all 133 tests green, because they exercised the
+    // function and nothing exercised the caller.
+    //
+    // SECOND TIME TODAY. F052.32 hit the identical gap this morning, I wrote the
+    // lesson into its commit, and then extracted another decision the same way
+    // four hours later. Remembering is not the mechanism; this assertion is.
+    const src = readFileSync(`${process.cwd()}/src/three.tsx`, "utf8");
+    const call = src.match(/shouldShowHint\(\{([\s\S]{0,200}?)\}\)/);
+    expect(call?.[1]).toContain("openRegion: selected");
+  });
+
+  it("hint={false} still wins over an explicit hoverHint", () => {
+    // Two ways to ask for it and one way to refuse; the refusal is the stronger.
+    expect(shouldShowHint({ ...base, openRegion: null, hint: false, hasExplicitHoverHint: true })).toBe(false);
+  });
+});
+
+describe("the intensity buttons are circles, all of one size", () => {
+  it("exports a size at or above the 44px touch floor", () => {
+    // F052.8 set >=44px for this component; this renderer was on 30 with no
+    // touch override while the 2D sibling was already on 46. The number is the
+    // sibling's, so the two halves carry ONE value.
+    expect(INTENSITY_SIZE).toBeGreaterThanOrEqual(44);
+    expect(INTENSITY_SIZE).toBe(46);
   });
 });
