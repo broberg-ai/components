@@ -175,3 +175,62 @@ describe("ToastQueue", () => {
     expect(q.get()).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F016.7 — a scroll from INSIDE a registered element is not the outside world.
+//
+// The capture-phase scroll listener saw every descendant's scroll and closed
+// unconditionally, so a popover with a scrollable list closed itself the moment
+// the user scrolled it. Found by running the reuse check for the shared
+// notification bell (F074.4) rather than by a report — a select that closes
+// while you scroll reads as a slip of the finger, not as a bug worth filing.
+// ---------------------------------------------------------------------------
+
+describe("makeOutsideClickHandler — where the scroll came from", () => {
+  const mount = () => {
+    const panel = document.createElement("div");
+    const list = document.createElement("div");
+    panel.appendChild(list);
+    const elsewhere = document.createElement("div");
+    document.body.append(panel, elsewhere);
+    const onClose = vi.fn();
+    const h = makeOutsideClickHandler(() => [panel], onClose);
+    h.attach();
+    return { panel, list, elsewhere, onClose, done: () => { h.detach(); panel.remove(); elsewhere.remove(); } };
+  };
+
+  it("a scroll inside the panel does NOT close it", () => {
+    const { list, onClose, done } = mount();
+    list.dispatchEvent(new Event("scroll"));
+    expect(onClose).not.toHaveBeenCalled();
+    done();
+  });
+
+  it("a scroll on the panel ITSELF does not close it either", () => {
+    // contains() is true for the node itself. Asserting only the child case
+    // would leave the boundary untested.
+    const { panel, onClose, done } = mount();
+    panel.dispatchEvent(new Event("scroll"));
+    expect(onClose).not.toHaveBeenCalled();
+    done();
+  });
+
+  it("a scroll OUTSIDE still closes — the reason capture-phase exists", () => {
+    // A fixed-position portal floats away from its trigger when the page
+    // scrolls beneath it. Narrowing the listener to bubble-phase would trade
+    // this bug for the one the code was written to prevent.
+    const { elsewhere, onClose, done } = mount();
+    elsewhere.dispatchEvent(new Event("scroll"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    done();
+  });
+
+  it("a window resize still closes unconditionally", () => {
+    // A resize has no target inside anything, so it never asks — asserted so
+    // the fix cannot quietly narrow it.
+    const { onClose, done } = mount();
+    window.dispatchEvent(new Event("resize"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    done();
+  });
+});

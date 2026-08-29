@@ -34,7 +34,28 @@ export function makeOutsideClickHandler(
   const onPointerDown = (e: Event): void => {
     if (isOutsideAll(e.target, getEls())) onClose();
   };
-  const onScrollOrResize = (): void => onClose();
+  /**
+   * F016.7 — a scroll from INSIDE a registered element is not the outside world.
+   *
+   * The capture-phase listener below is deliberate and stays: scroll events do
+   * not bubble, so capture is the only way to see an ANCESTOR scroll container,
+   * and a fixed-position portal must close when the page scrolls beneath it or
+   * it floats away from its trigger.
+   *
+   * But capture also sees every scroll from every DESCENDANT, and this handler
+   * used to close unconditionally — so a popover with a scrollable list closed
+   * itself the moment the user scrolled it. Measured on a panel with an inner
+   * list: onClose fired once where it should have fired zero times. The
+   * pointerdown path already asked `isOutsideAll`; this one never did.
+   *
+   * Nobody had reported it, which is what this defect looks like from outside:
+   * a select that closes while you scroll reads as a slip of the finger.
+   */
+  const onScroll = (e: Event): void => {
+    if (isOutsideAll(e.target, getEls())) onClose();
+  };
+  /** A resize has no target inside anything, so it never asks. */
+  const onResize = (): void => onClose();
 
   return {
     attach() {
@@ -42,15 +63,15 @@ export function makeOutsideClickHandler(
       attached = true;
       doc.addEventListener("pointerdown", onPointerDown, true);
       // Capture-phase scroll catches ancestor scroll containers too.
-      doc.addEventListener("scroll", onScrollOrResize, true);
-      win?.addEventListener?.("resize", onScrollOrResize);
+      doc.addEventListener("scroll", onScroll, true);
+      win?.addEventListener?.("resize", onResize);
     },
     detach() {
       if (!attached || !doc) return;
       attached = false;
       doc.removeEventListener("pointerdown", onPointerDown, true);
-      doc.removeEventListener("scroll", onScrollOrResize, true);
-      win?.removeEventListener?.("resize", onScrollOrResize);
+      doc.removeEventListener("scroll", onScroll, true);
+      win?.removeEventListener?.("resize", onResize);
     },
   };
 }
