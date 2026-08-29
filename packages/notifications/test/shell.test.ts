@@ -187,3 +187,45 @@ describe("no default strings, anywhere", () => {
     expect(found).toEqual(["Mark all read"]);
   });
 });
+
+describe("no count is ever ARITHMETIC — it comes from the store", () => {
+  it("shows the store's number even when it disagrees with previous minus cleared", async () => {
+    // THE DISCRIMINATING FIXTURE. A shell that computed `count - cleared.length`
+    // would show 1 here and be wrong, and with any ordinary fixture — where the
+    // store happens to agree with the arithmetic — it would look correct
+    // forever.
+    //
+    // The disagreement is not contrived: it is the reason this package exists.
+    // Two consumers exclude a user's MUTED kinds from the badge, so "cleared"
+    // and "counted" are different sets, and one production user measured
+    // raw_unseen=50 against a shown count of 1.
+    let storeSays = 3;
+    const shell = createBellShell({
+      labels,
+      countUnseen: async () => storeSays,
+      markAllSeen: async () => { storeSays = 7; return ["a", "b"]; },  // ← went UP
+    });
+    await shell.open();
+    expect(shell.getState().count).toBe(3);
+
+    await shell.markAllSeen();
+    // 3 - 2 = 1 would be the arithmetic answer. The store says 7.
+    expect(shell.getState().count).toBe(7);
+  });
+
+  it("refresh() asks again rather than trusting what it last saw", async () => {
+    let storeSays = 5;
+    const shell = createBellShell({
+      labels,
+      countUnseen: async () => storeSays,
+      markAllSeen: async () => [],
+    });
+    await shell.open();
+    expect(shell.getState().count).toBe(5);
+    // Something else in the app cleared rows — a different tab, another device,
+    // reading the thing a notification was about.
+    storeSays = 0;
+    await shell.refresh();
+    expect(shell.getState().count).toBe(0);
+  });
+});
