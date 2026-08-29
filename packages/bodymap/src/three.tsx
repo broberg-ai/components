@@ -623,7 +623,17 @@ export function BodyMap3D(props: BodyMap3DProps) {
               inset: 0,
               zIndex: 2147483000,
               background: chrome.panelBg,
-              padding: 12,
+              // F052.27 — a fixed inset:0 surface in a standalone/Capacitor
+              // webview covers the STATUS BAR too, so a control laid out at the
+              // top lands on the clock and the battery. Measured by fd-sundhed
+              // on a real iPhone: the owner could not read the button or get
+              // out, and Escape does not exist on a phone. Every side gets its
+              // safe-area inset, bottom included — the home indicator covers
+              // content just as effectively.
+              paddingTop: "calc(12px + env(safe-area-inset-top))",
+              paddingBottom: "calc(12px + env(safe-area-inset-bottom))",
+              paddingLeft: "calc(12px + env(safe-area-inset-left))",
+              paddingRight: "calc(12px + env(safe-area-inset-right))",
               display: "flex",
               flexDirection: "column" as const,
               overflow: "auto" as const,
@@ -649,9 +659,20 @@ export function BodyMap3D(props: BodyMap3DProps) {
             aria-pressed={isFullscreen}
             aria-label={isFullscreen ? (UI.collapse ?? "Close") : (UI.expand ?? "Expand")}
             onClick={() => setFullscreen(!isFullscreen)}
-            style={{ ...btn, color: chrome.text, borderColor: chrome.border, background: chrome.panelBg }}
+            style={{
+              ...btn,
+              color: chrome.text,
+              borderColor: chrome.border,
+              background: chrome.panelBg,
+              ...(isFullscreen ? { width: 40, height: 40, padding: 0, fontSize: 22, lineHeight: 1 } : null),
+            }}
           >
-            {isFullscreen ? (UI.collapse ?? "Close") : (UI.expand ?? "Expand")}
+            {/* A COMPACT × once we are the whole screen. The text pill is
+                right when the component sits in a page — it is discoverable —
+                and wrong at the top of a phone screen, where it is wide enough
+                to cover half the status bar. The label stays on aria-label, so
+                nothing is lost for a screen reader. (F052.27) */}
+            {isFullscreen ? "×" : (UI.expand ?? "Expand")}
           </button>
         </div>
       )}

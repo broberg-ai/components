@@ -251,7 +251,22 @@ const [big, setBig] = useState(false);
 <button onClick={() => setBig(true)}>Se stor</button>
 ```
 
-`Escape` leaves it. The pain report is untouched by entering or leaving.
+`Escape` leaves it — **but a phone has no Escape**, so there must always be a
+reachable control. That is why the built-in one exists and why switching it off is
+a commitment to supplying your own.
+
+⚠️ **If you supply your own control, render it as a SIBLING of the fullscreen
+surface — not as a child of a container beneath it.** The surface is
+`position: fixed`, so a button positioned `absolute` inside your original box ends
+up *underneath* it. A consumer hit exactly this: their × disappeared under the
+overlay, and because they had already set `showFullscreenButton={false}` there was
+no way out at all. Give yours `position: fixed` and a z-index above the overlay,
+and assert with `document.elementFromPoint()` that the point you can see is the
+button you think it is.
+
+The control sits inside the safe area (`env(safe-area-inset-*)` on all four sides),
+and becomes a compact × in fullscreen — a text pill is wide enough to cover half a
+phone's status bar. The pain report is untouched by entering or leaving.
 
 **It is a viewport fill, not the browser Fullscreen API — deliberately.** iOS
 Safari does not support fullscreen on an arbitrary element at all, and a phone is
