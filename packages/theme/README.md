@@ -175,6 +175,45 @@ measured before accepting it: **zero** `data-theme` variants in
 `css/neutral-preset.css` redefine a radius, spacing or text token. Only colours
 vary per theme, and colours keep `var()`.
 
+### 0.6.0 — an alias is SUBSTITUTED, and CSS → DESIGN.md arrives
+
+**⚠️ BREAKING for input that used to reach your CSS.** Stated first because it is
+the part a release note usually buries. Measured on both versions:
+
+| input | 0.5.0 | 0.6.0 |
+|---|---|---|
+| `a: "{colors.ink}"` (valid) | emitted `--a: {colors.ink};` | emitted `--a: #101010;` |
+| `a: "{colors.a}"` (self-reference) | **emitted `--a: {colors.a};`** | **THROWS** — alias cycle |
+| `a: "{colors.b}"`, `b: "{colors.a}"` | **emitted `--a: {colors.b};`** | **THROWS** — alias cycle |
+
+So a build that used to succeed on a circular alias now fails. That is the point
+— the CSS it produced was a literal brace string no browser reads — but it is a
+*behaviour* change, not only a better error, and a consumer asserting on the old
+message or the old output will go red.
+
+Reported by cardmem, whose suite went 0 → 14 red on the upgrade (one real, the
+rest teardown fallout). **I had written "a cycle is refused by name", which is
+true and is not the same claim as "a cycle that previously got through".** Their
+distinction, and it is the one a consumer needs.
+
+**Aliases now resolve.** `{namespace.name}` is substituted with the value it
+names, transitively. Validation runs on the *resolved* value, so an alias
+pointing at something that is not a colour is refused by name rather than
+emitted. `checkContrastAA` measures the resolved colour — until 0.6.0 a *valid*
+alias made it throw culori's `TypeError` from inside a dependency.
+
+**`designTokensFromCss(css)`** reads an existing stylesheet the other way, and
+returns `{ tokens, skipped, renamed }` — never a bare token object. The reverse
+direction is a heuristic (which of hundreds of declarations are *tokens* is a
+judgement), so it reports what it could not read, and what it extracted under a
+name that would change if you regenerated. Lifted from the pure function cardmem
+wrote for it.
+
+> **It does NOT feed straight back into `generateTailwindV4`.** That function
+> takes the markdown string; `generateTailwindV4(tokens)` throws. A serialiser
+> is F001.15. An earlier version of this README's sibling comment claimed
+> otherwise, and cardmem caught it by measuring the tarball.
+
 ### 0.5.0 — the generator now refuses what it cannot emit
 
 Until 0.5.0 it threw on missing YAML front matter and on **nothing else**, so
