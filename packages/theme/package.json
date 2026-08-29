@@ -1,11 +1,17 @@
 {
   "name": "@broberg/theme",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Headless design-token theme store + neutral CSS baseline (Tailwind v4) for the broberg.ai estate. Framework-agnostic core + thin React/Preact adapters + a DESIGN.md → Tailwind v4 generator.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "css", "bin", "DESIGN.md", "README.md"],
+  "files": [
+    "dist",
+    "css",
+    "bin",
+    "DESIGN.md",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -47,8 +53,12 @@
     "react": ">=18"
   },
   "peerDependenciesMeta": {
-    "preact": { "optional": true },
-    "react": { "optional": true }
+    "preact": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "dependencies": {
     "culori": "^4.0.1",
@@ -70,5 +80,7 @@
     "url": "https://github.com/broberg-ai/components",
     "directory": "packages/theme"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

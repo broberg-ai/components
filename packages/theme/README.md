@@ -125,3 +125,57 @@ setTheme("dark-warm");
 - The headless core imports no framework packages (`tsc --noEmit` clean; no
   `next/*`, no React/Preact in `@broberg/theme`).
 - Part of the [`broberg-ai/components`](../../docs/INVENTORY.md) monorepo (F001).
+
+## DESIGN.md → Tailwind v4
+
+```ts
+import { designMdToTailwindV4, generateTailwindV4 } from "@broberg/theme/design-md";
+
+const css = designMdToTailwindV4(designMd);                       // just the CSS
+const { css, skipped } = generateTailwindV4(designMd);            // + what it could not convert
+designMdToTailwindV4(designMd, { tailwindImport: false });        // your entry already imports Tailwind
+designMdToTailwindV4(designMd, { selector: ".brand" });           // scope the raw tokens
+```
+
+**`skipped` is worth reading.** DESIGN.md files carry namespaces this generator
+does not bridge — `shadow`, `motion`, `fontFamily`/`lineHeight`/`letterSpacing`
+inside `typography`, and anything custom. They used to be discarded in silence;
+one consumer lost 58 of 72 tokens through a build that reported success. Now each
+one comes back by name with a reason. Print them, or fail your own build on them.
+
+### 0.4.0 — the bridge no longer points at itself
+
+If you generated CSS with 0.3.1 or earlier, **regenerate it.** Three of the four
+bridged namespaces emitted the same name on both sides:
+
+```css
+:root       { --radius-lg: 12px; }
+@theme inline { --radius-lg: var(--radius-lg); }   /* ← itself: no computed value */
+```
+
+Tailwind really does put that second line into its compiled `@layer theme`, so
+the generator **replaced a working stock default** (`--radius-lg: 0.5rem`) with
+something empty. Measured against tailwindcss 4.3.3.
+
+With the default `selector: ":root"` it happened to work anyway — our own
+unlayered `:root` block won, because unlayered CSS beats any layer. **The
+correctness rested entirely on that.** Pass `selector: ".brand"` and there is no
+unlayered `:root` left: outside `.brand`, every radius / spacing / text utility
+resolved to nothing.
+
+Colours were never affected, because their raw name differs from their theme name
+(`--ivory` → `--color-ivory`). That asymmetry is why it survived review — the one
+namespace you would spot-check by eye is the correct one.
+
+**What changed:** the three colliding namespaces now carry their value into
+`@theme`; only colours keep the `var()` indirection. Raw token names are
+unchanged, so `var(--radius-lg)` in your own CSS still works. The cost of
+inlining is that those utilities no longer follow the raw variable at runtime —
+measured before accepting it: **zero** `data-theme` variants in
+`css/neutral-preset.css` redefine a radius, spacing or text token. Only colours
+vary per theme, and colours keep `var()`.
+
+**Also fixed:** `DEFAULT` now maps to the bare namespace name. `rounded: { DEFAULT: "8px" }`
+emits `--radius`, not `--radius-DEFAULT` — one consumer had 30 uses of
+`border-radius: var(--radius)` with nothing behind them, and `vite build` said
+nothing.
