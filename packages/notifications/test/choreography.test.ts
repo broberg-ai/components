@@ -48,6 +48,10 @@ describe('F074.1 — every mutation recounts, then announces, exactly once', () 
       markSeen: async (s, i) => { log.push('markSeen'); return inner.markSeen(s, i); },
       markAllSeen: async (s) => { log.push('markAllSeen'); return inner.markAllSeen(s); },
       markSeenByRef: async (s, k, r) => { log.push('markSeenByRef'); return inner.markSeenByRef(s, k, r); },
+      // F074.5 — removal runs the SAME choreography, so it is proved by the same
+      // table rather than by a second one that could drift from it.
+      remove: async (s, i) => { log.push('remove'); return inner.remove!(s, i); },
+      removeAll: async (s) => { log.push('removeAll'); return inner.removeAll!(s); },
     };
     return { store, log };
   }
@@ -57,6 +61,8 @@ describe('F074.1 — every mutation recounts, then announces, exactly once', () 
     ['markSeen', (n) => n.markSeen('u1', ['n1'])],
     ['markAllSeen', (n) => n.markAllSeen('u1')],
     ['markSeenByRef', (n) => n.markSeenByRef('u1', ['chat'], 'r1')],
+    ['remove', (n) => n.remove('u1', ['n1'])],
+    ['removeAll', (n) => n.removeAll('u1')],
   ];
 
   it.each(MUTATORS)('%s writes, THEN recounts, THEN announces', async (name, run) => {
@@ -91,6 +97,8 @@ describe('F074.1 — a failed write must not announce', () => {
     ['markSeen', { markSeen: async () => { throw boom; } }, (n: any) => n.markSeen('u1', ['n1'])],
     ['markAllSeen', { markAllSeen: async () => { throw boom; } }, (n: any) => n.markAllSeen('u1')],
     ['markSeenByRef', { markSeenByRef: async () => { throw boom; } }, (n: any) => n.markSeenByRef('u1', ['chat'], 'r1')],
+    ['remove', { remove: async () => { throw boom; } }, (n: any) => n.remove('u1', ['n1'])],
+    ['removeAll', { removeAll: async () => { throw boom; } }, (n: any) => n.removeAll('u1')],
   ])('%s propagates the error and stays silent', async (_name, override, run) => {
     const onCountChanged = vi.fn();
     const n = createNotifications({

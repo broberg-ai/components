@@ -33,8 +33,8 @@ const MUTATIONS = [
   {
     name: 'the announce races the write instead of following it',
     file: INDEX,
-    from: "    const clearedIds = await run();\n    return { clearedIds, count: await settle(subjectId) };",
-    to: "    const settled = settle(subjectId);\n    const clearedIds = await run();\n    return { clearedIds, count: await settled };",
+    from: "    const ids = await run();\n    return { ids, count: await settle(subjectId) };",
+    to: "    const settled = settle(subjectId);\n    const ids = await run();\n    return { ids, count: await settled };",
   },
   // Returning the REQUEST hands the surface a highlight pointing at rows the
   // user never had — including rows belonging to somebody else.
@@ -81,6 +81,41 @@ const MUTATIONS = [
     file: INDEX,
     from: "      if (onCountChangedError) onCountChangedError(err, subjectId, count);\n      else console.error('[@broberg/notifications] onCountChanged failed', { subjectId, count, err });",
     to: "      void err;",
+  },
+  // F074.5 — the four decisions removal adds. Each one, broken, is a shipped
+  // package that looks like it protects you.
+  //
+  // The badge stops following a DELETION — the reported defect, restored.
+  {
+    name: 'remove() skips the recount and announce (the reported defect, restored)',
+    file: INDEX,
+    from: "  async function drop(subjectId: string, run: () => Promise<string[]>): Promise<RemoveResult> {\n    const { ids, count } = await mutate(subjectId, run);\n    return { removedIds: ids, count };\n  }",
+    to: "  async function drop(_subjectId: string, run: () => Promise<string[]>): Promise<RemoveResult> {\n    const ids = await run();\n    return { removedIds: ids, count: 0 };\n  }",
+  },
+  // The construction warning is the ONLY thing that reaches a consumer who
+  // deletes in their own table and never calls remove(). Silence it and the
+  // package is back to a conditional guarantee nobody is told about.
+  {
+    name: 'the construction warning is silenced (the one signal a self-deleting consumer gets)',
+    file: INDEX,
+    from: "  if (!canRemove) {",
+    to: "  if (false) {",
+  },
+  // canRemove lying is worse than absent: a surface renders a delete control on
+  // the strength of it.
+  {
+    name: 'canRemove reports true regardless of the store',
+    file: INDEX,
+    from: "  const canRemove = typeof store.remove === 'function' && typeof store.removeAll === 'function';",
+    to: "  const canRemove = true;",
+  },
+  // A silent success is the failure shape this repo has hit five times this
+  // week: the caller is told the rows are gone and nothing happened.
+  {
+    name: 'remove() on a store that cannot remove returns a silent success',
+    file: INDEX,
+    from: "      const run = store.remove;\n      if (!run) {",
+    to: "      const run = store.remove;\n      if (!run) {\n        return { removedIds: [], count: await store.countUnseen(subjectId) };\n      }\n      if (false) {",
   },
 ];
 

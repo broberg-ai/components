@@ -1,7 +1,13 @@
 # @broberg/notifications
 
 Headless in-app notification core for the broberg.ai fleet: the bell, the list,
-and the OS badge all read **one** number, so they cannot disagree.
+and the OS badge all read **one** number, so they cannot disagree — **for every
+change that goes through the core.**
+
+That last clause is not hedging, it is the contract. Write, clear or delete a row
+**around** the core and nothing announces it: the badge keeps its old number over
+a list that has already changed. Route your mutations through here (including
+deletes — see **[Deleting rows](#deleting-rows-v040)**) and the guarantee holds.
 
 The package does **not** own your database, your count query, or your list UI.
 You supply a store; it owns the choreography.
@@ -50,6 +56,14 @@ consumer's error handling"* was RED before this release and is GREEN after,
 because the guard now lives here. That is correct, and it is invisible: nothing
 tells you a test stopped defending anything. Re-run your mutation pass after
 upgrading, and delete or re-aim the ones that have gone equivalent.
+
+**And this applies to your FIRST adoption too, not only to upgrades.** The
+sentence above says *upgrade* because that is where moovyy hit it, and read
+literally it lets a new consumer skip the check. It should not: whatever you were
+doing by hand before you installed this package — your own try/catch, your own
+recount after a clear, your own badge write — is now done here, so the tests
+guarding it are equivalent mutants from the moment you adopt. Run the pass when
+you wire the package up, not only when you bump it.
 
 **Re-running is only half of it** — moovyy's sharpening, after they did the first
 half and caught themselves. They found the equivalent mutant and wrote it in the
@@ -124,6 +138,26 @@ And the destination rule, from xrt81:
 > — but if it cannot be derived, the row must fall **out** of the count rather
 > than count with a link that clears nothing. *A number no action can remove
 > teaches people to ignore it.*
+
+### If your table only has `read_at`
+
+`unseenCount` means *things that pushed you and you have not opened* — which is
+**not** the same as *everything you have not read*. A table with a single
+`read_at` column has collapsed the two, and that is worth saying out loud rather
+than leaving you to discover it.
+
+**If your app never distinguishes them** — one list, every row pushes, opening it
+is reading it — map `read_at` onto `seenAt` and you are done. That is a real and
+common shape; nothing here is broken by it.
+
+**If your app has rows that do NOT push** (a digest, a settings change, anything
+written for the record), do **not** map it. `read_at IS NULL` will then count
+rows that never asked for the user's attention, the badge shows a number the user
+cannot explain, and the fastest thing you can teach someone is to ignore a badge.
+Add a second column, or exclude those kinds in `countUnseen`.
+
+We do not offer a mapping helper, deliberately: which of your rows push is a fact
+only your app has, and a helper would have to guess it.
 
 ### The core never writes the count query — you do
 
@@ -214,10 +248,52 @@ interface NotificationStore<Row extends NotificationRow = NotificationRow> {
   markSeen(subjectId, ids): Promise<string[]>;             // transitioned ids
   markAllSeen(subjectId): Promise<string[]>;
   markSeenByRef(subjectId, kinds, refId): Promise<string[]>;
+
+  remove?(subjectId, ids): Promise<string[]>;                // removed ids — OPTIONAL
+  removeAll?(subjectId): Promise<string[]>;
 }
 ```
 
 Every `mark*` returns the ids whose `seenAt` went from null **on this call**.
+`remove*` returns the ids actually removed — the transition, never the request.
+
+## Deleting rows (v0.4.0)
+
+Filed by fd-sundhed, who read it out of the published 0.3.0 rather than guessing:
+their bell lets a user **delete** a notification, not only mark it read — built
+after a sync sent 42 false messages the owner had to clear one at a time.
+
+On 0.3.0 the store had no delete, so that deletion happened **around** the core:
+`onCountChanged` never fired, the badge kept its number, the list was empty. That
+is verbatim the defect this package exists to prevent, in the one corner it did
+not cover — and the consumer who deletes got the **worst** variant, because it
+*looked* protected.
+
+```ts
+const { removedIds, count } = await notifications.remove(userId, ['n1', 'n2']);
+await notifications.removeAll(userId);
+
+if (notifications.canRemove) { /* render the delete control */ }
+```
+
+**`remove` and `removeAll` are optional on the store, and that is a decision, not
+an oversight.** Required would break every consumer on 0.2.x/0.3.0 the day they
+upgrade, and they have done nothing wrong. So instead:
+
+- A store **without** the pair gets **one named warning at `createNotifications()`**
+  — not from `remove()`. That is fd-sundhed's correction and it is the whole
+  point: *a consumer who deletes rows in their own table never calls `remove()`*,
+  so an error thrown there would never reach the person actually in danger.
+- Construction still succeeds and everything else still works.
+- `notifications.remove()` on a store that cannot remove throws a **named** error.
+  Secondary to the warning, never a substitute for it.
+- **`notifications.canRemove`** (asked for by cardmem) lets you *hide* a delete
+  control rather than render one that throws. Without it the defect only moves —
+  from *the badge lies* to *the button does not do what it says*.
+
+`removedIds` is deliberately **not** called `clearedIds`. A cleared row still
+exists and can be highlighted; a removed row is gone. Two different facts, two
+different names.
 
 ## What is deliberately absent
 
@@ -231,7 +307,11 @@ Every `mark*` returns the ids whose `seenAt` went from null **on this call**.
   owned it would fit exactly one app.
 - **Push.** `sendSilent` / `syncBadge` belong to `@broberg/webpush`. Wire them in
   `onCountChanged`; this package has no runtime dependencies at all.
-- **A prune/TTL policy.** Neither production consumer prunes today. xrt81
+- **A prune/TTL policy** — still absent, and `remove()` is not one. Deleting rows
+  on a user's instruction and deleting them on a schedule are different features;
+  the second needs numbers we do not have. fd-sundhed goes live in September with
+  16,838 users against xrt81's 15, three orders of magnitude apart, so a policy
+  designed today would be designed on a guess. Neither production consumer prunes today. xrt81
   measured ~11,000 rows/year for a 15-person club and calls the absence a gap;
   cardmem warned against designing a TTL from an assumption they have one. It
   gets its own release, with real numbers.

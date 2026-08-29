@@ -54,6 +54,31 @@ export interface NotificationStore<Row extends NotificationRow = NotificationRow
   markSeen(subjectId: string, ids: readonly string[]): Promise<string[]>;
   markAllSeen(subjectId: string): Promise<string[]>;
   markSeenByRef(subjectId: string, kinds: readonly string[], refId: string): Promise<string[]>;
+
+  /** DELETION — optional, and the optionality is the design decision, not an
+   *  oversight (F074.5, filed by fd-sundhed).
+   *
+   *  REQUIRED would break cardmem, xrt81 and moovyy the day they upgrade, and
+   *  they have done nothing wrong. OPTIONAL-AND-SILENT recreates the hole this
+   *  package exists to close: delete rows outside the core and `onCountChanged`
+   *  never fires, so the badge keeps its number over an empty list — the exact
+   *  defect, in the one corner the core did not cover, and the consumer who
+   *  deletes gets the WORST variant because it LOOKS protected.
+   *
+   *  So it is optional in the type and LOUD at construction: a store without
+   *  both methods gets one named warning from `createNotifications()`. The
+   *  warning fires there and not from `remove()`, because a consumer who
+   *  deletes in their OWN table never calls `remove()` — a throwing `remove()`
+   *  would never reach the person actually in danger. fd-sundhed's correction,
+   *  and it is the whole point of the story.
+   *
+   *  Returns the ids actually REMOVED on this call — the transition, never the
+   *  request, exactly as `mark*` does. An id that was not there is absent.
+   *
+   *  Implement BOTH or neither. `canRemove` is the pair; a half-store is a
+   *  misconfiguration the warning names by method. */
+  remove?(subjectId: string, ids: readonly string[]): Promise<string[]>;
+  removeAll?(subjectId: string): Promise<string[]>;
 }
 
 export interface NotificationsConfig<Row extends NotificationRow = NotificationRow> {
@@ -83,5 +108,20 @@ export interface NotificationsConfig<Row extends NotificationRow = NotificationR
  *  a tip. */
 export interface ClearResult {
   clearedIds: string[];
+  count: number;
+}
+
+/** What a removal gives back.
+ *
+ *  DELIBERATELY NOT `ClearResult`, and the name difference is load-bearing. A
+ *  CLEARED row still exists and can be highlighted — that is what `clearedIds`
+ *  is for. A REMOVED row is gone, and a surface handed it under the name
+ *  `clearedIds` would try to highlight rows it can no longer render. Two
+ *  different facts get two different names.
+ *
+ *  Same one-shot contract as `clearedIds`: the rows are gone afterwards, so
+ *  there is no way to ask again. */
+export interface RemoveResult {
+  removedIds: string[];
   count: number;
 }
