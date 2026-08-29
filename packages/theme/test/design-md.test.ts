@@ -216,8 +216,19 @@ describe("F001.12 — what the generator refuses", () => {
   it("ACCEPTS an alias that DOES resolve", () => {
     // The negative control. Without it, the test above passes on a generator
     // that refuses every alias, which would break the syntax entirely.
+    //
+    // F001.14 — THIS ASSERTION USED TO PIN THE DEFECT. Written in 0.5.0, it said
+    // `toContain("--body: {colors.ink};")` — demanding the literal brace string
+    // the generator wrongly emitted. Fixing the generator turned it red, which
+    // is the whole signature of a test that pins the HOW instead of the WHAT: it
+    // blocks its own obsolescence. Second time in one day, and I wrote both.
+    //
+    // What a consumer actually depends on is that the alias RESOLVES and that no
+    // reference syntax survives into the CSS. That is asserted here; the value
+    // substitution itself is covered in alias.test.ts.
     const css = designMdToTailwindV4(doc('colors:\n  ink: "#112233"\n  body: "{colors.ink}"'));
-    expect(css).toContain("--body: {colors.ink};");
+    expect(css).toContain("--body: #112233;");
+    expect(css).not.toContain("{colors.");
   });
 
   it("checks aliases in EVERY namespace, not only colours", () => {

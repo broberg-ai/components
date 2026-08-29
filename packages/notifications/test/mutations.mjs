@@ -16,6 +16,7 @@ import { join } from 'node:path';
 
 const HERE = new URL('../', import.meta.url).pathname;
 const INDEX = join(HERE, 'src/index.ts');
+const SRC_FOR_GUARD = 'src/index.ts';
 
 const MUTATIONS = [
   // A SECOND COUNTER APPEARS. This is the whole defect, in one line: the bell
@@ -138,6 +139,38 @@ function redSet() {
     }
   }
   return failed.sort();
+}
+
+/**
+ * MUTATING AN UNCOMMITTED FILE IS UNRECOVERABLE, and it nearly shipped a broken
+ * package on 2026-08-29.
+ *
+ * This harness writes the source, runs the suite, and restores it in a `finally`.
+ * `finally` does not run on a KILL. Two runs were killed that day — one on a
+ * timeout, one by the session — and each left its mutation in place. Worse, the
+ * second run then read the ALREADY-MUTATED file as its "original" and layered
+ * its own on top, so the file ended up carrying two disabled guards. Mutated
+ * source is indistinguishable from working source by reading; it was caught only
+ * because a test happened to fail and I went looking.
+ *
+ * On a COMMITTED file every one of those states is `git checkout -- <file>`. So
+ * the harness refuses to start otherwise. It costs one commit and removes the
+ * whole class.
+ */
+{
+  const dirty = execFileSync("git", ["status", "--porcelain", "--", SRC_FOR_GUARD], {
+    cwd: HERE,
+    encoding: "utf8",
+  }).trim();
+  if (dirty) {
+    console.error(
+      `::error::refusing to mutate an uncommitted file — commit first.\n` +
+        `  ${dirty}\n` +
+        `  A kill (timeout, Ctrl-C, session stop) skips the restore, and mutated source reads exactly like working source.\n` +
+        `  Committed, any interrupted run is recoverable with: git checkout -- <file>`,
+    );
+    process.exit(1);
+  }
 }
 
 console.log('baseline (unmutated) …');
