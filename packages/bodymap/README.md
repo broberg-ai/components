@@ -382,6 +382,34 @@ is invisible on a desktop monitor and obvious on a phone.
 
 3D only — the 2D renderer has no canvas and no fullscreen, so it ignores it.
 
+### `hint` — turn the help note off, or move it (0.10.0)
+
+```tsx
+<BodyMap3D hint={false} />                                        // don't show it
+<BodyMap3D hint={{ text: "…", placement: "stage-bottom" }} />     // yours, pinned in the stage
+```
+
+**`hint={false}` is the "do not show this" that did not exist.** `ui.hoverHint`
+only ever changed the *text*, and setting it to `""` produced an empty bordered
+box — worse than the sentence. `ui.hoverHint` still works and is not deprecated;
+`hint.text` is simply the newer way to say the same thing.
+
+**`placement: "stage-bottom"` fixes a real clipping bug rather than moving it.**
+The note sits in normal flow in the panel column. In fullscreen the canvas takes
+the full height, that column wraps beneath it, and the note lands past the bottom
+edge — measured on a real iPhone at **858–912 in an 852px window**, entirely
+offscreen. `stage-bottom` pins it inside the fullscreen surface, clear of the home
+indicator. Outside fullscreen it stays where it was, because there the flow
+position is right.
+
+You cannot make that call in CSS without knowing our internal structure, which is
+why the prop exists.
+
+⚠️ **The default text changed in 0.10.0.** It said *"Hover to highlight"* —
+describing an interaction that does not exist on a touchscreen, on a component
+whose primary surface is a phone. Now *"Drag to rotate · tap a body part to mark
+pain."*
+
 ### `ui.accent` — the controls read your palette now (0.9.0)
 
 Until 0.9.0 the buttons carried their colours inline, so a consumer palette

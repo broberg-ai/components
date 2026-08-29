@@ -319,3 +319,70 @@ describe("the controls read the consumer's palette", () => {
     expect(screen.getByTestId("bodymap3d-sex-male").style.background).toBe("#141969");
   });
 });
+
+// ---------------------------------------------------------------------------
+// F052.31 — the hint could not be turned off, and in fullscreen it fell off the
+// bottom of the phone. fd-sundhed measured it in production: bodymap3d-empty at
+// 858–912 in an 852px window. Entirely offscreen, and it reads as a bug in
+// THEIR app.
+// ---------------------------------------------------------------------------
+
+describe("hint — the consumer decides whether, what and where", () => {
+  it("hint={false} renders NOTHING — not an empty box", () => {
+    // The old non-answer was ui.hoverHint = "", which produced an empty bordered
+    // box: worse than the sentence it replaced. Regions are selectable here, so
+    // the old condition would have rendered it.
+    render(<BodyMap3D models={models} hint={false} />);
+    expect(screen.queryByTestId("bodymap3d-empty")).toBeNull();
+  });
+
+  it("still shows by default — this is opt-out, not a silent removal", () => {
+    render(<BodyMap3D models={models} />);
+    expect(screen.getByTestId("bodymap3d-empty")).toBeTruthy();
+  });
+
+  it("hint={{text}} sets the text, and ui.hoverHint STILL does too", () => {
+    // fd-sundhed passes ui.hoverHint today. A better prop arriving must not make
+    // an existing consumer's override silently stop working.
+    const { rerender } = render(<BodyMap3D models={models} hint={{ text: "Ny tekst" }} />);
+    expect(screen.getByTestId("bodymap3d-empty").textContent).toBe("Ny tekst");
+
+    rerender(<BodyMap3D models={models} ui={{ hoverHint: "Gammel vej" }} />);
+    expect(screen.getByTestId("bodymap3d-empty").textContent).toBe("Gammel vej");
+  });
+
+  it("the default text no longer promises HOVER — there is none on a phone", () => {
+    // Why the consumer overrode it in the first place: our default described an
+    // interaction that does not exist on the surface this component calls
+    // primary.
+    const { rerender } = render(<BodyMap3D models={models} />);
+    expect(screen.getByTestId("bodymap3d-empty").textContent?.toLowerCase()).not.toContain("hover");
+    rerender(<BodyMap3D models={models} locale="en" />);
+    expect(screen.getByTestId("bodymap3d-empty").textContent?.toLowerCase()).not.toContain("hover");
+  });
+
+  it("placement 'stage-bottom' only moves it in FULLSCREEN", () => {
+    // Boxed, "after the canvas" is right. The move exists for the case where the
+    // column wraps beneath a full-height canvas.
+    const { rerender } = render(
+      <BodyMap3D models={models} hint={{ placement: "stage-bottom" }} />,
+    );
+    expect(screen.getByTestId("bodymap3d-empty").dataset.placement).toBeUndefined();
+
+    rerender(<BodyMap3D models={models} hint={{ placement: "stage-bottom" }} fullscreen />);
+    expect(screen.getByTestId("bodymap3d-empty").dataset.placement).toBe("stage-bottom");
+
+    // NOT ASSERTED HERE, deliberately: happy-dom discards env() from an inline
+    // style, so the safe-area offset and the resulting geometry are unprovable
+    // in a unit test. What this test proves is WHICH position rendered; that it
+    // actually lands inside the viewport is a Lens assertion on a real engine —
+    // and it is the assertion that matters, since the defect was measured as
+    // 858-912 in an 852px window.
+  });
+
+  it("there is only ever ONE hint on screen", () => {
+    // The stage-anchored copy must REPLACE the flow one, not join it.
+    render(<BodyMap3D models={models} hint={{ placement: "stage-bottom" }} fullscreen />);
+    expect(screen.getAllByTestId("bodymap3d-empty")).toHaveLength(1);
+  });
+});

@@ -64,8 +64,19 @@ export interface BodyMap3DUiLabels {
   hoverHint: string;
 }
 
-const UI_DA: BodyMap3DUiLabels = { male: "Mand", female: "Kvinde", hoverHint: "Hover for at fremhæve · klik en kropsdel for at markere smerte.", expand: "Vis stor", collapse: "Luk stor visning" };
-const UI_EN: BodyMap3DUiLabels = { male: "Male", female: "Female", hoverHint: "Hover to highlight · tap a body part to mark pain.", expand: "Expand", collapse: "Close" };
+export interface BodyMap3DHint {
+  /** Overrides the localized default. `ui.hoverHint` still works too. */
+  text?: string;
+  /**
+   * `after-canvas` (default) keeps today's flow position.
+   * `stage-bottom` pins it inside the fullscreen surface, above the home
+   * indicator — and falls back to the flow position when not fullscreen.
+   */
+  placement?: "after-canvas" | "stage-bottom";
+}
+
+const UI_DA: BodyMap3DUiLabels = { male: "Mand", female: "Kvinde", hoverHint: "Træk for at dreje · tryk en kropsdel for at markere smerte.", expand: "Vis stor", collapse: "Luk stor visning" };
+const UI_EN: BodyMap3DUiLabels = { male: "Male", female: "Female", hoverHint: "Drag to rotate · tap a body part to mark pain.", expand: "Expand", collapse: "Close" };
 
 // Region anchors in normalised body space (height ~1.9, feet y=0, front +z),
 // then x-flipped so the patient's own left maps to "venstre" (self-view).
@@ -201,6 +212,24 @@ export interface BodyMap3DProps {
   palette?: BodymapPalette;
   locale?: BodyMapLocale;
   labels?: Partial<BodyMapLabels>;
+  /**
+   * The help note under the body. F052.31.
+   *
+   * `false` renders NOTHING — no box, no border, no empty element. That path did
+   * not exist before: `ui.hoverHint = ""` produced an empty bordered box, which
+   * is worse than the sentence it replaced.
+   *
+   * `placement` is what fixes the defect rather than moving it. In the boxed
+   * layout the note belongs after the canvas; in FULLSCREEN that column wraps
+   * beneath a full-height canvas and the note lands past the bottom edge —
+   * measured by a consumer at 858-912 in an 852px window, i.e. entirely
+   * offscreen. `stage-bottom` anchors it inside the fullscreen surface instead,
+   * clear of the home indicator.
+   *
+   * A consumer cannot make that call in CSS without knowing our internal
+   * structure, which is exactly why two of them had to write wedges against it.
+   */
+  hint?: false | BodyMap3DHint;
   /** Override the 3D-only control strings (male/female/hoverHint). */
   ui?: Partial<BodyMap3DUiLabels>;
   defaultSex?: BodyMap3DSex;
@@ -288,7 +317,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
     models, value, defaultValue, onChange, config, palette = defaultPalette,
     locale = "da", labels, ui, defaultSex = "male", sex: sexProp, showSexToggle = true, onSexChange,
     autoRotate = true, canvasHeight = "60vh", showRegionCode = true,
-    onFeedback, haptics, seam = false,
+    onFeedback, haptics, seam = false, hint,
     fullscreen: fullscreenProp, onFullscreenChange, showFullscreenButton = true,
     className,
   } = props;
@@ -676,7 +705,12 @@ export function BodyMap3D(props: BodyMap3DProps) {
   // "tap a body part to mark pain" hint is misleading — suppress it unless the
   // consumer explicitly set a display text via ui.hoverHint.
   const anySelectable = REGIONS.some((r) => isSelectable(r.key, config ?? {}));
-  const showEmptyHint = anySelectable || ui?.hoverHint !== undefined;
+  // `hint={false}` is the explicit "do not show this" the consumer never had.
+  // It short-circuits BEFORE the old condition, so a selectable map no longer
+  // forces the note on. (F052.31)
+  const showEmptyHint = hint === false ? false : anySelectable || ui?.hoverHint !== undefined;
+  const hintText = (hint ? hint.text : undefined) ?? UI.hoverHint;
+  const hintAtStage = isFullscreen && !!hint && hint.placement === "stage-bottom";
 
   return (
     <div
@@ -818,11 +852,40 @@ export function BodyMap3D(props: BodyMap3DProps) {
               </div>
               {current && <button data-testid="bodymap3d-remove" onClick={() => removePain(region.key)} style={{ ...btn(chrome), color: chrome.danger, borderColor: chrome.dangerBorder }}>{L.remove}</button>}
             </div>
-          ) : showEmptyHint ? (
-            <div data-testid="bodymap3d-empty" style={{ border: `1px solid ${chrome.border}`, borderRadius: 14, padding: 16, background: chrome.panelBg, color: chrome.mutedText, fontSize: 13.5 }}>{UI.hoverHint}</div>
+          ) : showEmptyHint && !hintAtStage ? (
+            <div data-testid="bodymap3d-empty" style={{ border: `1px solid ${chrome.border}`, borderRadius: 14, padding: 16, background: chrome.panelBg, color: chrome.mutedText, fontSize: 13.5 }}>{hintText}</div>
           ) : null}
         </div>
       </div>
+      {showEmptyHint && hintAtStage && (
+        /* F052.31 — pinned INSIDE the fullscreen surface, not in the column that
+           wraps beneath a full-height canvas. That wrap is what put the note at
+           858-912 in an 852px window on a real iPhone: entirely offscreen, and
+           it reads as a bug in the consumer's app rather than in ours.
+           The bottom inset clears the home indicator, exactly as the exit
+           control's does (F052.27). */
+        <div
+          data-testid="bodymap3d-empty"
+          /* Which of the two positions rendered. happy-dom discards env() from
+             an inline style entirely, so the safe-area offset is unassertable
+             in a unit test — this marker is what a unit test CAN see, and the
+             geometry itself is proven in a real engine via Lens. */
+          data-placement="stage-bottom"
+          style={{
+            flex: "0 0 auto",
+            marginTop: 12,
+            marginBottom: "env(safe-area-inset-bottom)",
+            border: `1px solid ${chrome.border}`,
+            borderRadius: 14,
+            padding: 16,
+            background: chrome.panelBg,
+            color: chrome.mutedText,
+            fontSize: 13.5,
+          }}
+        >
+          {hintText}
+        </div>
+      )}
     </div>
   );
 }
