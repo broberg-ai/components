@@ -307,7 +307,7 @@ function chromeStyle(palette?: BodymapPalette): React.CSSProperties | undefined 
 
 const STYLE_ID = "broberg-bodymap-styles";
 const STYLE = `
-.bmap{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-panel:#fff;--bmap-ink:#1e293b;--bmap-muted:#475569;--bmap-badge-bg:#f1f5f9;--bmap-danger:#dc2626;
+.bmap{--bmap-accent:var(--primary,#0c7d77);--bmap-line:#e2e8f0;--bmap-panel:#fff;--bmap-ink:#1e293b;--bmap-muted:#475569;--bmap-badge-bg:#f1f5f9;--bmap-danger:#dc2626;
   display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
 .bmap__stage{display:flex;flex-direction:column;gap:10px;flex:0 1 340px;min-width:0;max-width:360px}
 .bmap__bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -336,7 +336,7 @@ const STYLE = `
 .bmap__close{margin-left:auto;font:inherit;font-size:20px;line-height:1;cursor:pointer;background:none;border:1px solid transparent;border-radius:8px;width:32px;height:32px;color:var(--bmap-muted,#475569)}
 .bmap__close:hover{background:var(--bmap-badge-bg,#f1f5f9)}
 .bmap__close:active{transform:scale(.94)}
-.bmap__close:focus-visible{outline:2px solid var(--bmap-accent,#0e8f8a);outline-offset:2px}
+.bmap__close:focus-visible{outline:2px solid var(--bmap-accent,#0c7d77);outline-offset:2px}
 .bmap__code{font:11px ui-monospace,monospace;color:var(--bmap-muted);background:var(--bmap-badge-bg);border-radius:6px;padding:2px 7px}
 .bmap__lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bmap-muted);margin:0 0 7px}
 .bmap__scale{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -353,7 +353,7 @@ const STYLE = `
 .bmap__rm:hover{background:#fef2f2}
 .bmap__rm:active{transform:scale(.97)}
 .bmap__i:focus-visible,.bmap__chip:focus-visible,.bmap__vbtn:focus-visible,.bmap__rm:focus-visible,.bmap__zoom button:focus-visible{outline:2px solid var(--bmap-accent);outline-offset:2px}
-.bmapc{--bmap-accent:var(--primary,#0e8f8a);--bmap-line:#e2e8f0;--bmap-ink:#1e293b;--bmap-muted:#475569;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
+.bmapc{--bmap-accent:var(--primary,#0c7d77);--bmap-line:#e2e8f0;--bmap-ink:#1e293b;--bmap-muted:#475569;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--bmap-ink)}
 .bmapc__bodies{display:flex;gap:14px;flex-wrap:wrap}
 .bmapc__fig{flex:1 1 150px;min-width:130px;max-width:220px;margin:0;text-align:center}
 .bmapc__cap{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#556274;margin-bottom:6px}

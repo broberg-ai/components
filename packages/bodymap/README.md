@@ -382,6 +382,37 @@ is invisible on a desktop monitor and obvious on a phone.
 
 3D only — the 2D renderer has no canvas and no fullscreen, so it ignores it.
 
+### `ui.accent` — the controls read your palette now (0.9.0)
+
+Until 0.9.0 the buttons carried their colours inline, so a consumer palette
+reached the body and the card but **not the controls inside the card**. Three of
+those colours already existed as tokens and were simply not read.
+
+```ts
+ui: {
+  accent: "#141969",      // the ACTIVE control — chosen intensity, active sex toggle
+  accentText: "#f5f5f5",  // text on the accent
+  border: "#d4d4d8",      // now reaches the BUTTONS, not only the card
+  dangerBorder: "#f6c9c9",
+}
+```
+
+**`accent` is not `palette.selected`.** `selected` is the colour of a mark **on
+skin**; `accent` is the colour of an **active button**. Keeping them apart is what
+lets you have a teal mark and a navy button.
+
+⚠️ **The default accent changed in 0.9.0** — `#0e8f8a` → `#0c7d77`, the same teal
+a shade deeper. Not a taste decision: white on the old one measured **3.95:1**
+where WCAG AA needs **4.5**, on the selected-intensity button. It had shipped
+since 0.2.0 and no check could see it, because the colour was an inline literal
+and the contrast suite only read the defaults object. Making it a token is what
+exposed it.
+
+**We do NOT contrast-check the accent you supply.** We cannot — it is your colour,
+resolved at your runtime. If this component sits on a surface with an
+accessibility duty (ours does), measure your own pair: normal text needs **4.5:1**,
+large text **3:1**. The 0–10 digits and the toggle labels are normal text.
+
 The **WebGL-unsupported message** deliberately does *not* follow `stageBg`. It is
 a message, not a stage, so it uses `panelBg` + `mutedText` — a pair whose contrast
 the test suite asserts. Tied to the stage it would become unreadable the moment

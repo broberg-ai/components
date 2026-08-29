@@ -108,6 +108,68 @@ describe("renderer sources carry no sub-AA hardcoded text colour", () => {
   });
 });
 
+/**
+ * F052.30 — the 3D controls must carry NO colour of their own.
+ *
+ * Three of these colours already existed in `chrome` and were simply not read,
+ * so setting `ui.border` themed the card and not the buttons inside it. This
+ * scan is what stops one creeping back as an inline style.
+ */
+describe("the 3D renderer's controls carry no colour of their own", () => {
+  const src = readFileSync(fileURLToPath(new URL("../src/three.tsx", import.meta.url)), "utf8");
+
+  // COMMENTS ARE STRIPPED FIRST. Without this the file that DOCUMENTS the fix —
+  // naming the three literals it removed — is the file that fails the check,
+  // and the obvious "fix" is to delete the explanation.
+  const code = src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((l) => l.replace(/\/\/.*$/, ""))
+    .join("\n");
+
+  it("has zero hex colour literals outside comments", () => {
+    const found = [...code.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((m) => m[0]);
+    expect(found).toEqual([]);
+  });
+
+  it("the scan can actually SEE a literal — negative control", () => {
+    // A regex that matched nothing would pass the test above forever. This
+    // proves the instrument works before the result is believed.
+    const planted = code + '\n  const x = { color: "#abcdef" };';
+    expect([...planted.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((m) => m[0])).toEqual(["#abcdef"]);
+  });
+
+  it("#64748b is gone — F052.19 replaced it for failing AA and it survived inline", () => {
+    // It measured 4.34:1 on the badge background. That sweep read the defaults
+    // object and never looked at the inline styles, so the claim was narrower
+    // than it appeared and this colour outlived its own fix by ten weeks.
+    expect(code).not.toContain("#64748b");
+  });
+});
+
+describe("accent is a control colour, not a mark colour", () => {
+  it("defaults to the shipped teal with white on it", () => {
+    expect(defaultUi.accent).toBe("#0c7d77");
+    expect(defaultUi.accentText).toBe("#fff");
+  });
+
+  it("is NOT the same field as palette.selected", () => {
+    // selected is a colour ON SKIN; accent is a colour on a button. Collapsing
+    // them would stop a consumer having a teal mark and a navy button.
+    const p = {
+      body: "#ccc", hover: "#aaa", selected: "#141969",
+      heat: { low: "#fcd34d", mid: "#fb923c", high: "#ef4444" },
+      ui: { accent: "#0e1424" },
+    } satisfies BodymapPalette;
+    expect(uiColors(p).accent).toBe("#0e1424");
+    expect(uiColors(p).accent).not.toBe(p.selected);
+  });
+
+  it("the shipped accent pair passes AA", () => {
+    expect(contrast(defaultUi.accentText, defaultUi.accent)).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+});
+
 describe("palette.ui themes the chrome", () => {
   it("a consumer palette overrides the defaults", () => {
     const palette = {

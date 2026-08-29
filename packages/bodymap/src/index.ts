@@ -342,6 +342,19 @@ export interface BodymapUiColors {
   badgeBg?: string;
   /** The destructive action (remove a marked region). */
   danger?: string;
+  /** Border on the destructive control. Its TEXT was already themeable and its
+   *  border was not — half a control. (F052.30) */
+  dangerBorder?: string;
+  /**
+   * THE ACTIVE CONTROL colour — the chosen intensity, the active sex toggle.
+   *
+   * NOT `palette.selected`. That is the colour of a MARK ON SKIN; this is the
+   * colour of an active button. Collapsing them would stop a consumer having a
+   * teal mark and a navy button, which is a normal thing to want. (F052.30)
+   */
+  accent?: string;
+  /** Text ON the accent. Check it against your accent — see the README. */
+  accentText?: string;
 }
 
 /**
@@ -370,6 +383,15 @@ export const defaultUi: Required<BodymapUiColors> = {
   border: "#e2e8f0",
   badgeBg: "#f1f5f9",
   danger: "#dc2626",
+  dangerBorder: "#f6c9c9",
+  // F052.30 — was #0e8f8a, which measured 3.95:1 against white. AA needs 4.5,
+  // and this is the SELECTED intensity button on a surface where AA is a legal
+  // duty. It shipped from 0.2.0 and no check could see it: the colour was an
+  // inline literal, and the F052.19 contrast sweep only read this object.
+  // #0c7d77 is the same teal a shade deeper — 4.98:1, with headroom rather than
+  // sitting on the 4.5 boundary where any later tweak reopens it.
+  accent: "#0c7d77",
+  accentText: "#fff",
 };
 
 /** Resolve a palette's chrome colours, filling every gap from {@link defaultUi}. */

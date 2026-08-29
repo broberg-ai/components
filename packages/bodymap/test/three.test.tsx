@@ -61,7 +61,7 @@ describe("BodyMap3D", () => {
   });
 
   it("runs sex fully controlled when `sex` is passed (parent owns it; onSexChange still fires)", () => {
-    const ACTIVE = "#0e8f8a";
+    const ACTIVE = "#0c7d77";
     const onSexChange = vi.fn();
     const { rerender } = render(<BodyMap3D models={models} sex="female" onSexChange={onSexChange} />);
     expect(screen.getByTestId("bodymap3d-sex-female").style.background).toBe(ACTIVE);
@@ -276,5 +276,46 @@ describe("stageBg — the split, asserted with a palette where the two DIFFER", 
     expect(box.style.color).toBe(defaultUi.mutedText);
     // and specifically NOT the stage, which is what it used to hardcode
     expect(box.style.background).not.toBe(STAGE_BG);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F052.30 — Christian asked whether a calling app can override colours and
+// buttons. It could override the body and the panel; it could NOT override the
+// controls, because three tokens that already existed were never read.
+// ---------------------------------------------------------------------------
+
+describe("the controls read the consumer's palette", () => {
+  // Deliberately nothing like the defaults, so an ignored token is visible.
+  const brand: BodymapPalette = {
+    ...defaultPalette,
+    ui: { accent: "#141969", accentText: "#f5f5f5", border: "#ff00ff", panelBg: "#fffbea" },
+  };
+
+  it("ui.border reaches the BUTTONS, not only the card — the exact gap reported", () => {
+    render(<BodyMap3D models={models} palette={brand} />);
+    expect(screen.getByTestId("bodymap3d-sex-male").style.border).toContain("#ff00ff");
+  });
+
+  it("ui.accent + ui.accentText paint the ACTIVE control", () => {
+    render(<BodyMap3D models={models} palette={brand} sex="male" />);
+    const active = screen.getByTestId("bodymap3d-sex-male");
+    expect(active.style.background).toBe("#141969");
+    expect(active.style.color).toBe("#f5f5f5");
+  });
+
+  it("the INACTIVE control takes panelBg and text, never the accent", () => {
+    // Asserted separately: an implementation that painted every control with the
+    // accent would pass the test above and be obviously wrong on screen.
+    render(<BodyMap3D models={models} palette={brand} sex="male" />);
+    const inactive = screen.getByTestId("bodymap3d-sex-female");
+    expect(inactive.style.background).toBe("#fffbea");
+    expect(inactive.style.background).not.toBe("#141969");
+  });
+
+  it("accent is NOT palette.selected — a teal mark with a navy button is allowed", () => {
+    const p: BodymapPalette = { ...defaultPalette, selected: "#00ffcc", ui: { accent: "#141969" } };
+    render(<BodyMap3D models={models} palette={p} sex="male" />);
+    expect(screen.getByTestId("bodymap3d-sex-male").style.background).toBe("#141969");
   });
 });

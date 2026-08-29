@@ -32,6 +32,7 @@ import {
   baseColorFor,
   defaultPalette,
   uiColors,
+  type BodymapUiColors,
   type BodymapPalette,
   type PainReport,
   type PainType,
@@ -259,8 +260,28 @@ export interface BodyMap3DProps {
   className?: string;
 }
 
-const btn: React.CSSProperties = { font: "inherit", cursor: "pointer", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", padding: "6px 9px" };
-const seg = (on: boolean): React.CSSProperties => ({ ...btn, background: on ? "#0e8f8a" : "#fff", color: on ? "#fff" : "#1e293b", fontWeight: 600 });
+/**
+ * F052.30 — the controls now READ THE PALETTE.
+ *
+ * These were module-level constants with the colours written in: #e2e8f0 border,
+ * #fff surface, #0e8f8a accent. Three of those already existed as `chrome`
+ * fields and were simply not used, so a consumer who set `ui.border` saw it on
+ * the card and NOT on the buttons inside the card — in a component whose whole
+ * selling point is that the consuming app themes it.
+ *
+ * They take `chrome` now, which is why they are functions rather than
+ * constants: there is no correct value to compute before the palette is known.
+ */
+const btn = (c: Required<BodymapUiColors>): React.CSSProperties => ({
+  font: "inherit", cursor: "pointer", borderRadius: 8,
+  border: `1px solid ${c.border}`, background: c.panelBg, padding: "6px 9px",
+});
+const seg = (c: Required<BodymapUiColors>, on: boolean): React.CSSProperties => ({
+  ...btn(c),
+  background: on ? c.accent : c.panelBg,
+  color: on ? c.accentText : c.text,
+  fontWeight: 600,
+});
 
 export function BodyMap3D(props: BodyMap3DProps) {
   const {
@@ -664,7 +685,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
       data-fullscreen={isFullscreen ? "true" : undefined}
       style={{
         fontFamily: "system-ui, sans-serif",
-        color: "#1e293b",
+        color: chrome.text,
         // A viewport fill, not the Fullscreen API — see the `fullscreen` prop.
         // `fixed`+`inset:0` behaves the same on iOS Safari, where element
         // fullscreen does not exist at all, as it does everywhere else.
@@ -700,8 +721,8 @@ export function BodyMap3D(props: BodyMap3DProps) {
       {showSexToggle && (
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12, fontSize: 13 }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <button data-testid="bodymap3d-sex-male" onClick={() => changeSex("male")} style={seg(sex === "male")}>{UI.male}</button>
-            <button data-testid="bodymap3d-sex-female" onClick={() => changeSex("female")} style={seg(sex === "female")}>{UI.female}</button>
+            <button data-testid="bodymap3d-sex-male" onClick={() => changeSex("male")} style={seg(chrome, sex === "male")}>{UI.male}</button>
+            <button data-testid="bodymap3d-sex-female" onClick={() => changeSex("female")} style={seg(chrome, sex === "female")}>{UI.female}</button>
           </div>
         </div>
       )}
@@ -716,7 +737,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
             aria-label={isFullscreen ? (UI.collapse ?? "Close") : (UI.expand ?? "Expand")}
             onClick={() => setFullscreen(!isFullscreen)}
             style={{
-              ...btn,
+              ...btn(chrome),
               color: chrome.text,
               borderColor: chrome.border,
               background: chrome.panelBg,
@@ -780,22 +801,22 @@ export function BodyMap3D(props: BodyMap3DProps) {
                   data-testid="bodymap3d-close"
                   aria-label={L.close}
                   onClick={() => setSelected(null)}
-                  style={{ ...btn, width: 32, height: 32, padding: 0, fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
+                  style={{ ...btn(chrome), width: 32, height: 32, padding: 0, fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
                 >×</button>
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.intensity}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
                 {Array.from({ length: 11 }, (_, i) => (
-                  <button key={i} data-testid={`bodymap3d-intensity-${i}`} onClick={() => setPain(region.key, i, current?.type)} style={{ ...btn, display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 30, height: 30, padding: 0, background: current?.intensity === i ? "#0e8f8a" : "#fff", color: current?.intensity === i ? "#fff" : "#1e293b" }}>{i}</button>
+                  <button key={i} data-testid={`bodymap3d-intensity-${i}`} onClick={() => setPain(region.key, i, current?.type)} style={{ ...btn(chrome), display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 30, height: 30, padding: 0, background: current?.intensity === i ? chrome.accent : chrome.panelBg, color: current?.intensity === i ? chrome.accentText : chrome.text }}>{i}</button>
                 ))}
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.quality}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
                 {PAIN_TYPES.map((t) => (
-                  <button key={t} data-testid={`bodymap3d-type-${t}`} onClick={() => setPain(region.key, current?.intensity ?? 5, t)} style={{ ...btn, borderRadius: 999, padding: "6px 12px", background: current?.type === t ? "#1e293b" : "#fff", color: current?.type === t ? "#fff" : "#64748b" }}>{L.qualities[t] ?? t}</button>
+                  <button key={t} data-testid={`bodymap3d-type-${t}`} onClick={() => setPain(region.key, current?.intensity ?? 5, t)} style={{ ...btn(chrome), borderRadius: 999, padding: "6px 12px", background: current?.type === t ? chrome.text : chrome.panelBg, color: current?.type === t ? chrome.panelBg : chrome.mutedText }}>{L.qualities[t] ?? t}</button>
                 ))}
               </div>
-              {current && <button data-testid="bodymap3d-remove" onClick={() => removePain(region.key)} style={{ ...btn, color: chrome.danger, borderColor: "#f6c9c9" }}>{L.remove}</button>}
+              {current && <button data-testid="bodymap3d-remove" onClick={() => removePain(region.key)} style={{ ...btn(chrome), color: chrome.danger, borderColor: chrome.dangerBorder }}>{L.remove}</button>}
             </div>
           ) : showEmptyHint ? (
             <div data-testid="bodymap3d-empty" style={{ border: `1px solid ${chrome.border}`, borderRadius: 14, padding: 16, background: chrome.panelBg, color: chrome.mutedText, fontSize: 13.5 }}>{UI.hoverHint}</div>
