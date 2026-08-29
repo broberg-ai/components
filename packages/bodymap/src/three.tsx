@@ -124,6 +124,39 @@ export function seamBlend(nearestSq: number, secondSq: number): number {
   return t * t * (3 - 2 * t) * 0.5; // smoothstep
 }
 
+/**
+ * F052.23 — how much of the NEIGHBOUR region's colour a vertex takes.
+ *
+ * Extracted from the paint loop for one reason: happy-dom cannot run WebGL, so
+ * the fix that put the seam blend behind an opt-in had no automated guard at
+ * all. A regression here is a WCAG failure on a public-health surface (measured:
+ * 4.71:1 without the blend, 3.59:1 with it, averaged over a small mark), which
+ * is not the kind of thing that should rely on someone re-measuring by hand.
+ *
+ * The invariant worth asserting is not "off returns 0 for this blend value" —
+ * it is that off returns 0 for EVERY blend value, so the shipped default can
+ * never mix body colour into a mark.
+ */
+export function seamWeight(seamEnabled: boolean, blend: number): number {
+  return seamEnabled ? blend : 0;
+}
+
+/**
+ * F052.25 — recompute vertex normals ONLY when the file shipped none.
+ *
+ * Same reason as above: this single condition WAS the "lines on the body" bug,
+ * and it lived on the one code path the unit suite cannot execute. Takes a
+ * structural slice rather than a THREE.BufferGeometry so it is testable without
+ * a GL context.
+ *
+ * True means "this model has no normals, compute them or it renders flat".
+ * False means "the file has normals — leave them alone", which is the case that
+ * was broken.
+ */
+export function needsComputedNormals(geo: { getAttribute(name: string): unknown }): boolean {
+  return !geo.getAttribute("normal");
+}
+
 const ANCHOR_KEYS = Object.keys(ANCHORS);
 for (const k of ANCHOR_KEYS) ANCHORS[k][0] = -ANCHORS[k][0];
 
@@ -371,7 +404,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
         tmp.copy(col(vertexRegion[i]!));
         // Off by default: a blended mark is a LOWER-CONTRAST mark, and the
         // shipped default has to be the one that passes AA. (F052.23)
-        const w = seamRef.current ? vertexBlend[i]! : 0;
+        const w = seamWeight(seamRef.current, vertexBlend[i]!);
         if (w > 0) { tmp2.copy(col(vertexNeighbour[i]!)); tmp.lerp(tmp2, w); }
         colorAttr.setXYZ(i, tmp.r, tmp.g, tmp.b);
       }
@@ -412,7 +445,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
           // Kept as a FALLBACK only: a model with no normal attribute would
           // otherwise render flat/black, so compute them when — and only when —
           // the file did not provide any.
-          if (!geo.getAttribute("normal")) geo.computeVertexNormals();
+          if (needsComputedNormals(geo)) geo.computeVertexNormals();
           const pos = geo.getAttribute("position") as THREE.BufferAttribute;
           const n = pos.count;
           const cols = new Float32Array(n * 3);

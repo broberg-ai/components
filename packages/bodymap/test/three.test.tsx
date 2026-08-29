@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { BodyMap3D, seamBlend } from "../src/three.js";
+import { BodyMap3D, seamBlend, seamWeight, needsComputedNormals } from "../src/three.js";
 import { REGIONS } from "../src/index.js";
 
 afterEach(cleanup);
@@ -143,5 +143,62 @@ describe("seamBlend — a soft LOOK, never a soft ANSWER", () => {
 
   it("degenerate input does not produce NaN", () => {
     expect(seamBlend(0, 0)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F052.23 + F052.25 — the two fixes that lived ONLY on the WebGL path.
+//
+// Both AC on those cards stood honestly unticked for a day, because happy-dom
+// has no GL context and neither fix had any automated guard. Extracting the two
+// decisions as pure functions (the `decidePick` precedent) is what closes them.
+// The call sites now go THROUGH these, so this is not a parallel copy of the
+// logic — break the function and the renderer breaks with it.
+// ---------------------------------------------------------------------------
+
+describe("seamWeight — the shipped default must not mix body colour into a mark", () => {
+  it("returns 0 for EVERY blend value when the seam is off — the invariant, not one case", () => {
+    // Asserting one sample would pass on a function that leaked at 0.5.
+    for (let b = 0; b <= 0.5; b += 0.01) expect(seamWeight(false, b)).toBe(0);
+  });
+
+  it("passes the blend through untouched when the consumer opts in", () => {
+    expect(seamWeight(true, 0)).toBe(0);
+    expect(seamWeight(true, 0.23)).toBe(0.23);
+    expect(seamWeight(true, 0.5)).toBe(0.5);
+  });
+
+  it("composed with seamBlend, the default ships FLAT across the whole seam", () => {
+    // This is the assertion that matches the actual WCAG claim: with the default
+    // props, no vertex anywhere on the body takes any neighbour colour. Measured
+    // cost of getting this wrong: 4.71:1 -> 3.59:1 on a small mark (AA needs 4.5).
+    const samples: [number, number][] = [[0, 1], [1, 81], [0.81, 1], [1, 1.0001], [1, 1], [4, 4]];
+    for (const [a, b] of samples) expect(seamWeight(false, seamBlend(a, b))).toBe(0);
+  });
+});
+
+describe("needsComputedNormals — the one line that drew lines on the body", () => {
+  it("is FALSE when the model ships normals — the case that was broken", () => {
+    // computeVertexNormals() averages face normals per vertex INDEX, and this
+    // mesh has split vertices along its UV seams, so recomputing lit every seam
+    // as a visible crease. The GLB already had correct smooth normals.
+    const geo = { getAttribute: (n: string) => (n === "normal" ? { count: 12010 } : undefined) };
+    expect(needsComputedNormals(geo)).toBe(false);
+  });
+
+  it("is TRUE when the model ships none — the fallback must survive the fix", () => {
+    // A model with no normals renders flat/black. Removing the call outright
+    // would have traded one visible bug for a worse one.
+    const geo = { getAttribute: (_n: string) => undefined };
+    expect(needsComputedNormals(geo)).toBe(true);
+  });
+
+  it("looks at the NORMAL attribute specifically, not at 'has any attribute'", () => {
+    // A geometry always has `position`. A guard written against the wrong key
+    // would pass both tests above and still recompute on every real model.
+    const geo = {
+      getAttribute: (n: string) => (n === "position" ? { count: 12010 } : undefined),
+    };
+    expect(needsComputedNormals(geo)).toBe(true);
   });
 });
