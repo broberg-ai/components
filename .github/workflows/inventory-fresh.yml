@@ -24,8 +24,20 @@ on:
   # Christian: "hver gang du releaser en ny version af dine komponenter så bliver
   # Discovery også automatisk opdateret". Publishing and remembering to bump the
   # roster are two acts, and the second one is the one that gets forgotten — so
-  # the release itself is a trigger, and if the roster was NOT bumped the
-  # live-fresh job says so by name instead of leaving it to be noticed.
+  # the release itself is a trigger.
+  #
+  # WHICH JOB CATCHES A FORGOTTEN ROSTER BUMP — corrected 2026-08-29 after
+  # measuring it, because this comment said `live-fresh` and that is FALSE.
+  # `live-fresh` compares the LIVE SITE against THIS REPO, so a roster nobody
+  # bumped leaves those two agreeing and the job goes green while the fleet is
+  # told the old version. What actually caught it was `check`: the hero card is
+  # generated from NPM, so publishing changed the generated HTML, the committed
+  # copy went stale, and the deploy was BLOCKED — better than a red at the end,
+  # since no stale site ever shipped.
+  #
+  # AND THAT ONLY WORKS FOR THE NEWEST RELEASE. Publish a patch to a package that
+  # is not the newest on npm and the hero card does not move, nothing asks npm
+  # about that row, and live-fresh goes green on a stale roster. See F038.10.
   workflow_run:
     workflows: [publish]
     types: [completed]
@@ -95,8 +107,8 @@ jobs:
   #
   # A release is the exception and is why `workflow_run` skips this: publishing
   # a package IS a change to what the fleet should install, even when this repo's
-  # Discovery files did not move — and if the roster was not bumped, `live-fresh`
-  # is what says so.
+  # Discovery files did not move. (A forgotten roster bump is caught by `check`,
+  # not by `live-fresh` — see the correction in the header.)
   changes:
     needs: check
     if: github.event_name != 'pull_request'
