@@ -247,3 +247,93 @@ silent push hangs off `onCountChanged`.
 
 Part of the [broberg.ai shared inventory](https://discovery.broberg.ai). Built by
 `components` · F074.
+
+---
+
+## `@broberg/notifications/shell` — the bell and its panel (F074.4, in progress)
+
+> **Not published yet.** The headless state machine is here; the `/react` and
+> `/preact` wrappers are not. Nothing to adopt until they land.
+
+Four apps each hand-rolled the same bell, and each got the same things wrong. The
+row is **not** the shared part — three brands, three row shapes. The *shell* is:
+
+```ts
+import { createBellShell } from "@broberg/notifications/shell";
+
+const shell = createBellShell({
+  labels,                                   // REQUIRED — see below
+  countUnseen: () => notifications.unseenCount(userId),
+  markAllSeen: () => notifications.markAllSeen(userId),
+  loadRows:    () => db.recentFor(userId, 10),
+});
+```
+
+### `labels` is required, and there are no defaults anywhere
+
+Not a convenience — the absence of a default **is** the feature.
+
+A consumer's bell had shipped Danish text for months in an app whose UI must be
+English. The giveaway was `Loading…` in English one line away: **nobody chose
+Danish; nobody chose anything.** A default lets *"no decision"* look exactly like
+*"a decision"*, and every consumer inherits whichever language we happened to
+write. Omitting `labels` fails your typecheck instead.
+
+`aria-label`s are in there too, for the reason the visible strings are not the
+problem: buttons get translated because someone can see them.
+
+> ⚠️ **Two different settings that are easy to confuse, and the confusion is
+> structural rather than anyone's mistake:**
+>
+> - **Project language** governs what language the *agent writes to the human* in
+>   (chat, reports, intercom).
+> - **App-UI language** is what the *user sees on screen*.
+>
+> They are independent, and in at least one fleet repo they are deliberately
+> different: Danish chat, English UI. A session that reads the first as the second
+> builds the wrong screen **with a clear conscience** — which is what makes it hard
+> to catch in review.
+
+### The stack, not "one dialog at a time"
+
+A row can open a modal **on top of** the still-open panel. `pushLayer` stacks;
+`popLayer` closes the top and returns the focus target *that layer* declared —
+for an alarm opened from a row, that is **the row**, not the bell.
+
+### Escape is an outcome, not a close
+
+```ts
+shell.pushLayer({ id: "alarm", modal: true, focusReturn: rowEl });
+shell.escape();   // → "keep": a modal does not close on Escape by default
+```
+
+A shell that hardcoded *"Escape closes"* would let someone dismiss an incident
+alarm with one keypress and nothing recorded. That is not an accessibility
+detail; it is whether the alarm means anything. Non-modal layers get `"close"`
+for free; a modal layer must decide, via `onEscape`.
+
+### One count, however many bells
+
+The count lives in the shell, not in the bell. A consumer rendering the bell in a
+mobile bar *and* a desktop bar gets one number — the production bug this replaces
+was two components each counting, where "mark all read" zeroed one of them and
+the other sat at 2 with every row read.
+
+### `clearedIds` is held for the visit
+
+`markAllSeen()` returns the ids it **actually** cleared, and that set exists
+exactly once — afterwards the rows are seen. Open the app, see three highlighted,
+tap one, go back, and the other two are gone if you re-derive the highlight per
+render. The shell holds it until the panel closes.
+
+### The anchor is captured at the instant of opening
+
+`open(rect)` takes the trigger's measured rect, because a dropdown anchors from
+it *at the moment it opens*. A bottom-sheet consumer passes `null` — the shell is
+never indifferent to anchoring; it is told.
+
+### If you have a fixed bottom bar
+
+Set `overscroll-behavior: none` on it. The panel opens over it, and on an iPhone
+in standalone the rubber-band makes the bar float. It is your CSS, not ours, but
+it is only reproducible on that one configuration.
