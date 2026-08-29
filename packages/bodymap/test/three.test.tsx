@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { BodyMap3D, seamBlend, seamWeight, ensureNormals } from "../src/three.js";
+import { BodyMap3D, seamBlend, seamWeight, ensureNormals, isTap, TAP_MAX_DISTANCE } from "../src/three.js";
 import { REGIONS, defaultPalette, defaultUi, STAGE_BG, type BodymapPalette } from "../src/index.js";
 
 afterEach(cleanup);
@@ -384,5 +384,75 @@ describe("hint — the consumer decides whether, what and where", () => {
     // The stage-anchored copy must REPLACE the flow one, not join it.
     render(<BodyMap3D models={models} hint={{ placement: "stage-bottom" }} fullscreen />);
     expect(screen.getAllByTestId("bodymap3d-empty")).toHaveLength(1);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// F052.32 — a careful tap is a slow tap, and slow taps were discarded in
+// silence. The owner reported the same swallowed tap twice, as "the remove
+// button is gone" and as "the sound does not work", and we explained each away
+// separately.
+// ---------------------------------------------------------------------------
+
+describe("isTap — distance decides, and nothing else does", () => {
+  it("a press held for a LONG time is still a tap", () => {
+    // The 450 ms ceiling had no duration argument to give it, because duration
+    // never told a tap from a drag. This is the case it used to throw away:
+    // stationary, deliberate, and slow because the user was aiming.
+    expect(isTap(0, 0)).toBe(true);
+    expect(isTap(2, 2)).toBe(true);
+  });
+
+  it("a MOVED press is not a tap, however fast", () => {
+    expect(isTap(20, 0)).toBe(false);
+    expect(isTap(0, 20)).toBe(false);
+    expect(isTap(15, 15)).toBe(false);
+  });
+
+  it("asserts the BOUNDARY, not just the extremes", () => {
+    // A guard tested only at 0 and 100 px passes with ANY threshold. These two
+    // cases are the only ones that pin the actual number.
+    expect(isTap(TAP_MAX_DISTANCE, 0)).toBe(true);
+    expect(isTap(TAP_MAX_DISTANCE + 1, 0)).toBe(false);
+  });
+
+  it("measures real distance, not the larger axis", () => {
+    // 5,5 is inside a 6px box but 7.07px away. A guard written as
+    // `max(|dx|,|dy|) <= 6` would pass every test above and accept a diagonal
+    // drag as a tap.
+    expect(isTap(5, 5)).toBe(false);
+    expect(isTap(4, 4)).toBe(true);
+  });
+
+  it("the threshold is honoured, not hardcoded past", () => {
+    expect(isTap(20, 0, 25)).toBe(true);
+  });
+
+  it("NOTHING ELSE can reject a tap — the call site is guarded too", async () => {
+    // The function tests above all passed with a 450 ms ceiling put BACK at the
+    // call site: mutation M1 survived, 126 green. A pure function can only prove
+    // what it decides, never that the caller asked it and nothing else. So this
+    // asserts the property the user actually experiences — no clock takes part
+    // in deciding whether a tap counts.
+    // process.cwd() rather than import.meta.url: this file runs under happy-dom,
+    // where import.meta.url is not a file: URL.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(`${process.cwd()}/src/three.tsx`, "utf8");
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/\/\/.*$/, "")).join("\n");
+
+    // `new Date()` stays: it timestamps a pain point, which is data, not a gate.
+    expect(code).not.toContain("Date.now()");
+    expect(code).not.toContain("performance.now()");
+
+    // …and the pointer-up guard is the isTap call ALONE, with no second clause.
+    const onUp = code.match(/const onUp = \(e: PointerEvent\) => \{\s*([^\n]+)/);
+    expect(onUp?.[1]).toBe("if (!isTap(e.clientX - downX, e.clientY - downY)) return;");
+  });
+
+  it("the call-site scan can SEE a clock — negative control", () => {
+    // Without this the scan passes forever if the pattern stops matching.
+    const planted = "if (!isTap(a, b) || Date.now() - t > 450) return;";
+    expect(planted).toContain("Date.now()");
   });
 });

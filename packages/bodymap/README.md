@@ -382,6 +382,23 @@ is invisible on a desktop monitor and obvious on a phone.
 
 3D only — the 2D renderer has no canvas and no fullscreen, so it ignores it.
 
+### A slow tap is still a tap (0.11.0)
+
+Until 0.11.0 a press held longer than **450 ms** was discarded — silently. No
+pick, no clear, no `onFeedback`, no repaint.
+
+Distance already separates a tap from a drag: a drag moves. The time ceiling did
+not help with that; what it did was rule that a **slow** press is not a tap. And a
+slow press is exactly what a **careful** tap is — aiming at a small body part on a
+phone, at a mark you are trying to hit again, takes longer than a casual poke.
+
+The owner reported it twice, as *"the remove button is gone"* and as *"the sound
+doesn't work"*. Both were the same swallowed tap, and each was explained away
+separately. **A tap that is silently discarded is indistinguishable from a broken
+component.**
+
+`isTap(dx, dy)` is exported if you need the same rule.
+
 ### `hint` — turn the help note off, or move it (0.10.0)
 
 ```tsx

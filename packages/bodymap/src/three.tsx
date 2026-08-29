@@ -169,6 +169,30 @@ export function seamWeight(seamEnabled: boolean, blend: number): number {
  * Returns true when it computed (the model had none, and would otherwise render
  * flat), false when it left the authored normals alone.
  */
+/**
+ * F052.32 — is this pointer-up a TAP, or the end of a drag?
+ *
+ * DISTANCE IS THE WHOLE TEST. A drag moves; a tap does not. There used to be a
+ * 450 ms ceiling beside it, and it did not help tell those apart — what it did
+ * was rule that a SLOW press is not a tap.
+ *
+ * A slow press is exactly what a CAREFUL tap is. Aiming at a small body part on
+ * a phone, at a mark you are trying to hit again, takes longer than a casual
+ * poke — so the ceiling discarded precisely the taps a user was trying hardest
+ * to make, on a health app whose users are in pain.
+ *
+ * And it discarded them in SILENCE: the guard returned from the whole handler,
+ * so there was no pick, no clear, no feedback and no repaint. The owner reported
+ * it twice, as "the remove button is gone" and as "the sound does not work". One
+ * swallowed tap, two sightings, each explained away separately.
+ */
+export function isTap(dx: number, dy: number, maxDistance = TAP_MAX_DISTANCE): boolean {
+  return Math.hypot(dx, dy) <= maxDistance;
+}
+
+/** Pixels of travel a tap may have. Beyond this it was a rotation. */
+export const TAP_MAX_DISTANCE = 6;
+
 export function ensureNormals(geo: {
   getAttribute(name: string): unknown;
   computeVertexNormals(): void;
@@ -575,9 +599,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
       return best;
     };
 
-    let downX = 0, downY = 0, downT = 0;
+    let downX = 0, downY = 0;
     const canvas = renderer.domElement;
-    const onDown = (e: PointerEvent) => { downX = e.clientX; downY = e.clientY; downT = Date.now(); };
+    const onDown = (e: PointerEvent) => { downX = e.clientX; downY = e.clientY; };
     const onMove = (e: PointerEvent) => {
       if ((e.buttons || 0) !== 0) return;
       const k = pick(e.clientX, e.clientY);
@@ -591,7 +615,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
       renderFrame();
     };
     const onUp = (e: PointerEvent) => {
-      if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6 || Date.now() - downT > 450) return;
+      if (!isTap(e.clientX - downX, e.clientY - downY)) return;
       const k = pick(e.clientX, e.clientY);
       if (!k) return;
       const outcome = pickRef.current(k);
