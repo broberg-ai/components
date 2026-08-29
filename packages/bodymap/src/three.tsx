@@ -149,12 +149,21 @@ export function seamWeight(seamEnabled: boolean, blend: number): number {
  * structural slice rather than a THREE.BufferGeometry so it is testable without
  * a GL context.
  *
- * True means "this model has no normals, compute them or it renders flat".
- * False means "the file has normals — leave them alone", which is the case that
- * was broken.
+ * It performs the call as well as the check, deliberately. A predicate alone
+ * would let a test pass while the call site did the opposite with it — and what
+ * the acceptance criterion asks for is the EFFECT: a model that ships normals
+ * must come out the other side with those same normals, untouched.
+ *
+ * Returns true when it computed (the model had none, and would otherwise render
+ * flat), false when it left the authored normals alone.
  */
-export function needsComputedNormals(geo: { getAttribute(name: string): unknown }): boolean {
-  return !geo.getAttribute("normal");
+export function ensureNormals(geo: {
+  getAttribute(name: string): unknown;
+  computeVertexNormals(): void;
+}): boolean {
+  if (geo.getAttribute("normal")) return false;
+  geo.computeVertexNormals();
+  return true;
 }
 
 const ANCHOR_KEYS = Object.keys(ANCHORS);
@@ -445,7 +454,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
           // Kept as a FALLBACK only: a model with no normal attribute would
           // otherwise render flat/black, so compute them when — and only when —
           // the file did not provide any.
-          if (needsComputedNormals(geo)) geo.computeVertexNormals();
+          ensureNormals(geo);
           const pos = geo.getAttribute("position") as THREE.BufferAttribute;
           const n = pos.count;
           const cols = new Float32Array(n * 3);
