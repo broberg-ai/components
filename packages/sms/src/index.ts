@@ -169,15 +169,76 @@ export function estimateMany(messages: ReadonlyArray<string | { text: string }>)
 }
 
 /**
+ * F076.13 — the POSTCONDITION, and it is deliberately separate from the input
+ * validation above.
+ *
+ * The input guard proves what I anticipated; this proves the PROPERTY. It is
+ * fd-sundhed's third suggestion and the one that generalises: whatever this
+ * function returns is a plus followed by digits, or it does not return. It
+ * catches all four reported cases on its own, and anything neither of us
+ * thought of.
+ *
+ * IT CANNOT BE TRIGGERED TODAY, and that is stated rather than hidden. With the
+ * dialling code validated to 1-3 digits and the number validated to /^\d+$/,
+ * every path here builds a plus followed by digits, so no input reaches this
+ * throw. The mutation pass says so exactly:
+ *
+ *   remove the INPUT guard, keep this   -> 9 tests red   (this carries the load)
+ *   remove THIS, keep the input guard   -> nothing red   (unreachable today)
+ *
+ * So it is defence in depth against a future edit above it, not a second check
+ * of the same thing. The first line is the proof it works; the second is the
+ * honest reason it looks redundant.
+ */
+function e164(out: string, input: string): string {
+  if (!/^\+\d+$/.test(out)) {
+    throw new Error(
+      `normalisePhone: refusing to return ${JSON.stringify(out)} for input ${JSON.stringify(input)} — ` +
+        `it is not a plus followed by digits. This is a bug in normalisePhone, not in your input.`,
+    );
+  }
+  return out;
+}
+
+/**
  * Normalise a phone number to E.164, or REFUSE it.
  *
  * Refusing matters more than accepting: a guessed number is accepted by the
  * gateway, billed, and never delivered — and nothing in the chain reports it.
  * So anything ambiguous throws rather than resolving to a plausible number.
+ *
+ * F076.13 — THE SECOND ARGUMENT IS A DIALLING CODE, NOT A COUNTRY.
+ *
+ * It used to be called `defaultCountry`, and an ISO code is exactly what a
+ * reader writes when they see that name. Nothing validated it, so it went
+ * straight into the string. Reported by fd-sundhed against 0.11.0:
+ *
+ *   normalisePhone('22680880', 'DK')  ->  '+DK22680880'   and no error
+ *   normalisePhone('22680880', '+45') ->  '++4522680880'
+ *
+ * Which is the exact number this function exists to refuse — produced by the
+ * function itself. It does not fail: it looks like a phone number, a gateway
+ * accepts it, it is BILLED, and it is never delivered.
+ *
+ * There is no ISO lookup table on purpose. A table goes stale, and the
+ * invitation to write 'DK' came from the NAME — remove the invitation and the
+ * table is unnecessary. A caller passing 'DK' has made a programmer error, not
+ * entered bad user input, so it throws.
  */
-export function normalisePhone(input: string, defaultCountry = '45'): string {
+export function normalisePhone(input: string, defaultDiallingCode = '45'): string {
   const raw = (input ?? '').trim();
   if (!raw) throw new Error('normalisePhone: empty input.');
+
+  // One leading '+' is unambiguous and used to produce '++45…'. Accepting it
+  // costs a line and removes a second way to hold this wrong.
+  const cc = String(defaultDiallingCode ?? '').trim().replace(/^\+/, '');
+  if (!/^\d{1,3}$/.test(cc)) {
+    throw new Error(
+      `normalisePhone: ${JSON.stringify(defaultDiallingCode)} is not a dialling code. ` +
+        `Pass the digits without a plus — '45' for Denmark, not 'DK'. ` +
+        `Left unchecked this returns something like '+DK22680880', which a gateway accepts and bills and never delivers.`,
+    );
+  }
 
   // Strip the punctuation people really type: spaces, dashes, dots, parens.
   let s = raw.replace(/[\s().‐-―-]/g, '');
@@ -194,16 +255,16 @@ export function normalisePhone(input: string, defaultCountry = '45'): string {
     if (digits.length < 8 || digits.length > 15) {
       throw new Error(`normalisePhone: ${JSON.stringify(input)} is not a plausible E.164 number (${digits.length} digits).`);
     }
-    return `+${digits}`;
+    return e164(`+${digits}`, input);
   }
 
   // A bare national number: 8 digits in DK. Deliberately narrow — widening this
   // to "any short-enough run of digits" is how a truncated number gets sent.
-  if (digits.length === 8) return `+${defaultCountry}${digits}`;
+  if (digits.length === 8) return e164(`+${cc}${digits}`, input);
 
   // Already carries the country code but lost its plus (4512345678).
-  if (digits.startsWith(defaultCountry) && digits.length === defaultCountry.length + 8) {
-    return `+${digits}`;
+  if (digits.startsWith(cc) && digits.length === cc.length + 8) {
+    return e164(`+${digits}`, input);
   }
 
   throw new Error(

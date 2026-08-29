@@ -60,6 +60,26 @@ Accepts `+4512345678`, `4512345678`, `12345678`, `00 45 …`, and the spaced/par
 
 **It throws on anything ambiguous**, and that is the point: a guessed number is accepted by the gateway, **billed**, and never delivered — and nothing in the chain reports it. There is no bounce to see. So the refusal has to happen before the money is spent.
 
+### The second argument is a DIALLING CODE, not a country (0.12.0)
+
+```ts
+normalisePhone("22680880")        // "+4522680880"  — 45 is the default
+normalisePhone("22680880", "45")  // "+4522680880"
+normalisePhone("22680880", "+45") // "+4522680880"  — one leading plus is stripped
+normalisePhone("22680880", "DK")  // THROWS
+```
+
+It used to be called `defaultCountry` and nothing validated it, so `"DK"` went
+straight into the string and the function returned **`"+DK22680880"`** without an
+error — the exact number it exists to refuse, produced by itself. A gateway
+accepts that, bills it, and never delivers it. Reported by a consumer against
+0.11.0; renamed to `defaultDiallingCode` and validated in 0.12.0.
+
+There is deliberately **no ISO country table**. A table goes stale, and the
+invitation to write `"DK"` came from the *name* — remove the invitation and the
+table is unnecessary. Passing `"DK"` is a programmer error, not bad user input,
+so it throws with the value named in the message.
+
 ## `mode` — assert at boot what the client resolved to
 
 ```ts

@@ -246,3 +246,57 @@ describe('send never throws', () => {
     expect(res.estimate?.segments).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F076.13 — the second argument is a DIALLING CODE, not a country.
+//
+// Reported by fd-sundhed against the published 0.11.0. The parameter was named
+// `defaultCountry`, nothing validated it, and 'DK' went straight into the
+// string: normalisePhone('22680880', 'DK') returned '+DK22680880' and did not
+// throw. That is the exact number this function exists to refuse — produced by
+// the function itself, and a gateway accepts it, bills it, and never delivers.
+// ---------------------------------------------------------------------------
+describe('F076.13 — the dialling code is validated', () => {
+  it.each(['DK', 'dk', 'da-DK', '', '45x', '4500', '+', 'DKK'])(
+    'refuses %j as a dialling code',
+    (cc) => {
+      expect(() => normalisePhone('22680880', cc)).toThrow(/not a dialling code/);
+    },
+  );
+
+  it('accepts a leading plus rather than doubling it', () => {
+    // '+45' used to yield '++4522680880'. Unambiguous, so refusing it would have
+    // left a second way to hold this wrong.
+    expect(normalisePhone('22680880', '+45')).toBe('+4522680880');
+  });
+
+  it('names the value that was passed, so the caller can see their own mistake', () => {
+    expect(() => normalisePhone('22680880', 'DK')).toThrow(/"DK"/);
+  });
+
+  it('is unchanged where it was already right', () => {
+    // The fix must not narrow the function by accident.
+    expect(normalisePhone('22680880')).toBe('+4522680880');
+    expect(normalisePhone('22680880', '45')).toBe('+4522680880');
+    expect(normalisePhone('12 34 56 78')).toBe('+4512345678');
+    expect(normalisePhone('+4522680880')).toBe('+4522680880');
+    expect(normalisePhone('4522680880')).toBe('+4522680880');
+    expect(() => normalisePhone('1234567')).toThrow();
+  });
+
+  it('the parameter is positional, so an existing caller is untouched', () => {
+    expect(normalisePhone('22680880', '45')).toBe('+4522680880');
+  });
+
+  it('NEVER returns a string that is not a plus followed by digits', () => {
+    // The postcondition, deliberately separate from the input guard above.
+    // The guard proves what we anticipated; this proves the PROPERTY, and it
+    // still holds for an input shape neither the reporter nor we thought of.
+    // fd-sundhed's own local test is this one, and it is the reason they were
+    // covered before we shipped anything.
+    const inputs = ['22680880', '12 34 56 78', '+4522680880', '4522680880', '0045 22 68 08 80'];
+    for (const input of inputs) {
+      expect(normalisePhone(input)).toMatch(/^\+\d+$/);
+    }
+  });
+});
