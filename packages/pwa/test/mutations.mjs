@@ -51,12 +51,16 @@ const MUTATIONS = [
     from: '  const key = optionsKey(options);',
     to: '  const key = "";',
   },
-  // The core half: register stops being honoured even when forwarded.
+  // The core half: register stops being honoured even when forwarded. The first
+  // version of this mutation was syntactically invalid and was "caught" by a
+  // CRASH rather than by a test noticing — which the exit-code guard reported
+  // honestly as "the suite did not complete" instead of as a red. That is the
+  // guard doing its job on its own author.
   {
     name: 'the core ignores register and always registers',
     file: CORE,
     from: '    register = true,',
-    to: '    register: _register = true,\n    ...(({ register: __r }) => ({}))(options),',
+    to: '    register: _ignored = true,',
   },
 ];
 

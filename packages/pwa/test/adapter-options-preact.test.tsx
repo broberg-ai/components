@@ -120,4 +120,34 @@ it("updateOnFocus: false means a window focus does NOT trigger registration.upda
     window.dispatchEvent(new Event("focus"));
     expect(update).toHaveBeenCalled();
   });
+it("changing an option RECREATES the updater — the effect key is not a constant", async () => {
+    // UNCAUGHT by the first mutation pass, which is the finding: nothing tested
+    // that the effect actually depends on the options. With a constant key a
+    // consumer who flips an option at runtime silently keeps the old updater,
+    // and the option they just changed never takes effect.
+    const container = fakeContainerWithRegistration(async () => {});
+    const { rerender } = renderHook((props: { swUrl: string }) => useHook(props), {
+      initialProps: { swUrl: "/a.js" },
+    });
+    await Promise.resolve();
+    rerender({ swUrl: "/b.js" });
+    await Promise.resolve();
+    const urls = container.register.mock.calls.map((c) => c[0]);
+    expect(urls).toContain("/a.js");
+    expect(urls).toContain("/b.js");
+  });
+
+  it("but an IDENTICAL options object does not recreate it", async () => {
+    // The negative control. Without it the test above passes on an effect with
+    // no dependency array at all, which would tear down and rebuild the updater
+    // on every single render.
+    const container = fakeContainerWithRegistration(async () => {});
+    const { rerender } = renderHook((props: { swUrl: string }) => useHook(props), {
+      initialProps: { swUrl: "/a.js" },
+    });
+    await Promise.resolve();
+    rerender({ swUrl: "/a.js" });
+    await Promise.resolve();
+    expect(container.register).toHaveBeenCalledTimes(1);
+  });
 });
