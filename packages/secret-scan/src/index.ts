@@ -517,7 +517,7 @@ const ANNOUNCED_SECRET =
  * would leave the same greedy `\S+` behind every label that remained.
  */
 function plausibleSecretValue(candidate: string): boolean {
-  return /\d/.test(candidate) || candidate.length >= 16;
+  return /\d/.test(candidate);
 }
 
 
