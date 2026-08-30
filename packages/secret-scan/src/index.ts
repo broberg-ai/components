@@ -581,8 +581,12 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
       ANNOUNCED_SECRET,
       (match: string, prefix: string, value: string) => {
         // An implausible candidate is left EXACTLY as it was — byte for byte,
-        // including the label. Returning the whole match rather than rebuilding
-        // it means a rejected candidate cannot be subtly reformatted.
+        // including the label. `match` rather than `prefix + value` on purpose:
+        // the two are identical today (the two groups ARE the whole match, which
+        // is why the mutation pass records this as equivalent and unkillable),
+        // and they stop being identical the moment anyone adds a group or lets
+        // the regex match something the groups do not cover. Returning what was
+        // actually matched cannot drift; rebuilding it can.
         if (!plausibleSecretValue(value)) return match;
         count++;
         return prefix + redactionMarker(ANNOUNCED_LABEL);
