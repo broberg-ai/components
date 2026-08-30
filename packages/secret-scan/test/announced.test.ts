@@ -71,9 +71,13 @@ describe("with { announced: true } — all seven verified forms", () => {
   });
 
   it("counts every occurrence in one body, not just the first", () => {
-    const r = redactSecrets("Password: aaa\nKodeord: bbb\npwd=ccc", { announced: true });
+    // F035.11 — the values carry a digit each. They used to be "aaa"/"bbb"/"ccc",
+    // which the plausibility test now correctly reads as prose. THE CLAIM HERE IS
+    // UNCHANGED — every occurrence is counted, not just the first — and it is
+    // independent of the plausibility rule; only the fixture was convenient.
+    const r = redactSecrets("Password: aaa1\nKodeord: bbb2\npwd=ccc3", { announced: true });
     expect(r.findings).toContainEqual({ label: ANNOUNCED_LABEL, count: 3, confidence: "announced" });
-    for (const leaked of ["aaa", "bbb", "ccc"]) expect(r.redacted).not.toContain(leaked);
+    for (const leaked of ["aaa1", "bbb2", "ccc3"]) expect(r.redacted).not.toContain(leaked);
   });
 
   it("hasSecret honours the option — a caller told `false` must be able to believe it", () => {

@@ -482,7 +482,43 @@ export const ANNOUNCED_LABEL = 'announced-secret';
  * just buddy's. If you need it back, file it; do not re-add it locally.
  */
 const ANNOUNCED_SECRET =
-  /(\b(?:adgangskode|kodeord|hemmelighed|password|passwd|api[ -]?key|apinøgle|secret|pwd)\s*[:=]\s*)(?!\[REDACTED:)\S+/gi;
+  /(\b(?:adgangskode|kodeord|hemmelighed|password|passwd|api[ -]?key|apinøgle|secret|pwd)\s*[:=]\s*)(?!\[REDACTED:)(\S+)/gi;
+
+/**
+ * Is this candidate plausibly a secret VALUE, or just the next word in a
+ * sentence?
+ *
+ * F035.11 — WITHOUT THIS, THE AXIS EATS PROSE. The pattern above is
+ * label + separator + `\S+`, and in Danish and English «secret:» is ordinary
+ * text. Measured on the published 0.5.1:
+ *
+ *   'Set som secret: gh secret set MYPAT'
+ *     -> 'Set som secret: [REDACTED:announced-secret] secret set MYPAT'
+ *   'jeg siger det aldrig — secret: ALDRIG'
+ *     -> 'jeg siger det aldrig — secret: [REDACTED:announced-secret]'
+ *
+ * THE RULE IS DERIVED FROM buddy's NUMBERS, not chosen. Over 40,369 rows of real
+ * fleet prose (23,801 intercom messages + 16,568 conversation turns) they found
+ * 49 unique candidates after an announcing label. **35 of them were prose, and
+ * every one of those 35 was under 16 characters with no digit** — "kun", "jeg",
+ * "gh", "aldrig", "ALDRIG", "»". Zero were hex-like. And the axis caught ZERO
+ * real secrets that the format rules had not already caught.
+ *
+ * So: a candidate with no digit, shorter than 16 characters, is prose.
+ *
+ * THE COST, STATED RATHER THAN HIDDEN, in the house style of the `kode` removal
+ * above: `Adgangskode: correcthorse` is no longer detected. That is a real way to
+ * write a real password. It is accepted deliberately — an over-broad redaction
+ * destroys a corpus as effectively as a narrow one leaks it (buddy's framing),
+ * and this axis is the one running over human prose. A value with any digit, or
+ * any value of real key length, is unaffected: `hunter2` still goes.
+ *
+ * The judgement is on the CANDIDATE, never on the label. Narrowing the label list
+ * would leave the same greedy `\S+` behind every label that remained.
+ */
+function plausibleSecretValue(candidate: string): boolean {
+  return /\d/.test(candidate) || candidate.length >= 16;
+}
 
 
 /** Replacement marker for a redacted secret. */
@@ -541,10 +577,17 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
   // a human or model reading it can still tell what was removed.
   if (opts?.announced) {
     let count = 0;
-    const redactedAnnounced = redacted.replace(ANNOUNCED_SECRET, (_match, prefix: string) => {
-      count++;
-      return prefix + redactionMarker(ANNOUNCED_LABEL);
-    });
+    const redactedAnnounced = redacted.replace(
+      ANNOUNCED_SECRET,
+      (match: string, prefix: string, value: string) => {
+        // An implausible candidate is left EXACTLY as it was — byte for byte,
+        // including the label. Returning the whole match rather than rebuilding
+        // it means a rejected candidate cannot be subtly reformatted.
+        if (!plausibleSecretValue(value)) return match;
+        count++;
+        return prefix + redactionMarker(ANNOUNCED_LABEL);
+      },
+    );
     if (count > 0) {
       redacted = redactedAnnounced;
       findings.push({ label: ANNOUNCED_LABEL, count, confidence: 'announced' });
@@ -564,8 +607,18 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
  */
 export function hasAnnouncedSecret(text: string): boolean {
   if (!text) return false;
+  // ROUTED THROUGH THE SAME PREDICATE as redactSecrets on purpose. A bare
+  // `.test()` here would answer "yes" for a string redactSecrets leaves
+  // untouched, and the two would disagree about the same input — which is worse
+  // than either answer, because a caller can only ever ask one of them.
   ANNOUNCED_SECRET.lastIndex = 0;
-  return ANNOUNCED_SECRET.test(text);
+  for (let m = ANNOUNCED_SECRET.exec(text); m !== null; m = ANNOUNCED_SECRET.exec(text)) {
+    if (plausibleSecretValue(m[2] ?? '')) {
+      ANNOUNCED_SECRET.lastIndex = 0;
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
