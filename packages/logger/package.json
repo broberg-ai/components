@@ -32,7 +32,7 @@
     "bench": "node bench/redaction.mjs"
   },
   "dependencies": {
-    "@broberg/secret-scan": "^0.5.1"
+    "@broberg/secret-scan": "^0.6.0"
   },
   "peerDependencies": {
     "hono": "^4"
