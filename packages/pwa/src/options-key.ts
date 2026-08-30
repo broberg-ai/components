@@ -18,6 +18,16 @@ import type { PwaUpdaterOptions } from "./index.js";
  * Keys are SORTED so `{a, b}` and `{b, a}` are the same identity, and
  * `undefined` values are dropped so an explicitly-omitted option and an absent
  * one do not look like different configurations.
+ *
+ * THE ONE BOUNDARY, stated because the claim above is otherwise broader than
+ * what is true: the identity is JSON, so a value JSON cannot express collapses.
+ * Measured — `{onError: () => 1}` and `{onError: () => 2}` produce the byte-
+ * identical key `[["onError",null]]`, so a caller swapping the callback would
+ * keep the first updater and never see the new one take effect. Every option
+ * the core has today is a string, number or boolean, so nothing is affected;
+ * this is here for whoever adds the first FUNCTION option (an `onUpdateReady`
+ * is the obvious candidate). That option must be given its own identity here,
+ * not merely added to the core.
  */
 export function optionsKey(options: PwaUpdaterOptions): string {
   return JSON.stringify(

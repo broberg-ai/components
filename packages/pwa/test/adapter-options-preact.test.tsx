@@ -49,7 +49,7 @@ function fakeContainerWithRegistration(update: () => Promise<void>) {
     update,
   };
   const container = {
-    register: vi.fn(async () => registration),
+    register: vi.fn(async (_url: string) => registration),
     ready: Promise.resolve(registration),
     controller: null,
     addEventListener() {},
