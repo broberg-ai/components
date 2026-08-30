@@ -43,7 +43,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/chat** v0.6.3 — The fleet's AI-chat engine: a conversation loop with a tool registry, streaming typed frames, knowledge from Trail, and history management. `npm i @broberg/chat`
 - **@broberg/webpush** v0.5.0 — The fleet's storage-agnostic Web Push primitive. `npm i @broberg/webpush`
 - **@broberg/mcp** v0.5.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
-- **@broberg/secret-scan** v0.5.1 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
+- **@broberg/secret-scan** v0.6.0 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
 - **@broberg/lens** v0.1.3 — A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem…. `npm i @broberg/lens`
 
 ### L1 — Identity (who the user is)
@@ -71,7 +71,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
 - **@broberg/bodymap** v0.12.0 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.2.0 — The fleet's one Stripe chokepoint. `npm i @broberg/stripe`
-- **@broberg/pwa** v0.2.2 — The fleet's PWA primitive. `npm i @broberg/pwa`
+- **@broberg/pwa** v0.3.0 — The fleet's PWA primitive. `npm i @broberg/pwa`
 - **@broberg/forms-turnstile** v0.3.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
 - **@broberg/logger** v0.2.0 — Structured server logging for the fleet. `npm i @broberg/logger`
 - **@broberg/http** v0.1.0 — Framework-free, zero-dep HTTP header/response primitives for Node/Bun/edge. `npm i @broberg/http`
@@ -85,7 +85,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.1.0 — The fleet Data SDK. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.34.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@broberg/ai-sdk** v0.36.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
 - **@upmetrics/sdk** v0.3.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
