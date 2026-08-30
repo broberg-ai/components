@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { createPwaUpdater, type PwaUpdater, type PwaUpdaterOptions } from "./index.js";
+import { optionsKey } from "./options-key.js";
 
 /**
  * Preact binding for {@link createPwaUpdater} — API-identical to the React
@@ -13,17 +14,17 @@ export function usePwaUpdate(options: PwaUpdaterOptions = {}): {
   updateReady: boolean;
   applyUpdate: () => void;
 } {
-  const { swUrl, pollIntervalMs, reloadOnControllerChange, disabled } = options;
+  // The effect's identity comes from the options the CALLER passed, so a new
+  // core option needs no edit here. eslint's exhaustive-deps cannot see
+  // through `key`; that is the trade, and it is the right way round.
+  const key = optionsKey(options);
   const [updateReady, setUpdateReady] = useState(false);
   const updaterRef = useRef<PwaUpdater | null>(null);
 
   useEffect(() => {
-    const updater = createPwaUpdater({
-      swUrl,
-      pollIntervalMs,
-      reloadOnControllerChange,
-      disabled,
-    });
+    // THE WHOLE OBJECT, not a hand-picked subset. See options-key.ts: the
+    // subset is what silently dropped `register` and `updateOnFocus`.
+    const updater = createPwaUpdater(options);
     updaterRef.current = updater;
     setUpdateReady(updater.getState().updateReady);
     const unsubscribe = updater.subscribe((state) => setUpdateReady(state.updateReady));
@@ -32,7 +33,8 @@ export function usePwaUpdate(options: PwaUpdaterOptions = {}): {
       updater.destroy();
       updaterRef.current = null;
     };
-  }, [swUrl, pollIntervalMs, reloadOnControllerChange, disabled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   return {
     updateReady,
