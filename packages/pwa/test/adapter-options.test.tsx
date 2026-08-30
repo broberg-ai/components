@@ -40,6 +40,27 @@ function fakeContainer() {
 
 // Preact has its own file: the two runtimes need their own renderHook, and a
 // shared table silently ran the preact hook through React's renderer.
+/** A container whose register() resolves to a registration we can watch. */
+function fakeContainerWithRegistration(update: () => Promise<void>) {
+  const registration = {
+    installing: null,
+    waiting: null,
+    active: {},
+    addEventListener() {},
+    update,
+  };
+  const container = {
+    register: vi.fn(async () => registration),
+    ready: Promise.resolve(registration),
+    controller: null,
+    addEventListener() {},
+    removeEventListener() {},
+    getRegistration: async () => registration,
+  };
+  Object.defineProperty(navigator, "serviceWorker", { value: container, configurable: true });
+  return container;
+}
+
 const useHook = useReact;
 
 describe("react adapter honours every core option", () => {
@@ -75,5 +96,29 @@ describe("react adapter honours every core option", () => {
     // register:false is the observable half; the unknown key proves the object
     // was passed whole rather than rebuilt from a list.
     expect(register).not.toHaveBeenCalled();
+  });
+it("updateOnFocus: false means a window focus does NOT trigger registration.update()", async () => {
+    // The option NOBODY reported. It was dropped by the same hand-written list,
+    // and it is here because measuring the reported defect found a second one —
+    // not because anyone asked.
+    const update = vi.fn(async () => {});
+    fakeContainerWithRegistration(update);
+    renderHook(() => useHook({ updateOnFocus: false }));
+    await Promise.resolve();
+    await Promise.resolve();
+    window.dispatchEvent(new Event("focus"));
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("and the DEFAULT still checks on focus — the negative control", async () => {
+    // Without this, the test above passes on an updater that never checks at all.
+    const update = vi.fn(async () => {});
+    fakeContainerWithRegistration(update);
+    renderHook(() => useHook({}));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    window.dispatchEvent(new Event("focus"));
+    expect(update).toHaveBeenCalled();
   });
 });
