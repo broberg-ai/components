@@ -37,7 +37,9 @@ export interface SecretPattern {
 }
 
 /** Ordered most-specific → least. Every regex carries the `g` flag. */
-export const SECRET_PATTERNS: SecretPattern[] = [
+// The INTERNAL list. Global (`/g`) because the redaction pass replaces every
+// occurrence. Never exported directly — see SECRET_PATTERNS below for why.
+const PATTERNS: SecretPattern[] = [
   {
     label: 'private-key',
     description: 'PEM private key block (RSA/EC/OPENSSH/DSA/PGP)',
@@ -361,13 +363,89 @@ export const SECRET_PATTERNS: SecretPattern[] = [
  * Same value, two questions: "is there a secret in this text?" and "what kind of
  * secret is this?" They do not deserve the same evidence bar.
  */
-const VALUE_ONLY_PATTERNS: ReadonlyArray<SecretPattern> = [
+// ONE source for the value-only rule, two anchorings derived from it. Written
+// twice by hand, the two forms drift the first time anyone tunes one of them.
+//
+// The lookaheads are the discriminator: 40 chars of [A-Za-z0-9-] that contain
+// BOTH a lower- and an upper-case letter. A git SHA (40 lowercase hex) therefore
+// never matches, which is the collision that would otherwise dominate.
+const HUE_KEY_BODY = String.raw`(?=[A-Za-z0-9-]*[a-z])(?=[A-Za-z0-9-]*[A-Z])[A-Za-z0-9-]{40}`;
+
+const VALUE_ONLY: ReadonlyArray<SecretPattern> = [
   {
     label: 'hue-application-key',
     description: 'Philips Hue application key (40 chars, no prefix)',
-    regex: /^(?=[A-Za-z0-9-]{40}$)(?=[A-Za-z0-9-]*[a-z])(?=[A-Za-z0-9-]*[A-Z])[A-Za-z0-9-]{40}$/,
+    // Anchored: `classify` is handed ONE value and asks what it is.
+    regex: new RegExp(String.raw`^(?=[A-Za-z0-9-]{40}$)${HUE_KEY_BODY}$`),
   },
 ];
+
+// Unanchored: `redactSecrets({ valueOnly: true })` runs over free text, where the
+// key sits inside a sentence. Same body, word-bounded.
+//
+// THIS IS THE ONE THAT EATS PROSE, which is why it is opt-in. Measured over two
+// trees with the identical pattern (F035.12):
+//
+//              lockfiles          everything else
+//   components 1 file, 33 hits    15 files, 35 hits   class names, hyphenated prose
+//   beacon     8 hits             0 prose             12 deliberate fixtures
+//
+// The charset includes the HYPHEN, so a 40-character run of kebab-case slug or
+// hyphenated English matches — `gate-the-submit-button-on-status-not-on-`,
+// `WebStandardStreamableHTTPServerTransport`. No file-level exemption reaches
+// that; it is prose, not lockfiles.
+//
+// So the right default depends on the CALL SITE, not on the quality of the
+// pattern. beacon redacts logs: a false positive costs a masked word, a false
+// negative costs their bridge key. Our commit gate blocks commits: a false
+// positive costs a developer a blocked README. Same pattern, opposite cost —
+// which is what makes it a parameter rather than a fix.
+const VALUE_ONLY_UNANCHORED: ReadonlyArray<SecretPattern> = [
+  {
+    label: 'hue-application-key',
+    description: 'Philips Hue application key (40 chars, no prefix)',
+    regex: new RegExp(String.raw`\b${HUE_KEY_BODY}\b`, 'g'),
+  },
+];
+
+/**
+ * Every pattern this package matches, for callers that want to inspect or audit
+ * the roster.
+ *
+ * THE EXPORTED REGEXES ARE NOT GLOBAL, and that is a deliberate difference from
+ * the ones used internally (F035.12). A `/g` regex carries `lastIndex` BETWEEN
+ * CALLS, so the obvious way to inspect one lies. Measured on published 0.6.0:
+ *
+ *   p.regex.test(sample)  -> true    lastIndex now 20
+ *   p.regex.test(sample)  -> false   <- same input, different answer
+ *
+ * Anyone measuring our own patterns — which is exactly what a consumer auditing
+ * a redaction does — got alternating answers and no indication why. The copies
+ * below are stateless, so testing them is idempotent.
+ *
+ * VALUE_ONLY_PATTERNS is exported for the same reason it exists: `classify` can
+ * return a label that is in NEITHER list if only one of them is published, and a
+ * roster that under-describes what the package detects is worse than no roster.
+ */
+/** A global copy, for the replace pass. A caller's `extraPatterns` regex may
+ *  arrive without `/g`, in which case `String.replace` would substitute only the
+ *  FIRST occurrence and leave the rest in the text. */
+const asGlobal = (re: RegExp): RegExp =>
+  re.flags.includes('g') ? re : new RegExp(re.source, `${re.flags}g`);
+
+const withoutGlobal = (list: ReadonlyArray<SecretPattern>): ReadonlyArray<SecretPattern> =>
+  Object.freeze(
+    list.map((p) =>
+      Object.freeze({ ...p, regex: new RegExp(p.regex.source, p.regex.flags.replace('g', '')) }),
+    ),
+  );
+
+export const SECRET_PATTERNS: ReadonlyArray<SecretPattern> = withoutGlobal(PATTERNS);
+
+/** The value-only axis — shapes identified from the VALUE ALONE, with no field
+ *  name beside them. Opt-in at the call site (`{ valueOnly: true }`); see the
+ *  option's own documentation for why the default is off. */
+export const VALUE_ONLY_PATTERNS: ReadonlyArray<SecretPattern> = withoutGlobal(VALUE_ONLY);
 
 /**
  * WHY a finding was flagged — the two detection axes this package has.
@@ -431,6 +509,40 @@ export interface RedactOptions {
    * ANNOUNCED_LABEL for the measurement that decided it.
    */
   announced?: boolean;
+
+  /**
+   * Also apply the VALUE-ONLY axis — shapes identified from the value alone,
+   * with no field name beside them (today: the Philips Hue application key).
+   *
+   * OFF BY DEFAULT, and the reason is not that the pattern is bad (F035.12).
+   *
+   * cardmem's rule, which settled the design: **the decision to accept a weak
+   * signal belongs to whoever can RENDER the uncertainty. A surface that cannot
+   * show "guess" must not be given guesses.** Their vault shows a credential's
+   * type as a chip beside the name, with nowhere to say "low confidence", so a
+   * guess they accepted would silently become an assertion the owner acts on.
+   * They take the empty answer instead.
+   *
+   * beacon's calculus is the opposite and equally correct: they redact logs, so
+   * a false positive costs a masked word and a false negative costs their bridge
+   * key. Their two call paths — masking each string separately, and passing a
+   * bridge error message as free text — structurally cannot supply a field name,
+   * so the field-anchored rule can never fire for them.
+   *
+   * MEASURED, same pattern, two corpora, opposite answers:
+   *
+   *   components  2 lockfiles (39 hits) + 9 other files (20 hits) — class names,
+   *               documentation, `WebStandardStreamableHTTPServerTransport`
+   *   beacon      8 lockfile hits, 0 prose, 12 deliberate fixtures
+   *
+   * So there is no single correct default, which is exactly what makes this a
+   * parameter rather than a fix. An OPTION rather than a `confidence` field on
+   * the result, deliberately: a field is ignorable by destructuring the label,
+   * and a caller who did not ask for weak guesses must not be able to receive
+   * one by accident. The parameter name is the warning, at the one place it
+   * cannot be skipped.
+   */
+  valueOnly?: boolean;
 }
 
 /** Marker label for a secret detected by its announcing label rather than shape. */
@@ -482,7 +594,31 @@ export const ANNOUNCED_LABEL = 'announced-secret';
  * just buddy's. If you need it back, file it; do not re-add it locally.
  */
 const ANNOUNCED_SECRET =
-  /(\b(?:adgangskode|kodeord|hemmelighed|password|passwd|api[ -]?key|apinøgle|secret|pwd)\s*[:=]\s*)(?!\[REDACTED:)(\S+)/gi;
+  /(\b(?:adgangskode|kodeord|hemmelighed|password|passwd|api[ -]?key|apinøgle|secret|pwd)["'`\]]?\s*[:=]\s*)(\S+)/gi;
+
+/**
+ * Delimiters that may WRAP a value without being part of it.
+ *
+ * D1 (F035.12) — `(\S+)` swallowed these INTO the replaced span, so redacting
+ * DELETED them. Measured on published 0.6.0:
+ *
+ *   config(password='hunter2')     -> config(password=[REDACTED:announced-secret]
+ *   Kodeord: hunter2, og derefter  -> Kodeord: [REDACTED:announced-secret] og derefter
+ *   brug `password: hunter2`       -> brug `password: [REDACTED:announced-secret]
+ *
+ * A closing paren, a comma and a backtick, gone. Anyone re-redacting a corpus
+ * gets syntactically broken text back — and buddy holds 41k texts to do exactly
+ * that. It also inflated every length measurement taken on candidates.
+ *
+ * THE LIST IS DELIBERATELY NARROW, and what is ABSENT is the load-bearing part:
+ * `!` `?` `.` are NOT here. `Sommer2026!` is a real measured password and its
+ * final character must go INTO the redaction, not survive it. A trailing quote
+ * or bracket is structure; a trailing bang is content. Guessing wrong in the
+ * first direction corrupts a corpus; guessing wrong in the second leaks one
+ * character of a real secret, so the list only grows on evidence.
+ */
+const LEADING_DELIMS = /^[([{"'`]+/;
+const TRAILING_DELIMS = /[)\]},;"'`]+$/;
 
 /**
  * Is this candidate plausibly a secret VALUE, or just the next word in a
@@ -524,10 +660,15 @@ function plausibleSecretValue(candidate: string): boolean {
 /** Replacement marker for a redacted secret. */
 export const redactionMarker = (label: string): string => `[REDACTED:${label}]`;
 
+/** The opening of every marker. Derived from redactionMarker rather than typed
+ *  again, so the two cannot drift apart — a hand-written '[REDACTED:' here would
+ *  keep matching after someone changed the marker format. */
+const MARKER_PREFIX = redactionMarker('').slice(0, -1);
+
 function patternsFor(opts?: RedactOptions): SecretPattern[] {
   return opts?.extraPatterns && opts.extraPatterns.length > 0
-    ? [...SECRET_PATTERNS, ...opts.extraPatterns]
-    : SECRET_PATTERNS;
+    ? [...PATTERNS, ...opts.extraPatterns]
+    : PATTERNS;
 }
 
 /**
@@ -568,6 +709,23 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
     });
     if (count > 0) findings.push({ label: p.label, count, confidence: 'format' });
   }
+  // VALUE-ONLY runs between format and announced: after the shapes that are safe
+  // everywhere, before the label-driven axis, and only when the caller asked.
+  if (opts?.valueOnly) {
+    for (const p of VALUE_ONLY_UNANCHORED) {
+      let count = 0;
+      const next = redacted.replace(asGlobal(p.regex), (match: string) => {
+        if (match.includes(MARKER_PREFIX)) return match;
+        count++;
+        return redactionMarker(p.label);
+      });
+      if (count > 0) {
+        redacted = next;
+        findings.push({ label: p.label, count, confidence: 'format' });
+      }
+    }
+  }
+
   // Announced runs LAST, and only on request. Order is not cosmetic: the format
   // pass has already replaced everything it recognises, and this regex refuses a
   // value that is already a marker — so `API key: sk-ant-…` keeps its specific
@@ -580,16 +738,34 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
     const redactedAnnounced = redacted.replace(
       ANNOUNCED_SECRET,
       (match: string, prefix: string, value: string) => {
+        // ALREADY REDACTED -> leave it alone, so the format pass keeps its
+        // specific attribution. The old guard was a `(?!\[REDACTED:)` lookahead
+        // in the regex, which only fired when the marker was the FIRST character
+        // of the value — so a QUOTED key was flattened (measured on 0.6.0):
+        //
+        //   API key: "sk-ant-api03-…"  ->  API key: [REDACTED:announced-secret]
+        //   findings: anthropic-api-key, announced-secret
+        //
+        // The redacted text stopped saying WHICH kind of key it had been. This
+        // tests for the marker ANYWHERE in the value rather than listing the
+        // delimiters that could precede it — a list would have missed brackets,
+        // parentheses and whatever nobody thought of next.
+        if (value.includes(MARKER_PREFIX)) return match;
+
+        // Split the wrapping delimiters off before judging AND before replacing,
+        // so they survive into the output (D1). The judgement is on the CORE:
+        // `'hunter2'` and `hunter2` are the same candidate.
+        const lead = LEADING_DELIMS.exec(value)?.[0] ?? '';
+        const trail = TRAILING_DELIMS.exec(value.slice(lead.length))?.[0] ?? '';
+        const core = value.slice(lead.length, value.length - trail.length);
+
         // An implausible candidate is left EXACTLY as it was — byte for byte,
-        // including the label. `match` rather than `prefix + value` on purpose:
-        // the two are identical today (the two groups ARE the whole match, which
-        // is why the mutation pass records this as equivalent and unkillable),
-        // and they stop being identical the moment anyone adds a group or lets
-        // the regex match something the groups do not cover. Returning what was
-        // actually matched cannot drift; rebuilding it can.
-        if (!plausibleSecretValue(value)) return match;
+        // including the label. `match` rather than a rebuild on purpose: the
+        // pieces are equal today and stop being equal the moment anyone adds a
+        // group. Returning what was actually matched cannot drift.
+        if (!core || !plausibleSecretValue(core)) return match;
         count++;
-        return prefix + redactionMarker(ANNOUNCED_LABEL);
+        return prefix + lead + redactionMarker(ANNOUNCED_LABEL) + trail;
       },
     );
     if (count > 0) {
@@ -615,9 +791,38 @@ export function hasAnnouncedSecret(text: string): boolean {
   // `.test()` here would answer "yes" for a string redactSecrets leaves
   // untouched, and the two would disagree about the same input — which is worse
   // than either answer, because a caller can only ever ask one of them.
+  //
+  // THE INVARIANT IS NARROWER THAN "THEY AGREE", and the narrower one is what is
+  // true (F035.12). They answer different questions and their FINDINGS can
+  // legitimately differ:
+  //
+  //   hasAnnouncedSecret('password: AKIA…')        -> true
+  //   redactSecrets(same).findings                 -> [aws-access-key-id]
+  //
+  // Not a bug: the format pass runs FIRST and recognised the value, so it holds
+  // the better attribution and the announced pass correctly declines to flatten
+  // it. An earlier comment here claimed the two simply agree; that claim was
+  // broader than the code, which is the shape this repo keeps naming.
+  //
+  // What IS guaranteed, and what a caller can rely on:
+  //
+  //   hasAnnouncedSecret(t) === true  =>  redactSecrets(t, { announced: true })
+  //                                       changes the text
+  //
+  // i.e. the boolean never promises a redaction that does not happen. It says
+  // nothing about WHICH label does the work. Asserted in the suite over both the
+  // agreeing and the disagreeing cases, so the weaker claim cannot silently
+  // become the stronger one again.
   ANNOUNCED_SECRET.lastIndex = 0;
   for (let m = ANNOUNCED_SECRET.exec(text); m !== null; m = ANNOUNCED_SECRET.exec(text)) {
-    if (plausibleSecretValue(m[2] ?? '')) {
+    // Same delimiter-stripping as the redactor, for the same reason: the two
+    // must agree about what the CANDIDATE is, or they disagree about the input.
+    const value = m[2] ?? '';
+    if (value.includes(MARKER_PREFIX)) continue;
+    const lead = LEADING_DELIMS.exec(value)?.[0] ?? '';
+    const trail = TRAILING_DELIMS.exec(value.slice(lead.length))?.[0] ?? '';
+    const core = value.slice(lead.length, value.length - trail.length);
+    if (core && plausibleSecretValue(core)) {
       ANNOUNCED_SECRET.lastIndex = 0;
       return true;
     }
@@ -669,10 +874,16 @@ export function classify(value: string, opts?: RedactOptions): ClassifyResult | 
     p.regex.lastIndex = 0;
     if (p.regex.test(v)) return { label: p.label, description: p.description };
   }
-  // Only after every anchored pattern has declined: shapes that are safe to
-  // name when the caller has already said "this is a secret". Anchored to the
-  // WHOLE string (^…$), so this can never fire on a fragment of a longer value.
-  for (const p of VALUE_ONLY_PATTERNS) {
+  // Only after every anchored pattern has declined, and only when the caller
+  // OPTED IN: shapes named from the value alone. Anchored to the WHOLE string
+  // (^…$), so this can never fire on a fragment of a longer value.
+  //
+  // The gate is new in 0.6.1. Before it, `classify` consulted this list
+  // unconditionally, so a caller could receive `hue-application-key` for a
+  // 40-character id it had never heard of — a guess arriving in the same shape
+  // as a certainty, with nothing in the return value marking the difference.
+  if (!opts?.valueOnly) return null;
+  for (const p of VALUE_ONLY) {
     p.regex.lastIndex = 0;
     if (p.regex.test(v)) return { label: p.label, description: p.description };
   }

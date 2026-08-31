@@ -82,24 +82,45 @@ describe("hue-application-key is still caught in the shapes it really occurs in"
 // classify() asks a DIFFERENT question and gets a different bar
 // ---------------------------------------------------------------------------
 
-describe("classify() still names a bare key — the vault paste-a-key path", () => {
-  it("names a bare Hue key with no field around it", () => {
-    // cardmem's Secrets Vault: the user has ALREADY said this is a secret and
-    // asks what kind. There is no surrounding text to corrupt and no checksum
-    // to confuse it with, so the evidence bar is not the scanner's.
-    const result = classify(HUE_KEY);
+describe("classify() names a bare key only when the caller OPTS IN (0.7.0)", () => {
+  // BEHAVIOUR CHANGE, and the reason is cardmem's, not ours: the decision to
+  // accept a weak signal belongs to whoever can RENDER the uncertainty. Their
+  // vault shows a credential's type as a chip beside the name, with nowhere to
+  // say "low confidence" — so a guess they accepted would silently become an
+  // assertion the owner reads and acts on. They asked for the empty answer.
+  //
+  // Both directions are asserted. A test for the ON case alone would pass on a
+  // build that ignored the option entirely.
+
+  it("returns null for a bare Hue key by DEFAULT", () => {
+    expect(classify(HUE_KEY)).toBeNull();
+  });
+
+  it("names it when { valueOnly: true } is passed", () => {
+    const result = classify(HUE_KEY, { valueOnly: true });
     expect(result).not.toBeNull();
     expect(result?.label).toBe("hue-application-key");
     expect(result?.description).toMatch(/hue/i);
   });
 
-  it("does NOT name a 40-char fragment inside a longer value", () => {
+  it("does NOT name a 40-char fragment inside a longer value, even opted in", () => {
     // ^…$ anchored: the value-only shape can never fire on part of something.
-    expect(classify(`sha512-${HUE_KEY}+sg/xyz==`)).toBeNull();
+    expect(classify(`sha512-${HUE_KEY}+sg/xyz==`, { valueOnly: true })).toBeNull();
   });
 
-  it("does not name a SHA", () => {
-    for (const sha of SHAS) expect(classify(sha)).toBeNull();
+  it("does not name a SHA, in either mode", () => {
+    for (const sha of SHAS) {
+      expect(classify(sha)).toBeNull();
+      expect(classify(sha, { valueOnly: true })).toBeNull();
+    }
+  });
+
+  it("a FORMAT-recognised key is still named without the option", () => {
+    // The gate must not have swallowed the anchored patterns on its way past.
+    // Without this, "classify returns null by default" would also pass on a
+    // build where classify returned null for everything.
+    const anthropic = `sk-ant-api03-${"A".repeat(20)}`;
+    expect(classify(anthropic)?.label).toBe("anthropic-api-key");
   });
 });
 

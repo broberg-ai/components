@@ -35,7 +35,7 @@ const MUTATIONS = [
   // The opposite failure, and it is just as bad: the axis stops protecting.
   {
     name: 'the plausibility test always says no (the axis is silently useless)',
-    from: '        if (!plausibleSecretValue(value)) return match;',
+    from: '        if (!core || !plausibleSecretValue(core)) return match;',
     to: '        if (true) return match;',
   },
   // Only the digit half. `hunter2` still goes; a long digit-free password stays.
@@ -54,8 +54,59 @@ const MUTATIONS = [
   // The two entry points disagree about the same input.
   {
     name: 'hasAnnouncedSecret stops agreeing with redactSecrets',
-    from: '    if (plausibleSecretValue(m[2] ?? \'\')) {',
+    from: '    if (core && plausibleSecretValue(core)) {',
     to: '    if (true) {',
+  },
+  // ---- F035.12 -----------------------------------------------------------
+  // D1: the delimiters go back to being swallowed into the replaced span.
+  {
+    name: 'D1 restored — a wrapping delimiter is deleted by the redaction',
+    from: "        return prefix + lead + redactionMarker(ANNOUNCED_LABEL) + trail;",
+    to: "        return prefix + redactionMarker(ANNOUNCED_LABEL);",
+  },
+  // D2: the quote between the label and the separator blocks the match again,
+  // so a JSON-shaped announcement passes untouched. This is the LEAK.
+  {
+    name: 'D2 restored — a quoted key is never matched (the JSON leak)',
+    from: "|apinøgle|secret|pwd)[\"'`\\]]?\\s*[:=]\\s*)(\\S+)/gi;",
+    to: "|apinøgle|secret|pwd)\\s*[:=]\\s*)(\\S+)/gi;",
+  },
+  // The marker guard: a format-recognised key inside delimiters is flattened to
+  // the generic label and the text stops saying what kind of key it was.
+  {
+    name: 'the already-redacted guard is dropped — a quoted format key is flattened',
+    from: '        if (value.includes(MARKER_PREFIX)) return match;',
+    to: '        if (false) return match;',
+  },
+  // THE FLOOR MUTATION, and it exists to keep a fix OUT rather than in.
+  // buddy measured the digit branch over 41,095 texts: Sommer2026! is 11
+  // characters, and prose in the same band cannot be separated by form. So the
+  // branch stays conservative ON PURPOSE. Anyone who "tidies" this by adding a
+  // floor gets a red test instead of a leaked password.
+  {
+    name: 'a floor is introduced on the digit branch (leaks Sommer2026!)',
+    from: '  return /\\d/.test(candidate) || candidate.length >= 16;',
+    to: '  return (/\\d/.test(candidate) && candidate.length >= 16) || candidate.length >= 16;',
+  },
+  // valueOnly stops being opt-in: every caller receives the weak guesses,
+  // including the surfaces that cannot render uncertainty.
+  {
+    name: 'the valueOnly gate is removed from classify (guesses become defaults)',
+    from: '  if (!opts?.valueOnly) return null;',
+    to: '  if (false) return null;',
+  },
+  // ...and the other direction: the option is accepted and ignored, so beacon
+  // opts in and still leaks. A success-shaped non-answer.
+  {
+    name: 'valueOnly is accepted and IGNORED in redactSecrets',
+    from: '  if (opts?.valueOnly) {',
+    to: '  if (false) {',
+  },
+  // The exported regexes go back to carrying /g, so measuring one corrupts it.
+  {
+    name: 'exported patterns are global again — inspecting one changes its answer',
+    from: "      Object.freeze({ ...p, regex: new RegExp(p.regex.source, p.regex.flags.replace('g', '')) }),",
+    to: "      Object.freeze({ ...p, regex: new RegExp(p.regex.source, p.regex.flags) }),",
   },
   // DELIBERATELY ABSENT, recorded rather than left as a gap: "a rejected
   // candidate is rebuilt as `prefix + value` instead of returned as `match`".
