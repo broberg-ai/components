@@ -32,7 +32,13 @@ export interface SecretPattern {
   label: string;
   /** human description of what this matches */
   description: string;
-  /** global regex (used for replace-all + counting) */
+  /** The matcher. GLOBAL on the internal list, because the redaction pass
+   *  replaces every occurrence — and NON-GLOBAL on everything this module
+   *  exports (`SECRET_PATTERNS`, `VALUE_ONLY_PATTERNS`), because a shared `/g`
+   *  regex carries `lastIndex` between calls and answers differently each time.
+   *  Through 0.7.0 this comment claimed the opposite, and it is the tooltip a
+   *  consumer sees: following it, `while ((m = p.regex.exec(text)))` never
+   *  advances and spins forever. */
   regex: RegExp;
 }
 
@@ -440,6 +446,9 @@ const withoutGlobal = (list: ReadonlyArray<SecretPattern>): ReadonlyArray<Secret
     ),
   );
 
+/** Every format pattern, ordered most-specific → least, as STATELESS copies —
+ *  safe to `.test()` repeatedly. See `withoutGlobal` above for what shared
+ *  `lastIndex` did to anyone auditing our own patterns before 0.7.0. */
 export const SECRET_PATTERNS: ReadonlyArray<SecretPattern> = withoutGlobal(PATTERNS);
 
 /** The value-only axis — shapes identified from the VALUE ALONE, with no field
