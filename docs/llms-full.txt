@@ -70,7 +70,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/lens-engine** v0.9.1 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
 - **@broberg/bodymap** v0.12.0 — Interactive body pain-map. `npm i @broberg/bodymap`
-- **@broberg/stripe** v0.2.0 — The fleet's one Stripe chokepoint. `npm i @broberg/stripe`
+- **@broberg/stripe** v0.3.0 — The fleet's one Stripe chokepoint, and the one place that knows where Stripe MOVED a field to (invoice.subscription is gone, so is the period). `npm i @broberg/stripe`
 - **@broberg/pwa** v0.3.0 — The fleet's PWA primitive. `npm i @broberg/pwa`
 - **@broberg/forms-turnstile** v0.3.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
 - **@broberg/logger** v0.2.0 — Structured server logging for the fleet. `npm i @broberg/logger`
