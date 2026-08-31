@@ -72,9 +72,31 @@ try {
       uncaught++;
       continue;
     }
+    // STRIP ANSI FIRST. Under CI vitest keeps colour on (turbo sets FORCE_COLOR),
+    // so a failing line arrives as "\u001b[31m×\u001b[39m name" and an anchored
+    // /^\s*×/ matches nothing. Measured: this harness reported "2 mutations, 2
+    // uncaught" on CI while both mutations had in fact been killed — it could not
+    // READ the red it had caused. It failed in the safe direction, which is the
+    // only reason it was merely noisy rather than a false all-clear.
+    const clean = out.replace(/\u001B\[[0-9;]*m/g, "");
     const red = [...new Set(
-      out.split("\n").filter((l) => /^\s*(×|✕|FAIL)/.test(l)).map((l) => l.trim()),
+      clean.split("\n").filter((l) => /^\s*(×|✕|FAIL)/.test(l)).map((l) => l.trim()),
     )];
+
+    // "the suite died but I cannot see WHICH test" is a third state, and it must
+    // not be reported as "the mutation survived". They are opposite facts.
+    if (red.length === 0) {
+      console.log(`UNREADABLE — ${m.name}`);
+      console.log(`  the suite FAILED (so the mutation was caught) but no failing test line`);
+      console.log(`  could be parsed from its output, so this harness cannot say WHICH test`);
+      console.log(`  caught it. That is a defect in the harness, not evidence about the code.`);
+      console.log(`  last output lines:`);
+      clean.split("\n").filter(Boolean).slice(-6).forEach((l) => console.log(`     ${l.trim()}`));
+      uncaught++;
+      redSets.push(`unreadable:${m.name}`);
+      continue;
+    }
+
     const hit = m.expect.every((e) => red.some((l) => l.includes(e)));
     redSets.push(red.join("|"));
     console.log(`${hit ? "killed" : "WRONG RED"} — ${m.name}`);
