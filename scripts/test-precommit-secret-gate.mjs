@@ -158,5 +158,28 @@ for (const [layer, secret] of [["layer 3 (format)", AWS_KEY], ["layer 2 (.env va
   rmSync(dir, { recursive: true, force: true });
 }
 
+// F061.5 — the fresh-clone refusal must not SWALLOW the earlier layers. Layer 1
+// runs before it, so a staged .env must still get its own specific diagnosis
+// rather than "go build the scanner". Without this, the new guard would turn
+// every fresh-clone commit into the same unhelpful message and the card's
+// "do not weaken layers 1 or 2" constraint would hold only by reading the code.
+{
+  console.log("layer ordering without a scanner");
+  const { dir, git } = makeRepo(false);
+  writeFileSync(join(dir, ".env"), `TOKEN=${ENV_VALUE}\n`);
+  git("add", "-f", ".env");
+  let out = "";
+  try { git("commit", "-qm", "env"); } catch (e) {
+    out = (e.stdout?.toString() ?? "") + (e.stderr?.toString() ?? "");
+  }
+  const layer1 = out.includes("these are env files and must not be committed");
+  const notBuildMsg = !out.includes("pnpm --filter @broberg/secret-scan build");
+  if (!layer1) failures++;
+  if (!notBuildMsg) failures++;
+  console.log(`  ${layer1 ? "ok  " : "FAIL"} layer 1 still speaks when the scanner is missing`);
+  console.log(`  ${notBuildMsg ? "ok  " : "FAIL"} and it is NOT masked by the build-the-scanner message`);
+  rmSync(dir, { recursive: true, force: true });
+}
+
 console.log(`\n${failures === 0 ? "PASS" : `FAIL — ${failures} check(s)`}`);
 process.exit(failures === 0 ? 0 : 1);
