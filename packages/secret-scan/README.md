@@ -155,14 +155,32 @@ mail that merely said "I forgot my password". That is the line between a guard
 and a noise source.
 
 **A value on the next line still counts.** `Adgangskode:\nhunter2` fires, because
-mail wraps and a wrapped secret is still a secret. The deliberate cost: a line
-ending in `password:` followed by a paragraph will redact that paragraph's first
-word. One visibly-marked word, never a silent miss — and both halves are tested,
-so neither is an accident of the regex.
+mail wraps and a wrapped secret is still a secret.
+
+⚠️ **It CAN be a silent miss, and this sentence used to say otherwise.** Since
+0.6.0 the candidate must be plausible — any digit, or 16+ characters — so a
+wrapped line whose next word is ordinary prose is left untouched with no marker
+and no finding:
+
+```ts
+redactSecrets('Adgangskode:\nJeg glemte den', { announced: true })
+// -> unchanged, findings: []
+```
+
+That is the trade this axis makes: it stopped eating prose and gained a way to
+miss. `Adgangskode: correcthorse` is not detected either. Both halves are tested,
+so neither is an accident of the regex — but do not read this axis as a
+guarantee.
 
 **Detection order is load-bearing.** The announced pass runs *last* and refuses a
-value that is already a redaction marker, so `API key: sk-ant-…` still redacts as
-`anthropic-api-key` rather than flattening to a generic `announced-secret`.
+value that already contains a redaction marker, so `API key: sk-ant-…` still
+redacts as `anthropic-api-key` rather than flattening to a generic
+`announced-secret`.
+
+Before 0.7.0 that guard tested only the FIRST character of the value, so a
+**quoted** key was flattened and the redacted text stopped saying what kind of
+key it had been. It now tests for the marker anywhere in the value, which is why
+quotes, brackets and parentheses all behave the same.
 
 ## Classify a single token — `classify`
 
@@ -331,6 +349,50 @@ function hasAnnouncedSecret(text: string): boolean;              // the refuse-p
 function classify(value: string, opts?: RedactOptions): ClassifyResult | null; // single-token type detection
 function redactionMarker(label: string): string; // `[REDACTED:${label}]`
 ```
+
+## Upgrading to 0.7.0
+
+**One breaking change, and it is in `classify`.** The value-only axis — shapes
+named from the value alone, with no field name beside them — is now **opt-in**:
+
+```ts
+classify(bareHueKey)                        // -> null      (was: hue-application-key)
+classify(bareHueKey, { valueOnly: true })   // -> hue-application-key
+```
+
+*Why:* the decision to accept a weak signal belongs to whoever can **render** the
+uncertainty. A surface that shows a credential's type as a chip, with nowhere to
+say "low confidence", must not be handed guesses — a guess it accepts silently
+becomes an assertion. Callers who *can* carry that (a log redactor, where a false
+positive costs a masked word and a false negative costs the key) opt in and get
+it, including inside free text:
+
+```ts
+redactSecrets(text, { valueOnly: true })    // also masks bare 40-char Hue keys
+```
+
+`^0.6.0` will not resolve this release — a caret locks the minor on a 0.x
+version — which is the intended outcome for a behaviour change.
+
+**Fixes, no action needed:**
+
+- A **quoted** announcement is now caught. `{"password": "hunter2"}` passed
+  through 0.6.0 untouched and `hasAnnouncedSecret` answered `false`. JSON is how
+  a machine writes a credential, and it was the one shape the pattern missed.
+- **Wrapping delimiters survive.** `config(password='hunter2')` used to lose its
+  closing quote and paren; a trailing comma or backtick went the same way. If you
+  re-redact a stored corpus, do it on 0.7.0 — 0.6.0 returns syntactically broken
+  text.
+- **Exported regexes are no longer global.** All 39 carried `/g`, so `lastIndex`
+  persisted between calls and `pattern.regex.test(x)` answered `true`, then
+  `false`, for the same input. `SECRET_PATTERNS` now holds stateless copies, and
+  `VALUE_ONLY_PATTERNS` is exported so the roster describes everything `classify`
+  can return.
+
+**Unchanged on purpose:** the digit branch still has no length floor, so
+`Kodeord: 2` is still redacted. Measured over 41,095 texts: an 11-character
+Danish password sits in the same length band as unambiguous prose, and no form
+rule separates them. The noise is kept because the alternative leaks a password.
 
 ## Upgrading to 0.4.0
 
