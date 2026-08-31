@@ -39,6 +39,86 @@ const DELIVERED = JSON.stringify({
   data: { email_id: 're_abc123', to: ['medlem@klub.dk'], from: 'klub@xrt81.com', subject: 'Kampprogram' },
 });
 
+/**
+ * SVIX'S OWN PUBLISHED TEST VECTOR — the only assertion in this file that can
+ * tell us we agree with SVIX rather than merely with ourselves.
+ *
+ * Filed by cardmem (#24352) after they built the same verifier locally: "a
+ * verifier tested only against signatures it generated itself proves that it
+ * agrees with itself. That is exactly what a WRONG implementation also does."
+ *
+ * MEASURED, because the obvious version of that claim is too strong. Changing
+ * our hash from sha256 to sha512 turns EIGHT tests red including the
+ * self-generated ones — they hard-code the algorithm themselves, so they catch
+ * drift between test and source perfectly well.
+ *
+ * What they cannot catch is a SHARED misreading of Svix's spec — a mistake
+ * copied into both, which is the likely one, since the test was written by
+ * reading the source. Proven: change the signed message separator from "." to
+ * ":" in BOTH src and this file, exactly as a mirroring test would have been
+ * written, and 25 tests stay green while this one goes red. It is the only
+ * assertion here that consults an authority outside our own repo.
+ *
+ * Source: svix/svix-webhooks, javascript/src/webhook.test.ts, "sign function
+ * works". Cited so the next reader can re-check the numbers instead of trusting
+ * us — a pinned WRONG vector would only prove we agree with someone's typo.
+ *
+ * The timestamp is from 2021, so the freshness window is lifted explicitly.
+ * That is the option working as designed, not a workaround: this case tests the
+ * SIGNATURE, and replay protection has its own assertion below.
+ */
+const SVIX_VECTOR = {
+  secret: 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw',
+  id: 'msg_p5jXN8AQM9LWM0D4loKWxJek',
+  timestamp: '1614265330',
+  body: '{"test": 2432232314}',
+  signature: 'v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=',
+} as const;
+
+describe('Svix published vector — do we agree with Svix, or only with ourselves?', () => {
+  const headers = {
+    'svix-id': SVIX_VECTOR.id,
+    'svix-timestamp': SVIX_VECTOR.timestamp,
+    'svix-signature': SVIX_VECTOR.signature,
+  };
+  const forever = { toleranceSeconds: Number.MAX_SAFE_INTEGER };
+
+  it('accepts the signature Svix publishes as correct', () => {
+    expect(verifyWebhook(SVIX_VECTOR.body, headers, SVIX_VECTOR.secret, forever)).toEqual({
+      ok: true,
+    });
+  });
+
+  it('rejects it under a different secret — so the pass above is not vacuous', () => {
+    const other = 'whsec_' + Buffer.from('en-anden-noegle').toString('base64');
+    expect(verifyWebhook(SVIX_VECTOR.body, headers, other, forever)).toEqual({
+      ok: false,
+      reason: 'no_signature_match',
+    });
+  });
+
+  it('rejects a re-serialised body — the raw bytes are the message', () => {
+    // JSON.parse + stringify drops the space after the colon: same data, different
+    // bytes, different signature. This failure looks exactly like a wrong secret,
+    // so it gets an assertion rather than a comment.
+    const reserialised = JSON.stringify(JSON.parse(SVIX_VECTOR.body));
+    expect(reserialised).not.toBe(SVIX_VECTOR.body);
+    expect(verifyWebhook(reserialised, headers, SVIX_VECTOR.secret, forever)).toEqual({
+      ok: false,
+      reason: 'no_signature_match',
+    });
+  });
+
+  it('still enforces the freshness window on the vector by default', () => {
+    // Negative control for lifting the tolerance above, so the three tests
+    // cannot be read as evidence that replay protection was switched off.
+    expect(verifyWebhook(SVIX_VECTOR.body, headers, SVIX_VECTOR.secret)).toEqual({
+      ok: false,
+      reason: 'timestamp_out_of_tolerance',
+    });
+  });
+});
+
 describe('verifyWebhook — every rejection has been seen to fire', () => {
   it('accepts a correctly signed body', () => {
     expect(verifyWebhook(DELIVERED, signed(DELIVERED), SECRET)).toEqual({ ok: true });
