@@ -277,4 +277,12 @@ export function createStripeWebhookHandler(config: WebhookHandlerConfig): Stripe
   };
 }
 
+/**
+ * Reading the fields Stripe MOVES. The webhook chain is already ours, so the
+ * payload is ours to dig in — otherwise each API change is discovered once per
+ * repo, and always by a paying customer. See `./fields.ts`.
+ */
+export { readSubscriptionId, readPeriod } from "./fields.js";
+export type { SubscriptionPeriod } from "./fields.js";
+
 export type { Stripe };

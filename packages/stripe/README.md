@@ -144,6 +144,62 @@ export const POST = createStripeWebhookRoute(
 );
 ```
 
+## Reading the fields Stripe moves
+
+Stripe relocates fields. Twice in two months it broke sanneandersen in
+production, and both times **in the green direction** — no exception, no log,
+just a branch that quietly did not run.
+
+```ts
+import { readSubscriptionId, readPeriod } from "@broberg/stripe";
+
+readSubscriptionId(invoice); // string | null
+readPeriod(subscription);    // { start: number | null, end: number | null }  — MILLISECONDS
+```
+
+**What moved, measured on a live account (`2026-04-22.dahlia`):**
+
+| Field | Where it was | Where it is |
+|---|---|---|
+| the subscription on an invoice | `invoice.subscription` — **removed**, the key is absent, not null | `invoice.parent.subscription_details.subscription`, or any line's `parent.subscription_item_details.subscription` |
+| the billing period | `subscription.current_period_end` | `subscription.items.data[0].current_period_end` |
+
+Both readers try the **new location first and the old one as a fallback**, so a
+stored event from an older API version still resolves and a webhook replay does
+not become a second outage. Both return **`null` rather than throwing** — these
+run inside a webhook handler, where an exception means the event is never
+acknowledged and Stripe retries it forever.
+
+`readSubscriptionId` scans **every** invoice line, not just the first: a renewal
+invoice can carry a proration credit ahead of the subscription line. *(Inferred
+from how proration works — we have not observed such an invoice.)*
+
+### ⚠️ `null` from `readPeriod` means "could not read it", not "no expiry"
+
+That translation is the entire F098.4 outage. Their access rule read a missing
+end date as an unlimited gift, so an unreadable field silently became **free
+lifetime access for a cancelled paying subscription**. Nothing threw, nothing
+logged, and the only paying subscriber simply had no renewal date.
+
+Nothing is guessed here on purpose. A fallback like `now + 30 days` writes a
+number that looks right and is not — and a wrong date is never noticed, where a
+missing one is. If your app grants access on a missing date, branch on `null`
+explicitly before you get there.
+
+### What is proven, and what is not
+
+The invoice fixture in the test suite is a trimmed, anonymised copy of a **real**
+invoice, *fetched* rather than written — a hand-written imitation would only
+confirm the author's understanding of the shape, and a wrong understanding of the
+shape was the bug. The subscription shapes are **constructed**; the timestamp in
+them is sanne's measurement, the object around it is not. That is a weaker claim
+and it is left standing as one.
+
+Still **unproven**: whether `customer.subscription.updated` fires on every
+renewal (and has therefore been a safety net all along). It is an inference from
+Stripe's documentation that nobody has watched happen. First real renewal:
+2026-09-27.
+
 ## Non-goals
 
 - Concrete **fee percentages** (yours — inject them).
@@ -164,6 +220,8 @@ export const POST = createStripeWebhookRoute(
 | `buildConnectCheckout(stripe, params)` | Connect destination-charge Checkout Session |
 | `createStripeWebhookHandler(config)` | `(rawBody, signature) => { ok, status, event?, error? }` |
 | `createStripeWebhookRoute(handler)` | `@broberg/stripe/next` — `(Request) => Response` |
+| `readSubscriptionId(invoice)` | the subscription id, new location → any line → the removed field; `null`, never a throw |
+| `readPeriod(subscription)` | `{ start, end }` in **ms**, item → top level. `null` means *unreadable*, not *no expiry* |
 | `STRIPE_API_VERSION` | the fleet-pinned Stripe API version |
 
 MIT · part of the [broberg.ai shared inventory](https://discovery.broberg.ai).

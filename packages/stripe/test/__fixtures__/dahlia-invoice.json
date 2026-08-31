@@ -1,0 +1,61 @@
+{
+  "_source": "A trimmed, anonymised copy of a REAL invoice from sanneandersen's live Stripe account, FETCHED on 2026-08-29 on API version 2026-04-22.dahlia. The shape is Stripe's; names and ids are replaced. It is fetched rather than written on purpose: a hand-written imitation confirms the author's understanding of the shape, and a wrong understanding of the shape WAS the bug (F102). The decisive property is that the key `subscription` is ABSENT from the `dahlia` object — not null, absent. The test asserts that against the object itself; this file deliberately carries no field claiming it, because a fixture whose whole value is that nobody wrote it must not carry a fact somebody wrote in it.",
+  "dahlia": {
+    "id": "in_TEST",
+    "object": "invoice",
+    "billing_reason": "subscription_create",
+    "parent": {
+      "type": "subscription_details",
+      "subscription_details": {
+        "subscription": "sub_TESTabonnement",
+        "metadata": {
+          "customer_email": "kunde@eksempel.dk",
+          "kind": "qigong",
+          "pending_id": "00000000-0000-0000-0000-000000000001",
+          "plan_name": "Blad",
+          "plan_tier": "blade",
+          "user_id": "00000000-0000-0000-0000-000000000002"
+        }
+      }
+    },
+    "lines": {
+      "object": "list",
+      "data": [
+        {
+          "id": "il_TEST",
+          "parent": {
+            "invoice_item_details": null,
+            "subscription_item_details": {
+              "subscription": "sub_TESTabonnement",
+              "subscription_item": "si_TEST"
+            }
+          },
+          "period": {
+            "end": 1790539830,
+            "start": 1787861430
+          }
+        }
+      ]
+    }
+  },
+  "legacy": {
+    "id": "in_TEST_GAMMEL",
+    "object": "invoice",
+    "billing_reason": "subscription_cycle",
+    "subscription": "sub_TESTabonnement",
+    "lines": {
+      "object": "list",
+      "data": []
+    }
+  },
+  "no_subscription": {
+    "id": "in_TEST_ENKELT",
+    "object": "invoice",
+    "billing_reason": "manual",
+    "parent": null,
+    "lines": {
+      "object": "list",
+      "data": []
+    }
+  }
+}
