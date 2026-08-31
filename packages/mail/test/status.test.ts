@@ -94,6 +94,45 @@ describe("the message BODY is dropped unless asked for", () => {
   });
 });
 
+describe("`to` is a FLOOR, not the recipient count", () => {
+  // cardmem measured the retrieve response's real field list on two live ids,
+  // with a control, on 2026-08-31:
+  //   multi/suppressed 37a5ac15-…  to.length=2
+  //   single/delivered 43a7af23-…  to.length=1   (without this, "2" could not be
+  //                                               told from a field that always
+  //                                               returns whatever was there)
+  // The list carries `cc` AND `bcc`. So a guard on `to.length > 1` fires on
+  // almost nothing when every letter is cc'd to one address by house rule — a
+  // customer letter reads as ONE recipient and really has two. They shipped that
+  // guard, measured it, and killed it themselves.
+  const BODY = { ...RESEND_BODY, to: ["a@b.dk"], cc: ["cb@webhouse.dk"], bcc: ["audit@b.dk"] };
+
+  it("counts to + cc + bcc, not to alone", async () => {
+    const s = await mailerAnswering({ body: BODY }).getStatus("x");
+    expect(s.to).toEqual(["a@b.dk"]);
+    expect(s.cc).toEqual(["cb@webhouse.dk"]);
+    expect(s.bcc).toEqual(["audit@b.dk"]);
+    expect(s.recipientCount).toBe(3);
+    // the trap, stated as an assertion: to.length would have said 1
+    expect(s.to?.length).toBe(1);
+  });
+
+  it("does not invent a count when the provider returned no recipients at all", async () => {
+    // An absent field must not read as zero — "nobody" and "not told" are
+    // different answers, and zero is the one that looks like an answer.
+    const { to, ...noRecipients } = BODY;
+    const s = await mailerAnswering({ body: { ...noRecipients, cc: undefined, bcc: undefined } }).getStatus("x");
+    expect("recipientCount" in s).toBe(false);
+  });
+
+  it("a suppressed mail is undecided regardless of the count", () => {
+    // The verdict must NOT be gated on recipientCount. cardmem reached this after
+    // their to.length guard failed: `suppressed` carries partial meaning whatever
+    // the count says, so the strict verdict stands and the count is informational.
+    expect(verdictForEvent("suppressed")).toBe("failed");
+  });
+});
+
 describe("every documented event maps to exactly one verdict", () => {
   // Table-driven over ALL ELEVEN, so an event cannot pass by being absent from
   // the test. The count is asserted too: adding a type without a case here must

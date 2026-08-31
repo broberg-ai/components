@@ -322,6 +322,15 @@ gets backwards:
 > **Resend does not document this behaviour anywhere.** The measurement above is
 > the only evidence there is; it is not a quote from a spec.
 
+> **And do not count recipients with `to.length` (v0.9.0).** The response carries
+> `cc` and `bcc` too, so `to` is a **floor**. cardmem shipped a guard on
+> `to.length > 1`, measured it, and killed it the same evening: the house rule
+> here is that every letter leaving the house is cc'd to one address, so a
+> customer letter reads as *one* recipient through `to` and really has two — a
+> guard that looked finished and fired on almost nothing. `getStatus` now returns
+> `cc`, `bcc` and `recipientCount`. **Do not gate a delivery decision on the count
+> either**: a `suppressed` mail is undecided whatever it says.
+
 
 **`bounced` and `suppressed` share a verdict but are not the same event, and the
 difference is what you tell a person.** A bounce is a *mailbox* rejecting us; a
@@ -347,6 +356,18 @@ answers `401`, which this reports as:
 Said out loud here because the failure mode is silent: without the distinction, a
 key-permission problem reads as "not delivered" and the next thing that happens
 is an email to a customer about an address that was never wrong.
+
+**How to PROVE your key can read** — cardmem's check, and it takes one call:
+
+```
+a bogus id (negative control)   → HTTP 422  "must be a valid UUID"
+a real id from your send log    → HTTP 200  last_event=delivered
+```
+
+**422 rather than 401 on the control is the whole point.** It separates *"the key
+may not read"* from *"the key does not know that id"* — two answers that look
+identical if you only ever try one id and it fails. Measure it against production
+rather than trusting that read access was granted.
 
 ### The body is not returned unless you ask
 

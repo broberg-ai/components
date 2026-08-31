@@ -152,7 +152,27 @@ export interface MailStatus {
    *  a third state with no reason is a shrug wearing a type. */
   reason?: string;
   id?: string;
+  /**
+   * ⚠️ **NOT the recipient count.** The provider also returns `cc` and `bcc`,
+   * so `to.length` is a FLOOR. Measured by cardmem on 2026-08-31 after they
+   * shipped a guard on `to.length > 1` and it fired on almost nothing: the house
+   * rule is that every letter leaving the house is cc'd to the owner, so a
+   * customer letter reads as ONE recipient through `to` and really has two.
+   * Use `recipientCount`, or read `cc`/`bcc` yourself.
+   */
   to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  /**
+   * `to` + `cc` + `bcc`, when the provider returned them.
+   *
+   * Informational — do NOT gate a delivery decision on it. A `suppressed` mail is
+   * undecided whatever this says (see `verdictForEvent`), and this number is
+   * itself only as complete as the provider's response: if it omits a field, the
+   * count is a floor and not a total. It exists so a consumer does not reach for
+   * `to.length` and get a smaller number that looks like an answer.
+   */
+  recipientCount?: number;
   from?: string;
   subject?: string;
   /** Provider timestamp for the send, ISO-8601, as sent. */
@@ -376,6 +396,21 @@ export function createMailer(config: MailerConfig = {}): Mailer {
       if (typeof body.id === "string") status.id = body.id;
       if (Array.isArray(to)) status.to = to.filter((x): x is string => typeof x === "string");
       else if (typeof to === "string") status.to = [to];
+      const strings = (v: unknown): string[] | undefined =>
+        Array.isArray(v)
+          ? v.filter((x): x is string => typeof x === "string")
+          : typeof v === "string"
+            ? [v]
+            : undefined;
+      const cc = strings(body.cc);
+      const bcc = strings(body.bcc);
+      if (cc) status.cc = cc;
+      if (bcc) status.bcc = bcc;
+      // A floor, and said so on the field. Only counted when the provider
+      // actually returned something — an absent field must not read as zero.
+      if (status.to || cc || bcc) {
+        status.recipientCount = (status.to?.length ?? 0) + (cc?.length ?? 0) + (bcc?.length ?? 0);
+      }
       if (typeof body.from === "string") status.from = body.from;
       if (typeof body.subject === "string") status.subject = body.subject;
       if (typeof body.created_at === "string") status.at = body.created_at;
