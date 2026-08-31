@@ -64,30 +64,40 @@ fi
 # Catches a key pasted from somewhere else — a provider token in a code sample,
 # a colleague's key in a fixture. @broberg/secret-scan owns the pattern list.
 SCAN="$ROOT/packages/secret-scan/dist/index.js"
-if [ -f "$SCAN" ]; then
-  # Layer 3 ONLY may be narrowed, via .secretscanignore. A scanner's own test
-  # fixtures have to look like credentials, so without an exemption the package
-  # could never test its own patterns. Layers 1 and 2 above are deliberately not
-  # exemptable — an opt-out that reaches the layer catching REAL secrets is a
-  # hole, not a feature.
-  EXCLUDES=()
-  if [ -f "$ROOT/.secretscanignore" ]; then
-    while IFS= read -r pat; do
-      [ -z "$pat" ] && continue
-      case "$pat" in \#*) continue ;; esac
-      EXCLUDES+=(":(exclude)$pat")
-    done < "$ROOT/.secretscanignore"
-  fi
-  added_lines . "${EXCLUDES[@]}" | node --input-type=module -e '
-    const { redactSecrets } = await import(process.argv[1]);
-    let text = ""; for await (const c of process.stdin) text += c;
-    const r = redactSecrets(text);
-    const real = (r.findings ?? []).filter(f => f.label !== "announced-secret");
-    if (real.length) {
-      console.error("  " + real.map(f => `${f.label} ×${f.count ?? 1}`).join("\n  "));
-      process.exit(1);
-    }
-  ' "$SCAN" || fail "@broberg/secret-scan recognised a credential format in this commit (listed above)."
+# A MISSING scanner is not a clean commit. dist/ is gitignored, so a fresh clone
+# has no scanner until somebody builds — and this layer used to skip silently in
+# exactly that case, exiting 0 on a real credential (F061.5, measured). An
+# unanswerable question must read as UNANSWERED, never as COMPLIANT.
+if [ ! -f "$SCAN" ]; then
+  fail "the credential-format layer cannot run — @broberg/secret-scan is not built.
+  This layer is what catches a provider token pasted in from elsewhere, so the
+  commit is refused rather than passed unchecked. Build it once:
+
+    pnpm --filter @broberg/secret-scan build"
 fi
+
+# Layer 3 ONLY may be narrowed, via .secretscanignore. A scanner's own test
+# fixtures have to look like credentials, so without an exemption the package
+# could never test its own patterns. Layers 1 and 2 above are deliberately not
+# exemptable — an opt-out that reaches the layer catching REAL secrets is a
+# hole, not a feature.
+EXCLUDES=()
+if [ -f "$ROOT/.secretscanignore" ]; then
+  while IFS= read -r pat; do
+    [ -z "$pat" ] && continue
+    case "$pat" in \#*) continue ;; esac
+    EXCLUDES+=(":(exclude)$pat")
+  done < "$ROOT/.secretscanignore"
+fi
+added_lines . "${EXCLUDES[@]}" | node --input-type=module -e '
+  const { redactSecrets } = await import(process.argv[1]);
+  let text = ""; for await (const c of process.stdin) text += c;
+  const r = redactSecrets(text);
+  const real = (r.findings ?? []).filter(f => f.label !== "announced-secret");
+  if (real.length) {
+    console.error("  " + real.map(f => `${f.label} ×${f.count ?? 1}`).join("\n  "));
+    process.exit(1);
+  }
+' "$SCAN" || fail "@broberg/secret-scan recognised a credential format in this commit (listed above)."
 
 exit 0

@@ -40,6 +40,22 @@ const MUTATIONS = [
     replace: `    | { grep '^ZZZ_NEVER_MATCHES' || true; } \\`,
     expect: "adding a credential is REFUSED",
   },
+  {
+    // F061.5 — the old behaviour, stated exactly: no scanner => skip layer 3 and
+    // exit 0. `exit 0` rather than deleting the guard, because with the guard gone
+    // the layer below still runs and node throws on the missing import, which the
+    // `|| fail` turns into a block. That would go red for the WRONG reason and
+    // read as a kill.
+    name: "a missing scanner silently skips layer 3 (the pre-F061.5 behaviour)",
+    find: `if [ ! -f "$SCAN" ]; then
+  fail "the credential-format layer cannot run`,
+    replace: `if [ ! -f "$SCAN" ]; then
+  exit 0
+fi
+if false; then
+  fail "the credential-format layer cannot run`,
+    expect: "a credential is REFUSED when the scanner is not built",
+  },
 ];
 
 let uncaught = 0;

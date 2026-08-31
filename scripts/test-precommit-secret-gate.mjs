@@ -12,7 +12,7 @@
 // An exemption is a hole in the gate; a concatenation is not.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, mkdirSync, copyFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -22,6 +22,15 @@ const REPO = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().tr
 // bug where a crashed harness leaves a mutant on disk cannot happen here.
 const HOOK = process.env.GATE_HOOK || join(REPO, ".githooks", "pre-commit");
 const SCAN = join(REPO, "packages", "secret-scan", "dist", "index.js");
+
+// dist/ is gitignored, so a clean checkout (CI, or a fresh clone) has no scanner.
+// Build it rather than skipping — a suite that quietly runs fewer checks when a
+// dependency is missing is the very defect F061.5 is about. This crashed CI with
+// ENOENT and took the publish gate down with it.
+if (!existsSync(SCAN)) {
+  console.log("building @broberg/secret-scan (no dist — clean checkout)\n");
+  execFileSync("pnpm", ["--filter", "@broberg/secret-scan", "build"], { cwd: REPO, stdio: "inherit" });
+}
 
 // Assembled, never literal.
 const AWS_KEY = "AKIA" + "IOSFODNN7EXAMPLE";
@@ -34,7 +43,7 @@ const check = (name, actual, expected) => {
   console.log(`  ${ok ? "ok  " : "FAIL"} ${name}  (blocked=${actual}, want blocked=${expected})`);
 };
 
-function makeRepo() {
+function makeRepo(withScanner = true) {
   const dir = mkdtempSync(join(tmpdir(), "gate-"));
   const git = (...a) => execFileSync("git", a, { cwd: dir, stdio: "pipe" });
   git("init", "-q");
@@ -48,8 +57,10 @@ function makeRepo() {
   mkdirSync(join(dir, ".githooks"), { recursive: true });
   copyFileSync(HOOK, join(dir, ".githooks", "pre-commit"));
   execFileSync("chmod", ["+x", join(dir, ".githooks", "pre-commit")]);
-  mkdirSync(join(dir, "packages", "secret-scan", "dist"), { recursive: true });
-  copyFileSync(SCAN, join(dir, "packages", "secret-scan", "dist", "index.js"));
+  if (withScanner) {
+    mkdirSync(join(dir, "packages", "secret-scan", "dist"), { recursive: true });
+    copyFileSync(SCAN, join(dir, "packages", "secret-scan", "dist", "index.js"));
+  }
   writeFileSync(join(dir, ".env"), `WEBHOOK_SECRET=${ENV_VALUE}\n`);
   // .env MUST be ignored in the fixture repo. Without this, `git add -A` stages it
   // and LAYER 1 blocks every commit — which would make each "adding a credential is
@@ -120,6 +131,30 @@ for (const [layer, secret] of [["layer 3 (format)", AWS_KEY], ["layer 2 (.env va
   writeFileSync(join(dir, "fixtures", "keys.txt"), `key = ${AWS_KEY}\n`);
   git("add", "-A");
   check("an excluded path is still not scanned", commitBlocked(dir, git, "excluded"), false);
+  rmSync(dir, { recursive: true, force: true });
+}
+
+// F061.5 — a MISSING scanner must refuse the commit, not skip the layer.
+// dist/ is gitignored, so this is the state of every fresh clone in the fleet.
+// Asserting on the MESSAGE, not merely on a non-zero exit: a hook that crashed
+// for an unrelated reason would also exit non-zero, and would pass a weaker check
+// while proving nothing. The blocked/allowed pair is asserted too, so "refuses
+// everything" cannot satisfy this on its own.
+{
+  console.log("scanner not built (fresh clone)");
+  const { dir, git } = makeRepo(false);
+  writeFileSync(join(dir, "added.txt"), `key = ${AWS_KEY}\n`);
+  git("add", "-A");
+  let out = "";
+  let blocked = false;
+  try { git("commit", "-qm", "add"); } catch (e) {
+    blocked = true;
+    out = (e.stdout?.toString() ?? "") + (e.stderr?.toString() ?? "");
+  }
+  check("a credential is REFUSED when the scanner is not built", blocked, true);
+  const named = out.includes("pnpm --filter @broberg/secret-scan build");
+  if (!named) failures++;
+  console.log(`  ${named ? "ok  " : "FAIL"} the refusal names the build command  (message=${JSON.stringify(out.trim().slice(-120))})`);
   rmSync(dir, { recursive: true, force: true });
 }
 
