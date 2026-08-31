@@ -62,8 +62,15 @@ export interface GreppableExemption {
 }
 
 export interface GreppableReport {
-  /** Everything `git ls-files` returned. */
+  /** Files git has under version control. */
   tracked: number;
+  /** Files that exist and are NOT ignored, but have not been `git add`ed yet.
+   *  Included since F068.3 — in a pre-commit hook the file that matters is new,
+   *  so a guard that skipped these was blind exactly where it is called. */
+  untracked: number;
+  /** The universe actually walked: tracked + untracked. `.gitignore` is honoured,
+   *  so node_modules/ and dist/ are in neither number. */
+  candidates: number;
   /** Files actually read. */
   scanned: number;
   /** Files that could not be read, each with the reason. NEVER silent: a file
@@ -73,7 +80,7 @@ export interface GreppableReport {
    *  see is indistinguishable from a file that was never looked at. */
   exempt: GreppableExemption[];
   offenders: GreppableOffender[];
-  /** tracked - scanned - skipped. Non-zero means the run cannot account for
+  /** candidates - scanned - skipped. Non-zero means the run cannot account for
    *  every file, so "0 offenders" cannot be trusted from it. */
   coverageGap: number;
   /** True only when every tracked file was accounted for, at least one file was
@@ -265,10 +272,29 @@ export function checkGreppable(options: CheckGreppableOptions = {}): GreppableRe
   // survives a filename containing a newline, which no amount of quoting config
   // helps with. In a Danish fleet a path with æ/ø/å is the norm, not an edge
   // case, so this made the package unable to complete a clean run on most repos.
-  const tracked = execFileSync("git", ["ls-files", "-z"], { cwd, maxBuffer: 64 * 1024 * 1024 })
-    .toString()
-    .split("\0")
-    .filter(Boolean);
+  // `--cached --others --exclude-standard` — the universe includes files that
+  // exist but have not been `git add`ed yet (F068.3, filed by beacon).
+  //
+  // `git ls-files -z` alone lists only TRACKED files, and this package's most
+  // obvious use is a pre-commit hook, where the interesting file is NEW BY
+  // DEFINITION. So the guard was blind exactly where it is called. beacon's own
+  // guard proved it: they ran it (313 files, all visible), staged AFTERWARDS, and
+  // the one file the commit was about — carrying a real NUL — was the only one it
+  // never looked at. Their sentence for it: a counter that does not count what you
+  // are making is a counter confirming a state you left a minute ago.
+  //
+  // `--exclude-standard` is LOAD-BEARING, not tidiness: without it .gitignore is
+  // ignored too, and node_modules/ + dist/ walk straight in. That would be a worse
+  // regression than the bug — so it has its own test and its own mutation.
+  const listFiles = (args: string[]) =>
+    execFileSync("git", ["ls-files", "-z", ...args], { cwd, maxBuffer: 64 * 1024 * 1024 })
+      .toString()
+      .split("\0")
+      .filter(Boolean);
+
+  const trackedFiles = listFiles(["--cached"]);
+  const untrackedFiles = listFiles(["--others", "--exclude-standard"]);
+  const tracked = [...trackedFiles, ...untrackedFiles];
 
   let scanned = 0;
   const skipped: string[] = [];
@@ -312,7 +338,9 @@ export function checkGreppable(options: CheckGreppableOptions = {}): GreppableRe
 
   const coverageGap = tracked.length - scanned - skipped.length;
   return {
-    tracked: tracked.length,
+    tracked: trackedFiles.length,
+    untracked: untrackedFiles.length,
+    candidates: tracked.length,
     scanned,
     skipped,
     exempt,

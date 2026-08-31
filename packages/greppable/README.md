@@ -1,6 +1,6 @@
 # @broberg/greppable
 
-Find the tracked text files **your grep silently skips**.
+Find the text files **your grep silently skips** — tracked, or written but not yet `git add`ed.
 
 ```bash
 npx @broberg/greppable
@@ -97,7 +97,7 @@ on a given machine.
 
 ```yaml
 # .github/workflows/ci.yml
-- name: Every tracked text file is greppable
+- name: Every text file is greppable
   run: npx -y @broberg/greppable
 ```
 

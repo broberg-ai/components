@@ -203,3 +203,79 @@ describe("a run that read NOTHING must not report clean (torrent-search-api)", (
     expect(r.ok).toBe(true);
   });
 });
+
+describe("F068.3 — the universe includes files that are not committed yet", () => {
+  /** Like `repo`, but leaves `untracked` on disk WITHOUT `git add`ing it. That
+   *  window — written, not yet staged — is the whole subject of this block, and
+   *  it is the normal state of the file a pre-commit hook exists to judge. */
+  function repoWithUntracked(
+    committed: Record<string, string | Buffer>,
+    untracked: Record<string, string | Buffer>,
+  ): string {
+    const cwd = repo(committed);
+    for (const [name, content] of Object.entries(untracked)) {
+      const dir = name.includes("/") ? join(cwd, name.slice(0, name.lastIndexOf("/"))) : cwd;
+      if (dir !== cwd) mkdirSync(dir, { recursive: true });
+      writeFileSync(join(cwd, name), content);
+    }
+    return cwd;
+  }
+
+  it("finds an UNTRACKED NUL file — the case that let beacon's own guard through", () => {
+    // Their guard reported 313 files, all visible; the one file the commit was
+    // about was the only one it never opened, because they ran it before staging.
+    const content = Buffer.concat([Buffer.from("const k='"), NUL, Buffer.from("';\n")]);
+    const cwd = repoWithUntracked({ "clean.ts": "export const a = 1;\n" }, { "new.ts": content });
+
+    const r = checkGreppable({ cwd });
+    expect(r.offenders.map((o) => o.file)).toEqual(["new.ts"]);
+    expect(r.ok).toBe(false);
+    // The counts must SHOW the widened universe, not merely benefit from it.
+    expect(r.tracked).toBe(1);
+    expect(r.untracked).toBe(1);
+    expect(r.candidates).toBe(2);
+  });
+
+  it("finds an UNTRACKED latin-1 file too — the other half of the union", () => {
+    // buddy's rule: when the universe changes, re-prove EVERY case, not only the
+    // one that was reported. A fix aimed at the NUL axis could reach untracked
+    // files for NUL alone and leave the decoder axis on the old list.
+    const content = Buffer.concat([Buffer.from("bl"), OE, Buffer.from("d gr"), OE, Buffer.from("d\n")]);
+    expect(content.includes(0)).toBe(false); // no NUL — only the decoder can catch it
+    const cwd = repoWithUntracked({ "clean.ts": "export const a = 1;\n" }, { "nyt.txt": content });
+
+    const r = checkGreppable({ cwd });
+    expect(r.offenders.map((o) => o.file)).toEqual(["nyt.txt"]);
+    expect(r.offenders[0]!.kind).toBe("utf8");
+  });
+
+  it("still does NOT scan ignored paths — the control 'scan everything' would fail", () => {
+    // Widening the universe is trivially satisfiable by walking the whole disk,
+    // and that version passes both tests above while making the tool unusable:
+    // node_modules/ alone would bury every real finding. --exclude-standard is
+    // what keeps the widening honest, so it is asserted on the COUNTS, not merely
+    // on the run staying green.
+    const nulBuf = Buffer.concat([Buffer.from("x"), NUL]);
+    const cwd = repoWithUntracked(
+      { ".gitignore": "node_modules/\ndist/\n", "clean.ts": "export const a = 1;\n" },
+      { "node_modules/pkg/index.js": nulBuf, "dist/out.js": nulBuf },
+    );
+
+    const r = checkGreppable({ cwd });
+    expect(r.offenders).toEqual([]);
+    expect(r.untracked).toBe(0); // the ignored files are in NEITHER count
+    expect(r.candidates).toBe(2); // .gitignore + clean.ts, nothing else
+    expect(r.ok).toBe(true);
+  });
+
+  it("counts an untracked file as scanned, so coverage still adds up", () => {
+    const cwd = repoWithUntracked(
+      { "clean.ts": "export const a = 1;\n" },
+      { "also-clean.ts": "export const b = 2;\n" },
+    );
+    const r = checkGreppable({ cwd });
+    expect(r.scanned + r.skipped.length).toBe(r.candidates);
+    expect(r.coverageGap).toBe(0);
+    expect(r.ok).toBe(true);
+  });
+});

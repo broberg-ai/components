@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 if (args.length) {
   const wantsHelp = args.some((a) => a === "-h" || a === "--help");
   const stream = wantsHelp ? console.log : console.error;
-  stream("greppable — is every tracked text file searchable by a cc-session grep?");
+  stream("greppable — is every text file here searchable by a cc-session grep?");
   stream("");
   stream("  Usage: greppable            (run from the repo root, no arguments)");
   stream("");
@@ -48,14 +48,21 @@ try {
 // coverage sum holds on an empty list, so this is its own check.
 if (report.scanned === 0) {
   console.error(
-    `::error::read 0 files (${report.tracked} tracked) — refusing to report clean. ` +
+    `::error::read 0 files (${report.candidates} candidates: ${report.tracked} tracked + ${report.untracked} untracked) — refusing to report clean. ` +
       `A green check that never looked is worse than no check, because it closes the question.`,
   );
   console.error("Most likely: run from a directory git does not track, or an empty repo.");
   process.exit(1);
 }
 
-console.log(`scanned ${report.scanned} of ${report.tracked} tracked files`);
+// The universe is stated on the SUCCESS line, not only on failure. Before F068.3
+// this said "of N tracked files" and was accurate — the word `tracked` carried the
+// entire limitation and nobody read it as one. Naming both halves means a reader
+// can tell which universe a run walked without consulting a changelog.
+console.log(
+  `scanned ${report.scanned} of ${report.candidates} files ` +
+    `(${report.tracked} tracked + ${report.untracked} untracked, .gitignore honoured)`,
+);
 
 if (report.exempt.length) {
   // Printed, never silent: an exemption you cannot see is indistinguishable
@@ -103,7 +110,7 @@ if (report.skipped.length) {
 
 if (report.offenders.length) {
   console.error(
-    "::error::tracked text file(s) that a cc session's grep skips SILENTLY — " +
+    "::error::text file(s) that a cc session's grep skips SILENTLY — " +
       "every grep-based audit over them is falsely green.",
   );
   for (const o of report.offenders) {
@@ -128,4 +135,4 @@ if (report.offenders.length) {
   process.exit(1);
 }
 
-console.log("Every tracked text file is searchable by a cc-session grep.");
+console.log("Every text file here — tracked or not yet added — is searchable by a cc-session grep.");
