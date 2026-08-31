@@ -276,6 +276,14 @@ gets backwards:
   a suppression list. Filed under pending, you wait for a delivery that cannot
   come.
 
+**`bounced` and `suppressed` share a verdict but are not the same event, and the
+difference is what you tell a person.** A bounce is a *mailbox* rejecting us; a
+suppression is *our own provider* refusing to try. `verdict` is the same for
+both because neither arrived — but `providerStatus` keeps them apart, and you
+should read it before writing to anyone. Telling someone their address bounced
+when we never sent to it is a wrong answer that reads as a diagnosis. (cardmem
+made this distinction in their own handler and it is the better call; keep it.)
+
 **`unknown` is never `ok: false`, and never `failed`.** A send-only key answers
 `401`, an id the provider does not have answers `404`, an unreachable network
 answers nothing — and none of those is a delivery failure. Every `unknown`
