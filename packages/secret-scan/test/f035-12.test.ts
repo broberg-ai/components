@@ -45,6 +45,30 @@ describe("D1 — a wrapping delimiter must SURVIVE the redaction", () => {
   });
 });
 
+describe("the digit branch has NO floor, deliberately", () => {
+  // buddy measured this branch over 41,095 texts AFTER the card was written.
+  // Sommer2026! is 11 characters; prose in the same band cannot be separated by
+  // form (two independent rules were tried, both misfiled across the boundary).
+  // A floor removes noise by leaking a real password, so the branch stays
+  // conservative and these fixtures exist to keep a fix OUT.
+  it.each([
+    ["Kodeord: Sommer2026!", "an 11-char Danish password buddy measured"],
+    ["Adgangskode: hunter2", "7 chars, the documented case"],
+    ["Kodeord: Vinter2026!!", "12 chars — the boundary a floor of 12 would sit on"],
+  ])("%s stays redacted (%s)", (input) => {
+    expect(redactSecrets(input, { announced: true }).redacted).toContain("[REDACTED:");
+  });
+
+  it("and the accepted COST is still paid — prose with a digit is still eaten", () => {
+    // Stated rather than hidden: `Kodeord: 2` IS redacted and that is noise we
+    // keep on purpose. Asserting it means nobody can quietly "fix" it without
+    // the measurement that would justify doing so.
+    expect(redactSecrets("Kodeord: 2", { announced: true }).redacted).toBe(
+      "Kodeord: [REDACTED:announced-secret]",
+    );
+  });
+});
+
 describe("D2 — a QUOTED key was never matched at all", () => {
   // The leak. `"password":` puts a quote between the word and the separator, so
   // the old pattern never fired. JSON is how a MACHINE writes a secret, and it

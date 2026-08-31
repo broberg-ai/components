@@ -86,7 +86,7 @@ const MUTATIONS = [
   {
     name: 'a floor is introduced on the digit branch (leaks Sommer2026!)',
     from: '  return /\\d/.test(candidate) || candidate.length >= 16;',
-    to: '  return (/\\d/.test(candidate) && candidate.length >= 16) || candidate.length >= 16;',
+    to: '  return (/\\d/.test(candidate) && candidate.length >= 12) || candidate.length >= 16;',
   },
   // valueOnly stops being opt-in: every caller receives the weak guesses,
   // including the surfaces that cannot render uncertainty.
