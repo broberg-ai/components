@@ -44,3 +44,38 @@ describe("the published type declarations", () => {
     expect(distText()).toMatch(/MESSAGE status, NOT A RECIPIENT status/i);
   });
 });
+
+// THE README SHIPS TOO — it is in the tarball and it is the page npm renders,
+// so a claim there reaches more people than the tooltip does. The first version
+// of this file checked only dist/*.d.ts, which is a check NARROWER than the
+// claim it was defending: the corrected README still carried the old sentence
+// (inside the correction that explains it is false) and this suite went green.
+//
+// SO THE README IS ASSERTED POSITIVELY, NOT BY ABSENCE. An absence check cannot
+// tell a claim from a MENTION of the claim — measured three times in the fleet in
+// one day: twice on me (secret-scan's "global regex", then this file), once on
+// fd-sundhed, whose source-reading guard was reddened by the comment explaining
+// why the guard exists. Quoting the old wording inside a correction is normal and
+// good writing; a guard that forbids it is wrong about writing, not about code.
+describe("the published README", () => {
+  const README = join(__dirname, "..", "README.md");
+
+  it("exists — a missing README is not a pass", () => {
+    expect(existsSync(README)).toBe(true);
+  });
+
+  it("states the correct semantics where a consumer will read them", () => {
+    const rm = readFileSync(README, "utf8");
+    // What must be TRUE, in the section a reader lands on:
+    expect(rm).toMatch(/MESSAGE status, not a RECIPIENT status/i);
+    expect(rm).toMatch(/at least one recipient was skipped/i);
+    // and the evidence, so the claim can be checked rather than trusted
+    expect(rm).toContain("37a5ac15-d91c-49ac-a37e-d8a991096631");
+    // and the honest limit on it
+    expect(rm).toMatch(/Resend does not document this behaviour/i);
+  });
+
+  it("names the breaking type change 0.8.0 made in a minor", () => {
+    expect(readFileSync(README, "utf8")).toContain('Pick<Mailer, "send">');
+  });
+});
