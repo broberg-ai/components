@@ -52,6 +52,29 @@ describe('the hole the axis exists for is still closed', () => {
     expect(r.redacted).toBe('password: [REDACTED:announced-secret]');
   });
 
+  // THE 16 IS A MEASUREMENT, SO IT MUST BE PINNED LIKE ONE. Measured on this
+  // suite before these two existed: changing `>= 16` to `>= 17` left all 178
+  // tests green. The only length fixture was 25 characters and the longest
+  // rejected one was 6, so the threshold could sit anywhere in a nine-character
+  // window and nothing would notice — a magic number wearing a measurement's
+  // clothes. buddy separated digit-free prose from digit-free secrets at exactly
+  // 16 (35 of 49 candidates), and these are the two strings that hold it there.
+  //
+  // Both are digit-free on purpose: with a digit the value takes the other
+  // branch and the length rule is never reached, which is how every existing
+  // announced fixture missed this.
+  it.each([
+    ['abcdefghijklmno', 15, false],
+    ['abcdefghijklmnop', 16, true],
+  ])('a digit-free %s is %i chars → redacted: %s', (value, length, redacted) => {
+    expect(value).toHaveLength(length); // the fixture, not the code
+    const r = redactSecrets(`password: ${value}`, { announced: true });
+    expect(r.redacted).toBe(
+      redacted ? 'password: [REDACTED:announced-secret]' : `password: ${value}`,
+    );
+    expect(hasAnnouncedSecret(`password: ${value}`)).toBe(redacted);
+  });
+
   it('redacts one candidate and leaves the other, in the same string', () => {
     // The discriminating case: a single call where the rule must say yes and no.
     // A test with only one candidate per string passes on an implementation that

@@ -58,6 +58,14 @@ const MUTATIONS = [
     from: '  return /\\d/.test(candidate) || candidate.length >= 16;',
     to: '  return candidate.length >= 16;',
   },
+  // THE THRESHOLD ITSELF. Measured before the boundary fixtures existed: this
+  // exact mutation left all 178 tests green, so the 16 could have sat anywhere
+  // in a nine-character window unnoticed.
+  {
+    name: 'the digit-free floor moves by one (16 -> 17)',
+    from: '  return /\\d/.test(candidate) || candidate.length >= 16;',
+    to: '  return /\\d/.test(candidate) || candidate.length >= 17;',
+  },
   // The two entry points disagree about the same input.
   {
     name: 'hasAnnouncedSecret stops agreeing with redactSecrets',
