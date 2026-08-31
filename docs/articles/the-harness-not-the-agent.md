@@ -10,7 +10,7 @@ At broberg.ai, essentially all production code is written by AI agents. Not
 assisted, not autocompleted — written. One person sets direction; the agents
 build, review, deploy and operate. That arrangement produces software at a speed
 that used to require a team, across a fleet of live systems: municipal health
-operations, clinic booking and payments, a shared library of forty-odd published
+operations, clinic booking and payments, a shared library of 45 published
 npm packages, an observability platform, a project-management surface, a design
 verification engine.
 
@@ -182,6 +182,12 @@ silence in the middle of a conversation costs two minutes and the experience of
 being ignored. That single change of denominator invalidated the threshold we had
 just derived, and the measurement was re-run against the right unit before
 anything shipped.
+
+When it was re-run, it showed something none of us had guessed: how often he was
+actually sitting there was **the same** for short and long waits. And the short
+waits — median eighteen seconds — were deliberately left outside the guard,
+because a round trip to the background costs more than it saves and would make
+his conversations *slower*. That hour is left on the table on purpose.
 
 That is the whole method in one story: build it, measure it, let the person it
 serves tell you the measurement was of the wrong thing, and go again.
