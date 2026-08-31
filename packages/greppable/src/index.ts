@@ -294,14 +294,17 @@ export function checkGreppable(options: CheckGreppableOptions = {}): GreppableRe
 
   const trackedFiles = listFiles(["--cached"]);
   const untrackedFiles = listFiles(["--others", "--exclude-standard"]);
-  const tracked = [...trackedFiles, ...untrackedFiles];
+  // Named `candidates`, not `tracked`. It holds BOTH lists, and calling it
+  // `tracked` is the exact naming sin this card exists to fix — one word carrying
+  // a limitation that stopped being true.
+  const candidates = [...trackedFiles, ...untrackedFiles];
 
   let scanned = 0;
   const skipped: string[] = [];
   const exempt: GreppableExemption[] = [];
   const offenders: GreppableOffender[] = [];
 
-  for (const file of tracked) {
+  for (const file of candidates) {
     const abs = `${cwd}/${file}`;
     let stat;
     try {
@@ -336,11 +339,11 @@ export function checkGreppable(options: CheckGreppableOptions = {}): GreppableRe
     offenders.push({ file, ...reason, size: buf.length, format, ratio });
   }
 
-  const coverageGap = tracked.length - scanned - skipped.length;
+  const coverageGap = candidates.length - scanned - skipped.length;
   return {
     tracked: trackedFiles.length,
     untracked: untrackedFiles.length,
-    candidates: tracked.length,
+    candidates: candidates.length,
     scanned,
     skipped,
     exempt,
