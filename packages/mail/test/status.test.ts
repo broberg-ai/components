@@ -117,6 +117,20 @@ describe("`to` is a FLOOR, not the recipient count", () => {
     expect(s.to?.length).toBe(1);
   });
 
+  it("treats null cc/bcc as NONE, not as a number", async () => {
+    // MEASURED SHAPE, not a guess: across six real sends cardmem saw
+    //   to=1  cc=null  bcc=null
+    // `null`, never [] and never an absent key. `body.cc?.length ?? 0` yields 0
+    // and looks like an answer; Array.isArray is what separates none from
+    // not-told. This asserts the shape the provider actually sends.
+    const s = await mailerAnswering({
+      body: { ...RESEND_BODY, to: ["a@b.dk"], cc: null, bcc: null },
+    }).getStatus("x");
+    expect("cc" in s).toBe(false);
+    expect("bcc" in s).toBe(false);
+    expect(s.recipientCount).toBe(1);
+  });
+
   it("does not invent a count when the provider returned no recipients at all", async () => {
     // An absent field must not read as zero — "nobody" and "not told" are
     // different answers, and zero is the one that looks like an answer.

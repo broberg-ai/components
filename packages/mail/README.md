@@ -323,13 +323,20 @@ gets backwards:
 > the only evidence there is; it is not a quote from a spec.
 
 > **And do not count recipients with `to.length` (v0.9.0).** The response carries
-> `cc` and `bcc` too, so `to` is a **floor**. cardmem shipped a guard on
-> `to.length > 1`, measured it, and killed it the same evening: the house rule
-> here is that every letter leaving the house is cc'd to one address, so a
-> customer letter reads as *one* recipient through `to` and really has two — a
-> guard that looked finished and fired on almost nothing. `getStatus` now returns
-> `cc`, `bcc` and `recipientCount`. **Do not gate a delivery decision on the count
-> either**: a `suppressed` mail is undecided whatever it says.
+> `cc` and `bcc` too, so `to` is a **floor** — whatever the reason, and whether or
+> not any given send actually uses them. cardmem shipped a guard on
+> `to.length > 1` and killed it the same evening after measuring it.
+> `getStatus` now returns `cc`, `bcc` and `recipientCount`. **Do not gate a
+> delivery decision on the count either**: a `suppressed` mail is undecided
+> whatever it says.
+>
+> Measured across six real sends (cardmem, 2026-08-31): **"no cc" comes back as
+> `null`** — not `[]`, not an absent key. So `body.cc?.length ?? 0` yields `0` and
+> looks like an answer; `Array.isArray` is what separates *none* from *not told*.
+> This package uses the latter, and omits `recipientCount` entirely rather than
+> reporting a number it cannot stand behind. **Still unmeasured:** whether the
+> fields are POPULATED on a send that genuinely has a bcc — none of the six had
+> one.
 
 
 **`bounced` and `suppressed` share a verdict but are not the same event, and the
