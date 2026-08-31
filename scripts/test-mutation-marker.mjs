@@ -63,23 +63,113 @@ check("with NO marker, the hook does not block on layer 0", () => {
   }
 });
 
-mkdirSync(MARKER_PATH, { recursive: true });
-writeFileSync(join(MARKER_PATH, "4242"), "harness  test-harness\nfile     packages/x/src/y.ts\npid      4242\n");
-let blocked;
-try {
-  blocked = runHook();
-} finally {
-  rmSync(MARKER_PATH, { recursive: true, force: true });
-}
+// NAMED AS A FIXTURE, because someone else reads this file. super watched this
+// suite from another session and saw entries claiming a harness was mutating
+// `packages/x/src/y.ts` — a path that does not exist. A marker whose whole job is
+// to explain a confusing tree must not itself be the confusing thing.
+const entryBody = (pid, since = new Date().toISOString()) =>
+  `harness  scripts/test-mutation-marker.mjs (TEST FIXTURE — no real mutation)\n` +
+  `file     (none — this entry is written by the test suite)\n` +
+  `pid      ${pid}\nsince    ${since}\n`;
+const writeEntry = (pid, since) => {
+  mkdirSync(MARKER_PATH, { recursive: true });
+  writeFileSync(join(MARKER_PATH, String(pid)), entryBody(pid, since));
+};
+const hookOver = (pid, since) => {
+  writeEntry(pid, since);
+  try {
+    return runHook();
+  } finally {
+    rmSync(MARKER_PATH, { recursive: true, force: true });
+  }
+};
+
+// A pid that is CERTAINLY alive: this very process.
+const LIVE_PID = process.pid;
+// A pid that is CERTAINLY dead: one we watched exit. Guessing a high number
+// would be a pid that is *probably* free, and "probably" is how a flaky test
+// becomes a false green.
+const DEAD_PID = await new Promise((resolve) => {
+  const c = spawn("node", ["-e", "0"], { stdio: "ignore" });
+  c.on("exit", () => resolve(c.pid));
+});
+
+// `since` a moment ago: this process started BEFORE the entry was written, which
+// is what an entry written by its own live harness looks like.
+const blocked = hookOver(LIVE_PID, new Date().toISOString());
 
 check("with a marker, the commit is REFUSED", () => eq(blocked.code, 1, "hook exit code"));
 check("the block quotes the marker, so the reader learns WHICH harness", () => {
-  has(blocked.out, "test-harness", "harness name not surfaced");
-  has(blocked.out, "packages/x/src/y.ts", "mutated file not surfaced");
-  has(blocked.out, "4242", "pid not surfaced");
+  has(blocked.out, "TEST FIXTURE", "harness name not surfaced");
+  has(blocked.out, "written by the test suite", "file line not surfaced");
+  has(blocked.out, String(LIVE_PID), "pid not surfaced");
+});
+check("a LIVE pid reads as still running, and says to wait", () => {
+  has(blocked.out, "STILL RUNNING", "did not say the harness is alive");
+  has(blocked.out, "Wait for it to finish", "did not tell the reader to wait");
+});
+
+// THE OTHER DIRECTION, and it is the one that matters at 3am: a harness that was
+// killed leaves an entry nobody will clear. The block must say so rather than
+// telling the reader to wait for a process that no longer exists.
+const stale = hookOver(DEAD_PID, new Date().toISOString());
+
+check("a DEAD pid reads as STALE, not as a run in progress", () => {
+  eq(stale.code, 1, "hook exit code");
+  has(stale.out, "STALE", "a dead pid was not reported as stale");
+  if (String(stale.out).includes("STILL RUNNING")) {
+    throw new Error("a dead pid was reported as still running — the reader would wait forever");
+  }
+});
+check("...and it says to CHECK THE FILES before clearing, not just to delete", () => {
+  // The stale case means a restore may never have happened, so the mutation can
+  // still be on disk. Telling someone to `rm` the marker and stop there would
+  // remove the only sign that anything is wrong.
+  has(stale.out, "may still hold", "did not warn that the file may still be mutated");
+  has(stale.out, "git status", "no way to check what was left behind");
+});
+
+// A REUSED PID — super's second finding. A harness that died without clearing
+// its entry leaves a pid the OS is free to hand to something else, and macOS
+// reuses pids overnight. `ps -p` then says "still running" about a stranger, the
+// STALE branch is never reached, and the hook blocks forever on a process that
+// was never ours.
+//
+// This process EXISTS and started long after a marker dated an hour ago — which
+// is exactly the shape of a stranger holding a recycled pid.
+const reused = hookOver(LIVE_PID, new Date(Date.now() - 3600_000).toISOString());
+check("a pid REUSED by another process reads as stale, not as still running", () => {
+  eq(reused.code, 1, "hook exit code");
+  has(reused.out, "REUSED", "a recycled pid was not detected");
+  if (String(reused.out).includes("is STILL RUNNING")) {
+    throw new Error("a stranger holding the pid was reported as our harness — the hook would block forever");
+  }
+});
+
+// AND THE THIRD OUTCOME. When the comparison cannot be made at all, that is not
+// "fine": it keeps the block up AND says the check did not happen, rather than
+// silently taking the reassuring branch. The whole family of defects found
+// today is a check that cannot tell "nothing is wrong" from "I did not look".
+const unreadable = hookOver(LIVE_PID, "not-a-date");
+check("an unreadable `since` says the check could NOT be made, and still blocks", () => {
+  eq(unreadable.code, 1, "hook exit code");
+  has(unreadable.out, "could NOT check", "silently picked a branch it could not justify");
+});
+
+// SUPER'S FIRST FINDING, 2026-09-01, and it changed this message. The block used to
+// say "if nothing is running (ps aux | grep mutations.mjs)". That pattern is a
+// SUBSTRING and matches scripts/test-precommit-secret-gate-mutations.mjs, which
+// never holds the marker — a true count answering a different question. A reader
+// following it would wait for a process that was never the one holding it.
+check("the block never sends the reader to a substring grep", () => {
+  for (const out of [blocked.out, stale.out, reused.out, unreadable.out]) {
+    if (String(out).includes("grep mutations.mjs")) {
+      throw new Error("still recommending `grep mutations.mjs`, which matches unrelated scripts");
+    }
+  }
 });
 check("the block carries the way OUT (--no-verify is forbidden by the contract)", () =>
-  has(blocked.out, `rm `, "no clearing command in the message"));
+  has(stale.out, `rm -r `, "no clearing command in the message"));
 
 check("and the marker is gone again afterwards", () => eq(existsSync(MARKER_PATH), false, "marker left behind"));
 

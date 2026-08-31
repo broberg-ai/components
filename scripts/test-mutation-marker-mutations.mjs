@@ -63,6 +63,34 @@ const MUTATIONS = [
     to: "  if (false) writeMarker({\n    harness,\n    file,\n    note:",
   },
   {
+    // SUPER'S FINDING made concrete. Treat every entry as alive and a stale
+    // marker — a harness that was KILLED, its restore never run — reads as a run
+    // in progress, so the reader waits for a process that does not exist and is
+    // never told the file may still be mutated.
+    name: "a dead pid reads as still running (a stale marker looks like a live run)",
+    file: HOOK,
+    from: '    if ! ps -p "$pid" >/dev/null 2>&1; then',
+    to: '    if false; then',
+  },
+  {
+    // The PID-REUSE check removed: a stranger holding a recycled pid reads as
+    // our harness, the stale branch is never reached, and the hook blocks
+    // forever on a process that was never ours.
+    name: "the start-time comparison is dropped (a recycled pid reads as ours)",
+    file: HOOK,
+    from: '      elif [ "$p" -gt "$((m + 2))" ]; then',
+    to: '      elif false; then',
+  },
+  {
+    // The locale guard removed. This one fails in the SAFE direction — every
+    // live pid falls into "could not check" — and would still have been wrong
+    // every single time, on the only machine this hook runs on.
+    name: "LC_ALL=C dropped from ps (a Danish-locale date stops parsing)",
+    file: HOOK,
+    from: '    started="$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | sed \'s/^ *//;s/ *$//\')"',
+    to: '    started="$(ps -o lstart= -p "$1" 2>/dev/null | sed \'s/^ *//;s/ *$//\')"',
+  },
+  {
     // -f instead of -e: the marker is a DIRECTORY, so a hook testing for a
     // regular file gives a false all-clear on every real run. This is the exact
     // wrong test, kept as a mutation because it is the one a reader would write.

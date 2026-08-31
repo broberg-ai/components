@@ -53,12 +53,95 @@ added_lines() {
 # shared file the first to finish removed it for everyone else still mutating.
 # A reader testing for a regular file gets a false all-clear.
 if [ -e "$ROOT/.mutation-running" ]; then
-  fail "a mutation harness is running (or a restore failed) in this repo.
+  # EACH ENTRY IS NAMED BY ITS PID, so "is this stale?" is answerable rather
+  # than a judgement call — ask the process table about that exact pid.
+  #
+  # This block used to say "if nothing is running (ps aux | grep mutations.mjs)".
+  # super measured that advice and it is WRONG: the pattern is a SUBSTRING and
+  # matches scripts/test-precommit-secret-gate-mutations.mjs, which is not one of
+  # the four marker-bearing harnesses. The count was a true number answering a
+  # different question, and a reader following it would wait for a process that
+  # was never holding the marker. `ps -p <pid>` asks about THIS harness.
+  # THREE STATES, NOT TWO — super's second finding, and it is the same family as
+  # their first. `ps -p <pid>` answers "does this pid exist", NOT "is MY process
+  # still there". A harness that died without clearing its entry leaves a pid the
+  # OS is free to hand to something else, and macOS does reuse pids overnight.
+  # The hook would then report a stranger as "still running", the STALE branch
+  # would never be reached, and it would block forever waiting on a process that
+  # was never ours.
+  #
+  # The entry already carries `since`, so the stranger gives itself away: it
+  # STARTED AFTER the marker was written. Ours started before.
+  marker_epoch() {  # ISO-8601 from the entry -> epoch seconds
+    LC_ALL=C date -j -u -f "%Y-%m-%dT%H:%M:%S" "${1%%.*}" +%s 2>/dev/null
+  }
+  proc_epoch() {    # a pid's start time -> epoch seconds
+    # LC_ALL=C on BOTH, and it is not decoration: on a Danish-locale Mac `ps -o
+    # lstart=` prints "tir.  1 sep. 01:31:34 2026", which `date -f "%a %b %d…"`
+    # cannot parse. Measured — without it every live pid fell into the "could not
+    # check" branch, which is the SAFE direction and would still have been wrong
+    # every single time.
+    started="$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | sed 's/^ *//;s/ *$//')"
+    [ -n "$started" ] || return 1
+    LC_ALL=C date -j -f "%a %b %d %T %Y" "$started" +%s 2>/dev/null
+  }
 
-$(cat "$ROOT/.mutation-running"/* 2>/dev/null | sed 's/^/    /')
+  alive=0
+  detail=""
+  for entry in "$ROOT/.mutation-running"/*; do
+    [ -e "$entry" ] || continue
+    pid="$(basename "$entry")"
+    since="$(sed -n 's/^ *since *//p' "$entry" | head -1)"
 
-  Wait for it to finish, or if nothing is running (ps aux | grep mutations.mjs):
+    if ! ps -p "$pid" >/dev/null 2>&1; then
+      detail="$detail
+  ── pid $pid is GONE: this entry is STALE, the restore never cleaned up ──"
+    else
+      # `|| true` is load-bearing under `set -e`: an unparseable date makes the
+      # substitution non-zero and would kill the hook SILENTLY — no message, no
+      # block, the commit sails through. Measured: the whole layer produced empty
+      # output and three tests failed with `in: <nothing>`.
+      m="$(marker_epoch "$since" || true)"
+      p="$(proc_epoch "$pid" || true)"
+      if [ -z "$m" ] || [ -z "$p" ]; then
+        # Could not compare. That is a THIRD outcome and it is not "fine" — it
+        # keeps the block up and says so, rather than quietly picking the
+        # reassuring branch.
+        alive=$((alive + 1))
+        detail="$detail
+  ── pid $pid EXISTS, but I could NOT check it is the same process (start time
+     unreadable). Treating it as running, because guessing the other way would
+     tell you to clear a marker over a live mutation ──"
+      elif [ "$p" -gt "$((m + 2))" ]; then
+        detail="$detail
+  ── pid $pid was REUSED: a different process now holds it (started after this
+     entry was written). The harness is gone — this entry is STALE ──"
+      else
+        alive=$((alive + 1))
+        detail="$detail
+  ── pid $pid is STILL RUNNING ──"
+      fi
+    fi
 
+    detail="$detail
+$(sed 's/^/    /' "$entry")"
+  done
+
+  if [ "$alive" -gt 0 ]; then
+    fail "a mutation harness is still running in this repo ($alive of them).
+$detail
+
+  Wait for it to finish — the marker clears itself."
+  fi
+
+  fail "a mutation harness left this behind and is NOT running any more.
+$detail
+
+  Every entry is stale, so either a harness was killed mid-run or a restore
+  failed. CHECK THE FILES NAMED ABOVE before you clear it — they may still hold
+  the mutation:
+
+    git status
     rm -r $ROOT/.mutation-running"
 fi
 
