@@ -35,7 +35,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/stack-b-base** (planned) — A ready-to-run base scaffold for Stack B apps (Bun · Hono · Preact · Tailwind v4) so a new lightweight service boots with the house wiring already …. `npm i @broberg/stack-b-base`
 - **@broberg/stack-a-base** (planned) — The Stack A counterpart. `npm i @broberg/stack-a-base`
 - **@broberg/config** v0.2.0 — The fleet's single-source config helper. `npm i @broberg/config`
-- **@broberg/mail** v0.8.0 — The fleet's thin Resend send primitive, plus a status lookup that answers whether a mail actually arrived. `npm i @broberg/mail`
+- **@broberg/mail** v0.8.1 — The fleet's thin Resend send primitive, plus a status lookup that answers whether a mail actually arrived. `npm i @broberg/mail`
 - **@broberg/media** v0.2.1 — The fleet's provider-agnostic media-storage facade. `npm i @broberg/media`
 - **@broberg/mail-core** v0.1.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
 - **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
@@ -43,7 +43,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/chat** v0.6.3 — The fleet's AI-chat engine: a conversation loop with a tool registry, streaming typed frames, knowledge from Trail, and history management. `npm i @broberg/chat`
 - **@broberg/webpush** v0.5.0 — The fleet's storage-agnostic Web Push primitive. `npm i @broberg/webpush`
 - **@broberg/mcp** v0.5.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
-- **@broberg/secret-scan** v0.7.0 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
+- **@broberg/secret-scan** v0.7.2 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
 - **@broberg/lens** v0.1.3 — A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem…. `npm i @broberg/lens`
 
 ### L1 — Identity (who the user is)
@@ -75,7 +75,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/forms-turnstile** v0.3.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
 - **@broberg/logger** v0.2.0 — Structured server logging for the fleet. `npm i @broberg/logger`
 - **@broberg/http** v0.1.0 — Framework-free, zero-dep HTTP header/response primitives for Node/Bun/edge. `npm i @broberg/http`
-- **@broberg/greppable** v0.2.0 — A cc-session grep is NOT /usr/bin/grep. `npm i @broberg/greppable`
+- **@broberg/greppable** v0.3.0 — A cc-session grep is NOT /usr/bin/grep. `npm i @broberg/greppable`
 - **@broberg/seti-client** v0.4.0 — The SETI streaming-chat client. `npm i @broberg/seti-client`
 - **@broberg/seti-server** v0.2.5 — The SETI proxy router. `npm i @broberg/seti-server`
 - **@broberg/soundkit** v0.1.0 — SoundKit. `npm i @broberg/soundkit`
