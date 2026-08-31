@@ -15,6 +15,22 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 fail() { echo "" >&2; echo "COMMIT BLOCKED — $1" >&2; echo "" >&2; exit 1; }
 
+# Only ADDED lines are scanned (F061.4). A secret on a REMOVED line is already in
+# git history, so refusing that commit blocks the only cleanup that helps and
+# leaves --no-verify as the sole way out — which must never happen to this gate.
+# Measured: deleting a doc that quoted AWS's public example key was refused by the
+# very layer that exists to get such a value out of the tree.
+#
+# `grep` exits 1 when it matches nothing, which under `set -euo pipefail` would
+# kill the hook. A diff with zero added lines is not an error — it is exactly the
+# pure-deletion commit this exists for — so both greps tolerate an empty result.
+added_lines() {
+  git diff --cached -U0 -- "$@" \
+    | { grep '^+' || true; } \
+    | { grep -v '^+++' || true; } \
+    | sed 's/^+//'
+}
+
 # ── 1. The env file itself must never be staged ────────────────────────────
 staged_env="$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)"
 if [ -n "$staged_env" ]; then
@@ -28,7 +44,7 @@ fi
 # The layer that catches a credential with no recognisable format.
 if [ -f "$ROOT/.env" ]; then
   diff_file="$(mktemp)"; trap 'rm -f "$diff_file"' EXIT
-  git diff --cached > "$diff_file"
+  added_lines . > "$diff_file"
   while IFS= read -r line; do
     name="${line%%=*}"
     value="${line#*=}"
@@ -62,7 +78,7 @@ if [ -f "$SCAN" ]; then
       EXCLUDES+=(":(exclude)$pat")
     done < "$ROOT/.secretscanignore"
   fi
-  git diff --cached -- . "${EXCLUDES[@]}" | node --input-type=module -e '
+  added_lines . "${EXCLUDES[@]}" | node --input-type=module -e '
     const { redactSecrets } = await import(process.argv[1]);
     let text = ""; for await (const c of process.stdin) text += c;
     const r = redactSecrets(text);
