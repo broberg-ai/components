@@ -13,6 +13,11 @@
  * chokepoint every repo currently duplicates into this one place.
  */
 
+import { MAIL_EVENT_TYPES, verdictForEvent, type MailEventType, type MailVerdict } from "./events";
+
+export type { MailEventType, MailVerdict } from "./events";
+export { MAIL_EVENT_TYPES, verdictForEvent } from "./events";
+
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
 /**
@@ -125,8 +130,61 @@ export interface MailerConfig {
  */
 export type DeliveryMode = "live" | "allowlist-only" | "disabled" | "no-key";
 
+/** What `getStatus` asks the provider for beyond the verdict. */
+export interface MailStatusOptions {
+  /**
+   * Include the message BODY (`html` / `text`) in the result. Default **false**,
+   * and deliberately so: the provider returns the entire message on this
+   * endpoint, and a status object is the first thing a consumer logs. Asking
+   * "did it arrive?" must not quietly hand back what was said.
+   */
+  includeBody?: boolean;
+}
+
+/** The answer to "what became of this mail?". */
+export interface MailStatus {
+  /** The decision. Switch on THIS, never on `providerStatus`. */
+  verdict: MailVerdict;
+  /** The provider's own latest event, verbatim, for a reader who needs the
+   *  detail. Absent when we could not look. */
+  providerStatus?: MailEventType | string;
+  /** Why the verdict is `unknown`. Present ONLY on `unknown`, and always then —
+   *  a third state with no reason is a shrug wearing a type. */
+  reason?: string;
+  id?: string;
+  to?: string[];
+  from?: string;
+  subject?: string;
+  /** Provider timestamp for the send, ISO-8601, as sent. */
+  at?: string;
+  /** Only when `includeBody` was passed. */
+  html?: string;
+  /** Only when `includeBody` was passed. */
+  text?: string;
+}
+
 export interface Mailer {
   send(message: MailMessage): Promise<MailResult>;
+  /**
+   * Ask the provider what became of a mail you sent, by the id `send()`
+   * returned.
+   *
+   *     const s = await mailer.getStatus(id);
+   *     if (s.verdict === "failed") fixTheAddress();
+   *     if (s.verdict === "unknown") console.warn(s.reason);   // do NOT treat as failure
+   *
+   * FOUR STATES, AND THE FOURTH IS THE ONE THAT MATTERS. `unknown` means WE
+   * COULD NOT LOOK — a send-only key (401), an id the provider does not have
+   * (404), a network that did not answer. None of those is a delivery failure,
+   * and a consumer that collapses them into one tells a customer their address
+   * is wrong when the real problem is our own key.
+   *
+   * THIS IS A SNAPSHOT, NOT A HISTORY. It reports the provider's LATEST event,
+   * so it cannot tell you a mail was delivered and complained about later — it
+   * shows the newest. The webhook stream (`@broberg/mail/webhook`) is the
+   * history; this is the question you ask about one id, now.
+   */
+  getStatus(providerId: string, options?: MailStatusOptions): Promise<MailStatus>;
   /**
    * What this mailer resolved to at creation. Assert it at boot:
    *
@@ -230,8 +288,107 @@ export function createMailer(config: MailerConfig = {}): Mailer {
         ? "live"
         : "allowlist-only";
 
+  const unknown = (reason: string, providerStatus?: string): MailStatus =>
+    providerStatus === undefined
+      ? { verdict: "unknown", reason }
+      : { verdict: "unknown", reason, providerStatus };
+
   return {
     mode,
+
+    async getStatus(providerId: string, options?: MailStatusOptions): Promise<MailStatus> {
+      // Every branch below returns `unknown` WITH A REASON rather than throwing
+      // or answering "failed". The whole value of this function is that the
+      // caller can tell "it did not arrive" from "I could not find out".
+      if (!config.apiKey) {
+        return unknown("no API key on this mailer, so the provider was never asked");
+      }
+      if (!doFetch) {
+        return unknown("no fetch available (no global fetch; pass MailerConfig.fetch)");
+      }
+      if (!providerId) {
+        return unknown("no provider id given");
+      }
+
+      let res: Response;
+      try {
+        res = await doFetch(`${RESEND_ENDPOINT}/${encodeURIComponent(providerId)}`, {
+          headers: { Authorization: `Bearer ${config.apiKey}` },
+        });
+      } catch (err) {
+        return unknown(
+          `could not reach the provider: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        // The case that made this whole story necessary. A send-only key answers
+        // 401 here, and reading that as a bounce is how a repo ends up telling a
+        // real customer their address is broken.
+        return unknown(
+          "this API key is not authorised to read email status (a send-only key answers 401) — " +
+            "this is NOT a delivery failure",
+        );
+      }
+      if (res.status === 404) {
+        return unknown("the provider has no email with that id");
+      }
+      if (!res.ok) {
+        return unknown(`the provider answered HTTP ${res.status}`);
+      }
+
+      let body: Record<string, unknown>;
+      try {
+        body = (await res.json()) as Record<string, unknown>;
+      } catch {
+        return unknown("the provider's response was not JSON");
+      }
+      if (!body || typeof body !== "object") {
+        return unknown("the provider's response was not an object");
+      }
+
+      const last = body.last_event;
+      if (typeof last !== "string") {
+        return unknown("the provider's response carried no last_event");
+      }
+      if (!MAIL_EVENT_TYPES.includes(last as MailEventType)) {
+        // A type the provider grew after this version shipped. Reported as
+        // unknown WITH the raw value, never reshaped into a status we do know —
+        // guessing here is how a new failure mode reads as a delivery.
+        return unknown(
+          `the provider reported an event this version does not know: ${last}`,
+          last,
+        );
+      }
+
+      const to = body.to;
+      const status: MailStatus = {
+        verdict: verdictForEvent(last as MailEventType),
+        providerStatus: last as MailEventType,
+      };
+      // `received` is INBOUND mail and answers `unknown` — so it needs a reason
+      // like every other unknown, or the field's own invariant breaks.
+      if (status.verdict === "unknown") {
+        status.reason =
+          "the provider reported an INBOUND event (email.received), which says nothing " +
+          "about an outbound mail";
+      }
+      if (typeof body.id === "string") status.id = body.id;
+      if (Array.isArray(to)) status.to = to.filter((x): x is string => typeof x === "string");
+      else if (typeof to === "string") status.to = [to];
+      if (typeof body.from === "string") status.from = body.from;
+      if (typeof body.subject === "string") status.subject = body.subject;
+      if (typeof body.created_at === "string") status.at = body.created_at;
+      // The body is DROPPED unless asked for. The provider sends the whole
+      // message on this endpoint, and a status object is the first thing a
+      // consumer logs.
+      if (options?.includeBody) {
+        if (typeof body.html === "string") status.html = body.html;
+        if (typeof body.text === "string") status.text = body.text;
+      }
+      return status;
+    },
+
     async send(message: MailMessage): Promise<MailResult> {
       // Dev kill-switch / ship-dark: never crash a flow when mail is off.
       if (config.disabled || !config.apiKey) {

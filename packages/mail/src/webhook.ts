@@ -18,6 +18,8 @@
 // to run without a secret rather than defaulting to "unverified but working".
 //
 // Zero dependencies, like the rest of this package: node:crypto only.
+import { MAIL_EVENT_TYPES, type MailEventType } from './events';
+
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /** How far a webhook timestamp may be from now. Guards replay of a captured
@@ -112,14 +114,8 @@ export function verifyWebhook(
 }
 
 /** The delivery outcomes worth acting on, plus engagement. */
-export type MailEventType =
-  | 'sent'
-  | 'delivered'
-  | 'delivery_delayed'
-  | 'bounced'
-  | 'complained'
-  | 'opened'
-  | 'clicked';
+export type { MailEventType, MailVerdict } from './events';
+export { MAIL_EVENT_TYPES, verdictForEvent } from './events';
 
 export interface MailEvent {
   type: MailEventType;
@@ -136,15 +132,6 @@ export interface MailEvent {
   raw: unknown;
 }
 
-const KNOWN: readonly MailEventType[] = [
-  'sent',
-  'delivered',
-  'delivery_delayed',
-  'bounced',
-  'complained',
-  'opened',
-  'clicked',
-];
 
 /**
  * Parse a Resend webhook body into a typed event.
@@ -167,7 +154,7 @@ export function parseMailEvent(rawBody: string): MailEvent | null {
 
   // "email.delivered" → "delivered". A type outside our union stays null.
   const short = b.type.startsWith('email.') ? b.type.slice(6) : b.type;
-  if (!KNOWN.includes(short as MailEventType)) return null;
+  if (!MAIL_EVENT_TYPES.includes(short as MailEventType)) return null;
 
   const data = (b.data ?? {}) as Record<string, unknown>;
   const to = data.to;

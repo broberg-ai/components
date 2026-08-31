@@ -239,18 +239,109 @@ One caveat for anyone extending this: **bun cannot tell NXDOMAIN from NODATA** �
 
 **`region` is not guessed.** Without it the MX fix reads `feedback-smtp.<region>.amazonses.com` and says the region must be supplied. A confidently wrong region produces a record that looks right and routes bounces nowhere.
 
+## `mailer.getStatus(id)` (v0.8.0) — did it actually arrive?
+
+`send()` returning `{ ok: true, id }` means the provider **accepted** the mail.
+It does not mean anyone received it. `getStatus` asks:
+
+```ts
+const sent = await mailer.send({ to, subject, html });
+// ...later, from the id you stored
+const s = await mailer.getStatus(sent.id);
+
+switch (s.verdict) {
+  case "delivered": break;                       // it reached them
+  case "failed":    fixTheAddress(s.to); break;  // it did not, and will not
+  case "pending":   break;                       // still moving; ask again later
+  case "unknown":   console.warn(s.reason);      // WE COULD NOT LOOK — not a failure
+}
+```
+
+### Four states, and the fourth is the one that matters
+
+| verdict | means | provider events behind it |
+|---|---|---|
+| `delivered` | it reached the recipient | `delivered` `opened` `clicked` `complained` |
+| `failed` | it did not, and will not | `bounced` `failed` `suppressed` |
+| `pending` | still moving | `sent` `scheduled` `delivery_delayed` |
+| `unknown` | **we could not look** | 401 · 404 · network · a shape we do not know · `received` |
+
+Two rows are worth reading twice, because they are the ones a hand-rolled version
+gets backwards:
+
+- **`complained` counts as delivered.** The mail arrived; the recipient then
+  pressed "spam". Filed under failure, you tell a customer their address is
+  broken when it is fine.
+- **`suppressed` counts as failed.** It was never attempted — the address is on
+  a suppression list. Filed under pending, you wait for a delivery that cannot
+  come.
+
+**`unknown` is never `ok: false`, and never `failed`.** A send-only key answers
+`401`, an id the provider does not have answers `404`, an unreachable network
+answers nothing — and none of those is a delivery failure. Every `unknown`
+carries a `reason` saying which one it was.
+
+### The key right this needs
+
+**`getStatus` requires a Resend key with read access.** A **send-only** key
+answers `401`, which this reports as:
+
+> `verdict: "unknown"` — *this API key is not authorised to read email status (a
+> send-only key answers 401) — this is NOT a delivery failure*
+
+Said out loud here because the failure mode is silent: without the distinction, a
+key-permission problem reads as "not delivered" and the next thing that happens
+is an email to a customer about an address that was never wrong.
+
+### The body is not returned unless you ask
+
+The provider returns the **entire message** (`html`, `text`) on this endpoint,
+and a status object is the first thing anyone logs. So it is dropped:
+
+```ts
+await mailer.getStatus(id);                        // no html/text keys at all
+await mailer.getStatus(id, { includeBody: true }); // opt in explicitly
+```
+
+### Lookup or webhook? Both, and they answer different questions
+
+|  | `getStatus(id)` | the webhook (below) |
+|---|---|---|
+| answers | what is the state of **this id**, now | what just happened, to anything |
+| catches a bounce an hour later | only if you ask again | yes, when it happens |
+| needs | a read-capable key | a public endpoint + the signing secret |
+
+`getStatus` reports the provider's **latest** event, so it is a snapshot, not a
+history — it cannot tell you a mail was delivered and complained about
+afterwards; it shows the newest. Use the webhook as the record and `getStatus`
+to answer a question about one message.
+
 ## API
 
-- `createMailer(config?) → Mailer` — the returned mailer carries `.mode` (above)
+- `createMailer(config?) → Mailer` — carries `.mode` and `.getStatus(id, opts?)` (above)
 - `createMailerFromEnv(overrides?) → Mailer`
 - `mailAllowed(to, { live?, allowlist? }) → boolean` — the pure recipient gate.
 - `buildFrom(name, address) → "name <address>"`
 - `ALWAYS_ALLOWED` — fleet admins always reachable through the gate.
+- `verdictForEvent(event) → MailVerdict` · `MAIL_EVENT_TYPES` — the shared
+  event vocabulary, so the webhook parser and `getStatus` cannot disagree.
 
 Owned + published by [`broberg-ai/components`](https://github.com/broberg-ai/components)
 (epic **F005**). MIT.
 
 ## Delivery webhook (v0.4.0) — the send response cannot tell you it arrived
+
+> **v0.8.0 — four events used to be dropped on the floor, and `onEvent` now
+> fires for them.** `parseMailEvent` refuses to guess at a type it does not know,
+> which is right — but its list was written before Resend had
+> `email.failed`, `email.received`, `email.scheduled` and `email.suppressed`,
+> and it returned `null` for all four. **Two of them (`failed`, `suppressed`)
+> mean the mail did not arrive**, so a consumer wired only to `onEvent` was
+> losing exactly the events worth waking up for; a non-delivery nobody was told
+> about looks identical to a webhook that never came. If your handler switches
+> on `event.type`, add cases for the four — otherwise they fall through whatever
+> your `default` does. A type Resend invents *tomorrow* still parses to `null`
+> and still reaches `onIgnored` as `unknown_type`.
 
 `send()` succeeding means the provider **accepted** the mail. Whether it landed
 only ever appears on the webhook stream:
