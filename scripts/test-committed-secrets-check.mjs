@@ -14,7 +14,7 @@
 // hole in the guard; a concatenation is not.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, mkdirSync, copyFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, copyFileSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -167,6 +167,27 @@ console.log("CI committed-secret guard — five distinguishable outcomes\n");
   check("still fails", code === 1, `(exit=${code})`);
   check("reports the file", out.includes("src/key.pem"));
   check("and SAYS the line could not be pinned rather than dropping it", out.includes("spans multiple lines"));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+// 7. THE FALSE GREEN THIS SCRIPT'S OWN NAME INVITES. A secret that is COMMITTED
+//    and then edited out of the working tree without committing leaves the repo
+//    carrying it. Reading from disk reports clean; reading the committed blob does
+//    not. Found by reviewing this card in its own auto-review gate, and measured
+//    before it was fixed — the check said "no credentials in the tracked tree"
+//    while `git show HEAD:src.js` still held the key.
+{
+  console.log("committed but edited out of the working tree");
+  const { dir, git } = makeRepo({ files: { "src.js": `const k = "${AWS_KEY}";\n` } });
+  // The fixture commit already carries the key. Now clean ONLY the working tree.
+  writeFileSync(join(dir, "src.js"), 'const k = "harmless";\n');
+  const committed = git("show", "HEAD:src.js").toString();
+  const onDisk = readFileSync(join(dir, "src.js"), "utf8");
+  check("fixture is set up: committed and working tree DIFFER",
+    committed.includes(AWS_KEY) && !onDisk.includes(AWS_KEY));
+  const { code, out } = run(dir);
+  check("the committed credential is still found", code === 1, `(exit=${code})`);
+  check("and it is located in the file", /src\.js:1\b/.test(out));
   rmSync(dir, { recursive: true, force: true });
 }
 

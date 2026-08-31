@@ -58,6 +58,14 @@ if (false) {
     expect: "says the SCANNER is missing, not that the tree is clean",
   },
   {
+    // The false green found in this card's own review gate: reading the working
+    // tree instead of the committed blob.
+    name: "reads the working tree instead of the committed blob",
+    find: "  const buf = blobs.get(rel);\n  if (!buf) { unreadable++; continue; }",
+    replace: "  let buf;\n  try { buf = readFileSync(join(REPO, rel)); } catch { unreadable++; continue; }",
+    expect: "the committed credential is still found",
+  },
+  {
     // A run that read nothing satisfies findings.length === 0.
     name: "scanning zero files reports clean",
     find: "if (scanned === 0) {",

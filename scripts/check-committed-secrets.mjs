@@ -44,10 +44,44 @@ const excludes = existsSync(ignoreFile)
       .map((p) => `:(exclude)${p}`)
   : [];
 
-const files = execFileSync("git", ["ls-files", "-z", "--", ".", ...excludes], {
+// Read the COMMITTED blobs, not the working tree. This script's name is a claim
+// about the repository, and the working tree is a different thing: a secret that
+// is committed and then edited out locally without committing leaves the repo
+// carrying it while `readFileSync` returns the clean version. Measured — that
+// exact case reported "no credentials in the tracked tree" while `git show
+// HEAD:src.js` still held the key. Harmless in CI (a fresh checkout IS HEAD) and
+// a false green everywhere else, which is the shape this repo keeps naming.
+//
+// `git ls-files -s` gives each path's blob sha, and one `git cat-file --batch`
+// streams every blob in a SINGLE process — 780 subprocesses would have been the
+// obvious way and is why the naive fix looks too expensive to bother with.
+const entries = execFileSync("git", ["ls-files", "-s", "-z", "--", ".", ...excludes], {
   cwd: REPO,
   maxBuffer: 1 << 28,
-}).toString().split("\0").filter(Boolean);
+}).toString().split("\0").filter(Boolean).map((l) => {
+  const tab = l.indexOf("\t");
+  return { sha: l.slice(0, tab).split(" ")[1], path: l.slice(tab + 1) };
+});
+
+// `<sha> <type> <size>\n<content>\n` per entry, in input order.
+const blobs = new Map();
+if (entries.length) {
+  const batch = execFileSync("git", ["cat-file", "--batch"], {
+    cwd: REPO,
+    input: entries.map((e) => e.sha).join("\n") + "\n",
+    maxBuffer: 1 << 29,
+  });
+  let off = 0;
+  for (const e of entries) {
+    const nl = batch.indexOf(0x0a, off);
+    if (nl === -1) break;
+    const size = Number(batch.toString("ascii", off, nl).split(" ")[2]);
+    if (!Number.isFinite(size)) break;
+    blobs.set(e.path, batch.subarray(nl + 1, nl + 1 + size));
+    off = nl + 1 + size + 1;
+  }
+}
+const files = entries.map((e) => e.path);
 
 const real = (text) =>
   (redactSecrets(text, { announced: true }).findings ?? [])
@@ -58,8 +92,8 @@ let unreadable = 0;
 const findings = [];
 
 for (const rel of files) {
-  let buf;
-  try { buf = readFileSync(join(REPO, rel)); } catch { unreadable++; continue; }
+  const buf = blobs.get(rel);
+  if (!buf) { unreadable++; continue; }
   // A NUL byte or invalid UTF-8 means this is not text we can search. Counted,
   // never silently dropped — an unread file is not a clean file.
   if (buf.includes(0)) { unreadable++; continue; }
