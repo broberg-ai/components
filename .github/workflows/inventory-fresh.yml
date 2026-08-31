@@ -73,7 +73,7 @@ jobs:
       # silently changed its predicate under us is the failure this package exists
       # to prevent.
       - name: Every tracked text file is greppable
-        run: npx --yes @broberg/greppable@0.2.0
+        run: npx --yes @broberg/greppable@0.3.0
 
       # F038.8 — this job ALREADY failed on a file that does not parse, but only
       # by side effect: a broken source cannot regenerate, so the step below
