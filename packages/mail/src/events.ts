@@ -58,9 +58,28 @@ export type MailVerdict = 'delivered' | 'failed' | 'pending' | 'unknown';
  *   complained → delivered  it ARRIVED; the recipient then pressed "spam".
  *                           Filed under failure, a repo tells a customer their
  *                           address is broken when it is fine.
- *   suppressed → failed     it was never attempted (the address is on a
- *                           suppression list). Filed under pending, a repo
+ *   suppressed → failed     at least ONE recipient was skipped (an address on
+ *                           the suppression list). Filed under pending, a repo
  *                           waits for a delivery that cannot come.
+ *
+ * ⚠️ `last_event` IS A MESSAGE STATUS, NOT A RECIPIENT STATUS, and this comment
+ * said the opposite through 0.8.1 — that the send had not been tried at all.
+ * Measured by
+ * fd-sundhed against production on 2026-08-31, with a control and an independent
+ * witness: a mail to [cb@webhouse.dk, <a suppressed address>] reported
+ * `suppressed` AND cb@webhouse.dk received it (id 37a5ac15-…; cardmem's mail
+ * watcher saw it land at 19:47:54). A single-recipient control reported
+ * `delivered` (id 43a7af23-…).
+ *
+ * So on a multi-recipient send, `suppressed` means SOME address was skipped —
+ * the others are delivered. The verdict stays `failed` on purpose: it is correct
+ * for one recipient, and `failed` is the STRICT branch. Loosening the default
+ * would widen the gate at every consumer that has not yet handled a new case
+ * (F070). To tell "one of three" from "all three" you need the suppression list
+ * itself — see F005.12; there is no getSuppressions() yet.
+ *
+ * Resend's own documentation does not describe this behaviour at all, so the
+ * measurement above is the ONLY evidence. Do not upgrade it to a spec claim.
  *
  * And one that is not a delivery question at all: `received` is INBOUND — "Resend
  * successfully receives an email", i.e. mail arriving at your inbound address.

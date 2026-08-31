@@ -241,6 +241,23 @@ One caveat for anyone extending this: **bun cannot tell NXDOMAIN from NODATA** �
 
 ## `mailer.getStatus(id)` (v0.8.0) — did it actually arrive?
 
+> **Upgrading from ≤0.7.x — one breaking TYPE change, my mistake in a minor.**
+> 0.8.0 added `getStatus` as a **required** member of the published `Mailer`
+> interface. Anything you hand-wrote and annotated `Mailer` — a test double, a
+> mock, a wrapper — now fails to typecheck with *"Property 'getStatus' is missing
+> …"*. The one-line fix is to type the double by what it actually provides:
+>
+> ```ts
+> const fake: Pick<Mailer, "send"> = { send: async () => ({ ok: true }) };
+> ```
+>
+> It is deliberately **not** made optional: `createMailer` always provides
+> `getStatus`, so `getStatus?` would be a type that lies in the other direction
+> and force every caller to handle a case that cannot happen. (fd-sundhed
+> measured that this did not hit them — they never name the type — and their read
+> is the right one: that was luck, not design.)
+
+
 `send()` returning `{ ok: true, id }` means the provider **accepted** the mail.
 It does not mean anyone received it. `getStatus` asks:
 
@@ -272,9 +289,39 @@ gets backwards:
 - **`complained` counts as delivered.** The mail arrived; the recipient then
   pressed "spam". Filed under failure, you tell a customer their address is
   broken when it is fine.
-- **`suppressed` counts as failed.** It was never attempted — the address is on
-  a suppression list. Filed under pending, you wait for a delivery that cannot
-  come.
+- **`suppressed` counts as failed.** At least one recipient was skipped — an
+  address on the suppression list. Filed under pending, you wait for a delivery
+  that cannot come.
+
+> ⚠️ **`last_event` is a MESSAGE status, not a RECIPIENT status — and this section
+> said otherwise through 0.8.1** ("it was never attempted"). Measured by
+> fd-sundhed against production on 2026-08-31, with a control and an independent
+> witness:
+>
+> ```
+> to: [cb@webhouse.dk, <a suppressed address>]   → suppressed
+>     cb@webhouse.dk RECEIVED IT                   id 37a5ac15-d91c-49ac-a37e-d8a991096631
+> to: [cb@webhouse.dk]            (control)      → delivered, received
+>                                                  id 43a7af23-6670-4ebd-8f46-0aac8fa327a7
+> ```
+>
+> (cardmem's mail watcher saw the first one land at 19:47:54, the same second
+> Resend created it — so the delivery is not the reporter's own claim.)
+>
+> **So on a multi-recipient send, `suppressed` means SOME address was skipped;
+> the rest are delivered.** If you have mail types with several recipients, a
+> `failed` verdict alone will tell you "not delivered" about a mail that reached
+> exactly the person it was about.
+>
+> **The verdict stays `failed` on purpose.** It is correct for a single
+> recipient, and `failed` is the strict branch — loosening the default would
+> widen the gate at every consumer that has not yet handled a new case. To
+> separate "one of three was skipped" from "all three were", you need the
+> suppression list itself, and `getSuppressions()` does not exist yet (F005.12).
+>
+> **Resend does not document this behaviour anywhere.** The measurement above is
+> the only evidence there is; it is not a quote from a spec.
+
 
 **`bounced` and `suppressed` share a verdict but are not the same event, and the
 difference is what you tell a person.** A bounce is a *mailbox* rejecting us; a
