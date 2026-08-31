@@ -20,6 +20,8 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+// F081.1 — announce the mutated tree, and PROVE the restore took.
+import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(PKG, "src/fields.ts");
@@ -144,6 +146,10 @@ const original = readFileSync(SRC, "utf8");
 const seen = new Map();
 let problems = 0;
 
+// BEFORE the first mutation. Written after it, the marker would leave open the
+// exact window it exists to close.
+writeMarker({ harness: "@broberg/stripe test/mutations.mjs", file: SRC });
+try {
 for (const m of MUTATIONS) {
   if (!original.includes(m.from)) {
     console.log(`ANCHOR MISSING — ${m.name}\n    the substitution matched nothing, so this mutation never applied`);
@@ -162,6 +168,10 @@ for (const m of MUTATIONS) {
     r = redSet();
   } finally {
     writeFileSync(SRC, original);
+    // The guard. A restore that FAILED is otherwise indistinguishable from one
+    // that was not needed — which is how buddy's harness lost a file on
+    // 2026-08-14 with a green run to show for it. Does not return on mismatch.
+    assertRestored({ harness: "@broberg/stripe test/mutations.mjs", file: SRC, expected: original });
   }
   if (!r.died) {
     console.log(`  UNCAUGHT  ${m.name}\n            the suite stayed GREEN — this decision is undefended.`);
@@ -185,6 +195,10 @@ for (const m of MUTATIONS) {
   seen.set(key, m.name);
   console.log(`  killed    ${m.name}  → ${r.red.length} red`);
   for (const t of r.red.slice(0, 2)) console.log(`              · ${t}`);
+}
+
+} finally {
+  clearMarker();
 }
 
 console.log("");

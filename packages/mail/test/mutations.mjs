@@ -19,6 +19,8 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
+// F081.1 — announce the mutated tree, and PROVE the restore took.
+import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 import { fileURLToPath } from "node:url";
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -93,6 +95,10 @@ const ANSI = new RegExp(String.fromCharCode(27) + "\\[[0-9;]*m", "g");
 let uncaught = 0;
 const redSets = [];
 
+// BEFORE the first mutation. Written after it, the marker would leave open the
+// exact window it exists to close. The file named is the first of the several
+// this harness rotates through; it is updated per mutation below.
+writeMarker({ harness: "@broberg/mail test/mutations.mjs", file: Object.values(FILES)[0] });
 try {
   for (const m of MUTATIONS) {
     const file = FILES[m.file];
@@ -110,6 +116,10 @@ try {
       continue;
     }
 
+    // This harness rotates across several files, so the marker has to name the
+    // one that is broken RIGHT NOW — a reader who opens it wants that file, not
+    // the first one the run happened to touch.
+    writeMarker({ harness: "@broberg/mail test/mutations.mjs", file });
     writeFileSync(file, mutated);
     let out = "";
     let died = false;
@@ -120,6 +130,10 @@ try {
       died = true;
     } finally {
       writeFileSync(file, original);
+      // The guard. A restore that FAILED is otherwise indistinguishable from one
+      // that was not needed — which is how buddy's harness lost a file on
+      // 2026-08-14 with a green run to show for it. Does not return on mismatch.
+      assertRestored({ harness: "@broberg/mail test/mutations.mjs", file, expected: original });
     }
 
     if (!died) {
@@ -164,8 +178,10 @@ try {
 } finally {
   for (const [name, file] of Object.entries(FILES)) {
     copyFileSync(join(backup, `${name}.ts`), file);
+    assertRestored({ harness: "@broberg/mail test/mutations.mjs", file, expected: originals[name] });
   }
   rmSync(backup, { recursive: true, force: true });
+  clearMarker();
 }
 
 const identical = redSets.length !== new Set(redSets).size;

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Refuse to commit a secret. Three layers, cheapest first.
+# Refuse to commit a secret, or a mutation. Four layers, cheapest first.
+#
+# Layer 0 is not about secrets at all (F081.1) — it refuses while a mutation
+# harness has broken code on disk. It sits here because this is the one place
+# every commit already passes through.
 #
 # Written 2026-08-23 after a GatewayAPI token arrived and this repo turned out to
 # have NO git hooks at all — nothing stood between a credential and `git push`.
@@ -30,6 +34,33 @@ added_lines() {
     | { grep -v '^+++' || true; } \
     | sed 's/^+//'
 }
+
+# ── 0. Not while a mutation harness is running ─────────────────────────────
+# A harness puts DELIBERATELY BROKEN code on disk for seconds at a time — a
+# guard rewritten to `if (false)`, a fallback deleted — and then restores it. A
+# commit that lands inside that window captures the mutant.
+#
+# CI would catch it (the mutated code fails its own tests), so this is not the
+# last line of defence. It is here because the alternative is a rule an agent has
+# to remember, and the harness contract in CLAUDE.md is explicit that a gate must
+# not depend on remembering anything. Cheapest layer, so it runs first.
+#
+# The marker also STAYS BEHIND when a restore fails, which is the case that
+# matters: the tree is then genuinely broken and this block is the only thing
+# standing in front of it. Its contents say which of the two it is.
+# -e, NOT -f. It is a DIRECTORY with one entry per PID: `turbo run test` runs
+# packages in parallel, so several harnesses hold it at once, and with a single
+# shared file the first to finish removed it for everyone else still mutating.
+# A reader testing for a regular file gets a false all-clear.
+if [ -e "$ROOT/.mutation-running" ]; then
+  fail "a mutation harness is running (or a restore failed) in this repo.
+
+$(cat "$ROOT/.mutation-running"/* 2>/dev/null | sed 's/^/    /')
+
+  Wait for it to finish, or if nothing is running (ps aux | grep mutations.mjs):
+
+    rm -r $ROOT/.mutation-running"
+fi
 
 # ── 1. The env file itself must never be staged ────────────────────────────
 staged_env="$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)"

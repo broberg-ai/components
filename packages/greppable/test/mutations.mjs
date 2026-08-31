@@ -17,6 +17,8 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// F081.1 — announce the mutated tree, and PROVE the restore took.
+import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 
 const REPO = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().trim();
 const PKG = join(REPO, "packages", "greppable");
@@ -48,6 +50,9 @@ copyFileSync(SRC, safe);
 let uncaught = 0;
 const redSets = [];
 
+// BEFORE the first mutation. Written after it, the marker would leave open the
+// exact window it exists to close.
+writeMarker({ harness: "@broberg/greppable test/mutations.mjs", file: SRC });
 try {
   for (const m of MUTATIONS) {
     if (!original.includes(m.find)) {
@@ -108,7 +113,12 @@ try {
   }
 } finally {
   copyFileSync(safe, SRC);
+  // The guard. A restore that FAILED is otherwise indistinguishable from one
+  // that was not needed — which is how buddy's harness lost a file on
+  // 2026-08-14 with a green run to show for it. Does not return on mismatch.
+  assertRestored({ harness: "@broberg/greppable test/mutations.mjs", file: SRC, expected: original });
   rmSync(backup, { recursive: true, force: true });
+  clearMarker();
 }
 
 const identical = redSets.length !== new Set(redSets).size;

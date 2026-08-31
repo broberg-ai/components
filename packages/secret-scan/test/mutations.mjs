@@ -27,6 +27,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// F081.1 — announce the mutated tree, and PROVE the restore took.
+import { writeMarker, clearMarker, assertRestored } from '../../../scripts/mutation-marker.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(HERE, 'src/index.ts');
@@ -178,6 +180,10 @@ console.log('  0 failures — a clean baseline, so every red below is the mutati
 
 const seen = new Map();
 let problems = 0;
+// BEFORE the first mutation. Written after it, the marker would leave open the
+// exact window it exists to close.
+writeMarker({ harness: '@broberg/secret-scan test/mutations.mjs', file: SRC });
+try {
 for (const m of MUTATIONS) {
   const original = readFileSync(SRC, 'utf8');
   if (!original.includes(m.from)) {
@@ -191,6 +197,10 @@ for (const m of MUTATIONS) {
     red = redSet();
   } finally {
     writeFileSync(SRC, original);
+    // The guard. A restore that FAILED is otherwise indistinguishable from one
+    // that was not needed — which is how buddy's harness lost a file on
+    // 2026-08-14 with a green run to show for it. Does not return on mismatch.
+    assertRestored({ harness: '@broberg/secret-scan test/mutations.mjs', file: SRC, expected: original });
   }
   const key = red.join('|');
   if (red.length === 0) {
@@ -205,6 +215,10 @@ for (const m of MUTATIONS) {
     for (const t of red.slice(0, 2)) console.log(`              · ${t}`);
   }
 }
+} finally {
+  clearMarker();
+}
+
 console.log('');
 if (problems) {
   console.error(`::error::${problems} mutation(s) uncaught or indistinguishable.`);

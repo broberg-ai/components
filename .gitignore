@@ -157,3 +157,4 @@ packages/*/.npmrc
 # Written by .claude/hooks/session-start.sh from the cardmem payload — machine
 # generated, changes every session, never a repo fact.
 .claude/rules.local.json
+.mutation-running

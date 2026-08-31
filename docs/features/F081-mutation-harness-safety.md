@@ -25,12 +25,14 @@ harness inherits them or it is not finished.
 | 1 | The source path is **absolute** before the first mutation | A `cd` inside the test command moves the working directory, and a relative restore path then points at nothing. Bit buddy on their harness's very first run |
 | 2 | Restore writes a **saved copy**, never `git checkout <file>` | `git checkout` reads the **index** — a file staged while mutated "restores" *to the mutation*, silently and green |
 | 3 | The restore is **read back** and a mismatch fails **loudly on stdout** | A failed restore is otherwise indistinguishable from no restore being needed. buddy's alarm went to stderr and vanished into the test output |
-| 4 | A **marker file** exists for the whole run, and the pre-commit hook refuses over it | A rule you have to remember to check is not a gate |
+| 4 | A **marker** exists for the whole run, and the pre-commit hook refuses over it | A rule you have to remember to check is not a gate |
+| 4b | The marker is a **directory with one entry per PID**, tested with `-e` and never `-f` | `turbo run test` runs packages in parallel. With one shared file the first harness to finish removed it for every harness still mutating, and the window reopened in silence — measured while building F081.1 |
 | 5 | Every mutation **asserts its anchor applied** | A substitution that matched nothing reads exactly like a surviving mutant |
 | 6 | No two mutations may share a **red set** | A mutation that reddens everything proves the suite runs, not that it discriminates |
 
 **Measured 2026-09-01 across all four harnesses:** 1 and 2 already hold
-everywhere; 5 and 6 hold everywhere. **3 and 4 hold nowhere.** That is F081.1.
+everywhere; 5 and 6 hold everywhere. **3 and 4 held nowhere.** That was F081.1,
+and 4b is what building it taught.
 
 ## Stories
 
