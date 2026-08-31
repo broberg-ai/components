@@ -15,6 +15,13 @@
 //     process dies, so a crashed suite otherwise reads as "nothing failed" and a
 //     load-bearing guard gets reported as undefended.
 //
+// WHAT THIS HARNESS CANNOT MUTATE, so nobody wastes an hour on a false uncaught:
+// anything whose test reads `dist/`. It rewrites src and re-runs vitest WITHOUT
+// rebuilding, so test/shipped-types.test.ts (which asserts on the published
+// .d.ts) would read the previous build and stay green — reported as UNCAUGHT
+// while the seal is in fact working. That seal's red was proven directly
+// instead: see 0.7.1, where it caught the fix's own first draft.
+//
 //   node test/mutations.mjs
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
