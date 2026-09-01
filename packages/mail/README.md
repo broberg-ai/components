@@ -406,6 +406,12 @@ to answer a question about one message.
 - `mailAllowed(to, { live?, allowlist? }) → boolean` — the pure recipient gate.
 - `buildFrom(name, address) → "name <address>"`
 - `ALWAYS_ALLOWED` — fleet admins always reachable through the gate.
+- `verdictForEvent(event) → MailVerdict` — **total**: takes a plain string and
+  answers `"unknown"` for anything outside the vocabulary. Through 0.9.1 it
+  returned `undefined` for an event Resend adds next month while its type said
+  it could not, so a consumer got a silent nothing where a verdict was promised
+  (found by cardmem). The vocabulary has already gone stale once — Resend grew
+  four types, two of which meant the mail did not arrive.
 - `verdictForEvent(event) → MailVerdict` · `MAIL_EVENT_TYPES` — the shared
   event vocabulary, so the webhook parser and `getStatus` cannot disagree.
 

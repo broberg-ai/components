@@ -46,6 +46,33 @@ for (const [name, file] of Object.entries(FILES)) {
 
 const MUTATIONS = [
   {
+    // F005.13 — the defect, restored: an event outside the vocabulary returns
+    // undefined while the signature promises a MailVerdict.
+    name: "the off-vocabulary fall-through is dropped (undefined for a new event)",
+    file: "events",
+    from: "  return Object.prototype.hasOwnProperty.call(VERDICT, event as string)\n    ? VERDICT[event as MailEventType]\n    : 'unknown';",
+    to: "  return VERDICT[event as MailEventType];",
+    expect: ["answers \"unknown\", never undefined"],
+  },
+  {
+    // ...and the OTHER direction, which looks like a fix and is not: answer
+    // 'unknown' for everything. Every off-vocabulary test still passes.
+    name: "everything answers unknown (the fix that stops discriminating)",
+    file: "events",
+    from: "  return Object.prototype.hasOwnProperty.call(VERDICT, event as string)\n    ? VERDICT[event as MailEventType]\n    : 'unknown';",
+    to: "  return 'unknown';",
+    expect: ["every documented event still maps exactly as it did", "NEGATIVE CONTROL"],
+  },
+  {
+    // The own-property check removed: an object literal inherits
+    // Object.prototype, so verdictForEvent('toString') hands back a FUNCTION.
+    name: "the own-property check is dropped (an inherited member is returned)",
+    file: "events",
+    from: "  return Object.prototype.hasOwnProperty.call(VERDICT, event as string)\n    ? VERDICT[event as MailEventType]\n    : 'unknown';",
+    to: "  return (VERDICT[event as MailEventType] ?? 'unknown') as MailVerdict;",
+    expect: ["not a function, not an object"],
+  },
+  {
     // THE DEFECT THIS STORY EXISTS TO PREVENT. If "we could not look" renders as
     // "it failed", a consumer writes to a customer to say their address is wrong
     // when the real problem is our own API key.
@@ -68,8 +95,11 @@ const MUTATIONS = [
     // The mapping nobody gets right by intuition, in the direction that hurts.
     name: "complained is filed under failure (it ARRIVED)",
     file: "events",
-    from: `    case 'complained':\n      return 'delivered';`,
-    to: `      return 'delivered';\n    case 'complained':\n      return 'failed';`,
+    // Anchor updated with F005.13: the switch became a Record, so the same
+    // decision now lives on one line. The decision is unchanged — a complaint
+    // means the mail ARRIVED and the reader disliked it.
+    from: "  complained: 'delivered',",
+    to: "  complained: 'failed',",
     expect: ["complained is DELIVERED"],
   },
   {

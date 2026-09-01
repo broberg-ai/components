@@ -286,3 +286,55 @@ describe("the webhook parser now sees the four it used to drop", () => {
     expect(parseMailEvent(payload("email.quantum_tunnelled"))).toBeNull();
   });
 });
+
+describe('F005.13 — verdictForEvent is TOTAL, because the vocabulary goes stale', () => {
+  // Measured on the published 0.9.1: an event outside the vocabulary returned
+  // `undefined` while the signature promised a MailVerdict. Filed by cardmem.
+  // The header of src/events.ts records this vocabulary going stale ALREADY
+  // ONCE — four types Resend added, two of which meant the mail did not arrive.
+  it.each([
+    ['an event Resend adds next month', 'something-resend-adds-next-month'],
+    ['the empty string', ''],
+    ['a JS caller passing null', null],
+    ['a JS caller passing undefined', undefined],
+    ['a number off a bad parse', 42],
+  ])('%s answers "unknown", never undefined', (_label, input) => {
+    const v = verdictForEvent(input as string);
+    expect(v).toBe('unknown');
+    expect(v).not.toBeUndefined();
+  });
+
+  it.each(['toString', 'constructor', '__proto__', 'hasOwnProperty', 'valueOf'])(
+    'the inherited member %s answers "unknown" — not a function, not an object',
+    (key) => {
+      // A plain object literal inherits Object.prototype, so a BARE lookup
+      // returns the inherited member. Without an own-property check this would
+      // hand back a function where a string is promised.
+      const v = verdictForEvent(key);
+      expect(typeof v).toBe('string');
+      expect(v).toBe('unknown');
+    },
+  );
+
+  it('every documented event still maps exactly as it did', () => {
+    // The fall-through must not have swallowed a real mapping. Pinned against
+    // the vocabulary itself, and the length pinned too, so a member cannot be
+    // dropped and re-answer "unknown" through the new path.
+    expect(MAIL_EVENT_TYPES).toHaveLength(11);
+    const expected: Record<string, string> = {
+      delivered: 'delivered', opened: 'delivered', clicked: 'delivered', complained: 'delivered',
+      bounced: 'failed', failed: 'failed', suppressed: 'failed',
+      sent: 'pending', scheduled: 'pending', delivery_delayed: 'pending',
+      received: 'unknown',
+    };
+    for (const e of MAIL_EVENT_TYPES) expect(verdictForEvent(e)).toBe(expected[e]);
+  });
+
+  it('NEGATIVE CONTROL: "unknown" is not simply what it always answers', () => {
+    // Without this, returning 'unknown' unconditionally would pass every test
+    // above except the mapping one — and would look like a fix.
+    expect(verdictForEvent('delivered')).toBe('delivered');
+    expect(verdictForEvent('bounced')).toBe('failed');
+    expect(verdictForEvent('sent')).toBe('pending');
+  });
+});

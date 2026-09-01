@@ -88,22 +88,52 @@ export type MailVerdict = 'delivered' | 'failed' | 'pending' | 'unknown';
  * rather than inferred from the word: read as English, "received" looks like the
  * strongest possible delivery confirmation, which is the opposite of true.)
  */
-export function verdictForEvent(event: MailEventType): MailVerdict {
-  switch (event) {
-    case 'delivered':
-    case 'opened':
-    case 'clicked':
-    case 'complained':
-      return 'delivered';
-    case 'bounced':
-    case 'failed':
-    case 'suppressed':
-      return 'failed';
-    case 'sent':
-    case 'scheduled':
-    case 'delivery_delayed':
-      return 'pending';
-    case 'received':
-      return 'unknown';
-  }
+/**
+ * The table, and it is a table rather than a `switch` ON PURPOSE (F005.13).
+ *
+ * `Record<MailEventType, MailVerdict>` makes a MISSING key a compile error, so
+ * adding an event to the vocabulary without deciding what it means still fails
+ * the build. A `switch` with a `default:` would have silenced exactly that —
+ * trading a loud `undefined` for a quiet wrong answer, which for a
+ * `bounced`-shaped new event means a failed delivery reading as undecided.
+ */
+const VERDICT: Record<MailEventType, MailVerdict> = {
+  delivered: 'delivered',
+  opened: 'delivered',
+  clicked: 'delivered',
+  complained: 'delivered',
+  bounced: 'failed',
+  failed: 'failed',
+  suppressed: 'failed',
+  sent: 'pending',
+  scheduled: 'pending',
+  delivery_delayed: 'pending',
+  received: 'unknown',
+};
+
+/**
+ * ⚠️ TAKES A PLAIN STRING, and answers `'unknown'` for anything it does not
+ * recognise. Through 0.9.1 the parameter was `MailEventType` and the body was an
+ * exhaustive `switch` with no fall-through, so an event Resend adds next month
+ * returned **`undefined` while the signature promised a `MailVerdict`** — a
+ * consumer switching on the result got a silent nothing, and a mail whose
+ * delivery is UNKNOWN read as a mail with no verdict at all. Filed by cardmem,
+ * measured on the published package.
+ *
+ * That is not hypothetical here: the header above records the vocabulary going
+ * stale ALREADY ONCE, when Resend grew four types and two of them meant the mail
+ * did not arrive. This is what the next time looks like.
+ *
+ * An exhaustive switch is a COMPILE-TIME proof about the union. The input is a
+ * string off the wire, and a JavaScript consumer has no types at all — so the
+ * package needs both layers, not the better-looking one.
+ */
+export function verdictForEvent(event: MailEventType | (string & {})): MailVerdict {
+  // OWN-property, not a bare lookup: an object literal inherits Object.prototype,
+  // so `VERDICT['toString']` is a FUNCTION. Without this, verdictForEvent
+  // ('toString') would return a function where a string is promised — the same
+  // class of defect one layer down.
+  return Object.prototype.hasOwnProperty.call(VERDICT, event as string)
+    ? VERDICT[event as MailEventType]
+    : 'unknown';
 }
