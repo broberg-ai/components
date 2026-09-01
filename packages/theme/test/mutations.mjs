@@ -17,6 +17,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+// F081.1 — announce the mutated tree, and PROVE the restore took.
+import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(HERE, "src/design-md.ts");
@@ -177,6 +179,10 @@ console.log("  0 failures — a clean baseline, so every red below is the mutati
 const seen = new Map();
 let problems = 0;
 
+// BEFORE the first mutation (F081.1). Written after it, the marker would leave
+// open the exact window it exists to close.
+writeMarker({ harness: "@broberg/theme test/mutations.mjs", file: SRC });
+try {
 for (const m of MUTATIONS) {
   const original = readFileSync(SRC, "utf8");
   // THE RECEIPT. Without it, a substitution that never matched is reported as a
@@ -192,6 +198,9 @@ for (const m of MUTATIONS) {
     red = redSet();
   } finally {
     writeFileSync(SRC, original);
+    // F081.1 — a restore that FAILED is otherwise indistinguishable from one
+    // that was not needed. Does not return on mismatch.
+    assertRestored({ harness: "@broberg/theme test/mutations.mjs", file: SRC, expected: original });
   }
 
   const key = red.join("|");
@@ -206,6 +215,9 @@ for (const m of MUTATIONS) {
     console.log(`  caught    ${m.name}  → ${red.length} red`);
     for (const t of red.slice(0, 2)) console.log(`              · ${t}`);
   }
+}
+} finally {
+  clearMarker();
 }
 
 console.log("");

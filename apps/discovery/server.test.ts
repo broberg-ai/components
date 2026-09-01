@@ -7,6 +7,7 @@ process.env.ENROLL_DB_URL = ":memory:";
 
 import { app } from "./server";
 import { getEnrollStore } from "./enroll";
+import { SESSION_ALIASES } from "../../scripts/inventory-data.mjs";
 
 describe("Discovery API", () => {
   it("GET /health → ok", async () => {
@@ -332,6 +333,74 @@ describe("auto-enrollment (F039) — trust-on-first-use keys", () => {
 
     // Resetting an unbound session is a safe no-op (0 rows) — never throws.
     expect(await store!.resetSessionKey("never-bound-session")).toBe(0);
+  });
+
+  // ── F039.7 ────────────────────────────────────────────────────────────────
+  // The gap is a session's REUSE TO-DO — cardmem_session_start serves it at boot
+  // — so a wrong one tells a working session to build something it already has.
+
+  it("a session that has NEVER self-reported is labelled as such, not handed a to-do list", async () => {
+    const s = await (await app.request("/api/sessions/never-said-anything")).json();
+    expect(s.enrolled).toEqual([]);
+    expect(s.gap_confidence).toBe("never_reported");
+    // Assert the WORDS, not just the flag: a consumer that renders the payload
+    // verbatim must not be able to present this as a list of things to do.
+    expect(s.gap_note).toContain("UNVERIFIED");
+    expect(s.gap_note).toContain("never self-reported");
+    // and it still returns the list — the claim is about its CONFIDENCE, never
+    // about whether a package is genuinely unused, which the server cannot know.
+    expect(s.gap.length).toBeGreaterThan(0);
+  });
+
+  it("...and a session WITH an enrollment is labelled self_reported — both branches, not just the empty one", async () => {
+    const s = await (await app.request("/api/sessions/trail-test")).json();
+    expect(s.enrolled.length).toBeGreaterThan(0);
+    expect(s.gap_confidence).toBe("self_reported");
+    expect(s.gap_note).toContain("Self-reported");
+    expect(s.gap_note).not.toContain("UNVERIFIED");
+  });
+
+  it("an aliased identity's enrollments count for the repo, and the merge is DISCLOSED", async () => {
+    // A real case: this session enrolled under its raw session-UUID instead of
+    // its repo name, so the row was invisible to the repo forever. Resolved by
+    // buddy from two independent sources, 2026-09-01.
+    const UUID = "2e155461-2619-43c2-9056-2ce1184ad5ad";
+    expect((await enroll({ session: UUID, pkg: "@broberg/bodymap", version: "0.1.1" }, "c".repeat(64))).status).toBe(200);
+
+    const s = await (await app.request("/api/sessions/fd-sundhed")).json();
+    expect(s.resolved_session).toBe("fd-sundhed");
+    // The point of the whole card: the package is no longer in the to-do list.
+    expect(s.enrolled.some((e: { pkg: string }) => e.pkg === "@broberg/bodymap")).toBe(true);
+    expect(s.gap.some((g: { package: string }) => g.package === "@broberg/bodymap")).toBe(false);
+    // A silently merged answer is a new way to be confidently wrong.
+    expect(s.merged_from).toContain(UUID);
+  });
+
+  it("NEGATIVE CONTROL: a session not in the alias map is untouched", async () => {
+    // Without this the merge could apply to everything and the test above would
+    // still pass.
+    const s = await (await app.request("/api/sessions/other-test")).json();
+    expect(s.resolved_session).toBe("other-test");
+    expect(s.merged_from).toEqual([]);
+    expect(s.enrolled.some((e: { pkg: string }) => e.pkg === "@broberg/bodymap")).toBe(false);
+  });
+
+  it("the alias map contains only MEASURED entries — no name-similarity merges", async () => {
+    // The first draft mapped `fds` -> `fd-sundhed` because the names look alike.
+    // buddy measured it: `fds` is fysiodk-aalborg-sport, a different customer.
+    // The FLEET roster in this very repo says so (`fds` -> sport.fdaalborg.dk).
+    //
+    // A SPLIT identity makes a gap look too long, which is visible. A FALSE
+    // MERGE makes it look right while crediting one customer's adoptions to
+    // another. This asserts the dangerous direction stays closed.
+    expect(Object.keys(SESSION_ALIASES)).not.toContain("fds");
+    for (const [from, to] of Object.entries(SESSION_ALIASES as Record<string, string>)) {
+      expect(from).not.toBe(to);
+      // Every current entry is a raw session-UUID resolved to a repo name. If a
+      // non-UUID alias is ever added it must come with its own measurement, and
+      // this line is where that decision gets noticed.
+      expect(from).toMatch(/^[0-9a-f-]{36}$/);
+    }
   });
 
   it("a session's own published packages are excluded from its gap (ai-sdk #5335)", async () => {

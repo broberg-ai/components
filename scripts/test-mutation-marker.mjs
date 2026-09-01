@@ -316,8 +316,22 @@ check("the marker is gone once the LAST one finishes", () =>
 // reads the source, so it cannot tell a call from a call that never executes.
 // The spawned run is what proves execution; this is what proves coverage.
 console.log("\nevery harness in the repo is wired to it");
-for (const pkg of ["secret-scan", "mail", "greppable", "stripe"]) {
-  const f = join(REPO_ROOT, "packages", pkg, "test/mutations.mjs");
+// DISCOVERED, not listed. A hand-maintained list is a list someone forgets to
+// add to — and the F081 epic's whole claim is that a NEW harness inherits the
+// invariants or it is not finished. `git ls-files` finds every harness in the
+// repo, so a fifth one cannot escape by not being written down here.
+const harnesses = execFileSync("git", ["ls-files", "*mutations.mjs"], { cwd: REPO_ROOT, encoding: "utf8" })
+  .split("\n")
+  .filter(Boolean)
+  // scripts/test-*-mutations.mjs are meta-harnesses that mutate the gate itself
+  // and deliberately do not import the module they are mutating.
+  .filter((p) => !p.startsWith("scripts/test-"));
+check("every harness in the repo was FOUND (a zero-length list would pass every check below)", () => {
+  if (harnesses.length < 4) throw new Error(`only found ${harnesses.length}: ${harnesses.join(", ")}`);
+});
+for (const rel of harnesses) {
+  const pkg = rel;
+  const f = join(REPO_ROOT, rel);
   check(`${pkg} calls writeMarker, clearMarker and assertRestored`, () => {
     const src = readFileSync(f, "utf8");
     has(src, "mutation-marker.mjs", "does not import the shared module");

@@ -400,6 +400,41 @@ export function repoUrl(c) {
 // banner and the AI map describe the same release differently — and the cut point
 // is load-bearing: a description whose first segment ends before the real point
 // serves a headline that says nothing (measured on the F074 row the day it landed).
+// F039.7 — OWNER-CURATED session aliases. One repo, several names.
+//
+// The session identity in an enrollment is free text, so a repo can enrol under
+// more than one, and each name's reuse gap then lists the OTHER's adoptions as
+// unadopted. That gap is served to every session at boot as its reuse to-do, so
+// a split identity tells a working session to adopt things it already uses.
+//
+// EVERY LINE HERE IS MEASURED, NEVER INFERRED FROM THE NAME — and this comment
+// exists because the first draft of this map got it wrong in the dangerous
+// direction. It mapped `fd-sundhed` → `fds` on the strength of the names
+// looking alike. buddy measured it against two independent sources:
+//
+//   fd-sundhed   /Users/cb/Apps/broberg/fd-sundhed              3 sessions
+//   fds          /Users/cb/Apps/webhouse/fysiodk-aalborg-sport  1 session
+//
+// `fds` is fysiodk-aalborg-sport — a different customer, a different repo. The
+// FLEET roster above says so in its own words (`fds` → sport.fdaalborg.dk), and
+// nobody read it. That merge would have credited one customer's adoptions to
+// another: a SPLIT identity makes a gap look too long, which is visible, while a
+// FALSE MERGE makes it look right while pointing at the wrong repo.
+//
+// So: a name that looks like another name is not evidence. Ask, or measure.
+export const SESSION_ALIASES = {
+  // Enrolled under a raw session-UUID instead of a repo name, so the rows were
+  // invisible to the repo forever. Both resolved by buddy from two independent
+  // sources that agree (their sessions table + the project directory the
+  // transcript lives in), 2026-09-01.
+  "2e155461-2619-43c2-9056-2ce1184ad5ad": "fd-sundhed", // enrolled @broberg/bodymap
+  "f9b691fd-dd83-4641-bf7d-a6b957f5166c": "sanne", // enrolled @broberg/stripe
+  // DELIBERATELY ABSENT until the repo confirms it: `sanneandersen` → `sanne`.
+  // Three signals agree (FLEET calls `sanne` "sanneandersen.dk", buddy has no
+  // session by that name, and its one enrolment — cms-inline-edit — fits the
+  // site), and three agreeing signals is exactly what the `fds` merge had.
+};
+
 export const oneLiner = (c) => {
   const d = String(c.desc ?? c.nm ?? "").replace(/\s+/g, " ").trim();
   const cut = d.search(/\.\s|\s—\s/);

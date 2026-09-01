@@ -11,8 +11,13 @@
 // untested.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+// F081.1 — announce the mutated tree, and PROVE the restore took.
+import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 
 const SRC = new URL("../src/index.ts", import.meta.url);
+const SRC_PATH = fileURLToPath(SRC);
+const HARNESS = "@broberg/mail-identity test/mutations.mjs";
 const OUT = new URL("../.mutations.json", import.meta.url);
 const original = readFileSync(SRC, "utf8");
 
@@ -94,6 +99,10 @@ if (baseline.length > 0) {
 console.log(`baseline: green\n`);
 
 const results = [];
+// BEFORE the first mutation (F081.1). Written after it, the marker would leave
+// open the exact window it exists to close.
+writeMarker({ harness: HARNESS, file: SRC_PATH });
+try {
 for (const m of MUTATIONS) {
   if (!original.includes(m.from)) {
     console.error(`::error::mutation anchor not found — "${m.name}"`);
@@ -102,13 +111,25 @@ for (const m of MUTATIONS) {
     process.exit(1);
   }
   writeFileSync(SRC, original.replace(m.from, m.to));
-  const failed = failingTests();
-  writeFileSync(SRC, original);
+  // The restore was OUTSIDE any try/finally: a throw from failingTests() left
+  // the mutant on disk, and mutated source reads exactly like working source.
+  let failed;
+  try {
+    failed = failingTests();
+  } finally {
+    writeFileSync(SRC, original);
+    // A restore that FAILED is otherwise indistinguishable from one that was
+    // not needed. Does not return on mismatch.
+    assertRestored({ harness: HARNESS, file: SRC_PATH, expected: original });
+  }
   results.push({ name: m.name, failed });
 
   console.log(`${failed.length === 0 ? "NOT CAUGHT" : `${failed.length} red`}  ${m.name}`);
   for (const t of failed) console.log(`    ${t}`);
   console.log("");
+}
+} finally {
+  clearMarker();
 }
 
 // Restored byte-identically, checked rather than assumed.

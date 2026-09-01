@@ -9,7 +9,7 @@ import { cors } from "hono/cors";
 import { createLogger } from "@broberg/logger";
 import { requestLogger, errorLogger } from "@broberg/logger/hono";
 // Single source of truth — shared with scripts/build-inventory.mjs.
-import { DATA, FLEET, MODEL, INFRA, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
+import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
 import { getEnrollStore, type Role } from "./enroll";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
@@ -375,18 +375,65 @@ app.get("/api/enrollments", async (c) => {
 // A session's status: what it's enrolled in, the newest shipped versions, and
 // the GAP (shipped packages it hasn't adopted yet — "what you could reuse").
 app.get("/api/sessions/:session", async (c) => {
-  const session = c.req.param("session");
+  const asked = c.req.param("session");
   const store = await getEnrollStore();
-  const enrolled = store ? await store.bySession(session) : [];
+
+  // F039.7 — ONE REPO, SEVERAL NAMES. The session identity in an enrollment is
+  // free text, so the same repo has enrolled under two, and each name's gap then
+  // lists the OTHER's adoptions as unadopted. Resolve to the curated primary and
+  // read EVERY name that maps to it. See SESSION_ALIASES for the measurements.
+  const aliases = SESSION_ALIASES as Record<string, string>;
+  const primary = aliases[asked] ?? asked;
+  const names = [primary, ...Object.keys(aliases).filter((k) => aliases[k] === primary)];
+  const perName = await Promise.all(names.map((n) => (store ? store.bySession(n) : Promise.resolve([]))));
+  // Dedupe on (session,pkg) is already the store's invariant; dedupe on pkg here
+  // because the SAME package may be enrolled under both names.
+  const seen = new Set<string>();
+  const enrolled = perName.flat().filter((e) => (seen.has(e.pkg) ? false : (seen.add(e.pkg), true)));
+  // Say WHICH identities contributed. A silently merged answer is a new way to
+  // be confidently wrong — the caller must be able to see that a merge happened.
+  const mergedFrom = names.filter((n, i) => n !== asked && perName[i].length > 0);
+
   const have = new Set(enrolled.map((e) => e.pkg));
   // A session never "needs to adopt" a package it OWNS — exclude its own
   // published packages (per the FLEET roster's pub list) from the gap, else a
-  // package-owner is told it's missing itself (ai-sdk #5335).
-  const owns = (FLEET.find((f) => f.s === session)?.pub ?? []).map((n: string) => `@broberg/${n}`);
+  // package-owner is told it's missing itself (ai-sdk #5335). Keyed on the
+  // PRIMARY, so an aliased name picks up its repo's pub list too.
+  const owns = (FLEET.find((f) => f.s === primary)?.pub ?? []).map((n: string) => `@broberg/${n}`);
   const owned = new Set(owns);
   const available = packages.map((p) => ({ package: p.name, version: p.version, layer: p.layer }));
   const gap = available.filter((a) => !have.has(a.package as string) && !owned.has(a.package as string));
-  return c.json({ session, owns, enrolled, available, gap });
+
+  // F039.7 — WHAT IS THIS GAP WORTH? It is computed as `available - enrolled`,
+  // so a session that has never self-reported gets the WHOLE list, and that is
+  // indistinguishable from a session that genuinely adopted nothing. Filed by
+  // super, who had been using @broberg/ai-sdk for three days while their gap
+  // said 49 packages.
+  //
+  // The server CANNOT know whether a package is genuinely unused, and must never
+  // claim to. What it can say is whether it was ever told anything — so this
+  // labels the CONFIDENCE and leaves the state alone.
+  //
+  // It matters because `cardmem_session_start` serves this as `discovery_reuse`,
+  // a session's reuse to-do. A wrong gap does not sit in a dashboard; it tells a
+  // working session to build something it already has.
+  const neverReported = enrolled.length === 0;
+  const gapConfidence = neverReported ? "never_reported" : "self_reported";
+  const gapNote = neverReported
+    ? `UNVERIFIED: ${asked} has never self-reported an adoption, so this gap is every shipped package rather than a measured list. Treat it as "we have not been told", NOT as a to-do list. Fix it from the repo: POST /api/enroll.`
+    : `Self-reported: ${asked} has reported ${enrolled.length} adoption(s), so this gap is what it has not told us about. Still not proof a package is unused.`;
+
+  return c.json({
+    session: asked,
+    resolved_session: primary,
+    merged_from: mergedFrom,
+    owns,
+    enrolled,
+    available,
+    gap,
+    gap_confidence: gapConfidence,
+    gap_note: gapNote,
+  });
 });
 
 // Self-report an enrollment. Auth = trust-on-first-use per session: each session
