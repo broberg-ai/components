@@ -412,6 +412,17 @@ to answer a question about one message.
   it could not, so a consumer got a silent nothing where a verdict was promised
   (found by cardmem). The vocabulary has already gone stale once — Resend grew
   four types, two of which meant the mail did not arrive.
+
+  **If you were casting to get past the old signature, delete the cast.** The
+  0.9.1 parameter was `MailEventType`, so a consumer holding a wire string wrote
+  `verdictForEvent(event as MailEventType)` — and that cast read as correct,
+  because the type said it was enough. It was not: the cast silenced the compiler
+  and the function still answered `undefined`. cardmem carried exactly that line
+  for three weeks, with a `?? 'unknown'` behind it doing the work the signature
+  claimed was unnecessary. **A signature that lies is worse than one that is
+  strict**, because it removes the very question that would have caught it. The
+  parameter is now `MailEventType | (string & {})`: pass the wire string, keep
+  autocomplete on the 11 known events, and drop both the cast and the fallback.
 - `verdictForEvent(event) → MailVerdict` · `MAIL_EVENT_TYPES` — the shared
   event vocabulary, so the webhook parser and `getStatus` cannot disagree.
 
