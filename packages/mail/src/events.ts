@@ -57,7 +57,8 @@ export type MailVerdict = 'delivered' | 'failed' | 'pending' | 'unknown';
 // `suppressed` as "the recipient never got it" vanished from the published
 // types while every test still passed. Anything a CONSUMER must read belongs
 // on an exported symbol.
-// The table, and it is a table rather than a `switch` ON PURPOSE (F005.13).
+//
+// THE TABLE, and it is a table rather than a `switch` ON PURPOSE (F005.13).
 //
 // `Record<MailEventType, MailVerdict>` makes a MISSING key a compile error, so
 // adding an event to the vocabulary without deciding what it means still fails
