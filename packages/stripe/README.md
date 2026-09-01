@@ -174,6 +174,29 @@ acknowledged and Stripe retries it forever.
 invoice can carry a proration credit ahead of the subscription line. *(Inferred
 from how proration works — we have not observed such an invoice.)*
 
+### Migrating a repo that has its own copy
+
+Two corrections from the first migration (sanne, 2026-09-01), both worth having
+before you start:
+
+**The return field is `end`.** If your local version called it something else,
+reading the old name on the new object yields `undefined` — the exact
+green-direction failure this package exists to end. `tsc` catches it *if you are
+typed the whole way*, and does nothing if you are not, so run it and read the
+count rather than assuming. They measured **6 errors**, and the important one was
+a local annotation binding a whole guard block: without it three call sites would
+have gone silently undefined.
+
+**Delete your local reader — but NOT necessarily its fixture.** Their invoice
+fixture stays, because their own route test drives the real webhook against it
+(a real `invoice.payment_failed` in, their branches asserted, plus a negative
+control). That is app-side and the package cannot replace it. They deleted it on
+our advice, the suite went red immediately, and they put it back.
+
+**Keep your own webhook guard.** A test that forbids the removed field in your
+route, and requires your branches to call the shared reader, is app-side too —
+repoint it at the new name rather than deleting it with the module.
+
 ### ⚠️ `null` from `readPeriod` means "could not read it", not "no expiry"
 
 That translation is the entire F098.4 outage. Their access rule read a missing
