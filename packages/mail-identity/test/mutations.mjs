@@ -1,5 +1,7 @@
 // Mutation harness for @broberg/mail-identity. NOT part of the published
-// package and not run by `pnpm test` — invoke it directly:
+// package. It IS run by `pnpm test` (F081.2) — this header used to say it was
+// not, and that was the clearest case of the thing that card is about: a harness
+// nothing runs looks exactly like coverage. Run it on its own with:
 //
 //   node test/mutations.mjs
 //
