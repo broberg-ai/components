@@ -343,13 +343,19 @@ describe("auto-enrollment (F039) — trust-on-first-use keys", () => {
     const s = await (await app.request("/api/sessions/never-said-anything")).json();
     expect(s.enrolled).toEqual([]);
     expect(s.gap_confidence).toBe("never_reported");
-    // Assert the WORDS, not just the flag: a consumer that renders the payload
-    // verbatim must not be able to present this as a list of things to do.
-    expect(s.gap_note).toContain("UNVERIFIED");
-    expect(s.gap_note).toContain("never self-reported");
     // and it still returns the list — the claim is about its CONFIDENCE, never
     // about whether a package is genuinely unused, which the server cannot know.
     expect(s.gap.length).toBeGreaterThan(0);
+  });
+
+  it("...and the WORDS warn, not just the flag — separately, because the flag is not what a human reads", async () => {
+    // Split from the test above on purpose. While they were one test, dropping
+    // the warning and dropping the flag produced the SAME failure, so no test
+    // pinned the note on its own — caught by the mutation pass, not by review.
+    const s = await (await app.request("/api/sessions/never-said-anything")).json();
+    expect(s.gap_note).toContain("UNVERIFIED");
+    expect(s.gap_note).toContain("never self-reported");
+    expect(s.gap_note).toContain("NOT as a to-do list");
   });
 
   it("...and a session WITH an enrollment is labelled self_reported — both branches, not just the empty one", async () => {
@@ -372,8 +378,15 @@ describe("auto-enrollment (F039) — trust-on-first-use keys", () => {
     // The point of the whole card: the package is no longer in the to-do list.
     expect(s.enrolled.some((e: { pkg: string }) => e.pkg === "@broberg/bodymap")).toBe(true);
     expect(s.gap.some((g: { package: string }) => g.package === "@broberg/bodymap")).toBe(false);
-    // A silently merged answer is a new way to be confidently wrong.
-    expect(s.merged_from).toContain(UUID);
+  });
+
+  it("...and the merge is DISCLOSED — separately, so silence and absence are different failures", async () => {
+    // Also split after the mutation pass: while disclosure lived in the test
+    // above, "the union is dropped" and "the disclosure is dropped" reddened the
+    // same single test, so neither was pinned alone. A silently merged answer is
+    // a new way to be confidently wrong, and it deserves its own red.
+    const s = await (await app.request("/api/sessions/fd-sundhed")).json();
+    expect(s.merged_from).toContain("2e155461-2619-43c2-9056-2ce1184ad5ad");
   });
 
   it("NEGATIVE CONTROL: a session not in the alias map is untouched", async () => {

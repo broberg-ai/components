@@ -59,14 +59,18 @@ const MUTATIONS = [
     from: "  const mergedFrom = names.filter((n, i) => n !== asked && perName[i].length > 0);",
     to: "  const mergedFrom = [];",
   },
-  {
-    // The alias resolution itself: an aliased name stops picking up its repo's
-    // FLEET `pub` list, so a package owner is told it is missing itself.
-    name: "owns is keyed on the asked name again, not the resolved one",
-    from: "  const owns = (FLEET.find((f) => f.s === primary)?.pub ?? []).map((n: string) => `@broberg/${n}`);",
-    to: "  const owns = (FLEET.find((f) => f.s === asked)?.pub ?? []).map((n: string) => `@broberg/${n}`);",
-  },
 ];
+
+// DELIBERATELY ABSENT, recorded rather than left as an uncaught line: "owns is
+// keyed on the asked name again, not the resolved one". It was written, it ran,
+// and it survived — correctly. Every alias in SESSION_ALIASES today resolves to
+// `fd-sundhed` or `sanne`, and NEITHER publishes a package (FLEET `pub` is empty
+// for both), so there is no input on which the two spellings can disagree. An
+// unkillable mutation is not a hole in the suite; reporting it as UNCAUGHT would
+// be the suite lying about itself.
+//
+// It becomes testable the moment an alias resolves to a repo that publishes
+// something. Whoever adds that alias should add this mutation back.
 
 function redSet() {
   let out = "";

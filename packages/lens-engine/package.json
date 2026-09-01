@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
+    "test": "vitest run && node test/mutations.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
