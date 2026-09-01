@@ -124,8 +124,8 @@ const VERDICT: Record<MailEventType, MailVerdict> = {
  * exhaustive `switch` with no fall-through, so an event Resend adds next month
  * returned **`undefined` while the signature promised a `MailVerdict`** — a
  * consumer switching on the result got a silent nothing, and a mail whose
- * delivery is UNKNOWN read as a mail with no verdict at all. Measured on the
- * published package.
+ * delivery is UNKNOWN read as a mail with no verdict at all. Filed by cardmem,
+ * measured on the published package.
  *
  * That is not hypothetical here: the header above records the vocabulary going
  * stale ALREADY ONCE, when Resend grew four types and two of them meant the mail
