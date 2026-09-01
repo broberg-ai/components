@@ -49,6 +49,35 @@ export const MAIL_EVENT_TYPES: readonly MailEventType[] = [
  */
 export type MailVerdict = 'delivered' | 'failed' | 'pending' | 'unknown';
 
+// WHY THE WARNING BELOW IS ON THE EXPORTED FUNCTION AND NOT HERE (F081.3's
+// sibling defect, caught by test/shipped-claims.test.ts): a doc comment on a
+// non-exported const is stripped from dist/index.d.ts. 0.10.0's first cut put
+// this table between that warning and `verdictForEvent`, and the warning
+// stopped shipping — the one sentence that stops a consumer reading
+// `suppressed` as "the recipient never got it" vanished from the published
+// types while every test still passed. Anything a CONSUMER must read belongs
+// on an exported symbol.
+// The table, and it is a table rather than a `switch` ON PURPOSE (F005.13).
+//
+// `Record<MailEventType, MailVerdict>` makes a MISSING key a compile error, so
+// adding an event to the vocabulary without deciding what it means still fails
+// the build. A `switch` with a `default:` would have silenced exactly that —
+// trading a loud `undefined` for a quiet wrong answer, which for a
+// `bounced`-shaped new event means a failed delivery reading as undecided.
+const VERDICT: Record<MailEventType, MailVerdict> = {
+  delivered: 'delivered',
+  opened: 'delivered',
+  clicked: 'delivered',
+  complained: 'delivered',
+  bounced: 'failed',
+  failed: 'failed',
+  suppressed: 'failed',
+  sent: 'pending',
+  scheduled: 'pending',
+  delivery_delayed: 'pending',
+  received: 'unknown',
+};
+
 /**
  * Map one provider event onto a verdict.
  *
@@ -88,29 +117,6 @@ export type MailVerdict = 'delivered' | 'failed' | 'pending' | 'unknown';
  * rather than inferred from the word: read as English, "received" looks like the
  * strongest possible delivery confirmation, which is the opposite of true.)
  */
-/**
- * The table, and it is a table rather than a `switch` ON PURPOSE (F005.13).
- *
- * `Record<MailEventType, MailVerdict>` makes a MISSING key a compile error, so
- * adding an event to the vocabulary without deciding what it means still fails
- * the build. A `switch` with a `default:` would have silenced exactly that —
- * trading a loud `undefined` for a quiet wrong answer, which for a
- * `bounced`-shaped new event means a failed delivery reading as undecided.
- */
-const VERDICT: Record<MailEventType, MailVerdict> = {
-  delivered: 'delivered',
-  opened: 'delivered',
-  clicked: 'delivered',
-  complained: 'delivered',
-  bounced: 'failed',
-  failed: 'failed',
-  suppressed: 'failed',
-  sent: 'pending',
-  scheduled: 'pending',
-  delivery_delayed: 'pending',
-  received: 'unknown',
-};
-
 /**
  * ⚠️ TAKES A PLAIN STRING, and answers `'unknown'` for anything it does not
  * recognise. Through 0.9.1 the parameter was `MailEventType` and the body was an
