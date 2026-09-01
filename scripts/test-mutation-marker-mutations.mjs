@@ -21,6 +21,33 @@ const MARKER = join(ROOT, "scripts/mutation-marker.mjs");
 const HOOK = join(ROOT, ".githooks/pre-commit");
 const TEST = join(ROOT, "scripts/test-mutation-marker.mjs");
 
+// Does the AMBIENT locale make `ps -o lstart=` print something other than the C
+// form? That is exactly the condition under which dropping `LC_ALL=C` is a real
+// mutation rather than a no-op — so it is asked, not assumed.
+function localeChangesPs() {
+  const read = (env) =>
+    execFileSync("ps", ["-o", "lstart=", "-p", String(process.pid)], {
+      encoding: "utf8", env,
+    }).trim();
+  try {
+    return read({ ...process.env, LC_ALL: "C" }) !== read(process.env);
+  } catch {
+    return false;
+  }
+}
+
+// Which `date` dialect does this machine speak? GNU wants `-d`, BSD wants
+// `-j -f`, and no machine speaks both — so each platform can only ever prove the
+// branch it actually uses. Asked, not assumed.
+function gnuDateWorks() {
+  try {
+    execFileSync("date", ["-u", "-d", "2026-09-01T00:00:00Z", "+%s"], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const MUTATIONS = [
   {
     name: "the marker is never written",
@@ -86,6 +113,12 @@ const MUTATIONS = [
     // live pid falls into "could not check" — and would still have been wrong
     // every single time, on the only machine this hook runs on.
     name: "LC_ALL=C dropped from ps (a Danish-locale date stops parsing)",
+    // MEASURABLE ONLY WHERE THE AMBIENT LOCALE ACTUALLY DIFFERS (F081.3). The
+    // guard defends against a machine whose `ps` prints "tir.  1 sep."; on a
+    // C-locale box — every CI runner — removing it changes nothing, so the
+    // mutation would survive and read as an undefended decision. It is not: it
+    // is unmeasurable there, and those are opposite facts.
+    when: localeChangesPs,
     file: HOOK,
     from: '    started="$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | sed \'s/^ *//;s/ *$//\')"',
     to: '    started="$(ps -o lstart= -p "$1" 2>/dev/null | sed \'s/^ *//;s/ *$//\')"',
@@ -98,6 +131,20 @@ const MUTATIONS = [
     file: HOOK,
     from: 'if [ -e "$ROOT/.mutation-running" ]; then',
     to: 'if [ -f "$ROOT/.mutation-running" ]; then',
+  },
+  {
+    // F081.3 — the branch this machine actually uses. `date -j -f` is BSD and
+    // `date -d` is GNU; the hook tries both because it runs on a Mac AND on the
+    // Ubuntu runner. Removing the GNU line is only a mutation where GNU is the
+    // one that works, so on a Mac this is SKIPPED and the BSD line is instead
+    // covered by the LC_ALL mutation above — that one already makes the
+    // conversion fail, with the same red set. Neither platform can prove the
+    // other's branch, and pretending otherwise is what shipped the defect.
+    name: "the GNU date dialect removed (the branch Linux depends on)",
+    when: gnuDateWorks,
+    file: HOOK,
+    from: '    LC_ALL=C date -d "$started" +%s 2>/dev/null && return 0\n',
+    to: "",
   },
 ];
 
@@ -158,7 +205,20 @@ console.log("  0 failures — so every red below is the mutation\n");
 const seen = new Map();
 let problems = 0;
 
+let skipped = 0;
+
 for (const m of MUTATIONS) {
+  // A FOURTH OUTCOME, and it exists for the same reason as UNREADABLE above:
+  // "this platform cannot show the difference" is not "this decision is
+  // undefended". Merging them would report a real guard as a gap on every CI
+  // runner, and the noise would eventually get the guard deleted.
+  if (m.when && !m.when()) {
+    console.log(`  SKIPPED   ${m.name}`);
+    console.log(`            not measurable on this machine — the mutation is a no-op here,`);
+    console.log(`            so neither red nor green would say anything about the code.`);
+    skipped++;
+    continue;
+  }
   const original = readFileSync(m.file, "utf8");
   if (!original.includes(m.from)) {
     // A substitution that matched nothing reads exactly like a surviving
@@ -218,4 +278,8 @@ if (problems) {
   console.error(`::error::${problems} mutation(s) uncaught, indistinguishable or never applied.`);
   process.exit(1);
 }
-console.log(`✓ ${MUTATIONS.length} mutations, 0 uncaught, 0 identical red sets.`);
+const ran = MUTATIONS.length - skipped;
+console.log(
+  `✓ ${ran} mutations, 0 uncaught, 0 identical red sets.` +
+    (skipped ? `  (${skipped} not measurable on this machine — see SKIPPED above)` : ""),
+);

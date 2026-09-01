@@ -72,7 +72,18 @@ if [ -e "$ROOT/.mutation-running" ]; then
   #
   # The entry already carries `since`, so the stranger gives itself away: it
   # STARTED AFTER the marker was written. Ours started before.
+  # BOTH dialects, GNU first (F081.3). `date -j -f` is BSD; the CI runner is
+  # Ubuntu, where `date` is GNU and wants `-d`. With only the BSD form, every
+  # conversion on Linux returned nothing, so every live pid — recycled or not —
+  # fell into the "could not check" branch below. That is the SAFE direction, and
+  # it was still wrong every single time: the four states this block exists to
+  # tell apart were one state wide on the platform CI runs on. Measured on run
+  # 33489536202, which took the gate down and skipped all 39 publish jobs.
+  #
+  # On each platform exactly one branch can succeed; the other exits non-zero
+  # with no output, so the `&& return 0` ordering is tidiness, not a race.
   marker_epoch() {  # ISO-8601 from the entry -> epoch seconds
+    LC_ALL=C date -u -d "${1%%.*}Z" +%s 2>/dev/null && return 0
     LC_ALL=C date -j -u -f "%Y-%m-%dT%H:%M:%S" "${1%%.*}" +%s 2>/dev/null
   }
   proc_epoch() {    # a pid's start time -> epoch seconds
@@ -83,6 +94,7 @@ if [ -e "$ROOT/.mutation-running" ]; then
     # every single time.
     started="$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | sed 's/^ *//;s/ *$//')"
     [ -n "$started" ] || return 1
+    LC_ALL=C date -d "$started" +%s 2>/dev/null && return 0
     LC_ALL=C date -j -f "%a %b %d %T %Y" "$started" +%s 2>/dev/null
   }
 

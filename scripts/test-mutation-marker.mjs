@@ -146,6 +146,28 @@ check("a pid REUSED by another process reads as stale, not as still running", ()
   }
 });
 
+// F081.3 — THE PLATFORM ITSELF, not another pid case. Every branch above needs
+// two timestamps turned into epoch seconds, and `date` has two incompatible
+// dialects: GNU wants `-d`, BSD wants `-j -f`. With only the BSD form the hook
+// worked on this Mac and, on the Ubuntu runner CI uses, returned nothing for
+// every conversion — so every live pid, recycled or not, fell into "could NOT
+// check". Safe direction, wrong every single time, and the four states this
+// block exists to tell apart were one state wide where it mattered.
+//
+// The two checks above already went red on that (run 33489536202). This one
+// names the CAUSE instead of the symptom, so a platform with no working dialect
+// says so rather than looking like two unrelated pid bugs.
+check("a readable pid never lands in `could NOT check` on this platform", () => {
+  for (const [name, r] of [["live", blocked], ["reused", reused]]) {
+    if (String(r.out).includes("could NOT check")) {
+      throw new Error(
+        `the ${name} pid fell into the could-not-check branch: this platform's \`date\` ` +
+          "parses neither the GNU nor the BSD dialect, so all four pid states collapse into one",
+      );
+    }
+  }
+});
+
 // AND THE THIRD OUTCOME. When the comparison cannot be made at all, that is not
 // "fine": it keeps the block up AND says the check did not happen, rather than
 // silently taking the reassuring branch. The whole family of defects found
