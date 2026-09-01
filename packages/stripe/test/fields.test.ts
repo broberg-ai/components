@@ -14,12 +14,13 @@ import { readSubscriptionId, readPeriod } from "../src/fields.js";
  * author's understanding of the shape, and a wrong understanding of the shape
  * was the bug.
  *
- * WHERE THAT PROVENANCE STOPS, said out loud rather than blurred: the
- * SUBSCRIPTION shapes below are constructed. sanne measured the number
- * (`items.data[0].current_period_end = 1790539830` on sub_1U99…) but never
- * saved the object, so what is fetched here is the invoice and only the
- * invoice. A real subscription fixture is requested; until it lands, the period
- * tests carry a weaker claim than the id tests and are marked as such.
+ * BOTH FIXTURES ARE NOW FETCHED. The subscription one was constructed at first,
+ * and that was said out loud rather than blurred — sanne had measured the number
+ * but never saved the object, so the period tests carried a weaker claim than
+ * the id tests. They went and pulled the real one with subscriptions.retrieve
+ * when asked. The constructed shapes below are kept ALONGSIDE it, because they
+ * isolate one branch each; the live object proves the shape they are modelling
+ * is the shape Stripe actually sends.
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
 const F = JSON.parse(readFileSync(join(HERE, "__fixtures__/dahlia-invoice.json"), "utf-8")) as {
@@ -27,6 +28,12 @@ const F = JSON.parse(readFileSync(join(HERE, "__fixtures__/dahlia-invoice.json")
   legacy: Stripe.Invoice;
   no_subscription: Stripe.Invoice;
 };
+
+const LIVE_SUB = (
+  JSON.parse(readFileSync(join(HERE, "__fixtures__/dahlia-subscription.json"), "utf-8")) as {
+    subscription: Stripe.Subscription;
+  }
+).subscription;
 
 const EXPECTED = "sub_TESTabonnement";
 /** The naive read that broke: `invoice.subscription`, straight off the object. */
@@ -171,10 +178,22 @@ describe("sanne's actual outage: a declined payment that triggered nothing", () 
 });
 
 describe("readPeriod — milliseconds, from wherever Stripe put them", () => {
-  // CONSTRUCTED shapes (see the header). The NUMBER is sanne's measurement:
-  // items.data[0].current_period_end = 1790539830 on sub_1U99…, = 27-09-2026.
   const END = 1790539830;
   const START = 1787861430;
+
+  it("the REAL subscription: the root field is GONE, the item carries it", () => {
+    // Fetched, not written — sanne pulled it from their live account with
+    // subscriptions.retrieve on 2026-04-22.dahlia after we asked. Same
+    // provenance as the invoice fixture, so the period tests no longer carry a
+    // weaker claim than the id tests.
+    //
+    // The pre-check first, for the same reason as above: without it the test
+    // below would be green on a payload that never had the problem.
+    expect(Object.prototype.hasOwnProperty.call(LIVE_SUB, "current_period_end")).toBe(false);
+    expect((LIVE_SUB as unknown as { current_period_end?: unknown }).current_period_end).toBeUndefined();
+
+    expect(readPeriod(LIVE_SUB)).toEqual({ start: START * 1000, end: END * 1000 });
+  });
 
   it("from the ITEM, where Stripe puts it now", () => {
     const sub = {

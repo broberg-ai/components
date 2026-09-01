@@ -407,12 +407,16 @@ describe("auto-enrollment (F039) — trust-on-first-use keys", () => {
     // MERGE makes it look right while crediting one customer's adoptions to
     // another. This asserts the dangerous direction stays closed.
     expect(Object.keys(SESSION_ALIASES)).not.toContain("fds");
+    // The ONE non-UUID alias is owner-confirmed: Christian, 2026-09-01,
+    // "sanne + sanneandersen er samme repo". Held back until he said so.
+    const OWNER_CONFIRMED = new Set(["sanneandersen"]);
     for (const [from, to] of Object.entries(SESSION_ALIASES as Record<string, string>)) {
       expect(from).not.toBe(to);
-      // Every current entry is a raw session-UUID resolved to a repo name. If a
-      // non-UUID alias is ever added it must come with its own measurement, and
-      // this line is where that decision gets noticed.
-      expect(from).toMatch(/^[0-9a-f-]{36}$/);
+      // A raw session-UUID is self-evidently one identity. Anything else is a
+      // NAME, and a name that looks like another name is not evidence — so it
+      // has to be listed above, which is where that decision gets noticed.
+      const isUuid = /^[0-9a-f-]{36}$/.test(from);
+      expect(isUuid || OWNER_CONFIRMED.has(from)).toBe(true);
     }
   });
 

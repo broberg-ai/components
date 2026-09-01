@@ -429,10 +429,12 @@ export const SESSION_ALIASES = {
   // transcript lives in), 2026-09-01.
   "2e155461-2619-43c2-9056-2ce1184ad5ad": "fd-sundhed", // enrolled @broberg/bodymap
   "f9b691fd-dd83-4641-bf7d-a6b957f5166c": "sanne", // enrolled @broberg/stripe
-  // DELIBERATELY ABSENT until the repo confirms it: `sanneandersen` → `sanne`.
-  // Three signals agree (FLEET calls `sanne` "sanneandersen.dk", buddy has no
-  // session by that name, and its one enrolment — cms-inline-edit — fits the
-  // site), and three agreeing signals is exactly what the `fds` merge had.
+  // CONFIRMED BY THE OWNER, 2026-09-01: "sanne + sanneandersen er samme repo".
+  // Held back until he said so, because three agreeing signals (FLEET calls
+  // `sanne` "sanneandersen.dk", buddy has no session by that name, and its one
+  // enrolment — cms-inline-edit — fits the site) is exactly what the wrong `fds`
+  // merge also had.
+  sanneandersen: "sanne",
 };
 
 export const oneLiner = (c) => {

@@ -188,12 +188,17 @@ explicitly before you get there.
 
 ### What is proven, and what is not
 
-The invoice fixture in the test suite is a trimmed, anonymised copy of a **real**
-invoice, *fetched* rather than written — a hand-written imitation would only
-confirm the author's understanding of the shape, and a wrong understanding of the
-shape was the bug. The subscription shapes are **constructed**; the timestamp in
-them is sanne's measurement, the object around it is not. That is a weaker claim
-and it is left standing as one.
+**Both fixtures are fetched.** The invoice and the subscription are trimmed,
+anonymised copies of **real** objects pulled from a live account — a hand-written
+imitation would only confirm the author's understanding of the shape, and a wrong
+understanding of the shape was the bug.
+
+The subscription one was constructed at first, and this section said so. sanne
+went and pulled the real object with `subscriptions.retrieve` when asked, so the
+period tests no longer carry a weaker claim than the id tests. On the live
+object: `current_period_end` is **absent from the root** and present on
+`items.data[0]` — the exact claim `readPeriod` rests on, now checkable against
+something Stripe itself sent.
 
 Still **unproven**: whether `customer.subscription.updated` fires on every
 renewal (and has therefore been a safety net all along). It is an inference from
