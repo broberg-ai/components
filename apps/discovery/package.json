@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun run --hot server.ts",
     "start": "bun run server.ts",
-    "test": "node ../../scripts/check-signature-drift.mjs && vitest run && node mutations.mjs",
+    "test": "node ../../scripts/check-signature-drift.mjs && vitest run && node ../../scripts/mutations-if-changed.mjs mutations.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

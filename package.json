@@ -7,7 +7,7 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "turbo run build",
-    "test": "node scripts/check-internal-pins.mjs && node scripts/test-internal-pins.mjs && node scripts/check-publish-triggers.mjs && node scripts/check-package-json-export.mjs && node scripts/test-precommit-secret-gate.mjs && node scripts/test-precommit-secret-gate-mutations.mjs && node scripts/check-committed-secrets.mjs && node scripts/test-committed-secrets-check.mjs && node scripts/test-committed-secrets-mutations.mjs && node scripts/test-fly-deploy-workflow.mjs && node scripts/test-mutation-marker.mjs && node scripts/test-mutation-marker-mutations.mjs && turbo run test",
+    "test": "node scripts/check-internal-pins.mjs && node scripts/test-internal-pins.mjs && node scripts/check-publish-triggers.mjs && node scripts/check-package-json-export.mjs && node scripts/test-precommit-secret-gate.mjs && node scripts/test-precommit-secret-gate-mutations.mjs && node scripts/check-committed-secrets.mjs && node scripts/test-committed-secrets-check.mjs && node scripts/test-committed-secrets-mutations.mjs && node scripts/test-fly-deploy-workflow.mjs && node scripts/test-mutation-marker.mjs && node scripts/test-mutation-marker-mutations.mjs && node scripts/test-mutations-if-changed.mjs && turbo run test",
     "typecheck": "turbo run typecheck",
     "test:workflows": "node scripts/test-fly-deploy-workflow.mjs",
     "test:pins": "node scripts/check-internal-pins.mjs"

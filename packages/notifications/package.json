@@ -32,7 +32,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
-    "test": "vitest run && node test/mutations.mjs",
+    "test": "vitest run && node ../../scripts/mutations-if-changed.mjs test/mutations.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.react.json"
   },
   "devDependencies": {
