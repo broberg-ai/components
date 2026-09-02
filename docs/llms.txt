@@ -91,7 +91,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
 - **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts`
 - **@broberg/complimenta-sdk** v0.3.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk`
-- **@broberg/cms-inline-edit** v0.6.0 — Inline editing on live @webhouse/cms-sites, plus self-healing page links that rewrite themselves at render. `npm i @broberg/cms-inline-edit`
+- **@broberg/cms-inline-edit** v0.6.1 — Inline editing on live @webhouse/cms-sites, plus self-healing page links that rewrite themselves at render. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
 ## Tips & tricks — every tip inline (122 across 15 platforms)
