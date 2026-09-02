@@ -54,6 +54,21 @@ const run = () => {
   execFileSync("node", [harness], { stdio: "inherit", cwd: process.cwd() });
 };
 
+/** A RELEASE RUNS EVERY HARNESS, FULL STOP (F081.5 AC#4).
+ *
+ *  publish.yml's gate is `uses: ./.github/workflows/test.yml`, so a tag push runs
+ *  this same selector. And on a tag the natural base is the WRONG one: the tagged
+ *  commit is already on main, so `merge-base origin/main HEAD` is HEAD itself, the
+ *  diff is empty, and EVERY package harness would skip — on the one run that
+ *  guards a publish. Measured as a design hole before it shipped, not after.
+ *
+ *  The card's constraint is explicit: nothing publishes on a gate that skipped its
+ *  own mutation harness. So the scope optimisation simply does not apply here. */
+function isRelease() {
+  return process.env.GITHUB_REF_TYPE === "tag" ||
+    (process.env.GITHUB_REF ?? "").startsWith("refs/tags/");
+}
+
 /** The commit this push is measured against. Never the working tree (rule 1). */
 function base() {
   // GitHub sets this on a push event; it is the commit main was on before.
@@ -88,9 +103,13 @@ function graph() {
 }
 
 const pkgDir = relative(ROOT, process.cwd()).split("/").slice(0, 2).join("/");
-const b = base();
+const b = isRelease() ? null : base();
 
-if (!b) {
+if (isRelease()) {
+  console.log(`  scope: RELEASE (${process.env.GITHUB_REF}) — every harness runs.`);
+  console.log(`         Nothing publishes on a gate that skipped its own harness.`);
+  run();
+} else if (!b) {
   console.log(`  scope: UNKNOWN — no base commit could be resolved, so the harness RUNS.`);
   console.log(`         "could not tell" is not "nothing changed" (F081.5).`);
   run();

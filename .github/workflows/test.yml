@@ -54,7 +54,14 @@ jobs:
     # runner open for the default six hours.
     timeout-minutes: 20
     steps:
+      # FULL HISTORY, ON PURPOSE (F081.5). The mutation-harness selector decides
+      # what a push could have affected by diffing against a base commit, and the
+      # default shallow clone has no `origin/main` and no previous tip to diff
+      # against — so the selector would fail safe and run everything, i.e. the
+      # feature would silently do nothing. Costs seconds on a repo this size.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Same toolchain as publish.yml — pnpm version from the root package.json
       # "packageManager", node 22. A gate running a different toolchain than the
@@ -77,4 +84,11 @@ jobs:
       # through its task graph. A second build would double the work and blur
       # which stage failed.
       - name: Test (workspace)
+        # `github.event.before` is in the EVENT PAYLOAD, not in the runner's
+        # environment — GITHUB_EVENT_BEFORE is not a variable GitHub sets. Without
+        # this line the selector never sees a real base. Measured: the first CI run
+        # after the selector shipped ran every harness, and would have kept doing so
+        # while looking like the optimisation was live.
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
         run: pnpm test

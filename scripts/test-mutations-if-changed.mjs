@@ -132,6 +132,35 @@ console.log("scope selector — both directions\n");
   rmSync(dir, { recursive: true, force: true });
 }
 
+// ── A RELEASE RUNS EVERYTHING (AC#4) ─────────────────────────────────────
+// publish.yml's gate reuses test.yml, so a tag push runs this selector — and on
+// a tag the natural base is HEAD itself (the tagged commit is already on main),
+// which would skip EVERY harness on the one run that guards a publish.
+{
+  const { dir, g, baseSha } = repo();
+  writeFileSync(join(dir, "root-unrelated.txt"), "v1\n");
+  g("add", "-A"); g("commit", "-qm", "unrelated");
+  const asTag = (extra) => execFileSync("node", [SCRIPT, "test/mutations.mjs"], {
+    cwd: join(dir, "packages", "gamma"), encoding: "utf8",
+    env: { ...process.env, GITHUB_EVENT_BEFORE: g("rev-parse", "HEAD").trim(), ...extra },
+  });
+  // Control first: with the base AT HEAD and no tag, gamma skips.
+  check("CONTROL: base at HEAD and no tag ⇒ gamma skips", () => {
+    const out = asTag({});
+    has(out, "SKIPPED", "the control did not skip, so the tag case below proves nothing");
+  });
+  check("a TAG push runs the harness even with an empty diff", () => {
+    const out = asTag({ GITHUB_REF: "refs/tags/theme-v1.2.3", GITHUB_REF_TYPE: "tag" });
+    has(out, "HARNESS RAN: gamma", "a release would have published on a gate that ran no harness");
+  });
+  check("...and says it is a release, naming the ref", () => {
+    const out = asTag({ GITHUB_REF: "refs/tags/theme-v1.2.3", GITHUB_REF_TYPE: "tag" });
+    has(out, "RELEASE", "the reason was not disclosed");
+    has(out, "refs/tags/theme-v1.2.3", "the ref was not named");
+  });
+  rmSync(dir, { recursive: true, force: true });
+}
+
 console.log("");
 if (failures) { console.error(`::error::${failures} check(s) failed.`); process.exit(1); }
 console.log("✓ scope selector proven in both directions.");
