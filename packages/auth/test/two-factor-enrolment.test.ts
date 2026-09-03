@@ -218,3 +218,74 @@ describe("the wrapper actually FORWARDS `secrets` — not just accepts it", () =
     expect(String(row(store).secret)).not.toMatch(/^\$ba\$/);
   });
 });
+
+describe("the MIGRATION path works through the wrapper (M5)", () => {
+  // MUTATION M5 ALSO SURVIVED: dropping the `secret` pass-through left 59/59
+  // green. And `secret` is exactly the legacy fallback the README tells a
+  // consumer to keep set so pre-envelope ciphertext stays readable. Third time
+  // on this one card that a field was accepted by the type, forwarded by the
+  // code, and asserted by nothing.
+  const LEGACY = "the-original-string-era-key-korrekt-hest";
+  const KEY_V1 = "the-new-versioned-key-batteri-haefteklamme";
+
+  function authWith(store: Store, cfg: { secret?: string; secrets?: ReturnType<typeof secretsFrom> }) {
+    return createTypedAuth(
+      {
+        database: memoryAdapter(store),
+        emailPassword: true,
+        baseURL: "http://localhost:3000",
+        ...cfg,
+      },
+      [buildTwoFactorPlugin({ issuer: "WebHouse" })],
+    );
+  }
+
+  async function enrolUnder(cfg: { secret?: string; secrets?: ReturnType<typeof secretsFrom> }) {
+    const store: Store = { user: [], session: [], account: [], verification: [], twoFactor: [] };
+    const auth = authWith(store, cfg);
+    const up = await auth.api.signUpEmail({
+      body: { email: EMAIL, password: PASSWORD, name: "CB" },
+      asResponse: true,
+    });
+    const cookie = up.headers.getSetCookie().join("; ");
+    await auth.api.enableTwoFactor({ body: { password: PASSWORD }, headers: { cookie }, asResponse: true });
+    return store;
+  }
+
+  it("a row written in the STRING era is still readable after adopting `secrets`", async () => {
+    // The whole reason the deadline is "while you still have the old secret"
+    // rather than "before your first 2FA user".
+    const store = await enrolUnder({ secret: LEGACY });
+    const stringEra = String(row(store).secret);
+    expect(stringEra).not.toMatch(/^\$ba\$/);
+
+    // Now the app adopts versioned keys and KEEPS the old secret as the fallback.
+    await expect(
+      symmetricDecrypt({
+        key: { keys: new Map([[1, KEY_V1]]), currentVersion: 1, legacySecret: LEGACY },
+        data: stringEra,
+      }),
+    ).resolves.toHaveLength(32);
+  });
+
+  it("...and WITHOUT the legacy secret the same row is lost — so `secret` is what saves it", async () => {
+    const store = await enrolUnder({ secret: LEGACY });
+    await expect(
+      symmetricDecrypt({
+        key: { keys: new Map([[1, KEY_V1]]), currentVersion: 1 },
+        data: String(row(store).secret),
+      }),
+    ).rejects.toThrow(/legacy bare-hex/);
+  });
+
+  it("the wrapper forwards `secret`: two DIFFERENT secrets produce mutually unreadable rows", async () => {
+    // The assertion M5 needed. If `secret` were dropped, both instances would
+    // fall back to the same env/default key and each row would open with the
+    // other's config — so the rows being mutually unreadable is the evidence
+    // that our config reached Better Auth at all.
+    const a = await enrolUnder({ secret: LEGACY });
+    const b = await enrolUnder({ secret: KEY_V1 });
+    await expect(symmetricDecrypt({ key: LEGACY, data: String(row(a).secret) })).resolves.toBeTruthy();
+    await expect(symmetricDecrypt({ key: LEGACY, data: String(row(b).secret) })).rejects.toThrow();
+  });
+});
