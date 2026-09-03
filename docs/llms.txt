@@ -37,7 +37,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/config** v0.2.0 — The fleet's single-source config helper. `npm i @broberg/config`
 - **@broberg/mail** v0.10.1 — The fleet's thin Resend send primitive, plus a status lookup that answers whether a mail actually arrived. `npm i @broberg/mail`
 - **@broberg/media** v0.2.1 — The fleet's provider-agnostic media-storage facade. `npm i @broberg/media`
-- **@broberg/mail-core** v0.6.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
+- **@broberg/mail-core** v0.7.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
 - **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
 - **@broberg/cron** v0.2.0 — The fleet's typed self-service client for cronjobs.webhouse.net. `npm i @broberg/cron`
 - **@broberg/chat** v0.6.3 — The fleet's AI-chat engine: a conversation loop with a tool registry, streaming typed frames, knowledge from Trail, and history management. `npm i @broberg/chat`
@@ -62,7 +62,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/seo** (planned) — SEO and metadata helpers for Stack A. `npm i @broberg/seo`
 
 ### L3 — Domain (feature surfaces)
-- **@broberg/mail-core** v0.6.0 — Branded HTML email shell whose brand values are validated and whose fill() escapes. `npm i @broberg/mail-core`
+- **@broberg/mail-core** v0.7.0 — Branded HTML email shell whose brand values are validated and whose fill() escapes. `npm i @broberg/mail-core`
 - **@broberg/speech-dictionary** v0.1.3 — Fleet STT vocabulary + correction primitive. `npm i @broberg/speech-dictionary`
 - **@broberg/sms** v0.12.0 — One SMS send primitive for the fleet. `npm i @broberg/sms`
 - **@broberg/notifications** v0.4.0 — The fleet's in-app notification list core: ONE counting rule shared by every app, so the list, the bell and the OS badge cannot disagree. `npm i @broberg/notifications`
