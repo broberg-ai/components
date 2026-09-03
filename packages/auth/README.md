@@ -206,10 +206,19 @@ const svg = totpQr(totpURI);        // scan this with any authenticator app
 deletes `globalThis.Buffer` — because the first version of the data-URI branch
 used `Buffer.from()` and threw in a browser while this README already claimed
 otherwise. The test it had only checked that `document` and `window` were
-absent, which is Node, which is the one runtime where `Buffer` exists. Fixed in
-**0.3.2**; **0.3.0 and 0.3.1 both have a `dataUri` that throws in a browser** —
-0.3.1's commit carried the test and the version bump but not the source fix (see
-below), so it is the same defect with a newer number.
+absent, which is Node, which is the one runtime where `Buffer` exists. Fixed in **0.3.2**. **`0.3.0` has a `dataUri` that throws in a browser** —
+verified against the published tarball with 0.3.2 as the comparison, both with
+`Buffer`, `btoa` and `TextEncoder` deleted:
+
+```
+0.3.2   OK
+0.3.0   THROWS  Buffer is not defined
+```
+
+**There is no `0.3.1` on npm.** Its commit carried the test and the version bump
+but not the source fix, so its own gate failed it — correctly, on the very test
+that was right while the code was not. If you pinned 0.3.1 on the strength of an
+earlier message from us, that install cannot resolve; take 0.3.2.
 
 **Any authenticator app works, and there is nothing to integrate.** Microsoft
 Authenticator, Google Authenticator, 1Password, Authy — all of them implement
