@@ -1,6 +1,6 @@
 {
   "name": "@broberg/mail-core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Branded HTML email shell + primitives for the broberg.ai fleet — renderShell, heading/paragraph/cta/factBox/signOff, and a CID logo-attachment helper. No sending (@broberg/mail) and no template-content/override-resolution (@broberg/mail-templates) — layer 1 (visual structure) only. Every brand value is a caller-supplied param.",
   "type": "module",
   "license": "MIT",

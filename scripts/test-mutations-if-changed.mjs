@@ -22,6 +22,21 @@ const has = (out, txt, why) => {
   if (!String(out).includes(txt)) throw new Error(`${why}\n        missing: ${JSON.stringify(txt)}\n        in: ${String(out).slice(0, 400)}`);
 };
 
+/** The fixture's environment must be OURS, not the job's.
+ *  Measured 2026-09-03: on the `mail-core-v0.2.0` tag push the job's own
+ *  GITHUB_REF was inherited by every fixture, so the selector answered
+ *  "RELEASE — every harness runs" in all of them. Five checks went red and
+ *  blocked a legitimate publish — but the expensive half is the other one:
+ *  the tag check PASSED for the ambient reason, not the reason it tests.
+ *  These three are the only inputs the selector reads; all three are ours. */
+function fixtureEnv(extra = {}) {
+  return {
+    ...process.env,
+    GITHUB_REF: undefined, GITHUB_REF_TYPE: undefined, GITHUB_EVENT_BEFORE: undefined,
+    ...extra,
+  };
+}
+
 /** A throwaway repo: alpha (independent), beta (depends on alpha), gamma
  *  (independent, and the only honest "unrelated" package — beta is NOT
  *  unrelated, which this test got wrong on its first run). */
@@ -48,7 +63,7 @@ function repo({ branch = "main" } = {}) {
 function scope(dir, pkg, base) {
   return execFileSync("node", [SCRIPT, "test/mutations.mjs"], {
     cwd: join(dir, "packages", pkg), encoding: "utf8",
-    env: { ...process.env, GITHUB_EVENT_BEFORE: base },
+    env: fixtureEnv({ GITHUB_EVENT_BEFORE: base }),
   });
 }
 
@@ -123,7 +138,7 @@ console.log("scope selector — both directions\n");
   const { dir } = repo({ branch: "work" });
   const out = execFileSync("node", [SCRIPT, "test/mutations.mjs"], {
     cwd: join(dir, "packages", "alpha"), encoding: "utf8",
-    env: { ...process.env, GITHUB_EVENT_BEFORE: "" },
+    env: fixtureEnv({ GITHUB_EVENT_BEFORE: "" }),
   });
   check("an UNRESOLVABLE base runs the harness rather than skipping", () =>
     has(out, "HARNESS RAN: alpha", "it skipped when it could not tell — the reassuring branch"));
@@ -142,7 +157,7 @@ console.log("scope selector — both directions\n");
   g("add", "-A"); g("commit", "-qm", "unrelated");
   const asTag = (extra) => execFileSync("node", [SCRIPT, "test/mutations.mjs"], {
     cwd: join(dir, "packages", "gamma"), encoding: "utf8",
-    env: { ...process.env, GITHUB_EVENT_BEFORE: g("rev-parse", "HEAD").trim(), ...extra },
+    env: fixtureEnv({ GITHUB_EVENT_BEFORE: g("rev-parse", "HEAD").trim(), ...extra }),
   });
   // Control first: with the base AT HEAD and no tag, gamma skips.
   check("CONTROL: base at HEAD and no tag ⇒ gamma skips", () => {
@@ -159,6 +174,31 @@ console.log("scope selector — both directions\n");
     has(out, "refs/tags/theme-v1.2.3", "the ref was not named");
   });
   rmSync(dir, { recursive: true, force: true });
+}
+
+// ── THE LEAK ITSELF (2026-09-03) ─────────────────────────────────────────
+// The suite above is only meaningful if the fixtures decide their own scope.
+// This reproduces the exact CI condition that broke it: run the whole job as a
+// TAG push, and require an unrelated package to STILL skip. Without the
+// isolation this check goes red — which is what makes it a check.
+{
+  const saved = { REF: process.env.GITHUB_REF, TYPE: process.env.GITHUB_REF_TYPE };
+  process.env.GITHUB_REF = "refs/tags/mail-core-v0.2.0";
+  process.env.GITHUB_REF_TYPE = "tag";
+  try {
+    const { dir, g, baseSha } = repo();
+    writeFileSync(join(dir, "packages/alpha/src.txt"), "v2\n");
+    g("add", "-A"); g("commit", "-qm", "touch alpha");
+    const out = scope(dir, "gamma", baseSha);
+    check("the JOB being a tag push does not decide the FIXTURE's scope", () => {
+      has(out, "SKIPPED", "the job's own GITHUB_REF leaked into the fixture — every case below it then passes as a release, including the tag case, which would prove nothing");
+      if (out.includes("HARNESS RAN")) throw new Error("the ambient environment decided");
+    });
+    rmSync(dir, { recursive: true, force: true });
+  } finally {
+    if (saved.REF === undefined) delete process.env.GITHUB_REF; else process.env.GITHUB_REF = saved.REF;
+    if (saved.TYPE === undefined) delete process.env.GITHUB_REF_TYPE; else process.env.GITHUB_REF_TYPE = saved.TYPE;
+  }
 }
 
 console.log("");
