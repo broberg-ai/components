@@ -103,7 +103,16 @@ try {
     // Import in a CHILD process: one entry throwing must not stop the rest, and
     // a partial answer here would be its own false green.
     try {
-      execFileSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(spec)})`], {
+      // A JSON export needs the import attribute — without it Node throws
+      // ERR_IMPORT_ATTRIBUTE_MISSING and the entry reads as broken when it is
+      // fine. F061.3 added "./package.json" to all 39 packages so a consumer
+      // can answer "what version am I?", and this guard has been RED ever
+      // since — caught only because F008.10 added the next entry and someone
+      // ran it. A gate whose red nobody sees is a gate nobody depends on.
+      const importExpr = spec.endsWith(".json")
+        ? `await import(${JSON.stringify(spec)}, { with: { type: "json" } })`
+        : `await import(${JSON.stringify(spec)})`;
+      execFileSync(process.execPath, ["--input-type=module", "-e", importExpr], {
         cwd: dir,
         stdio: "pipe",
       });

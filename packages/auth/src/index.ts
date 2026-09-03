@@ -28,6 +28,42 @@ export const FLEET_SOCIAL_PROVIDERS = [
   "facebook",
 ] as const;
 
+/**
+ * Build Better Auth's `secrets` array from a map of version → key.
+ *
+ * **Sorted DESCENDING, because the array's order is load-bearing and nothing
+ * checks it.** Better Auth reads the current key positionally —
+ * `currentVersion: parseInt(String(secrets[0].version))`
+ * (`dist/context/secret-utils.mjs:48`) — and its own `validateSecretsArray`
+ * checks integers, duplicates, length and entropy but **not order**. So this
+ * passes validation and quietly encrypts new data under the OLD key:
+ *
+ * ```ts
+ * secrets: [{ version: 1, value: old }, { version: 2, value: newKey }]   // ⚠️ v1 is current
+ * ```
+ *
+ * Nothing errors. You believe you have rotated; you have not. It surfaces only
+ * when the old key is finally retired and every encrypted row stops opening.
+ *
+ * ```ts
+ * createAuth({
+ *   secrets: secretsFrom({ 2: process.env.AUTH_KEY_V2!, 1: process.env.AUTH_KEY_V1! }),
+ *   secret: process.env.BETTER_AUTH_SECRET,   // legacy fallback, still needed
+ * });
+ * ```
+ */
+export function secretsFrom(keys: Record<number, string>): Array<{ version: number; value: string }> {
+  const entries = Object.entries(keys).map(([v, value]) => ({ version: Number(v), value }));
+  if (entries.length === 0) throw new Error("@broberg/auth: secretsFrom() needs at least one key");
+  for (const { version, value } of entries) {
+    if (!Number.isInteger(version) || version < 0) {
+      throw new Error(`@broberg/auth: secretsFrom() version must be a non-negative integer, got ${version}`);
+    }
+    if (!value) throw new Error(`@broberg/auth: secretsFrom() key for version ${version} is empty`);
+  }
+  return entries.sort((a, b) => b.version - a.version);
+}
+
 /** Fleet auth config — a thin surface over `BetterAuthOptions`. */
 export interface AuthConfig {
   /** Better Auth database option. Pass `drizzle(db, { provider })` (re-exported
@@ -35,8 +71,32 @@ export interface AuthConfig {
   database: BetterAuthOptions["database"];
   /** Public base URL of the app (e.g. https://xrt81.com). */
   baseURL?: string;
-  /** Signing secret. Falls back to Better Auth's BETTER_AUTH_SECRET env when unset. */
+  /** Signing secret. Falls back to Better Auth's BETTER_AUTH_SECRET env when unset.
+   *
+   *  ⚠️ **A LONE `secret` CANNOT SURVIVE A ROTATION, AND FOR 2FA THAT IS A
+   *  PERMANENT LOCKOUT.** Measured against better-auth 1.6.23's own crypto
+   *  (`dist/crypto/index.mjs:41`): a string key encrypts with no version
+   *  marker, so nothing decrypts the result once the key changes.
+   *
+   *    secret only   ciphertext with NO envelope   after rotation: "invalid tag"
+   *    secrets[]     `$ba$1$…` envelope            after rotation: readable, byte-exact
+   *
+   *  For sessions that is a forced re-login. For `@broberg/auth/two-factor` it
+   *  is an account lockout with no way back — the stored TOTP secret AND the
+   *  recovery codes use this key, so the escape hatch goes with it.
+   *
+   *  Set {@link AuthConfig.secrets} if anything encrypts data at rest. */
   secret?: string;
+  /** Versioned keys, newest first — Better Auth's non-destructive rotation.
+   *  Build it with {@link secretsFrom} rather than by hand; the order is
+   *  load-bearing and nothing validates it (see that helper's note).
+   *
+   *  With this set, `secret` becomes the legacy fallback that reads ciphertext
+   *  written before the envelope existed. MEASURED: with it, string-era data
+   *  decrypts byte-exact; without it the same read fails with `Cannot decrypt
+   *  legacy bare-hex payload`. **So the deadline for migrating is not "before
+   *  your first 2FA user" — it is "while you still have the old secret".** */
+  secrets?: BetterAuthOptions["secrets"];
   /** Enable email + password sign-in. */
   emailPassword?: boolean;
   /** Enable magic-link sign-in, delivered through @broberg/mail. Omitted when
@@ -87,6 +147,7 @@ export function buildAuthOptions(config: AuthConfig): BetterAuthOptions {
     database: config.database,
     ...(config.baseURL ? { baseURL: config.baseURL } : {}),
     ...(config.secret ? { secret: config.secret } : {}),
+    ...(config.secrets ? { secrets: config.secrets } : {}),
     ...(config.emailPassword ? { emailAndPassword: { enabled: true } } : {}),
     socialProviders,
     ...(plugins.length ? { plugins } : {}),
@@ -135,6 +196,7 @@ export function createTypedAuth<const P extends AuthPlugin[]>(
     database: config.database,
     ...(config.baseURL ? { baseURL: config.baseURL } : {}),
     ...(config.secret ? { secret: config.secret } : {}),
+    ...(config.secrets ? { secrets: config.secrets } : {}),
     ...(config.emailPassword ? { emailAndPassword: { enabled: true } } : {}),
     socialProviders,
     plugins,

@@ -181,3 +181,88 @@ when you did not configure it.
 `passkeyConfigured()` and `configuredMethods()` are unchanged: they answer
 *"should I render this button"*, which you know regardless of where the plugin was
 built.
+
+## Two-factor authentication (`@broberg/auth/two-factor`)
+
+```ts
+import { createTypedAuth, secretsFrom } from "@broberg/auth";
+import { buildTwoFactorPlugin, totpQr } from "@broberg/auth/two-factor";
+
+const auth = createTypedAuth(
+  {
+    database: drizzle(db, { provider: "sqlite" }),
+    secrets: secretsFrom({ 1: process.env.AUTH_KEY_V1! }),
+    secret: process.env.BETTER_AUTH_SECRET,   // legacy fallback — see below
+  },
+  [buildTwoFactorPlugin({ issuer: "WebHouse" })],
+);
+
+const { totpURI, backupCodes } = await auth.api.enableTwoFactor({ body: { password } });
+const svg = totpQr(totpURI);        // scan this with any authenticator app
+```
+
+**Any authenticator app works, and there is nothing to integrate.** Microsoft
+Authenticator, Google Authenticator, 1Password, Authy — all of them implement
+TOTP (RFC 6238). Nothing here talks to Microsoft or Google: a secret is
+generated, shown as a QR code, and codes are verified locally. An app nobody has
+heard of works exactly as well as the famous two.
+
+Proven, not assumed: the test suite computes a code the way a phone does —
+its own RFC 6238 implementation, checked against the **RFC's published test
+vector** — and requires Better Auth to accept it. A code produced by the library
+under test would only prove the library agrees with itself.
+
+### ⚠️ Read this before you enable 2FA in production
+
+**The TOTP secret and the recovery codes are both encrypted with your app key.**
+On a lone `secret` string, that ciphertext carries no version marker, so a key
+rotation makes every 2FA account unopenable — recovery codes included, because
+they use the same key. Measured against better-auth 1.6.23:
+
+```
+secret only   after rotation   TOTP secret: "invalid tag" · codes: "invalid tag"
+secrets[]     after rotation   readable, byte-exact
+```
+
+For sessions a rotation is a forced re-login. For 2FA it is a lockout with no
+self-service way back.
+
+**Use `secretsFrom()`, and keep `secret` set as the legacy fallback.** With it,
+ciphertext written in the string era still decrypts; without it the same read
+fails with `Cannot decrypt legacy bare-hex payload`. **So the deadline is not
+"before your first 2FA user" — it is "while you still have the old secret".**
+
+`secretsFrom()` also closes a footgun nothing else checks: Better Auth reads the
+current key **positionally** (`secrets[0]`), and its own validation checks
+integers, duplicates, length and entropy but **not order**. A hand-written
+ascending array therefore encrypts new data under the *old* key, silently.
+`secretsFrom()` derives the order from the version numbers.
+
+### What Better Auth already handles, so you do not
+
+Enrolment requires a valid code before 2FA switches on (asserted here by reading
+the stored row, not the response). The secret and the recovery codes are
+encrypted at rest. Repeated failures lock the account rather than allowing an
+online brute-force. Ten single-use recovery codes are returned once at
+enrolment — **show them then, and say they are the only way back.**
+
+### `totpURI` is a credential
+
+It contains the shared secret in plain text. Anyone who reads it has the second
+factor. Never log it, never put it in an error message, never send it to
+analytics. **And never email the QR code** — both output formats render
+unreliably in mail clients, and the stronger reason is that mailing a QR mails
+the secret into a stored, forwardable message. 2FA enrolment belongs in an
+authenticated session.
+
+### Types
+
+Use `createTypedAuth`, not `createAuth`: the plugin's `api` methods
+(`enableTwoFactor`, `verifyTOTP`, `verifyBackupCode`) are invisible to
+`createAuth`'s annotated return type — the dark-ship/inference tension from
+F008.7. Runtime is identical; only the static type differs.
+
+**Install cost:** `@broberg/auth/two-factor` needs `uqr` (zero dependencies) for
+the QR. The core entry does not — asserted by `verify-clean-install.mjs`, which
+installs the packed tarball in an empty directory and imports every entry with
+exactly the peers that entry declares.

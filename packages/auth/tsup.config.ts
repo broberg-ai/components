@@ -4,6 +4,7 @@ const SHARED_EXTERNAL = [
   "better-auth",
   "better-auth/*",
   "@better-auth/passkey",
+  "uqr",
   "drizzle-orm",
   "@broberg/mail",
   "hono",
@@ -18,6 +19,17 @@ export default defineConfig([
     // (dropped hono.d.ts from the 0.1.2 build). dist is cleaned ONCE up front
     // in the build script (`rm -rf dist && tsup`), and verify-exports.mjs seals it.
     entry: { index: "src/index.ts" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    external: SHARED_EXTERNAL,
+  },
+  {
+    // F008.10 — two-factor lives behind its own subpath for the same reason as
+    // passkey: `uqr` (the QR encoder) must not be in the core import graph. A
+    // consumer without 2FA never installs it.
+    entry: { "two-factor": "src/two-factor.ts" },
     format: ["esm", "cjs"],
     dts: true,
     sourcemap: true,
