@@ -3,6 +3,31 @@
 > L3 Domain · copy-owned · effort **M** · impact **high** · owner `sanneandersen`. Status: Backlog.
 > Graduate-candidate: no — stays in `components`.
 
+> ## ⚠️ SCOPE CHANGED 2026-09-03 — template STORAGE is cardmem's
+>
+> Christian, directly: **«ja skabelon-lagring er cardmems nu.»** A project submits
+> its template to cardmem, which stores it in the project's repo *and* its DB,
+> sends with it, and lets project agents apply it.
+>
+> **What components still owns:** `@broberg/mail-core` — the HTML shell and the
+> primitives cardmem's template layer renders *through* — and `@broberg/mail`
+> (sending + verification).
+>
+> **What is dead:** `F023.4` (OverrideStore + file/Drizzle adapters) — archived,
+> with its design handed to cardmem as prior art rather than discarded. And
+> `@broberg/mail-templates` as a layer-2 package: named below, independently
+> re-proposed by vn-leker in September after they built a third local copy, and
+> rejected. It is written down as dead precisely because it keeps being
+> re-invented by anyone who finds the copies.
+>
+> **What survives and is MORE needed now:** F023.7's three primitives
+> (`eyebrow`, `noteBox`, `heading({emphasis})`). Without them every
+> cardmem-stored template writes raw HTML — the drift the layer exists to stop.
+> F023.2 and F023.3 are shell migrations onto mail-core and are unaffected.
+>
+> Everything below this line predates the decision. It is left standing rather
+> than rewritten, so the record shows what was planned and what changed it.
+
 ## Motivation
 A library of typed TS functions each returning { subject, html, text } for one transactional/marketing email. Every function composes a shared HTML shell (branded wrapper, dark-mode guards, preheader, footer) with template-specific body blocks built from primitives (heading, paragraph, cta, signOff, escapeHtml). Copy strings resolve from a keyed registry with coded defaults + optional operator-editable overrides (flat JSON file — sanneandersen; or DB table keyed by tenant — xrt81). No send responsibility — callers pass the returned object to F005's sender.
 
