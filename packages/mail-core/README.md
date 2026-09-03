@@ -161,3 +161,49 @@ forced square distorts them in exactly the client that honours attributes.
 
 `logoWidth` is how you **draw** the logo. If you also need to **produce** it at a
 sane size, that is `@broberg/media-transform` — complementary, not an alternative.
+
+## `fill()` escapes — and the order matters
+
+```ts
+fill(template, vars)      // every value HTML-escaped
+fillHtml(template, vars)  // raw; the unsafe one is the one you have to name
+```
+
+**Before 0.6.0, `fill()` did not escape.** `vars` is dynamic by definition — a
+customer's name, a booking reference, something someone typed — so if you were on
+an earlier version and passed anything user-supplied through it, assume it
+rendered as markup. Measured on 0.5.0:
+
+```
+fill("<p>Hej {name}</p>", { name: '<a href="https://phish.example">Log ind</a>' })
+→ <p>Hej <a href="https://phish.example">Log ind</a></p>
+```
+
+**⚠️ Render first, then fill.**
+
+```
+render THEN fill   "Sørensen & Søn"  →  "Sørensen &amp; Søn"      ✓
+fill THEN render   "Sørensen & Søn"  →  "Sørensen &amp;amp; Søn"  ✗
+```
+
+Render first and `{token}` is ordinary text that survives escaping untouched, so
+each value is escaped exactly once. The wrong order fails in the worst available
+direction: perfect for every customer whose name has no `&`, `<` or quote — most
+of them — reaching production looking correct and breaking on one real person, in
+their inbox, where nobody is watching. If you call both, compose them into one
+function so a call site cannot get the order wrong. (Filed by cardmem, who hit it
+in their own template store.)
+
+## `SHELL_VERSION` — and what it was worth before 0.6.0
+
+`SHELL_VERSION` is emitted into every mail as `<!-- @broberg/mail-core shell vN -->`
+right after the doctype, so you can tell *"my template changed"* from *"their
+shell changed"* by reading a stored render.
+
+**It read `"1"` across 0.2.x, 0.3.x and 0.4.x while the rendering changed three
+times** — the footer rule, the footer text colour, the card background,
+`signOff`'s emphasis. A stored `"1"` therefore proves nothing about which shell
+rendered a mail. It is `"2"` from 0.6.0, and a test now compares the rendered
+output against a fixture keyed by the marker: change the output without bumping
+the version and the build fails. Two numbers answer two questions — read the
+installed package version alongside it.

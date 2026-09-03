@@ -62,6 +62,16 @@ const NAMED_COLORS = new Set(
     "yellow yellowgreen").split(" "),
 );
 
+/** ONE muted pair for the whole package, not one per function. factBox kept an
+ *  `opacity:0.65` for a full card after F023.8 removed it from the footer, and
+ *  the acceptance criterion that should have caught it ("no opacity on any text
+ *  in the shell") passed because its test rendered renderShell and not factBox.
+ *  A single pair means the next primitive cannot invent a third mid-tone.
+ *    #4a4d63 on #fffffe  8.29:1      #c1c2d1 on #1a1a1a  9.87:1
+ *    #4a4d63 on #f4f4f5  7.54:1      #c1c2d1 on #484848  5.18:1 */
+const MUTED_LIGHT = "#4a4d63";
+const MUTED_DARK = "#c1c2d1";
+
 const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const FUNCTIONAL = /^(?:rgb|rgba|hsl|hsla)\(\s*[0-9a-z.%,\s/+-]+\)$/i;
 
@@ -238,7 +248,7 @@ export function resolveLogoSrc(logo: LogoSource | undefined, fallbackUrl?: strin
  *  An HTML COMMENT rather than an attribute: comments survive every client we
  *  have measured, and an attribute on <html> is one of the first things a
  *  sanitising webmail rewrites. */
-export const SHELL_VERSION = "1";
+export const SHELL_VERSION = "2";
 
 export function renderShell(opts: ShellOpts): string {
   const { accentColor, cardBg, textColor, backdropColor, fontSans } = resolveColors(opts);
@@ -282,7 +292,7 @@ export function renderShell(opts: ShellOpts): string {
   // read it, because there is no colour there to read.
   //   #4a4d63 on #f4f4f5   7.54:1      #c1c2d1 on #1a1c2b   9.56:1
   //   #4a4d63 on #ffffff   8.29:1      #c1c2d1 on #484848   5.18:1  (the mapped case)
-  const footerText = isDark(backdropColor) ? "#c1c2d1" : "#4a4d63";
+  const footerText = isDark(backdropColor) ? MUTED_DARK : MUTED_LIGHT;
   const footerBlock = showFooter
     ? `<tr>
       <td bgcolor="${backdropColor}" style="background:${backdropColor};padding:16px 40px 32px;text-align:center;border-top:1px solid ${accentColor};">
@@ -476,8 +486,8 @@ export interface SignOffLine {
  *    #4a4d63 on #fffffe   8.29:1        #c1c2d1 on #1a1a1a   9.87:1
  *    #4a4d63 on #1a1a1a   2.10:1  <-    #c1c2d1 on #484848   5.18:1
  */
-const SIGNOFF_META_LIGHT = "#4a4d63";
-const SIGNOFF_META_DARK = "#c1c2d1";
+const SIGNOFF_META_LIGHT = MUTED_LIGHT;
+const SIGNOFF_META_DARK = MUTED_DARK;
 
 function signOffLine(line: SignOffLine, metaColor: string): string {
   const text = escapeHtml(line.text);
@@ -565,7 +575,7 @@ export function factBox(rows: FactRow[], opts?: { accentColor?: string }): strin
   const cells = rows
     .map(
       (r) => `<tr>
-        <td style="padding:6px 12px 6px 0;font-size:13px;opacity:0.65;white-space:nowrap;vertical-align:top;">${escapeHtml(r.label)}</td>
+        <td style="padding:6px 12px 6px 0;font-size:13px;color:${MUTED_LIGHT};white-space:nowrap;vertical-align:top;">${escapeHtml(r.label)}</td>
         <td style="padding:6px 0;font-size:13px;font-weight:600;">${escapeHtml(r.value)}</td>
       </tr>`,
     )
@@ -577,8 +587,51 @@ export function factBox(rows: FactRow[], opts?: { accentColor?: string }): strin
   </table>`;
 }
 
-/** Replace {token} placeholders with values. Unknown tokens are left as-is. */
+/** Replace `{token}` placeholders with values. **Every value is HTML-escaped.**
+ *  Unknown tokens are left as-is.
+ *
+ *  ⚠️ THE ESCAPING IS THE POINT, and it was missing until 0.6.0. `vars` is
+ *  dynamic BY DEFINITION — a customer's name, a booking reference, a message
+ *  someone typed — so every value reaching this function is exactly the class of
+ *  data that must be escaped. Measured on 0.5.0 and earlier:
+ *
+ *    fill("<p>Hej {name}</p>", { name: '<a href="https://phish.example">Log ind</a>' })
+ *      -> <p>Hej <a href="https://phish.example">Log ind</a></p>
+ *
+ *  The anchor was in the mail. If you were on an earlier version and passed
+ *  anything user-supplied through this, assume it rendered as markup.
+ *
+ *  Composing actual markup? Use {@link fillHtml}, whose NAME says so at the call
+ *  site. There is deliberately no escaping flag: a flag has to default to
+ *  something, and the wrong default is invisible where it is called.
+ *
+ *  ⚠️ **ORDER MATTERS NOW THAT THIS ESCAPES — RENDER FIRST, THEN FILL.**
+ *  Filed by cardmem the day the escaping landed, measured in their own store:
+ *
+ *    render THEN fill   "Sørensen & Søn"  ->  "Sørensen &amp; Søn"      ✓
+ *    fill THEN render   "Sørensen & Søn"  ->  "Sørensen &amp;amp; Søn"  ✗
+ *
+ *  Render first and `{token}` is ordinary text that survives escaping untouched,
+ *  so each value is escaped exactly once — by the function that substitutes it.
+ *
+ *  It fails in the worst available direction: perfect for every customer whose
+ *  name has no `&`, `<` or quote, which is most of them. It reaches production
+ *  looking correct and breaks on one real person, in their inbox, where nobody
+ *  is watching. If you call both, compose them in ONE function so a call site
+ *  cannot get the order wrong. */
 export function fill(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) =>
+    key in vars ? escapeHtml(String(vars[key])) : `{${key}}`,
+  );
+}
+
+/** Like {@link fill}, but the values are injected as **raw HTML** — nothing is
+ *  escaped, and the caller owns every value.
+ *
+ *  Mirrors `paragraph` / `paragraphHtml` above: the unsafe one is the one you
+ *  have to name. Reach for it only when the value is markup you built yourself,
+ *  never for anything that reached you from a user, a database or a request. */
+export function fillHtml(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_, key) => (key in vars ? String(vars[key]) : `{${key}}`));
 }
 
