@@ -212,6 +212,24 @@ stray `TEST=1` removed it. Now the package asserts it, at call time, in every
 env state — and also inside a `secrets` array, which bypasses Better Auth's
 check entirely.
 
+**0.4.1 — skip 0.4.0.** The guard reads Better Auth's resolution chain, and
+0.4.0 read four of its six sources. Two valid configurations were REFUSED as a
+result, and one route into the hole stayed open. All three measured against the
+published 0.4.0:
+
+```
+BETTER_AUTH_SECRETS="1:<key>" in env      valid (Better Auth resolves it)  0.4.0 THREW
+extend: { secret: <key> }                 valid (extend is spread last)    0.4.0 THREW
+extend: { secret: <the default> }         must be refused                  0.4.0 PASSED
+```
+
+The middle one is the trap worth naming: `buildAuthOptions` spreads
+`...config.extend` **last**, so `extend` WINS over `config.secret`. A guard that
+reads only the config field therefore blocks a working setup *and* lets the
+public constant through the one field that overrides it. If you are on 0.4.0 and
+your app boots, you are not affected — the failure is loud, not silent — but
+upgrade before anyone sets either of those.
+
 **What this breaks:** nothing in production. Anything with a real secret is
 unaffected, and anything without one was already broken. It breaks **tests that
 boot auth with no secret at all** — pass one:

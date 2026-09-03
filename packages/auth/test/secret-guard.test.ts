@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { memoryAdapter } from "better-auth/adapters/memory";
+import { betterAuth } from "better-auth";
 import { createAuth, createTypedAuth, secretsFrom } from "../src/index.js";
 
 /**
@@ -181,5 +182,50 @@ describe("the paths a narrower guard would have missed", () => {
     expect(message).toContain("BETTER_AUTH_SECRET");
     expect(message).toContain("openssl rand -base64 32");
     expect(message).toContain("forge any session cookie");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The chain has SIX sources, not four. 0.4.0 read four, which was enough to
+// pass every test above — because those tests came from the same incomplete
+// reading of Better Auth's create-context.mjs. Each case below FAILED on 0.4.0.
+// ---------------------------------------------------------------------------
+
+describe("the two sources 0.4.0 missed", () => {
+  it("BETTER_AUTH_SECRETS in env is a valid config Better Auth accepts on its own", async () => {
+    process.env.BETTER_AUTH_SECRETS = `1:${REAL_SECRET}`;
+    const ctx = await betterAuth({ database: db() }).$context;
+    expect(ctx.secret).toBe(REAL_SECRET);
+  });
+
+  it("...so the guard must NOT refuse it (0.4.0 threw 'no signing secret')", () => {
+    process.env.BETTER_AUTH_SECRETS = `1:${REAL_SECRET}`;
+    expect(() => createAuth({ database: db() })).not.toThrow();
+  });
+
+  it("...but it must refuse the public default hiding in that variable", () => {
+    process.env.BETTER_AUTH_SECRETS = `1:${DEFAULT_SECRET}`;
+    expect(() => createAuth({ database: db() })).toThrow(
+      /BETTER_AUTH_SECRETS contains Better Auth's default secret/,
+    );
+  });
+
+  it("a secret passed through `extend` counts (0.4.0 threw on this valid config)", () => {
+    expect(() => createAuth({ database: db(), extend: { secret: REAL_SECRET } })).not.toThrow();
+  });
+
+  it("and `extend` cannot smuggle the public default past the guard — it WINS over config.secret, because buildAuthOptions spreads it last", () => {
+    expect(() =>
+      createAuth({ database: db(), secret: REAL_SECRET, extend: { secret: DEFAULT_SECRET } }),
+    ).toThrow(/IS Better Auth's default secret/);
+  });
+
+  it("same for a secrets array smuggled through `extend`", () => {
+    expect(() =>
+      createAuth({
+        database: db(),
+        extend: { secrets: [{ version: 1, value: DEFAULT_SECRET }] },
+      }),
+    ).toThrow(/one of your `secrets` is Better Auth's default secret/);
   });
 });

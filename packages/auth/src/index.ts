@@ -156,19 +156,48 @@ const BETTER_AUTH_DEFAULT_SECRET = "better-auth-secret-12345678901234567890";
  * module-load const, which is how a probe that sets `NODE_ENV` after a hoisted
  * import reports "production is fine" (F008.11).
  */
-function assertSigningSecret(config: Pick<AuthConfig, "secret" | "secrets">): void {
+function assertSigningSecret(
+  config: Pick<AuthConfig, "secret" | "secrets"> & { extend?: AuthConfig["extend"] },
+): void {
   const fix =
     'Pass `secret` (or `secrets`, built with secretsFrom()) to the factory, or set BETTER_AUTH_SECRET in the environment. Generate one with `openssl rand -base64 32`.';
-  if (config.secrets?.length) {
-    if (config.secrets.some((k) => k.value === BETTER_AUTH_DEFAULT_SECRET)) {
+  // Mirror Better Auth's OWN resolution order (create-context.mjs:69-78), all six
+  // sources. `extend` is spread LAST in buildAuthOptions, so it WINS over
+  // config.secret/config.secrets — a guard that reads only the config fields
+  // both refuses a valid `extend: { secret }` and lets the public default
+  // through it. Both were measured on 0.4.0 before this was widened.
+  const secrets = config.extend?.secrets ?? config.secrets;
+  // NOTE the deliberate divergence: Better Auth takes the secrets path for any
+  // non-nullish array (`??`) and then indexes secrets[0], so an EMPTY array
+  // crashes there. `.length` sends it down the single-secret path instead,
+  // where our own "no signing secret" message is the clearer answer.
+  if (secrets?.length) {
+    if (secrets.some((k) => k.value === BETTER_AUTH_DEFAULT_SECRET)) {
       throw new Error(
         `@broberg/auth: one of your \`secrets\` is Better Auth's default secret, which is printed in Better Auth's own source and is therefore public. Anyone can forge a session cookie signed with it. ${fix}`,
       );
     }
     return;
   }
+  // BETTER_AUTH_SECRETS is consulted when no array is passed in code, and it is
+  // a complete, valid production config on its own. We check PRESENCE and the
+  // one dangerous value rather than re-implementing parseSecretsEnv — owning a
+  // copy of someone else's parser is how the chain drifts in the first place.
+  const envSecrets = process.env.BETTER_AUTH_SECRETS;
+  if (envSecrets) {
+    if (envSecrets.includes(BETTER_AUTH_DEFAULT_SECRET)) {
+      throw new Error(
+        `@broberg/auth: BETTER_AUTH_SECRETS contains Better Auth's default secret, which is printed in Better Auth's own source and is therefore public. Anyone can forge a session cookie signed with it. ${fix}`,
+      );
+    }
+    return;
+  }
   const effective =
-    config.secret || process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET || "";
+    config.extend?.secret ||
+    config.secret ||
+    process.env.BETTER_AUTH_SECRET ||
+    process.env.AUTH_SECRET ||
+    "";
   if (!effective) {
     throw new Error(
       `@broberg/auth: no signing secret. Better Auth would fall back to a constant printed in its own source — public, and enough to forge any session cookie — and it only refuses that when NODE_ENV is exactly "production" and TEST is unset. ${fix}`,
