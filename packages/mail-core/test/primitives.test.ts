@@ -64,7 +64,14 @@ describe("the shell says which shell rendered it — F023.7", () => {
   });
 
   it("the marker is the FIRST thing after the doctype, so a truncated body still carries it", () => {
-    expect(shell().indexOf("mail-core shell v")).toBeLessThan(shell().indexOf("<html"));
+    // `at` must be asserted FOUND before it is compared: indexOf returns -1 when
+    // the marker is missing, and -1 is less than every real index — so the
+    // obvious version of this test passes on a shell with NO marker at all.
+    // Caught by mutating the marker away and watching only its sibling go red.
+    const html = shell();
+    const at = html.indexOf("mail-core shell v");
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(at).toBeLessThan(html.indexOf("<html"));
   });
 
   it("NEGATIVE CONTROL: the version is not the package version", () => {
