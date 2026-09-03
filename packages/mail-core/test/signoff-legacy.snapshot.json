@@ -1,0 +1,5 @@
+{
+  "_note": "Captured from packages/mail-core/dist/index.js as built BEFORE the F023.8 edit, i.e. from the code three repos are calling in production. Regenerating this from the new source would make the byte-identity test assert nothing.",
+  "normal": "<div style=\"margin-top:24px;padding-top:24px;border-top:1px solid rgba(0,0,0,0.1);text-align:center;\">\n    <p style=\"margin:0;font-size:15px;line-height:1.8;\">\n      Med venlig hilsen<br>\n      Christian Broberg<br>\n      <span style=\"font-size:20px;\">WebHouse ApS</span>\n    </p>\n  </div>",
+  "emptySign": "<div style=\"margin-top:24px;padding-top:24px;border-top:1px solid rgba(0,0,0,0.1);text-align:center;\">\n    <p style=\"margin:0;font-size:15px;line-height:1.8;\">\n      a<br>\n      b<br>\n      <span style=\"font-size:20px;\"></span>\n    </p>\n  </div>"
+}

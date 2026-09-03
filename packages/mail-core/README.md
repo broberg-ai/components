@@ -30,7 +30,7 @@ const html = renderShell({
 
 ## Why `accentColor` is required, not defaulted
 
-Every other color has a sensible neutral default (`cardBg` white, `textColor` auto-derived for contrast against `cardBg`, `backdropColor` light grey) — but `accentColor` doesn't, on purpose. A default accent color IS a brand choice; shipping one would silently brand every consumer that forgets to set it. Pass your product's own accent explicitly.
+Every other color has a sensible neutral default (`cardBg` #fffffe — see below, `textColor` auto-derived for contrast against `cardBg`, `backdropColor` light grey) — but `accentColor` doesn't, on purpose. A default accent color IS a brand choice; shipping one would silently brand every consumer that forgets to set it. Pass your product's own accent explicitly.
 
 ## Dark cards work
 
@@ -50,3 +50,60 @@ if (attachment) {
   await resend.emails.send({ ..., attachments: [attachment] });
 }
 ```
+
+## Signatures — three tiers, one axis each
+
+```ts
+signOff([
+  { text: "Med venlig hilsen" },                                    // lead
+  { text: "Christian Broberg", tier: "name" },                      // + bold
+  { text: "CEO & Founding Partner · WebHouse ApS", tier: "meta" },  // + muted colour
+]);
+```
+
+**Each tier changes exactly one axis against `lead`** — `name` adds weight,
+`meta` adds a muted colour, and neither touches size. That is an invariant with a
+test behind it, not a matter of taste, and it is why there is no fourth tier
+coming: there is no fourth axis left to spend.
+
+Two things it deliberately does **not** do:
+
+- **`name` is bold, not bold-and-darker.** On a real palette `#1a1c2b` is 16.86:1
+  on white and `#0b0e15` is 19.29:1 — both so far past every threshold that the
+  step cannot be seen. The weight does the work; the colour shift was decoration.
+- **`meta` has no size of its own.** A tier carrying a *relative* size step turns
+  a 17/17-bold/15 signature into 15/15-bold/13 in a palette with a smaller base,
+  and 13px secondary text is the exact thing one consumer measured their way out
+  of (13.5px `#8486a6` at 3.5:1, failing WCAG in **light** mode before anyone
+  mentioned dark). 15px is a measured floor for secondary text in mail.
+
+`meta`'s colour is a real value (`#4a4d63`, 8.29:1 on white, 7.54:1 on the
+default backdrop) and never an `opacity`. **An opacity is not a low contrast
+value — it is a contrast value for ONE background.** `opacity:0.65` of `#1a1c2b`
+measures 5.29:1 while the ground stays white and lands somewhere nobody measured
+the moment a client tints or inverts; no contrast tool can read it, because there
+is no colour there to read.
+
+### The legacy form still works, byte for byte
+
+`signOff(line1, line2, sign)` renders identically to how it always has — asserted
+against a snapshot captured from the shipped build, because repos are calling it
+in production mail. It has one fixed axis (size) and its big slot is the **last**
+argument, which is why the array form exists: a name-then-title signature had to
+be forced into it, and rendered the job title larger than the person.
+
+The one correction: an empty `sign` no longer emits a blank line and an empty
+`<span style="font-size:20px;"></span>`.
+
+## The centred 180px logo is a deliberate shared choice
+
+`renderShell` centres the logo at `max-width:180px`, and that is on purpose
+rather than pending. A consumer arrived with their own 40px mark beside the
+sender name and dropped it for this one — *"one shared expression is worth more
+than our variant."* Recorded so the next consumer does not have to ask.
+
+**But the brand hooks themselves stay caller-supplied.** Do not wrap
+`logoUrl` / `accentColor` / `fontSerif` in a constant inside a consuming repo:
+**the mail carries the SENDER's identity, and the sender is not always the repo
+the template lives in.** A shared shell with per-send branding is the point; a
+shell with the branding baked in is a different, worse product.

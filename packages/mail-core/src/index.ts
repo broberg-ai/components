@@ -24,7 +24,9 @@ export interface BrandColors {
   /** Top-of-card accent + CTA button color. Required — no fleet-wide default,
    *  so nothing is silently branded as some other product's identity. */
   accentColor: string;
-  /** Card background. Default '#ffffff' — pass a dark value (e.g. '#1a1a1a')
+  /** Card background. Default '#fffffe' — one byte off white on purpose, so a
+   *  client looking for EXACTLY #ffffff does not decide the mail wants
+   *  inverting. Pass a dark value (e.g. '#1a1a1a')
    *  for a dark-card brand; textColor's default adapts automatically. */
   cardBg?: string;
   /** Body text color. Default derived from cardBg (light card → dark text,
@@ -46,7 +48,12 @@ function isDark(hex: string): boolean {
 }
 
 function resolveColors(b: BrandColors) {
-  const cardBg = b.cardBg ?? "#ffffff";
+  // #fffffe, not #ffffff, and the one-off byte is the whole point: several
+  // clients treat EXACTLY white as "this is a light mail, invert it". One step
+  // off slips that recognition and no eye can tell the difference. Measured at
+  // ZERO effect in Outlook iOS specifically (F023.7) — it is on the list because
+  // it works in OTHER clients, not because it rescues that one.
+  const cardBg = b.cardBg ?? "#fffffe";
   const textColor = b.textColor ?? (isDark(cardBg) ? "#f5f5f5" : "#1a1a1a");
   const backdropColor = b.backdropColor ?? "#f4f4f5";
   const fontSans = b.fontSans ?? "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
@@ -148,10 +155,24 @@ export function renderShell(opts: ShellOpts): string {
   </table>`
     : "";
 
+  // The footer zone is carried by a COLOURED RULE, not by its fill. fd-sundhed
+  // measured card and footer BOTH becoming #484848 in Outlook iOS — the fill
+  // stopped distinguishing anything and the zone ceased to exist. What survived
+  // was a rule in the brand's own accent. The previous rgba(0,0,0,0.08) is a
+  // near-invisible black alpha, i.e. exactly the thing that disappears there.
+  //
+  // And the text is a real COLOUR, never an opacity. An opacity is not a low
+  // contrast value — it is a contrast value FOR ONE BACKGROUND: opacity 0.65 of
+  // #1a1c2b measures 5.29:1 while the ground stays white, and lands somewhere
+  // nobody measured the moment a client tints or inverts. No contrast tool can
+  // read it, because there is no colour there to read.
+  //   #4a4d63 on #f4f4f5   7.54:1      #c1c2d1 on #1a1c2b   9.56:1
+  //   #4a4d63 on #ffffff   8.29:1      #c1c2d1 on #484848   5.18:1  (the mapped case)
+  const footerText = isDark(backdropColor) ? "#c1c2d1" : "#4a4d63";
   const footerBlock = showFooter
     ? `<tr>
-      <td bgcolor="${backdropColor}" style="background:${backdropColor};padding:16px 40px 32px;text-align:center;border-top:1px solid rgba(0,0,0,0.08);">
-        ${(opts.footerLines ?? []).map((l) => `<p style="margin:0 0 4px;font-size:11px;opacity:0.65;">${escapeHtml(l)}</p>`).join("")}
+      <td bgcolor="${backdropColor}" style="background:${backdropColor};padding:16px 40px 32px;text-align:center;border-top:1px solid ${accentColor};">
+        ${(opts.footerLines ?? []).map((l) => `<p style="margin:0 0 4px;font-size:11px;color:${footerText};">${escapeHtml(l)}</p>`).join("")}
         ${opts.footerHref ? `<p style="margin:0;font-size:11px;"><a href="${escapeAttr(opts.footerHref)}" style="color:${accentColor};text-decoration:none;font-weight:600;">${escapeHtml(opts.footerLabel ?? opts.footerHref)}</a></p>` : ""}
       </td>
     </tr>`
@@ -291,12 +312,84 @@ export function paragraphHtml(html: string): string {
   return `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;">${html}</p>`;
 }
 
-export function signOff(line1: string, line2: string, sign: string): string {
+/** One line of a signature, and the tier that styles it.
+ *
+ *  THE INVARIANT, and it is testable rather than a matter of taste: **each tier
+ *  changes exactly ONE axis against `lead`.** There is no fourth tier waiting,
+ *  because there is no fourth axis left to spend.
+ *
+ *    lead   the base — the size and colour of the surrounding text
+ *    name   + bold          (same size, same colour)
+ *    meta   + muted colour  (same size, same weight)
+ *
+ *  WHY `name` IS NOT ALSO DARKER, though the obvious signature makes it so:
+ *  measured on vn-leker's own palette, #1a1c2b is 16.86:1 on white and #0b0e15
+ *  is 19.29:1. Both are so far past every threshold that the step cannot be
+ *  seen. The weight does all the work; the colour shift was decoration. Their
+ *  finding, on their own design.
+ *
+ *  WHY `meta` HAS NO SIZE OF ITS OWN, which is the tempting third axis: a tier
+ *  carrying a *relative* size step turns a 17/17-bold/15 signature into
+ *  15/15-bold/13 in a palette with a smaller base — and 13px secondary text is
+ *  the exact thing fd-sundhed measured their way out of (13.5px #8486a6 at
+ *  3.5:1, failing WCAG in LIGHT mode, before anyone mentioned dark). They went
+ *  UP in size as part of what doubled legibility. A relative step would quietly
+ *  roll that back, and the fault would live in a tier definition nobody reads
+ *  while choosing `meta`. 15px is a measured floor for secondary text in mail.
+ */
+export interface SignOffLine {
+  text: string;
+  tier?: "lead" | "name" | "meta";
+}
+
+/** The muted tier's colour. A real value at 8.29:1 on white and 7.54:1 on the
+ *  default backdrop — never an `opacity`, for the reason spelled out on the
+ *  footer above: an opacity is a contrast value for ONE background only. */
+const SIGNOFF_META_COLOR = "#4a4d63";
+
+function signOffLine(line: SignOffLine): string {
+  const text = escapeHtml(line.text);
+  if (line.tier === "name") return `<strong style="font-weight:700;">${text}</strong>`;
+  if (line.tier === "meta") return `<span style="color:${SIGNOFF_META_COLOR};">${text}</span>`;
+  return text;
+}
+
+/** A signature block.
+ *
+ *  TWO FORMS, and the old one is load-bearing: three repos call
+ *  `signOff(line1, line2, sign)` in production mail, so it renders
+ *  byte-identically and always will.
+ *
+ *  THE OLD FORM'S DEFECT, which is why the array form exists: its big slot is
+ *  the LAST argument and its only axis is size. A name-then-title signature had
+ *  to be forced into it, and rendered the job title larger than the person —
+ *  in a mail Christian opened. The API could not express the signature, so the
+ *  mapping was wrong before anyone wrote a line of calling code.
+ *
+ *  An index-based fix (`{ emphasizeIndex }`) was proposed and rejected: it
+ *  would place the name and still leave the title nowhere to go, i.e. the same
+ *  defect in a new shape. It also defaults to index 0 — "Med venlig hilsen" —
+ *  inverting the old form's last-line emphasis for everyone who did not pass
+ *  the option. vn-leker caught that; it was worse than the bug it fixed.
+ */
+export function signOff(lines: SignOffLine[]): string;
+export function signOff(line1: string, line2: string, sign: string): string;
+export function signOff(a: SignOffLine[] | string, line2?: string, sign?: string): string {
+  // The separator carries the original's indentation, so the legacy form is
+  // byte-identical rather than merely equivalent. A test asserts that against a
+  // stored snapshot; reading it here is not the proof.
+  const br = "<br>\n      ";
+  const body = Array.isArray(a)
+    ? a.map(signOffLine).join(br)
+    // The legacy form — with ONE correction: an empty `sign` used to emit a
+    // trailing `<br>` plus `<span style="font-size:20px;"></span>`, i.e. a blank
+    // line and an empty styled element that failed nowhere and so survived.
+    // vn-leker's own signature replacement left exactly that residue.
+    : [escapeHtml(a), escapeHtml(line2 ?? "")].join(br) +
+      (sign ? `${br}<span style="font-size:20px;">${escapeHtml(sign)}</span>` : "");
   return `<div style="margin-top:24px;padding-top:24px;border-top:1px solid rgba(0,0,0,0.1);text-align:center;">
     <p style="margin:0;font-size:15px;line-height:1.8;">
-      ${escapeHtml(line1)}<br>
-      ${escapeHtml(line2)}<br>
-      <span style="font-size:20px;">${escapeHtml(sign)}</span>
+      ${body}
     </p>
   </div>`;
 }
