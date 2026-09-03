@@ -171,6 +171,12 @@ function assertSigningSecret(
   // non-nullish array (`??`) and then indexes secrets[0], so an EMPTY array
   // crashes there. `.length` sends it down the single-secret path instead,
   // where our own "no signing secret" message is the clearer answer.
+  // Deliberately NOT checked on this path: a legacy `secret` sitting alongside a
+  // real `secrets` array. Better Auth signs with secrets[0] and keeps the legacy
+  // one only as a fallback DECRYPTOR (buildSecretConfig), so signing is safe —
+  // and if that legacy value were the public default, throwing here would block
+  // the one path that RECOVERS from it: you cannot decrypt-and-rotate away from a
+  // key you are no longer allowed to pass. Refusing would remove the remedy.
   if (secrets?.length) {
     if (secrets.some((k) => k.value === BETTER_AUTH_DEFAULT_SECRET)) {
       throw new Error(
