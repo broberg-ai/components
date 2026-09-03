@@ -59,6 +59,45 @@ describe("AC#3 — the QR decodes back to the URI, byte-exact", () => {
   });
 });
 
+describe("AC#4 — the QR helper runs in a browser too", () => {
+  it("dataUri works with NO Buffer — the assertion the first version was missing", () => {
+    // The original implementation used Buffer.from() and threw "Buffer is not
+    // defined" in a browser, while the README and the AC both claimed browser
+    // support. The old test asserted only that document/window are absent — Node
+    // — which is the one runtime where Buffer EXISTS. It could not have caught
+    // this. Deleting Buffer is what reproduces a browser for this code path.
+    const real = globalThis.Buffer;
+    // @ts-expect-error — deliberately simulating a runtime without Buffer
+    delete globalThis.Buffer;
+    try {
+      const uri = totpQr(URI, "dataUri");
+      expect(uri.startsWith("data:image/svg+xml;base64,")).toBe(true);
+      const svg = decodeBase64(uri.slice("data:image/svg+xml;base64,".length));
+      expect(decode(svg)).toBe(URI);
+    } finally {
+      globalThis.Buffer = real;
+    }
+  });
+
+  it("CONTROL: the SVG format never needed Buffer, so the test above is about the base64 branch", () => {
+    const real = globalThis.Buffer;
+    // @ts-expect-error — deliberately simulating a runtime without Buffer
+    delete globalThis.Buffer;
+    try {
+      expect(decode(totpQr(URI))).toBe(URI);
+    } finally {
+      globalThis.Buffer = real;
+    }
+  });
+});
+
+/** Decode base64 without Buffer, so the assertion does not need what it is testing for. */
+function decodeBase64(b64: string): string {
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 describe("AC#4 — the QR helper needs no DOM", () => {
   it("runs with no document/window present", () => {
     // vitest's default environment is node; assert that rather than assume it,
