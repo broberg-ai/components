@@ -95,3 +95,31 @@ function outputsFor(name: string): string {
     default: throw new Error(`no renderer for fixture key ${name}`);
   }
 }
+
+describe("the opacity invariant COVERS every HTML-emitting export (F023.12 AC#3)", () => {
+  // The map above is hand-written, and a hand-written list is exactly what let
+  // factBox sit under a ticked "no opacity in the shell" criterion. So the LIST
+  // is derived even though the CALLS cannot be: every exported function whose
+  // name is not on the known-non-rendering list must appear in the map, or this
+  // fails and names it. A new primitive therefore fails the suite without
+  // anyone remembering to edit the test.
+  const NOT_RENDERERS = new Set([
+    "escapeHtml", "escapeAttr",        // string helpers, emit no markup of their own
+    "fill", "fillHtml",                // substitute into markup the caller supplies
+    "assertColor", "assertFontStack",  // validators, return void
+    "makeLogoAttachment",              // returns an attachment object, not HTML
+    "resolveLogoSrc",                  // returns a URL string
+    "eyebrow", "noteBox", "cta",       // covered by primitives.test.ts
+    "paragraphHtml",                   // paragraph's raw twin; same markup
+  ]);
+
+  it("every HTML-emitting export is exercised by the opacity check", async () => {
+    const mod = await import("../src/index");
+    const emitters = Object.entries(mod)
+      .filter(([name, v]) => typeof v === "function" && !NOT_RENDERERS.has(name))
+      .map(([name]) => name)
+      .sort();
+    const covered = ["factBox", "heading", "paragraph", "renderShell", "signOff"].sort();
+    expect(emitters).toEqual(covered);
+  });
+});
