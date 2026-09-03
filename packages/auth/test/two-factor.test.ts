@@ -4,6 +4,12 @@ import jsQR from "jsqr";
 import { createAuth } from "../src/index.js";
 import { buildTwoFactorPlugin, totpQr } from "../src/two-factor.js";
 
+/** F008.11 — the factories now refuse a boot with no signing secret at all, so
+ *  a test that boots auth must bring one. Booting on Better Auth's public
+ *  default is a configuration nobody should run, tests included. */
+const TEST_SECRET = "test-only-secret-xK7pQ2mR9vTnW4bYcHsEdZgLjF8aU3o=";
+
+
 const db = () => memoryAdapter({});
 
 /** vn-leker's rule applied to a QR: looking at the image proves nothing. Raster
@@ -111,7 +117,7 @@ describe("AC#4 — the QR helper needs no DOM", () => {
 describe("AC#2 — the plugin registers, and dark-ships when absent", () => {
   it("registers two-factor endpoints when the plugin is passed", () => {
     const auth = createAuth({
-      database: db(),
+      database: db(), secret: TEST_SECRET,
       emailPassword: true,
       plugins: [buildTwoFactorPlugin({ issuer: "WebHouse" })],
     });
@@ -120,7 +126,7 @@ describe("AC#2 — the plugin registers, and dark-ships when absent", () => {
   });
 
   it("dark-ship: no plugin passed → no two-factor endpoints, and no throw", () => {
-    const auth = createAuth({ database: db(), emailPassword: true });
+    const auth = createAuth({ database: db(), secret: TEST_SECRET, emailPassword: true });
     const paths = Object.keys(auth.api);
     expect(paths.some((p) => /twoFactor|TwoFactor/.test(p))).toBe(false);
   });

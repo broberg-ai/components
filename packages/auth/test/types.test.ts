@@ -6,6 +6,12 @@ import { buildPasskeyPlugin } from "../src/passkey.js"; // F008.9 — subpath
 import { mountAuth, getSession } from "../src/hono.js";
 import { toNextHandler } from "../src/next.js";
 
+/** F008.11 — the factories now refuse a boot with no signing secret at all, so
+ *  a test that boots auth must bring one. Booting on Better Auth's public
+ *  default is a configuration nobody should run, tests included. */
+const TEST_SECRET = "test-only-secret-xK7pQ2mR9vTnW4bYcHsEdZgLjF8aU3o=";
+
+
 /**
  * F008.7 — createTypedAuth gives a fully-typed instance: the plugin-augmented
  * api methods are reachable with NO `any` cast. The `type _X = typeof auth.api.…`
@@ -13,7 +19,7 @@ import { toNextHandler } from "../src/next.js";
  * include covers test/): if an endpoint dropped off the type, the build fails.
  */
 const auth = createTypedAuth(
-  { database: memoryAdapter({}), emailPassword: true },
+  { database: memoryAdapter({}), secret: TEST_SECRET, emailPassword: true },
   [
     buildMagicLinkPlugin({ mailer: { send: async () => ({ ok: true }) } }),
     buildPasskeyPlugin({ rpID: "example.com", rpName: "Example" }),
@@ -43,7 +49,7 @@ describe("createTypedAuth (F008.7 type-ergonomics)", () => {
  * therefore accept the structural slice they actually use. These lines are
  * compile-only assertions — `tsc --noEmit` REDs if a param narrows back.
  */
-const wideAuth = createAuth({ database: memoryAdapter({}), emailPassword: true });
+const wideAuth = createAuth({ database: memoryAdapter({}), secret: TEST_SECRET, emailPassword: true });
 const app = new Hono();
 
 // The exact README happy-path: narrowed instance, no cast.

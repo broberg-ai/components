@@ -182,6 +182,47 @@ when you did not configure it.
 *"should I render this button"*, which you know regardless of where the plugin was
 built.
 
+## The signing secret is asserted, not assumed (0.4.0)
+
+`createAuth` and `createTypedAuth` **refuse to build** when no signing secret
+resolves, or when the one that resolves is Better Auth's own default.
+
+Why: Better Auth resolves the key as
+
+```
+options.secret || BETTER_AUTH_SECRET || AUTH_SECRET || "better-auth-secret-12345678901234567890"
+```
+
+and that last term is a literal in its own source — it ships in every copy on
+npm, so it is public, and a session cookie signed with it can be forged by
+anyone. Better Auth refuses it **only** when `NODE_ENV` is exactly `"production"`
+and `TEST` is unset. Measured on 1.6.23, spawned per state so the env precedes
+module load:
+
+```
+NODE_ENV unset                boots  -> the public default
+NODE_ENV=development          boots  -> the public default
+NODE_ENV=production           throws
+NODE_ENV=production + TEST=1  boots  -> the public default
+NODE_ENV=test                 boots  -> the public default
+```
+
+So the protection rested on two environment variables the platform owns, and a
+stray `TEST=1` removed it. Now the package asserts it, at call time, in every
+env state — and also inside a `secrets` array, which bypasses Better Auth's
+check entirely.
+
+**What this breaks:** nothing in production. Anything with a real secret is
+unaffected, and anything without one was already broken. It breaks **tests that
+boot auth with no secret at all** — pass one:
+
+```ts
+const auth = createAuth({ database: db(), secret: TEST_SECRET });
+```
+
+A test booting on the public default is testing a configuration nobody should
+run, so the fix is a test secret, not an exemption.
+
 ## Two-factor authentication (`@broberg/auth/two-factor`)
 
 ```ts

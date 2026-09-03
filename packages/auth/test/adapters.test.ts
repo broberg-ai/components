@@ -5,7 +5,13 @@ import { createAuth } from "../src/index.js";
 import { mountAuth } from "../src/hono.js";
 import { toNextHandler } from "../src/next.js";
 
-const auth = createAuth({ database: memoryAdapter({}), baseURL: "http://localhost" });
+/** F008.11 — the factories now refuse a boot with no signing secret at all, so
+ *  a test that boots auth must bring one. Booting on Better Auth's public
+ *  default is a configuration nobody should run, tests included. */
+const TEST_SECRET = "test-only-secret-xK7pQ2mR9vTnW4bYcHsEdZgLjF8aU3o=";
+
+
+const auth = createAuth({ database: memoryAdapter({}), secret: TEST_SECRET, baseURL: "http://localhost" });
 
 describe("@broberg/auth/hono — mountAuth", () => {
   it("registers a GET+POST catch-all on /api/auth/* of a Hono app", () => {

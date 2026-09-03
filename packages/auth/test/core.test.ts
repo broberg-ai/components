@@ -5,6 +5,12 @@ import { createAuth, pruneSocials, FLEET_SOCIAL_PROVIDERS } from "../src/index.j
 // dragged drizzle-orm into every consumer's install.
 import { drizzle } from "../src/drizzle.js";
 
+/** F008.11 — the factories now refuse a boot with no signing secret at all, so
+ *  a test that boots auth must bring one. Booting on Better Auth's public
+ *  default is a configuration nobody should run, tests included. */
+const TEST_SECRET = "test-only-secret-xK7pQ2mR9vTnW4bYcHsEdZgLjF8aU3o=";
+
+
 /** An in-memory Better Auth database so the wrapper's own logic (not a real DB)
  *  is what's under test. */
 const db = () => memoryAdapter({});
@@ -14,19 +20,19 @@ const GITHUB = { clientId: "gh-id", clientSecret: "gh-secret" };
 
 describe("createAuth", () => {
   it("returns a Better Auth instance with a request handler", () => {
-    const auth = createAuth({ database: db(), emailPassword: true });
+    const auth = createAuth({ database: db(), secret: TEST_SECRET, emailPassword: true });
     expect(typeof auth.handler).toBe("function");
     expect(auth.api).toBeDefined();
   });
 
   it("does not throw when no socials are configured (dark-ship)", () => {
-    expect(() => createAuth({ database: db() })).not.toThrow();
+    expect(() => createAuth({ database: db(), secret: TEST_SECRET })).not.toThrow();
   });
 
   it("registers a configured social provider and dark-ships an absent one", () => {
     // github is undefined → must be omitted; google is complete → must register.
     const auth = createAuth({
-      database: db(),
+      database: db(), secret: TEST_SECRET,
       socials: { google: GOOGLE, github: undefined },
     });
     expect(typeof auth.handler).toBe("function");
@@ -34,7 +40,7 @@ describe("createAuth", () => {
 
   it("enables email+password via the config flag without throwing", () => {
     expect(() =>
-      createAuth({ database: db(), emailPassword: true }),
+      createAuth({ database: db(), secret: TEST_SECRET, emailPassword: true }),
     ).not.toThrow();
   });
 });

@@ -135,6 +135,52 @@ export function pruneSocials(socials: AuthConfig["socials"]): SocialProviders {
   return out as SocialProviders;
 }
 
+/** Better Auth's own fallback signing secret — a literal in its source
+ *  (`dist/context/create-context.mjs:78`), so it ships in every copy on npm and
+ *  is public. Kept here verbatim so we can refuse it. */
+const BETTER_AUTH_DEFAULT_SECRET = "better-auth-secret-12345678901234567890";
+
+/**
+ * Refuse to build a live instance on a signing secret that is absent, or is
+ * Better Auth's published default.
+ *
+ * Better Auth resolves `options.secret || BETTER_AUTH_SECRET || AUTH_SECRET ||
+ * <that constant>` and only rejects the constant when `NODE_ENV === "production"`
+ * **and** `TEST` is unset. Measured on 1.6.23: it boots on the public constant
+ * with NODE_ENV unset, `development`, `test`, and even `production` when `TEST=1`
+ * is set. That leaves the whole protection resting on two environment variables
+ * the platform owns — so we assert it here instead, where no env var can switch
+ * it off.
+ *
+ * Read at CALL time, never at module load: Better Auth's own `isProduction` is a
+ * module-load const, which is how a probe that sets `NODE_ENV` after a hoisted
+ * import reports "production is fine" (F008.11).
+ */
+function assertSigningSecret(config: Pick<AuthConfig, "secret" | "secrets">): void {
+  const fix =
+    'Pass `secret` (or `secrets`, built with secretsFrom()) to the factory, or set BETTER_AUTH_SECRET in the environment. Generate one with `openssl rand -base64 32`.';
+  if (config.secrets?.length) {
+    if (config.secrets.some((k) => k.value === BETTER_AUTH_DEFAULT_SECRET)) {
+      throw new Error(
+        `@broberg/auth: one of your \`secrets\` is Better Auth's default secret, which is printed in Better Auth's own source and is therefore public. Anyone can forge a session cookie signed with it. ${fix}`,
+      );
+    }
+    return;
+  }
+  const effective =
+    config.secret || process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET || "";
+  if (!effective) {
+    throw new Error(
+      `@broberg/auth: no signing secret. Better Auth would fall back to a constant printed in its own source — public, and enough to forge any session cookie — and it only refuses that when NODE_ENV is exactly "production" and TEST is unset. ${fix}`,
+    );
+  }
+  if (effective === BETTER_AUTH_DEFAULT_SECRET) {
+    throw new Error(
+      `@broberg/auth: your signing secret IS Better Auth's default secret, which is printed in Better Auth's own source and is therefore public. Anyone can forge a session cookie signed with it. ${fix}`,
+    );
+  }
+}
+
 /** Assemble `BetterAuthOptions` from the fleet config: dark-ship unconfigured
  *  social providers, and register the magic-link plugin only when a mailer is
  *  given. Exported (separately from `createAuth`) so the assembly is unit-
@@ -159,6 +205,7 @@ export function buildAuthOptions(config: AuthConfig): BetterAuthOptions {
  *  `BetterAuthOptions` (dark-shipping unconfigured methods) and returns
  *  `betterAuth(options)`. */
 export function createAuth(config: AuthConfig) {
+  assertSigningSecret(config);
   return betterAuth(buildAuthOptions(config));
 }
 
@@ -191,6 +238,7 @@ export function createTypedAuth<const P extends AuthPlugin[]>(
   config: Omit<AuthConfig, "magicLink" | "passkey" | "plugins" | "extend">,
   plugins: P,
 ) {
+  assertSigningSecret(config);
   const socialProviders = pruneSocials(config.socials);
   return betterAuth({
     database: config.database,
