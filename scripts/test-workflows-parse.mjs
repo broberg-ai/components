@@ -10,7 +10,17 @@
 //   node scripts/test-workflows-parse.mjs
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import yaml from "yaml";
+// `yaml` is a root devDependency. If it is missing the guard has not FAILED —
+// it has not RUN, and those must not share an exit code: a caller that treats
+// "could not check" as "checked and clean" is the exact defect this file exists
+// to catch, one level up.
+let yaml;
+try {
+  yaml = (await import("yaml")).default;
+} catch {
+  console.error("cannot check: the `yaml` package is not installed (run `pnpm install`, or `npm i yaml --no-save` in a bare job)");
+  process.exit(2);
+}
 
 const DIR = new URL("../.github/workflows/", import.meta.url).pathname;
 let failures = 0;

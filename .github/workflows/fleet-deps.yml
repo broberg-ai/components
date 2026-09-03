@@ -43,8 +43,12 @@ jobs:
 
       # The scanner's own tests run FIRST. A scan is only as trustworthy as the
       # thing doing it, and this job commits its output unattended.
+      # This job deliberately does NOT install the workspace — it needs a scanner
+      # and a JSON file, not 39 packages. `yaml` is the one thing the workflow
+      # guard needs, so it comes in on its own.
       - name: Test the scanner
         run: |
+          npm i yaml --no-save --silent
           node scripts/test-scan-fleet-deps.mjs
           node scripts/test-fleet-graph.mjs
           node scripts/test-workflows-parse.mjs
