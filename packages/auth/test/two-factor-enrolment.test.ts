@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { createHmac } from "node:crypto";
-import { createTypedAuth } from "../src/index.js";
+import { symmetricDecrypt } from "better-auth/crypto";
+import { createTypedAuth, secretsFrom } from "../src/index.js";
 import { buildTwoFactorPlugin } from "../src/two-factor.js";
 
 /** F008.10 AC#5/#6 — every assertion here reads the STORED ROW, never the
@@ -150,5 +151,70 @@ describe("AC#6 — recovery codes", () => {
       .verifyBackupCode({ body: { code }, headers: { cookie }, asResponse: true })
       .catch((e: { status?: number }) => ({ status: e?.status ?? 400 }));
     expect(second?.status).not.toBe(200);
+  });
+});
+
+describe("the wrapper actually FORWARDS `secrets` — not just accepts it", () => {
+  // MUTATION M2 SURVIVED WITHOUT THIS TEST. Deleting the
+  // `...(config.secrets ? { secrets: config.secrets } : {})` line from
+  // createAuth/createTypedAuth left all 56 tests green, because every rotation
+  // test called symmetricEncrypt directly. So the suite proved BETTER AUTH can
+  // rotate and never proved OUR WRAPPER passes the field on — a consumer could
+  // set `secrets` and have it silently dropped, which is the "a field the API
+  // does not know" trap: the call succeeds and the option vanishes.
+  //
+  // The only assertion that can tell the difference is end-to-end: enrol, then
+  // look at the ciphertext. With `secrets` forwarded it carries the envelope;
+  // without it Better Auth falls back to `secret` and writes bare hex.
+  const KEY_V1 = "rotation-key-one-korrekt-hest-batteri";
+
+  async function enrolWithSecrets() {
+    const store: Store = { user: [], session: [], account: [], verification: [], twoFactor: [] };
+    const auth = createTypedAuth(
+      {
+        database: memoryAdapter(store),
+        emailPassword: true,
+        baseURL: "http://localhost:3000",
+        secrets: secretsFrom({ 1: KEY_V1 }),
+      },
+      [buildTwoFactorPlugin({ issuer: "WebHouse" })],
+    );
+    const up = await auth.api.signUpEmail({
+      body: { email: EMAIL, password: PASSWORD, name: "CB" },
+      asResponse: true,
+    });
+    const cookie = up.headers.getSetCookie().join("; ");
+    await auth.api.enableTwoFactor({ body: { password: PASSWORD }, headers: { cookie }, asResponse: true });
+    return store;
+  }
+
+  it("the stored TOTP secret carries the VERSION ENVELOPE", async () => {
+    const store = await enrolWithSecrets();
+    expect(String(row(store).secret)).toMatch(/^\$ba\$1\$/);
+  });
+
+  it("...and it decrypts with the versioned key, byte-exact", async () => {
+    // Envelope-shaped is not the same as readable. Without this, a prefix check
+    // would pass on a value encrypted under some other key entirely.
+    const store = await enrolWithSecrets();
+    const data = String(row(store).secret);
+    // Asserted as a PAIR rather than a charset guess (my first version demanded
+    // /^[A-Za-z0-9]+$/ and the real secret is base64url — the decrypt had
+    // worked and the assertion was wrong): the right key reads it, the wrong
+    // key does not. Only the second half proves the decrypt is doing work.
+    await expect(
+      symmetricDecrypt({ key: { keys: new Map([[1, KEY_V1]]), currentVersion: 1 }, data }),
+    ).resolves.toHaveLength(32);
+    await expect(
+      symmetricDecrypt({ key: { keys: new Map([[1, "a-completely-different-key-value"]]), currentVersion: 1 }, data }),
+    ).rejects.toThrow();
+  });
+
+  it("CONTROL: with only `secret`, the same row is NOT enveloped", async () => {
+    // This is what the wrapper produces when `secrets` is dropped, so it is
+    // what M2 turns the test above into. Asserting the difference is what makes
+    // the envelope check evidence rather than a shape.
+    const { store } = await enrolled();
+    expect(String(row(store).secret)).not.toMatch(/^\$ba\$/);
   });
 });
