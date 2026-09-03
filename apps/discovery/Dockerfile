@@ -8,6 +8,10 @@ COPY scripts/inventory-data.mjs ./scripts/inventory-data.mjs
 COPY scripts/npm-latest.mjs ./scripts/npm-latest.mjs
 COPY scripts/build-inventory.mjs ./scripts/build-inventory.mjs
 COPY scripts/build-onboarding.mjs ./scripts/build-onboarding.mjs
+# F083 — the FLEET section is derived from the scanned manifests, so the image
+# needs both the merge module and the artifact the daily job refreshes.
+COPY scripts/fleet-graph.mjs ./scripts/fleet-graph.mjs
+COPY data/fleet-deps.json ./data/fleet-deps.json
 
 # Generate the landing + onboarding surfaces AT BUILD TIME from the single source,
 # so every deploy re-renders them — a committed snapshot can never go stale in prod.

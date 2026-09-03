@@ -95,8 +95,19 @@ check("only the shared inventory is collected", () => {
   eq(SHARED.test("@brobergx/no"), false, "the scope must match exactly, not as a prefix");
 });
 
-check("ZERO manifests THROWS — a run that never looked must not report clean", () => {
-  throws(() => scanRepo("o/r", fakeApi({ files: {} })), /no package\.json found/, "empty tree");
+check("an EMPTY TREE throws — a run that never looked must not report clean", () => {
+  throws(() => scanRepo("o/r", fakeApi({ files: {} })), /came back EMPTY/, "empty tree");
+});
+
+check("a real repo with NO package.json is a normal result, not an error — the two are different facts", () => {
+  // Measured: annaslothart and house-of-wellness are docs-only repos. Treating
+  // them as failures would paint the daily job red forever, and a check that
+  // fires on every run is a check nobody reads.
+  const api = fakeApi({ files: { "README.md": {} }, treeExtra: [] });
+  const r = scanRepo("o/docs-only", api);
+  eq(r.manifests, 0, "no manifests");
+  eq(r.no_manifests, true, "and it SAYS so, rather than looking like a scanned repo with no deps");
+  eq(r.deps, {}, "no deps");
 });
 
 check("an UNPARSEABLE manifest is counted separately, never as 'no dependencies'", () => {

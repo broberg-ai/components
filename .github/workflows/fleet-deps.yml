@@ -1,0 +1,108 @@
+# F083.3 — keep the FLEET roster current without anyone remembering to.
+#
+# Christian's order was «et continuerligt job der vedligeholder for dig», and the
+# "for dig" is the requirement: it must not need me, or any cc session, or a Mac
+# to be awake. So this is a scheduled GitHub job and NOT buddy's schedule_job —
+# F082's security sweep needs judgement and therefore needs an agent; this is a
+# pure data refresh with no decisions in it, and giving it a dependency on a
+# session being alive would re-introduce, one layer down, the exact fragility
+# being removed.
+name: fleet-deps
+
+on:
+  schedule:
+    # 04:17 UTC daily. Off the hour on purpose — GitHub's scheduler queues the
+    # top of the hour heavily, and a job nobody is waiting for should not sit in
+    # that queue.
+    - cron: "17 4 * * *"
+  workflow_dispatch: {}
+  push:
+    # Re-run when the scanner itself changes, so a bug in it is caught here
+    # rather than at 04:17 the next morning.
+    paths:
+      - "scripts/scan-fleet-deps.mjs"
+      - "scripts/fleet-graph.mjs"
+      - ".github/workflows/fleet-deps.yml"
+
+concurrency:
+  group: fleet-deps
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The scanner's own tests run FIRST. A scan is only as trustworthy as the
+      # thing doing it, and this job commits its output unattended.
+      - name: Test the scanner
+        run: |
+          node scripts/test-scan-fleet-deps.mjs
+          node scripts/test-fleet-graph.mjs
+
+      # GITHUB_TOKEN reaches only THIS repo. The scan reads every fleet repo, so
+      # it needs a token with org-wide read — the same one the other cross-repo
+      # workflows use. Without it the run fails loudly (see the guard below)
+      # rather than silently reporting an empty fleet.
+      - name: Scan every fleet repo
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_READ_TOKEN || secrets.GITHUB_TOKEN }}
+        run: node scripts/scan-fleet-deps.mjs --discover --out data/fleet-deps.json
+
+      # A partial graph must never be committed. `repos_failed` counts repos that
+      # threw; a docs-only repo with no package.json is NOT a failure (it carries
+      # no_manifests) — those are different facts and the scanner keeps them apart.
+      - name: Refuse a partial graph
+        run: |
+          node -e '
+            const s = require("./data/fleet-deps.json");
+            const bad = [];
+            if (s.repos_scanned === 0) bad.push("zero repos scanned");
+            if (s.repos_failed > 0) bad.push(`${s.repos_failed} repo(s) failed: ` +
+              Object.entries(s.repos).filter(([,r]) => r.error).map(([k,r]) => `${k} (${r.error})`).join("; "));
+            if (s.manifests_read === 0) bad.push("zero manifests read");
+            if (bad.length) { console.error("::error::" + bad.join(" | ")); process.exit(1); }
+            console.log(`ok — ${s.repos_scanned} repos, ${s.manifests_read} manifests, ${s.edges} edges`);
+          '
+
+      # Rebuild the derived docs in the same run, so the artifact and the page
+      # can never disagree. (Committing the scan alone would leave the HTML
+      # showing yesterday's numbers with today's date.)
+      - name: Rebuild the derived docs
+        run: |
+          node scripts/build-inventory.mjs
+          node scripts/build-onboarding.mjs
+
+      # Commit ONLY when the graph actually moved. `scanned_at` changes on every
+      # run by construction, so committing on any diff would produce a commit a
+      # day forever and drown the history — the timestamp is compared separately
+      # from the data.
+      - name: Commit when the fleet actually changed
+        run: |
+          git config user.name  "fleet-deps"
+          git config user.email "noreply@broberg.ai"
+          if git diff --quiet -- data/fleet-deps.json docs/; then
+            echo "no change"; exit 0
+          fi
+          BEFORE=$(git show HEAD:data/fleet-deps.json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);delete j.scanned_at;console.log(JSON.stringify(j))}catch{console.log("")}})' || echo "")
+          AFTER=$(node -e 'const j=require("./data/fleet-deps.json");delete j.scanned_at;console.log(JSON.stringify(j))')
+          if [ "$BEFORE" = "$AFTER" ]; then
+            echo "only the timestamp moved — nothing to commit"; exit 0
+          fi
+          git add data/fleet-deps.json docs/
+          git commit -m "chore(fleet): refresh the dependency graph
+
+$(node -e 'const s=require("./data/fleet-deps.json");console.log(`${s.repos_scanned} repos · ${s.manifests_read} manifests · ${s.edges} dependencies`)')
+
+Automated by .github/workflows/fleet-deps.yml (F083.3). The FLEET roster is
+derived from every repo's real package.json rather than from a hand-written
+list, so this commit is what keeps discovery.broberg.ai current."
+          git push

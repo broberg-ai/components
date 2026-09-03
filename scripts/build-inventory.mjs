@@ -8,6 +8,15 @@
 
 import { writeFileSync } from "node:fs";
 import { M, MODEL, EFFORT, DATA, FLEET, INFRA, npmUrl, repoUrl, oneLiner } from "./inventory-data.mjs";
+// F083 — the FLEET section renders from the SCANNED manifests, not from a
+// hand-written array. Measured the day it changed: the array showed 15 of 149
+// real dependencies and omitted eight repos entirely.
+import { fleetRows, scanAge } from "./fleet-graph.mjs";
+import { readFileSync as readScan } from "node:fs";
+let FLEET_SCAN = { repos: {} };
+try { FLEET_SCAN = JSON.parse(readScan(new URL("../data/fleet-deps.json", import.meta.url), "utf8")); } catch {}
+const FLEET_ROWS = fleetRows(FLEET_SCAN);
+const FLEET_AGE = scanAge(FLEET_SCAN);
 import { fetchLatestReleases } from "./npm-latest.mjs";
 
 
@@ -235,7 +244,9 @@ const CSS = `
   .fp.pub{color:var(--green);background:color-mix(in oklab,var(--green) 12%,transparent);border-color:color-mix(in oklab,var(--green) 35%,var(--border))}
   .fp.src{color:var(--amber);background:color-mix(in oklab,var(--amber) 10%,transparent);border-color:color-mix(in oklab,var(--amber) 30%,var(--border))}
   .fp.use{color:var(--muted);background:var(--panel)}
-  .fnote{font-size:11px;color:var(--faint);font-style:italic}
+  .fscan{font:400 11px/1.5 ui-monospace,monospace;color:var(--dim,#777);margin:-4px 0 12px;letter-spacing:.02em}
+.fstale{color:#c2410c;font-weight:700;letter-spacing:.06em}
+.fnote{font-size:11px;color:var(--faint);font-style:italic}
   .flegend{margin-top:13px;font-size:11.5px;color:var(--faint);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
   .infra{margin-top:42px}
   .igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:14px}
@@ -343,8 +354,13 @@ const fleetCard = (m) => {
   return `<div class="fc${m.isNew?" isnew":""}"><div class="fc-h"><span class="fs">${m.s}</span>${m.isNew?'<span class="fnew">NEW</span>':""}</div><div class="fr">${m.r}</div>${pills?`<div class="fpills">${pills}</div>`:""}${m.note?`<div class="fnote">${m.note}</div>`:""}</div>`;
 };
 const fleetHtml = `<section class="fleet">
-      <div class="layer-h"><span class="n">FLEET</span><span class="t">Who builds &amp; consumes</span><span class="d">the broberg.ai sessions behind the shared library — supply &amp; demand</span></div>
-      <div class="fgrid">${FLEET.map(fleetCard).join("")}</div>
+      <div class="layer-h"><span class="n">FLEET</span><span class="t">Who builds &amp; consumes</span><span class="d">read from every repo's package.json — ${FLEET_SCAN.edges ?? 0} dependencies across ${FLEET_SCAN.repos_scanned ?? 0} repos</span></div>
+      <div class="fscan" data-testid="inv-fleet-scanned">${
+        FLEET_AGE.stale
+          ? `<span class="fstale">⚠ STALE</span> last scanned ${FLEET_AGE.at ? `${FLEET_AGE.at.slice(0,16).replace("T"," ")} UTC — ${Math.round(FLEET_AGE.hours)}h ago` : "never"}. The daily job may have stopped; these numbers are not current.`
+          : `scanned ${FLEET_AGE.at.slice(0,16).replace("T"," ")} UTC · ${FLEET_SCAN.manifests_read ?? 0} package.json files${FLEET_SCAN.repos_failed ? ` · ${FLEET_SCAN.repos_failed} repo(s) could not be read` : ""}`
+      }</div>
+      <div class="fgrid">${FLEET_ROWS.map(fleetCard).join("")}</div>
       <div class="flegend"><span class="fp pub">pkg</span> publishes · <span class="fp src">✦ pkg</span> originated the pattern · <span class="fp use">→ pkg</span> consumes</div>
     </section>`;
 

@@ -10,6 +10,19 @@ import { createLogger } from "@broberg/logger";
 import { requestLogger, errorLogger } from "@broberg/logger/hono";
 // Single source of truth — shared with scripts/build-inventory.mjs.
 import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
+// F083 — the FLEET roster is DERIVED from every repo's real package.json files,
+// refreshed by a daily job. The hand-written array survives only as role text
+// and `pub` (what a session publishes), which no manifest can tell us.
+import { fleetRows as buildFleetRows, scanAge } from "../../scripts/fleet-graph.mjs";
+import { readFileSync } from "node:fs";
+let fleetScan: any = { repos: {} };
+try {
+  fleetScan = JSON.parse(readFileSync(new URL("../../data/fleet-deps.json", import.meta.url), "utf8"));
+} catch {
+  try { fleetScan = JSON.parse(readFileSync("./data/fleet-deps.json", "utf8")); } catch { /* ship dark */ }
+}
+const fleetRows = buildFleetRows(fleetScan);
+const fleetAge = scanAge(fleetScan);
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
 import { getEnrollStore, type Role } from "./enroll";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
@@ -91,7 +104,7 @@ const stats = {
   backlog: components.filter((c) => c.status === "backlog").length,
   moved: components.filter((c) => c.status === "moved").length,
   packages: packages.length,
-  fleetSessions: FLEET.length,
+  fleetSessions: fleetRows.length,
   infraPlatforms: infra.length,
   infraTips: infra.reduce((n, p) => n + p.tipCount, 0),
   layers: layers.length,
@@ -334,7 +347,21 @@ app.get("/api/infra/:id", (c) => {
   return c.json(hit);
 });
 
-app.get("/api/fleet", (c) => c.json({ count: FLEET.length, fleet: FLEET }));
+// F083 — derived from the scanned manifests, not from the hand-written array.
+// Measured the day it changed: the array served 15 of 149 real dependencies
+// and omitted eight repos entirely. `scanned_at` and `stale` travel with the
+// answer so a caller can tell a current roster from a dead job.
+app.get("/api/fleet", (c) =>
+  c.json({
+    count: fleetRows.length,
+    scanned_at: fleetScan.scanned_at ?? null,
+    stale: fleetAge.stale,
+    repos_scanned: fleetScan.repos_scanned ?? 0,
+    manifests_read: fleetScan.manifests_read ?? 0,
+    edges: fleetScan.edges ?? 0,
+    fleet: fleetRows,
+  }),
+);
 
 app.get("/api/layers", (c) => c.json({ count: layers.length, layers }));
 
@@ -348,7 +375,7 @@ app.get("/api/search", (c) => {
     query: q,
     components: rankComponents(components, ql),
     packages: rankPackages(ql),
-    fleet: FLEET.filter((f) => platformMatch(`${f.s} ${f.r}`, `${f.s} ${f.r}`, ql)),
+    fleet: fleetRows.filter((f: any) => platformMatch(`${f.s} ${f.r}`, `${f.s} ${f.r}`, ql)),
     infra: infra.filter((p) =>
       platformMatch(
         `${p.name} ${p.role} ${p.notes ?? ""} ${(p.tips ?? []).map((t) => t.t).join(" ")} ${(p.kw ?? []).join(" ")}`,

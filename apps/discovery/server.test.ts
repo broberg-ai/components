@@ -64,12 +64,33 @@ describe("Discovery API", () => {
     expect(body.packages.every((p: { version: string | null }) => p.version)).toBe(true);
   });
 
-  it("GET /api/fleet → roster includes fdaa (new)", async () => {
+  // F083 — this used to assert "the roster includes fdaa", which is a fact about
+  // a hand-typed array rather than about the fleet. It passed for three months
+  // while the same endpoint served 15 of 149 real dependencies.
+  it("GET /api/fleet → rows come from the SCANNED manifests, and carry their own freshness", async () => {
     const res = await app.request("/api/fleet");
     const body = await res.json();
-    const fdaa = body.fleet.find((f: { s: string }) => f.s === "fdaa");
-    expect(fdaa).toBeTruthy();
-    expect(fdaa.isNew).toBe(true);
+
+    // The property that matters: a repo nobody hand-wrote a row for is present,
+    // with its real dependency list. contentpush has 10 and had no row at all.
+    const cp = body.fleet.find((f: { s: string }) => f.s === "contentpush");
+    expect(cp).toBeTruthy();
+    expect(cp.uses.length).toBeGreaterThan(5);
+
+    // And a caller can tell a current roster from a dead job without asking us.
+    expect(typeof body.stale).toBe("boolean");
+    expect(body.scanned_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(body.edges).toBeGreaterThan(100);
+    expect(body.count).toBeGreaterThan(20);
+  });
+
+  it("GET /api/fleet → hand-written role text survives the derivation", async () => {
+    const res = await app.request("/api/fleet");
+    const body = await res.json();
+    const cardmem = body.fleet.find((f: { s: string }) => f.s === "cardmem");
+    // npm can prove a dependency exists; it cannot say what a repo is FOR.
+    expect(cardmem.r).toContain("PM board");
+    expect(cardmem.uses.length).toBeGreaterThan(10);
   });
 
   it("GET /api/search?q=lens → spans components + fleet", async () => {

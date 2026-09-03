@@ -34,6 +34,31 @@ export const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies"
 const ghCli = (path) => JSON.parse(execFileSync("gh", ["api", path], { encoding: "utf8", maxBuffer: 64e6 }));
 
 /**
+ * WHICH repos to scan. Auto-discovered from the two work orgs, so a NEW repo is
+ * covered the day it is created — hardcoding the list would reproduce, one layer
+ * down, the exact staleness this whole card removes.
+ *
+ * `cbroberg` is deliberately NOT auto-discovered: it is a personal account with
+ * 129 repos, almost none of them fleet work. The three that are get named here,
+ * and F083.4's reconcile is what catches a fourth — a repo that ENROLLED with
+ * Discovery but was never scanned is a finding, not a silent omission.
+ */
+export const ORGS = ["broberg-ai", "webhousecode"];
+export const EXTRA_REPOS = ["cbroberg/moovyy", "cbroberg/pitch", "cbroberg/coverletter-generator"];
+
+export function discoverRepos(api = ghCli) {
+  const found = [];
+  for (const org of ORGS) {
+    // Archived repos are read-only history; scanning them would report
+    // dependencies nobody can act on and would never change again.
+    for (const r of api(`orgs/${org}/repos?per_page=100&type=all`)) {
+      if (!r.archived) found.push(r.full_name);
+    }
+  }
+  return [...found, ...EXTRA_REPOS].sort();
+}
+
+/**
  * Scan one repo. `api` is injected so the tests can drive this without a network
  * — a scanner whose only proof is "it ran against GitHub once" has no negative
  * controls at all.
@@ -51,7 +76,14 @@ export function scanRepo(repo, api = ghCli) {
   const manifests = tree.filter(
     (t) => t.type === "blob" && /(^|\/)package\.json$/.test(t.path) && !t.path.split("/").includes("node_modules"),
   );
-  if (manifests.length === 0) throw new Error(`${repo}: no package.json found on ${branch} — refusing to report this as "no dependencies"`);
+  // THREE STATES, NOT TWO. "the tree is empty" and "this repo has no package.json"
+  // look identical in a count and are different facts: the first means the read
+  // failed (wrong repo, wrong branch, no permission) and the second is a normal
+  // docs-only repo. Collapsing them would either hide a broken read or paint two
+  // healthy repos red on every single run — and a check that fires every run is
+  // a check on its way to being ignored.
+  if (tree.length === 0) throw new Error(`${repo}: the tree on ${branch} came back EMPTY — refusing to report this as "no dependencies"`);
+  if (manifests.length === 0) return { branch, manifests: 0, unreadable: 0, no_manifests: true, deps: {} };
 
   const deps = {};
   let unreadable = 0;
@@ -106,11 +138,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const argv = process.argv.slice(2);
   const outIdx = argv.indexOf("--out");
   const out = outIdx >= 0 ? argv.splice(outIdx, 2)[1] : null;
-  if (!argv.length) {
-    console.error("usage: scan-fleet-deps.mjs <owner/repo> [...] [--out <file>]");
+  const discover = argv.includes("--discover");
+  const repos = discover ? discoverRepos() : argv;
+  if (!repos.length) {
+    console.error("usage: scan-fleet-deps.mjs <owner/repo> [...] | --discover  [--out <file>]");
     process.exit(2);
   }
-  const result = scanFleet(argv, ghCli, (line) => console.error(line));
+  if (discover) console.error(`discovered ${repos.length} repos across ${ORGS.join(", ")} + ${EXTRA_REPOS.length} named\n`);
+  const result = scanFleet(repos, ghCli, (line) => console.error(line));
+  result.discovery = discover ? { orgs: ORGS, extra: EXTRA_REPOS } : { explicit: repos.length };
   console.error(`\n${result.repos_scanned} repos · ${result.manifests_read} manifests · ${result.edges} edges · ${result.repos_failed} failed`);
   const json = JSON.stringify(result, null, 1);
   if (out) { writeFileSync(out, json + "\n"); console.error(`wrote ${out}`); }
