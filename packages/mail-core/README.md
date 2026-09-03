@@ -107,3 +107,28 @@ than our variant."* Recorded so the next consumer does not have to ask.
 **the mail carries the SENDER's identity, and the sender is not always the repo
 the template lives in.** A shared shell with per-send branding is the point; a
 shell with the branding baked in is a different, worse product.
+
+## Brand values are validated, and an invalid one throws
+
+`accentColor`, `cardBg`, `textColor` and `backdropColor` must be a CSS colour —
+hex (`#rgb`, `#rrggbb`, `#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, or a
+named colour (all 148, `rebeccapurple` included). `fontSans` / `fontSerif` must
+not contain `< > "` or a backtick. Anything else **throws**, naming the field.
+
+**It rejects rather than escapes, deliberately.** An escaped non-colour still
+leaves the building and renders as literal garbage inside a `style` attribute —
+the customer sees a broken mail and nobody sees an error. Throwing fails at the
+caller, where someone can act on it.
+
+This matters if you resolve branding **per tenant from a database**. These values
+are interpolated into HTML attributes, so before the guard existed an accent
+colour of
+
+```
+#fff;"></td></tr></table><a href="https://phish.example">Log ind her</a><table><tr><td x="
+```
+
+put that anchor into the rendered mail. No script is involved — a login link
+inside an otherwise genuine, correctly-branded transactional mail is the whole
+attack, and clients that strip script still render it. Validate at your own
+boundary too; this is the last line, not the only one.

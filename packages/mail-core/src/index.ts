@@ -38,6 +38,76 @@ export interface BrandColors {
   fontSerif?: string;
 }
 
+/** The CSS named colours. The full set on purpose: a guard that rejects
+ *  `rebeccapurple` is one consumers route around, and a routed-around guard
+ *  protects nothing. (F023.9 constraint.) */
+const NAMED_COLORS = new Set(
+  ("aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue " +
+    "blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk " +
+    "crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki " +
+    "darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen " +
+    "darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue " +
+    "dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite " +
+    "gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki " +
+    "lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan " +
+    "lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen " +
+    "lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen " +
+    "magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen " +
+    "mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream " +
+    "mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid " +
+    "palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum " +
+    "powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown " +
+    "seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen " +
+    "steelblue tan teal thistle tomato transparent turquoise violet wheat white whitesmoke " +
+    "yellow yellowgreen").split(" "),
+);
+
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const FUNCTIONAL = /^(?:rgb|rgba|hsl|hsla)\(\s*[0-9a-z.%,\s/+-]+\)$/i;
+
+/** Reject a brand colour that is not a colour. **REJECT, never escape** — an
+ *  escaped non-colour still leaves the building and still renders as literal
+ *  garbage inside a `style` attribute, so the customer sees a broken mail and
+ *  nobody sees an error. Throwing fails at the CALLER, where someone can act.
+ *
+ *  PROVEN REACHABLE, 2026-09-03, against the built package (F023.9):
+ *    accentColor = '#0f7391" onmouseover="alert(1)" x="'
+ *      -> <td bgcolor="#0f7391" onmouseover="alert(1)" x="" ...>
+ *    a longer payload injected a complete
+ *      <a href="https://phish.example">Log ind her</a>
+ *    into the rendered mail. No script needed: a login link inside an otherwise
+ *    genuine, correctly-branded transactional mail IS the attack, and clients
+ *    that strip script still render the anchor.
+ *
+ *  It was not reachable when this was written — a single-tenant repo passes a
+ *  constant from a config file and has no attacker. xrt81 now resolves branding
+ *  PER TENANT from a database and cardmem's template store is being built. The
+ *  assumption did not become false through carelessness; the deployment model
+ *  moved underneath it. */
+export function assertColor(field: string, value: string | undefined): void {
+  if (value === undefined) return;
+  const v = value.trim();
+  if (HEX.test(v) || FUNCTIONAL.test(v) || NAMED_COLORS.has(v.toLowerCase())) return;
+  throw new Error(
+    `@broberg/mail-core: ${field} is not a CSS colour (received ${JSON.stringify(value)}). ` +
+      `Brand values are interpolated into HTML attributes, so an arbitrary string here can ` +
+      `inject markup into the mail. Pass a hex, rgb()/rgba(), hsl()/hsla(), or a named colour.`,
+  );
+}
+
+/** A font stack is NOT a colour and must not borrow the colour grammar — it
+ *  legitimately contains quotes and commas (`'Segoe UI'`). What cannot appear is
+ *  a tag delimiter or a quote that closes the attribute we sit inside. */
+export function assertFontStack(field: string, value: string | undefined): void {
+  if (value === undefined) return;
+  if (!/[<>"`]/.test(value)) return;
+  throw new Error(
+    `@broberg/mail-core: ${field} contains a character that can break out of the ` +
+      `attribute it is rendered into (received ${JSON.stringify(value)}). ` +
+      `Use single quotes for family names: "-apple-system,'Segoe UI',sans-serif".`,
+  );
+}
+
 function isDark(hex: string): boolean {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return false;
@@ -48,6 +118,16 @@ function isDark(hex: string): boolean {
 }
 
 function resolveColors(b: BrandColors) {
+  // Driven from the FIELD NAMES rather than a hand-written list of call sites:
+  // a list of seven line numbers goes stale the next time this file is edited,
+  // and staleness here reads as coverage. (F023.9 AC#2.)
+  assertColor("accentColor", b.accentColor);
+  assertColor("cardBg", b.cardBg);
+  assertColor("textColor", b.textColor);
+  assertColor("backdropColor", b.backdropColor);
+  assertFontStack("fontSans", b.fontSans);
+  assertFontStack("fontSerif", b.fontSerif);
+
   // #fffffe, not #ffffff, and the one-off byte is the whole point: several
   // clients treat EXACTLY white as "this is a light mail, invert it". One step
   // off slips that recognition and no eye can tell the difference. Measured at
@@ -262,6 +342,9 @@ export function heading(
   text: string,
   opts?: { fontSerif?: string; textColor?: string; emphasis?: string; accentColor?: string },
 ): string {
+  assertColor("accentColor", opts?.accentColor);
+  assertColor("textColor", opts?.textColor);
+  assertFontStack("fontSerif", opts?.fontSerif);
   const fontSerif = opts?.fontSerif ?? "Georgia,'Times New Roman',serif";
   const textColor = opts?.textColor ?? "#1a1a1a";
   let inner = escapeHtml(text);
@@ -285,6 +368,7 @@ export function heading(
 /** The small uppercase label above a heading ("PROJECT UPDATE"). Letter-spaced
  *  and in the accent colour; a recurring component in every surveyed template. */
 export function eyebrow(text: string, opts: { accentColor: string }): string {
+  assertColor("accentColor", opts.accentColor);
   return `<p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${opts.accentColor};text-align:center;">${escapeHtml(text)}</p>`;
 }
 
@@ -297,6 +381,7 @@ export function eyebrow(text: string, opts: { accentColor: string }): string {
  *
  *  Takes RAW HTML like paragraphHtml(): the caller escapes dynamic values. */
 export function noteBox(html: string, opts: { accentColor: string }): string {
+  assertColor("accentColor", opts.accentColor);
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:16px 0;border-left:3px solid ${opts.accentColor};border-radius:8px;">
     <tr><td style="padding:12px 16px;font-size:14px;line-height:1.6;">${html}</td></tr>
   </table>`;
@@ -392,6 +477,7 @@ export function signOff(
   b?: { cardBg?: string } | string,
   sign?: string,
 ): string {
+  if (Array.isArray(a) && typeof b === "object") assertColor("cardBg", b?.cardBg);
   // The separator carries the original's indentation, so the legacy form is
   // byte-identical rather than merely equivalent. A test asserts that against a
   // stored snapshot; reading it here is not the proof.
@@ -421,6 +507,7 @@ export function signOff(
 /** A bulletproof (table-cell-based, not a bare <a>/<button>) call-to-action
  *  button — the pattern every surveyed template hand-rolled per-brand. */
 export function cta(href: string, label: string, opts: { accentColor: string }): string {
+  assertColor("accentColor", opts.accentColor);
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:28px auto 8px;">
     <tr>
       <td bgcolor="${opts.accentColor}" style="background:${opts.accentColor};border-radius:999px;">
@@ -438,6 +525,7 @@ export interface FactRow {
 /** A structured label/value block (table rows, not flex/grid — email-client
  *  safe) for rendering e.g. booking details or submitted form fields. */
 export function factBox(rows: FactRow[], opts?: { accentColor?: string }): string {
+  assertColor("accentColor", opts?.accentColor);
   if (rows.length === 0) return "";
   const border = opts?.accentColor ? `border-left:3px solid ${opts.accentColor};` : "border:1px solid rgba(0,0,0,0.1);";
   const cells = rows
