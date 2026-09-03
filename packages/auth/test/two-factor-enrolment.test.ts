@@ -140,17 +140,32 @@ describe("AC#6 — recovery codes", () => {
     expect(backupCodes[0]).toBeTruthy();
   });
 
-  it("a used code cannot be used twice", async () => {
+  it("a used code cannot be used twice — and fails for the RIGHT reason", async () => {
+    // cardmem's rule, applied to my own suite: a green (or here, a non-200)
+    // result is a question, not a result — ask WHICH reason arrived. `not 200`
+    // would also pass if the second call failed on a stale session, a lockout,
+    // or 2FA not being enabled, i.e. for a layer this test is not about.
     const { auth, cookie, backupCodes } = await enrolled();
     const code = backupCodes[0]!;
-    const first = await auth.api
-      .verifyBackupCode({ body: { code }, headers: { cookie }, asResponse: true })
-      .catch(() => null);
-    expect(first?.status).toBe(200);
-    const second = await auth.api
-      .verifyBackupCode({ body: { code }, headers: { cookie }, asResponse: true })
-      .catch((e: { status?: number }) => ({ status: e?.status ?? 400 }));
-    expect(second?.status).not.toBe(200);
+    const call = (c: string) =>
+      auth.api
+        .verifyBackupCode({ body: { code: c }, headers: { cookie }, asResponse: true })
+        .then(async (r) => ({ status: r.status, body: (await r.json().catch(() => null)) as { code?: string } | null }))
+        .catch((e: { status?: number; body?: { code?: string } }) => ({ status: e?.status ?? 0, body: e?.body ?? null }));
+
+    expect((await call(code)).status).toBe(200);
+
+    const reused = await call(code);
+    expect(reused.status).toBe(401);
+    expect(reused.body?.code).toBe("INVALID_BACKUP_CODE");
+
+    // And a code that was NEVER valid must fail IDENTICALLY. That is both the
+    // right security property — a consumed code must not be distinguishable
+    // from a wrong one, or the error is an oracle — and the evidence that the
+    // assertion above is about consumption rather than about something breaking.
+    const neverValid = await call("zzzz-zzzz");
+    expect(neverValid.status).toBe(reused.status);
+    expect(neverValid.body?.code).toBe(reused.body?.code);
   });
 });
 
