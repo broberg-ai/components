@@ -74,6 +74,22 @@ export interface ShellOpts extends BrandColors {
  *  flex/grid — Outlook doesn't support it), dark-mode-inversion guards via
  *  both `prefers-color-scheme` and Outlook.com's `[data-ogsc]`, a rounded
  *  card with an accent-colored top strip, and an optional footer. */
+/** The shell's own identity, emitted into every rendered mail (F023.7).
+ *
+ *  WHY IT EXISTS, in cardmem's words: a project must be able to tell "MY
+ *  template changed" from "the SHARED shell changed". Without it those are one
+ *  observation, and fd-sundhed's condition for adopting a shared shell is
+ *  exact — «ellers er delingen en risiko-flytning, ikke en forbedring».
+ *
+ *  Bumped by hand when the rendered OUTPUT changes, which is deliberately not
+ *  the package version: a docs-only or types-only release must not make every
+ *  consumer's stored render look different. Same output, same number.
+ *
+ *  An HTML COMMENT rather than an attribute: comments survive every client we
+ *  have measured, and an attribute on <html> is one of the first things a
+ *  sanitising webmail rewrites. */
+export const SHELL_VERSION = "1";
+
 export function renderShell(opts: ShellOpts): string {
   const { accentColor, cardBg, textColor, backdropColor, fontSans } = resolveColors(opts);
   const lang = opts.lang ?? "en";
@@ -97,6 +113,7 @@ export function renderShell(opts: ShellOpts): string {
     : "";
 
   return `<!doctype html>
+<!-- @broberg/mail-core shell v${SHELL_VERSION} -->
 <html lang="${escapeAttr(lang)}">
 <head>
 <meta charset="utf-8">
@@ -105,6 +122,26 @@ export function renderShell(opts: ShellOpts): string {
 <meta name="supported-color-schemes" content="light only">
 <title>${escapeHtml(opts.subject)}</title>
 <style>
+  /* ⚠️ THE THREE FORCE-LIGHT LAYERS BELOW HAVE ZERO EFFECT IN OUTLOOK iOS.
+     Not partial — zero. Measured by fd-sundhed on a real iPhone, 2026-08-19
+     18:28: asked #141969 and got #484090; asked #fffffe and got #484848, with
+     card AND footer landing on the same colour so the footer stopped being a
+     zone at all. The three are: these color-scheme metas + rule, the
+     [data-ogsc]/[data-ogsb] rules, and #fffffe-instead-of-#ffffff.
+
+     THEY STAY, because Apple Mail honours them. Do not add a FOURTH layer
+     expecting it to fix Outlook — three have been measured at nothing.
+
+     ⚠️ AND THE DIRECTION IS INVERTED, which is the trap: Outlook maps a DARK
+     source colour to a LIGHT rendered one (#1a1c2b -> #c1c2d1, #4a4d63 ->
+     #a7a9bf). So to make a too-faint line MORE readable at the recipient, make
+     the source colour DARKER. Someone seeing a washed-out line will reach for
+     "lighten it" and make it worse — that is the whole reason this comment sits
+     here rather than in a plan-doc.
+
+     What actually doubled legibility (2.0:1 -> 4.9:1) was structural: no
+     mid-tones, structure from rule-and-space rather than fills, no gradient,
+     and a button with fill AND border. */
   :root { color-scheme: light only; supported-color-schemes: light only; }
   @media (prefers-color-scheme: dark) {
     .mc-bg-outer { background:${backdropColor} !important; }
@@ -142,10 +179,61 @@ ${opts.preheader ? `<div style="display:none;font-size:1px;max-height:0;overflow
 </html>`;
 }
 
-export function heading(text: string, opts?: { fontSerif?: string; textColor?: string }): string {
+/** `emphasis` italicises the FIRST occurrence of that substring in the accent
+ *  colour — the "one word picked out of the headline" brand signature three
+ *  consumers hand-rolled (reported by vn-leker, F023.7).
+ *
+ *  A substring that does not occur leaves the heading UNCHANGED rather than
+ *  appending anything: a caller passing a word that is not there has made a
+ *  mistake, and silently adding it to the end would render that mistake as
+ *  design. Omitting `emphasis` renders byte-identically to 0.1.0.
+ *
+ *  `fontSerif` SHOULD be a full fallback STACK, never a single family name.
+ *  vn-leker dropped their serif entirely because Outlook does not guarantee
+ *  webfonts — which removed the design instead of letting Apple Mail show it.
+ *  Layer it; do not choose. */
+export function heading(
+  text: string,
+  opts?: { fontSerif?: string; textColor?: string; emphasis?: string; accentColor?: string },
+): string {
   const fontSerif = opts?.fontSerif ?? "Georgia,'Times New Roman',serif";
   const textColor = opts?.textColor ?? "#1a1a1a";
-  return `<h1 style="margin:0 0 12px;font-family:${fontSerif};font-size:28px;font-weight:400;color:${textColor};text-align:center;">${escapeHtml(text)}</h1>`;
+  let inner = escapeHtml(text);
+  const em = opts?.emphasis;
+  if (em) {
+    // Match on the ESCAPED needle inside the ESCAPED haystack, so a word
+    // containing & or < still finds itself.
+    const needle = escapeHtml(em);
+    const at = inner.indexOf(needle);
+    if (at !== -1) {
+      const colour = opts?.accentColor ?? textColor;
+      inner =
+        inner.slice(0, at) +
+        `<i style="color:${colour};font-style:italic;">${needle}</i>` +
+        inner.slice(at + needle.length);
+    }
+  }
+  return `<h1 style="margin:0 0 12px;font-family:${fontSerif};font-size:28px;font-weight:400;color:${textColor};text-align:center;">${inner}</h1>`;
+}
+
+/** The small uppercase label above a heading ("PROJECT UPDATE"). Letter-spaced
+ *  and in the accent colour; a recurring component in every surveyed template. */
+export function eyebrow(text: string, opts: { accentColor: string }): string {
+  return `<p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${opts.accentColor};text-align:center;">${escapeHtml(text)}</p>`;
+}
+
+/** Free prose with a coloured left rule — a NOTE, not a table.
+ *
+ *  Deliberately not an option on factBox(): that renders label/value ROWS, and
+ *  this takes a paragraph. Same visual family, different datatype — folding
+ *  them together would be one function doing two jobs, and the caller would
+ *  have to pass prose disguised as a row to reach it.
+ *
+ *  Takes RAW HTML like paragraphHtml(): the caller escapes dynamic values. */
+export function noteBox(html: string, opts: { accentColor: string }): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:16px 0;border-left:3px solid ${opts.accentColor};border-radius:8px;">
+    <tr><td style="padding:12px 16px;font-size:14px;line-height:1.6;">${html}</td></tr>
+  </table>`;
 }
 
 export function paragraph(text: string): string {
