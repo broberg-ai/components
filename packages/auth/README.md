@@ -199,7 +199,15 @@ const auth = createTypedAuth(
 
 const { totpURI, backupCodes } = await auth.api.enableTwoFactor({ body: { password } });
 const svg = totpQr(totpURI);        // scan this with any authenticator app
+// totpQr(totpURI, "dataUri")        // base64 data-URI for an <img src="…">
 ```
+
+**Both output formats run in a browser and on a server**, asserted by a test that
+deletes `globalThis.Buffer` — because the first version of the data-URI branch
+used `Buffer.from()` and threw in a browser while this README already claimed
+otherwise. The test it had only checked that `document` and `window` were
+absent, which is Node, which is the one runtime where `Buffer` exists. Fixed in
+0.3.1; **0.3.0 has a `dataUri` that throws in a browser.**
 
 **Any authenticator app works, and there is nothing to integrate.** Microsoft
 Authenticator, Google Authenticator, 1Password, Authy — all of them implement
