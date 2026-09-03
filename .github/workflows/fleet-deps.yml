@@ -47,14 +47,23 @@ jobs:
         run: |
           node scripts/test-scan-fleet-deps.mjs
           node scripts/test-fleet-graph.mjs
+          node scripts/test-workflows-parse.mjs
 
-      # GITHUB_TOKEN reaches only THIS repo. The scan reads every fleet repo, so
-      # it needs a token with org-wide read — the same one the other cross-repo
-      # workflows use. Without it the run fails loudly (see the guard below)
-      # rather than silently reporting an empty fleet.
+      # MEASURED, not assumed: 18 of broberg-ai's 28 repos are PRIVATE, cardmem
+      # among them. The default GITHUB_TOKEN is scoped to THIS repo, so without a
+      # cross-repo read token the scan would 404 on most of the fleet and the
+      # partial-graph guard would fire — a confusing red instead of a clear one.
+      # So the missing token is named here, at the top, in one sentence.
+      - name: Require a cross-repo read token
+        run: |
+          if [ -z "${{ secrets.FLEET_READ_TOKEN }}" ]; then
+            echo "::error::FLEET_READ_TOKEN is not set. The scan reads every fleet repo and 18 of them are private, so the default GITHUB_TOKEN cannot see them. Create a fine-grained PAT with Contents:read + Metadata:read on broberg-ai, webhousecode and cbroberg, then: gh secret set FLEET_READ_TOKEN --repo broberg-ai/components"
+            exit 1
+          fi
+
       - name: Scan every fleet repo
         env:
-          GH_TOKEN: ${{ secrets.FLEET_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_READ_TOKEN }}
         run: node scripts/scan-fleet-deps.mjs --discover --out data/fleet-deps.json
 
       # A partial graph must never be committed. `repos_failed` counts repos that
@@ -92,17 +101,22 @@ jobs:
           if git diff --quiet -- data/fleet-deps.json docs/; then
             echo "no change"; exit 0
           fi
-          BEFORE=$(git show HEAD:data/fleet-deps.json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);delete j.scanned_at;console.log(JSON.stringify(j))}catch{console.log("")}})' || echo "")
-          AFTER=$(node -e 'const j=require("./data/fleet-deps.json");delete j.scanned_at;console.log(JSON.stringify(j))')
+          # `scanned_at` moves on EVERY run by construction, so comparing the
+          # whole file would produce a commit a day forever and drown the
+          # history. The timestamp is stripped from both sides before the
+          # comparison; it still ships in the committed file, because the page's
+          # staleness banner reads it.
+          strip='let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);delete j.scanned_at;console.log(JSON.stringify(j))}catch{console.log("")}})'
+          BEFORE=$(git show HEAD:data/fleet-deps.json 2>/dev/null | node -e "$strip" || echo "")
+          AFTER=$(cat data/fleet-deps.json | node -e "$strip")
           if [ "$BEFORE" = "$AFTER" ]; then
             echo "only the timestamp moved — nothing to commit"; exit 0
           fi
+          SUMMARY=$(node -p "const s=require('./data/fleet-deps.json'); s.repos_scanned + ' repos · ' + s.manifests_read + ' manifests · ' + s.edges + ' dependencies'")
           git add data/fleet-deps.json docs/
-          git commit -m "chore(fleet): refresh the dependency graph
-
-$(node -e 'const s=require("./data/fleet-deps.json");console.log(`${s.repos_scanned} repos · ${s.manifests_read} manifests · ${s.edges} dependencies`)')
-
-Automated by .github/workflows/fleet-deps.yml (F083.3). The FLEET roster is
-derived from every repo's real package.json rather than from a hand-written
-list, so this commit is what keeps discovery.broberg.ai current."
+          printf '%s\n\n%s\n\n%s\n' \
+            "chore(fleet): refresh the dependency graph" \
+            "$SUMMARY" \
+            "Automated by .github/workflows/fleet-deps.yml (F083.3). The FLEET roster is derived from every repo's real package.json rather than from a hand-written list, so this commit is what keeps discovery.broberg.ai current." > /tmp/msg
+          git commit -F /tmp/msg
           git push

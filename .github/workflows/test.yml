@@ -77,6 +77,12 @@ jobs:
       # Kept as two steps on purpose: a type error and a failing assertion are
       # different problems, and one red X for both means opening the log to learn
       # which one you have.
+      # A workflow file that does not parse registers NO triggers, so the job it
+      # describes simply never runs and nothing says so. Cheapest possible check,
+      # first, for a failure mode with no other signal.
+      - name: Workflows parse
+        run: node scripts/test-workflows-parse.mjs
+
       - name: Typecheck (39 packages)
         run: pnpm typecheck
 
