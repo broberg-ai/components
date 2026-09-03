@@ -65,9 +65,52 @@ export interface ShellOpts extends BrandColors {
   footerLines?: string[];
   footerHref?: string;
   footerLabel?: string;
-  /** Resolved logo <img> src — a cid: reference (see makeLogoAttachment) or a hosted URL. */
+  /** Resolved logo <img> src — a cid: reference (see makeLogoAttachment) or a
+   *  hosted URL. Still honoured; prefer `logo` below, which can carry BOTH. */
   logoUrl?: string;
   logoAlt?: string;
+  /** The logo, expressed as EVERY form you have, in preference order (F023.7).
+   *
+   *  WHY BOTH RATHER THAN A CHOICE. cardmem cannot always attach when it sends
+   *  on a project's behalf, so a template that can only say `cid:` is unusable
+   *  there. And sanne measured the opposite failure: their `data:` URI logo was
+   *  stripped by Gmail's image proxy, and ONE template missed in the migration
+   *  to `cid:` broke ALONE, half a year later. A field that holds one form makes
+   *  that a migration; a field that holds both makes it a fallback.
+   *
+   *  Preference is CID first, and it is not a style choice: a hosted logo is
+   *  re-fetched every time the mail is opened, for years, so moving the file
+   *  breaks every mail ever sent — retroactively. An attachment cannot rot. */
+  logo?: LogoSource;
+}
+
+export interface LogoSource {
+  /** contentId of an attached image — rendered as `cid:<id>`. Preferred. */
+  cid?: string;
+  /** Hosted URL. Used when no cid is given. */
+  url?: string;
+  alt?: string;
+}
+
+/** Pick the logo src from every form the caller supplied, in preference order.
+ *
+ *  Exported so a caller can ask what WOULD be used without rendering a shell —
+ *  and so the preference itself is testable rather than buried in a template
+ *  literal.
+ *
+ *  Returns `null` when there is nothing usable, which is a real outcome: no
+ *  logo block is rendered, rather than an <img> with an empty src that shows a
+ *  broken-image icon in every client. */
+export function resolveLogoSrc(logo: LogoSource | undefined, fallbackUrl?: string): string | null {
+  const cid = logo?.cid?.trim();
+  if (cid) return `cid:${cid}`;
+  const url = logo?.url?.trim() || fallbackUrl?.trim();
+  if (!url) return null;
+  // A data: URI is NOT a third option — Gmail's image proxy strips it, measured
+  // by sanne on a live send. Refused rather than rendered, because a logo that
+  // silently vanishes at one provider is the failure this field exists to stop.
+  if (/^data:/i.test(url)) return null;
+  return url;
 }
 
 /** Renders a complete, email-client-safe HTML document: table layout (not
@@ -95,10 +138,12 @@ export function renderShell(opts: ShellOpts): string {
   const lang = opts.lang ?? "en";
   const showFooter = opts.showFooter ?? true;
 
-  const logoBlock = opts.logoUrl
+  const logoSrc = resolveLogoSrc(opts.logo, opts.logoUrl);
+  const logoAlt = opts.logo?.alt ?? opts.logoAlt ?? "";
+  const logoBlock = logoSrc
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
     <tr><td>
-      <img src="${escapeAttr(opts.logoUrl)}" alt="${escapeAttr(opts.logoAlt ?? "")}" style="display:block;margin:0 auto;max-width:180px;height:auto;border:0;">
+      <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" style="display:block;margin:0 auto;max-width:180px;height:auto;border:0;">
     </td></tr>
   </table>`
     : "";

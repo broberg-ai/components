@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHELL_VERSION, eyebrow, heading, noteBox, renderShell } from "../src/index";
+import { SHELL_VERSION, eyebrow, heading, noteBox, renderShell, resolveLogoSrc } from "../src/index";
 
 const shell = () =>
   renderShell({ subject: "s", accentColor: "#0f7391", bodyHtml: "<p>x</p>" } as never);
@@ -79,5 +79,49 @@ describe("the shell says which shell rendered it — F023.7", () => {
     // render look different. If these are ever wired together, this goes red.
     const pkg = require("../package.json").version as string;
     expect(SHELL_VERSION).not.toBe(pkg);
+  });
+});
+
+describe("the logo expresses BOTH forms and degrades — F023.7", () => {
+  it("prefers cid when both are given", () => {
+    // A hosted logo is re-fetched every time the mail is opened, for years.
+    expect(resolveLogoSrc({ cid: "logo", url: "https://x.dk/l.png" })).toBe("cid:logo");
+  });
+
+  it("falls back to the url when there is no cid — cardmem cannot always attach", () => {
+    expect(resolveLogoSrc({ url: "https://x.dk/l.png" })).toBe("https://x.dk/l.png");
+  });
+
+  it("BOTH ABSENT is its own outcome: null, not an empty src", () => {
+    // An <img src=""> shows a broken-image icon in every client.
+    expect(resolveLogoSrc(undefined)).toBeNull();
+    expect(resolveLogoSrc({})).toBeNull();
+    expect(resolveLogoSrc({ cid: "  ", url: "  " })).toBeNull();
+  });
+
+  it("REFUSES a data: URI — Gmail's image proxy strips it (sanne, measured live)", () => {
+    expect(resolveLogoSrc({ url: "data:image/png;base64,iVBOR" })).toBeNull();
+    expect(resolveLogoSrc({ url: "DATA:image/png;base64,iVBOR" })).toBeNull();
+  });
+
+  it("still honours the shipped logoUrl, so 0.1.0 callers do not break", () => {
+    expect(resolveLogoSrc(undefined, "https://x.dk/old.png")).toBe("https://x.dk/old.png");
+    // and the new field wins over it
+    expect(resolveLogoSrc({ cid: "logo" }, "https://x.dk/old.png")).toBe("cid:logo");
+  });
+
+  it("the shell renders no logo block at all when nothing is usable", () => {
+    const html = renderShell({ subject: "s", accentColor: "#000", bodyHtml: "<p>x</p>" } as never);
+    expect(html).not.toContain("<img");
+  });
+
+  it("the shell renders the resolved src, escaped", () => {
+    const html = renderShell({
+      subject: "s", accentColor: "#000", bodyHtml: "<p>x</p>",
+      logo: { cid: "logo", alt: 'Ris & "ros"' },
+    } as never);
+    expect(html).toContain('src="cid:logo"');
+    expect(html).toContain("&amp;");
+    expect(html).not.toContain('alt="Ris & "ros""');
   });
 });
