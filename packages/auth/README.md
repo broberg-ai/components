@@ -207,7 +207,9 @@ deletes `globalThis.Buffer` — because the first version of the data-URI branch
 used `Buffer.from()` and threw in a browser while this README already claimed
 otherwise. The test it had only checked that `document` and `window` were
 absent, which is Node, which is the one runtime where `Buffer` exists. Fixed in
-0.3.1; **0.3.0 has a `dataUri` that throws in a browser.**
+**0.3.2**; **0.3.0 and 0.3.1 both have a `dataUri` that throws in a browser** —
+0.3.1's commit carried the test and the version bump but not the source fix (see
+below), so it is the same defect with a newer number.
 
 **Any authenticator app works, and there is nothing to integrate.** Microsoft
 Authenticator, Google Authenticator, 1Password, Authy — all of them implement

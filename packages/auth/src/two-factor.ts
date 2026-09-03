@@ -74,8 +74,43 @@ export function totpQr(totpURI: string, format: "svg" | "dataUri" = "svg"): stri
   if (!totpURI) throw new Error("@broberg/auth: totpQr() needs the totpURI from enrolment");
   const svg = renderSVG(totpURI);
   if (format === "svg") return svg;
-  // Base64 rather than percent-encoding: an otpauth URI contains characters
-  // (# is not among them, but & and = are) that survive base64 unambiguously,
-  // and the result is safe in an src attribute without further escaping.
-  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+  // Base64, so the result is safe in an src attribute with no further escaping.
+  //
+  // NO `Buffer`, NO `btoa`, NO `TextEncoder` — encoded by hand, and that is not
+  // over-engineering. The first version was `Buffer.from(svg, "utf8")`, which
+  // THROWS "Buffer is not defined" in a browser while the README claimed the
+  // helper works there. The second version was `typeof btoa === "function" ?
+  // btoa(...) : Buffer.from(...)` — still resting on one global being present.
+  // A base64 encoder is twelve lines; depending on the runtime to supply one is
+  // how this became a two-release mistake.
+  //
+  // btoa() would also be wrong on its own: it operates on latin-1, so any
+  // non-ASCII byte is mangled. uqr emits ASCII today, which is exactly the kind
+  // of fact that stops being true without anyone noticing.
+  return `data:image/svg+xml;base64,${toBase64(utf8Bytes(svg))}`;
+}
+
+/** UTF-8 bytes, without TextEncoder. */
+function utf8Bytes(str: string): number[] {
+  const out: number[] = [];
+  for (const ch of str) {
+    let cp = ch.codePointAt(0)!;
+    if (cp < 0x80) out.push(cp);
+    else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
+    else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+  }
+  return out;
+}
+
+/** RFC 4648 base64, without Buffer or btoa. */
+function toBase64(bytes: number[]): string {
+  const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]!, b1 = bytes[i + 1], b2 = bytes[i + 2];
+    out += A[b0 >> 2]! + A[((b0 & 3) << 4) | ((b1 ?? 0) >> 4)]!;
+    out += b1 === undefined ? "==" : A[((b1 & 15) << 2) | ((b2 ?? 0) >> 6)]! + (b2 === undefined ? "=" : A[b2 & 63]!);
+  }
+  return out;
 }
