@@ -250,6 +250,46 @@ export function resolveLogoSrc(logo: LogoSource | undefined, fallbackUrl?: strin
  *  sanitising webmail rewrites. */
 export const SHELL_VERSION = "2";
 
+/** Warn ONCE per process that a logo is being drawn without an explicit width.
+ *
+ *  vn-leker's proposal, and it is better than either option I had. The problem:
+ *  omitting `logoWidth` leaves the mark drawn at its full FILE size in Outlook,
+ *  and we could not tell how many consumers that affects because only the
+ *  consuming repos know their asset widths. Changing the default would fix it
+ *  for everyone and silently change one client's rendering for every existing
+ *  consumer — breaking, and not ours to decide.
+ *
+ *  A warning changes no mail and makes each consumer discover their OWN
+ *  exposure the next time they run their suite. So the count arrives from
+ *  measurement instead of from a guess, and a future default change is
+ *  something everyone has already seen coming.
+ *
+ *  ONCE PER PROCESS, not per render: a transactional mailer renders in a loop,
+ *  and a warning printed a thousand times is one nobody reads.
+ *
+ *  KNOWN DATA POINT: vn-leker's mark is 480x480 — 2x for a 40px logo, the
+ *  correct decision by their supplier — drawn at 56px. Broken in Outlook without
+ *  logoWidth. That is one confirmed YES; the rest of the fleet is unmeasured. */
+let warnedUnsizedLogo = false;
+function warnUnsizedLogo(): void {
+  if (warnedUnsizedLogo) return;
+  warnedUnsizedLogo = true;
+  // eslint-disable-next-line no-console
+  console.warn(
+    "@broberg/mail-core: rendering a logo without `logoWidth`. Outlook ignores CSS " +
+      "dimensions on an image, so it will draw your file at its FULL width there — " +
+      "a 480px source becomes a 480px logo. Pass logoWidth (e.g. { logoWidth: 56 }) " +
+      "even if 180 is what you want. This warns once per process.",
+  );
+}
+
+/** Test seam: reset the once-per-process warning. Exported because a test that
+ *  cannot re-arm the warning can only ever assert it fires the FIRST time, which
+ *  proves the flag exists rather than that the condition is right. */
+export function __resetLogoWarning(): void {
+  warnedUnsizedLogo = false;
+}
+
 export function renderShell(opts: ShellOpts): string {
   const { accentColor, cardBg, textColor, backdropColor, fontSans } = resolveColors(opts);
   const lang = opts.lang ?? "en";
@@ -267,6 +307,7 @@ export function renderShell(opts: ShellOpts): string {
   // Outlook. Making 180 emit an attribute would fix that for everyone and would
   // change what every existing consumer's mail looks like in one client, which
   // is not a change to make silently. Set logoWidth explicitly.
+  if (logoSrc && opts.logoWidth === undefined) warnUnsizedLogo();
   const logoW =
     typeof opts.logoWidth === "number" && Number.isFinite(opts.logoWidth) && opts.logoWidth > 0
       ? Math.round(opts.logoWidth)

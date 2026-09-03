@@ -159,6 +159,14 @@ looked fine. This hits the careful consumer, not the careless one.
 No `height` attribute is emitted: this package serves non-square logos, and a
 forced square distorts them in exactly the client that honours attributes.
 
+**Rendering a logo without `logoWidth` warns once per process.** It changes no
+mail — it is there so you find out whether *your* asset is affected, rather than
+us guessing on your behalf. Known so far: one consumer's mark is 480×480 (2× for
+a 40px logo, the correct call by their supplier) and was therefore broken in
+Outlook. How many others is unmeasured, because only your repo knows your file's
+width. If the warning fires and your source is under 180px wide, you were fine;
+if it is wider, pass `logoWidth`.
+
 `logoWidth` is how you **draw** the logo. If you also need to **produce** it at a
 sane size, that is `@broberg/media-transform` — complementary, not an alternative.
 

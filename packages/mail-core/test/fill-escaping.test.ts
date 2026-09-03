@@ -111,6 +111,11 @@ describe("the opacity invariant COVERS every HTML-emitting export (F023.12 AC#3)
     "resolveLogoSrc",                  // returns a URL string
     "eyebrow", "noteBox", "cta",       // covered by primitives.test.ts
     "paragraphHtml",                   // paragraph's raw twin; same markup
+    // Added because this guard CAUGHT it: __resetLogoWarning appeared as a new
+    // export in F023.10 and the coverage test went red on its own, with nobody
+    // editing it. That is the guard doing exactly what AC#3 asked for, on its
+    // first real encounter. It is a test seam returning void, not a renderer.
+    "__resetLogoWarning",
   ]);
 
   it("every HTML-emitting export is exercised by the opacity check", async () => {
