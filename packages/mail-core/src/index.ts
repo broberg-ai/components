@@ -342,15 +342,28 @@ export interface SignOffLine {
   tier?: "lead" | "name" | "meta";
 }
 
-/** The muted tier's colour. A real value at 8.29:1 on white and 7.54:1 on the
- *  default backdrop — never an `opacity`, for the reason spelled out on the
- *  footer above: an opacity is a contrast value for ONE background only. */
-const SIGNOFF_META_COLOR = "#4a4d63";
+/** The muted tier's colour, one value per background polarity — never an
+ *  `opacity`, for the reason spelled out on the footer above: an opacity is a
+ *  contrast value for ONE background only.
+ *
+ *  BOTH POLARITIES EXIST BECAUSE THE SHELL SUPPORTS DARK CARDS, and the first
+ *  cut of this function did not: a hardcoded #4a4d63 measures **2.10:1** on a
+ *  #1a1a1a card — far under the 4.5:1 floor, while the README advertises dark
+ *  cards as a supported mode. That is the same defect this change removed from
+ *  the footer, reintroduced one function away in the same commit. Found by
+ *  reviewing the diff, not by any test — which is why the test now renders BOTH
+ *  polarities and asserts they DIFFER.
+ *
+ *    #4a4d63 on #fffffe   8.29:1        #c1c2d1 on #1a1a1a   9.87:1
+ *    #4a4d63 on #1a1a1a   2.10:1  <-    #c1c2d1 on #484848   5.18:1
+ */
+const SIGNOFF_META_LIGHT = "#4a4d63";
+const SIGNOFF_META_DARK = "#c1c2d1";
 
-function signOffLine(line: SignOffLine): string {
+function signOffLine(line: SignOffLine, metaColor: string): string {
   const text = escapeHtml(line.text);
   if (line.tier === "name") return `<strong style="font-weight:700;">${text}</strong>`;
-  if (line.tier === "meta") return `<span style="color:${SIGNOFF_META_COLOR};">${text}</span>`;
+  if (line.tier === "meta") return `<span style="color:${metaColor};">${text}</span>`;
   return text;
 }
 
@@ -372,20 +385,31 @@ function signOffLine(line: SignOffLine): string {
  *  inverting the old form's last-line emphasis for everyone who did not pass
  *  the option. vn-leker caught that; it was worse than the bug it fixed.
  */
-export function signOff(lines: SignOffLine[]): string;
+export function signOff(lines: SignOffLine[], opts?: { cardBg?: string }): string;
 export function signOff(line1: string, line2: string, sign: string): string;
-export function signOff(a: SignOffLine[] | string, line2?: string, sign?: string): string {
+export function signOff(
+  a: SignOffLine[] | string,
+  b?: { cardBg?: string } | string,
+  sign?: string,
+): string {
   // The separator carries the original's indentation, so the legacy form is
   // byte-identical rather than merely equivalent. A test asserts that against a
   // stored snapshot; reading it here is not the proof.
   const br = "<br>\n      ";
+  // `meta` follows the card it sits on, using the SAME isDark() the shell uses,
+  // so the two cannot drift apart. A caller who omits cardBg gets the light
+  // pair, which is exactly what the shell's own default card is.
+  const metaColor =
+    Array.isArray(a) && typeof b === "object" && b?.cardBg && isDark(b.cardBg)
+      ? SIGNOFF_META_DARK
+      : SIGNOFF_META_LIGHT;
   const body = Array.isArray(a)
-    ? a.map(signOffLine).join(br)
+    ? a.map((l) => signOffLine(l, metaColor)).join(br)
     // The legacy form — with ONE correction: an empty `sign` used to emit a
     // trailing `<br>` plus `<span style="font-size:20px;"></span>`, i.e. a blank
     // line and an empty styled element that failed nowhere and so survived.
     // vn-leker's own signature replacement left exactly that residue.
-    : [escapeHtml(a), escapeHtml(line2 ?? "")].join(br) +
+    : [escapeHtml(a), escapeHtml(typeof b === "string" ? b : "")].join(br) +
       (sign ? `${br}<span style="font-size:20px;">${escapeHtml(sign)}</span>` : "");
   return `<div style="margin-top:24px;padding-top:24px;border-top:1px solid rgba(0,0,0,0.1);text-align:center;">
     <p style="margin:0;font-size:15px;line-height:1.8;">

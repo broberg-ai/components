@@ -93,6 +93,29 @@ describe("signOff — three tiers, one axis each (F023.8 AC#1)", () => {
     expect(meta).not.toContain("font-size:");
   });
 
+  it("`meta` follows the CARD, not a hardcoded light value", () => {
+    // The defect this catches was in the first cut of this very change: a
+    // hardcoded #4a4d63 measures 2.10:1 on a #1a1a1a card, under the 4.5:1
+    // floor — while the README advertises dark cards as supported. It is the
+    // same defect the footer fix removed, one function away, in the same commit.
+    const line = (html: string) => html.match(/<span[^>]*>t<\/span>/)?.[0] ?? "";
+    const light = line(signOff([{ text: "t", tier: "meta" }]));
+    const dark = line(signOff([{ text: "t", tier: "meta" }], { cardBg: "#1a1a1a" }));
+    expect(light).toBe(`<span style="color:#4a4d63;">t</span>`);
+    expect(dark).toBe(`<span style="color:#c1c2d1;">t</span>`);
+    // and the two must actually DIFFER — without this the test passes if both
+    // branches return the same value.
+    expect(dark).not.toBe(light);
+  });
+
+  it("an omitted cardBg gets the light pair, matching the shell's own default", () => {
+    const a = signOff([{ text: "t", tier: "meta" }]);
+    const b = signOff([{ text: "t", tier: "meta" }], {});
+    const c = signOff([{ text: "t", tier: "meta" }], { cardBg: "#fffffe" });
+    expect(a).toBe(b);
+    expect(a).toBe(c);
+  });
+
   it("an omitted tier is lead — plain text, no wrapper", () => {
     expect(signOff([{ text: "plain" }])).toContain(">\n      plain\n    <");
   });
