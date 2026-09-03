@@ -220,6 +220,19 @@ describe("the two sources 0.4.0 missed", () => {
     ).toThrow(/IS Better Auth's default secret/);
   });
 
+  // The case where PRECEDENCE actually decides. With only extend.secrets set,
+  // `??` picks it either way — so the test above passes under a flipped
+  // precedence too, and a mutation flipping it SURVIVED until this case existed.
+  it("extend.secrets OVERRIDES a real config.secrets — so the default hidden in extend must still be caught", () => {
+    expect(() =>
+      createAuth({
+        database: db(),
+        secrets: secretsFrom({ 1: REAL_SECRET }),
+        extend: { secrets: [{ version: 1, value: DEFAULT_SECRET }] },
+      }),
+    ).toThrow(/one of your `secrets` is Better Auth's default secret/);
+  });
+
   it("same for a secrets array smuggled through `extend`", () => {
     expect(() =>
       createAuth({
