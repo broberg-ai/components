@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-03T21:35:34.102Z",
- "repos_scanned": 32,
+ "scanned_at": "2026-09-03T22:30:14.510Z",
+ "repos_scanned": 57,
  "repos_failed": 0,
- "manifests_read": 179,
+ "manifests_read": 205,
  "manifests_unreadable": 0,
- "edges": 149,
+ "edges": 151,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -13,6 +13,13 @@
    "deps": {}
   },
   "broberg-ai/annaslothart": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
+  },
+  "broberg-ai/app-server": {
    "branch": "main",
    "manifests": 0,
    "unreadable": 0,
@@ -198,69 +205,11 @@
     ]
    }
   },
-  "webhousecode/buddy": {
+  "broberg-ai/camera9": {
    "branch": "main",
-   "manifests": 11,
+   "manifests": 1,
    "unreadable": 0,
-   "deps": {
-    "@broberg/ai-sdk": [
-     {
-      "range": "^0.28.0",
-      "field": "dependencies",
-      "at": "apps/server/package.json"
-     },
-     {
-      "range": "^0.28.0",
-      "field": "dependencies",
-      "at": "packages/cli/package.json"
-     },
-     {
-      "range": "^0.28.0",
-      "field": "dependencies",
-      "at": "packages/transport/package.json"
-     }
-    ],
-    "@broberg/db-sdk": [
-     {
-      "range": "^0.1.0",
-      "field": "dependencies",
-      "at": "apps/server/package.json"
-     }
-    ],
-    "@broberg/fleet-contracts": [
-     {
-      "range": "^0.1.0",
-      "field": "dependencies",
-      "at": "apps/server/package.json"
-     }
-    ],
-    "@broberg/secret-scan": [
-     {
-      "range": "^0.5.0",
-      "field": "dependencies",
-      "at": "apps/server/package.json"
-     }
-    ],
-    "@upmetrics/sdk": [
-     {
-      "range": "^0.4.1",
-      "field": "dependencies",
-      "at": "apps/server/package.json"
-     },
-     {
-      "range": "^0.4.1",
-      "field": "dependencies",
-      "at": "apps/web/package.json"
-     }
-    ],
-    "@broberg/cron": [
-     {
-      "range": "0.1.0",
-      "field": "devDependencies",
-      "at": "package.json"
-     }
-    ]
-   }
+   "deps": {}
   },
   "broberg-ai/cardmem": {
    "branch": "main",
@@ -426,74 +375,6 @@
     ]
    }
   },
-  "webhousecode/cms": {
-   "branch": "main",
-   "manifests": 32,
-   "unreadable": 0,
-   "deps": {
-    "@broberg/ai-sdk": [
-     {
-      "range": "0.34.0",
-      "field": "dependencies",
-      "at": "packages/cms-admin/package.json"
-     },
-     {
-      "range": "^0.34.0",
-      "field": "dependencies",
-      "at": "packages/cms-ai/package.json"
-     }
-    ],
-    "@broberg/chat": [
-     {
-      "range": ">=0.5.0 <1",
-      "field": "dependencies",
-      "at": "packages/cms-admin/package.json"
-     }
-    ],
-    "@broberg/cms-chat-client": [
-     {
-      "range": "^0.4.14",
-      "field": "dependencies",
-      "at": "packages/cms-admin/package.json"
-     }
-    ],
-    "@broberg/cms-inline-edit": [
-     {
-      "range": ">=0.6.3 <1",
-      "field": "dependencies",
-      "at": "packages/cms-admin/package.json"
-     }
-    ],
-    "@broberg/mail": [
-     {
-      "range": "0.7.1",
-      "field": "dependencies",
-      "at": "packages/cms-admin/package.json"
-     }
-    ],
-    "@broberg/mail-core": [
-     {
-      "range": ">=0.7.0 <1",
-      "field": "dependencies",
-      "at": "packages/cms-admin/package.json"
-     }
-    ],
-    "@upmetrics/sdk": [
-     {
-      "range": "^0.4.1",
-      "field": "dependencies",
-      "at": "packages/cms-admin/package.json"
-     }
-    ],
-    "@broberg/lens-engine": [
-     {
-      "range": ">=0.4.0",
-      "field": "peerDependencies",
-      "at": "packages/cms-cli/package.json"
-     }
-    ]
-   }
-  },
   "broberg-ai/components": {
    "branch": "main",
    "manifests": 41,
@@ -638,49 +519,7 @@
    "unreadable": 0,
    "deps": {}
   },
-  "cbroberg/coverletter-generator": {
-   "branch": "main",
-   "manifests": 2,
-   "unreadable": 0,
-   "deps": {
-    "@broberg/ai-sdk": [
-     {
-      "range": "^0.34.0",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ],
-    "@broberg/media": [
-     {
-      "range": "^0.2.1",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ],
-    "@upmetrics/sdk": [
-     {
-      "range": "^0.4.1",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ]
-   }
-  },
-  "webhousecode/cronjobs": {
-   "branch": "main",
-   "manifests": 1,
-   "unreadable": 0,
-   "deps": {
-    "@broberg/lens": [
-     {
-      "range": "0.1.3",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ]
-   }
-  },
-  "webhousecode/dns-mcp": {
+  "broberg-ai/db-sdk": {
    "branch": "main",
    "manifests": 1,
    "unreadable": 0,
@@ -815,6 +654,12 @@
     ]
    }
   },
+  "broberg-ai/fdaa": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {}
+  },
   "broberg-ai/fleet": {
    "branch": "main",
    "manifests": 3,
@@ -825,59 +670,6 @@
       "range": "workspace:*",
       "field": "dependencies",
       "at": "packages/fleet-client/package.json"
-     }
-    ]
-   }
-  },
-  "broberg-ai/fdaa": {
-   "branch": "main",
-   "manifests": 2,
-   "unreadable": 0,
-   "deps": {}
-  },
-  "webhousecode/fysiodk-aalborg-sport": {
-   "branch": "main",
-   "manifests": 4,
-   "unreadable": 0,
-   "deps": {
-    "@broberg/ai-sdk": [
-     {
-      "range": "^0.21.0",
-      "field": "dependencies",
-      "at": "apps/web/package.json"
-     },
-     {
-      "range": "^0.21.0",
-      "field": "devDependencies",
-      "at": "package.json"
-     }
-    ],
-    "@broberg/apikey": [
-     {
-      "range": "0.1.1",
-      "field": "dependencies",
-      "at": "apps/web/package.json"
-     }
-    ],
-    "@broberg/lens": [
-     {
-      "range": "0.1.2",
-      "field": "dependencies",
-      "at": "apps/web/package.json"
-     }
-    ],
-    "@broberg/webpush": [
-     {
-      "range": "0.1.1",
-      "field": "dependencies",
-      "at": "apps/web/package.json"
-     }
-    ],
-    "@upmetrics/sdk": [
-     {
-      "range": "^0.2.0",
-      "field": "dependencies",
-      "at": "apps/web/package.json"
      }
     ]
    }
@@ -969,68 +761,12 @@
    "no_manifests": true,
    "deps": {}
   },
-  "cbroberg/moovyy": {
+  "broberg-ai/lhd": {
    "branch": "main",
-   "manifests": 2,
+   "manifests": 0,
    "unreadable": 0,
-   "deps": {
-    "@broberg/apikey": [
-     {
-      "range": "0.3.1",
-      "field": "dependencies",
-      "at": "cloud/package.json"
-     }
-    ],
-    "@broberg/auth": [
-     {
-      "range": "0.2.0",
-      "field": "dependencies",
-      "at": "cloud/package.json"
-     }
-    ],
-    "@broberg/gravatar": [
-     {
-      "range": "0.2.1",
-      "field": "dependencies",
-      "at": "cloud/package.json"
-     }
-    ],
-    "@broberg/mail": [
-     {
-      "range": "0.7.0",
-      "field": "dependencies",
-      "at": "cloud/package.json"
-     }
-    ],
-    "@broberg/notifications": [
-     {
-      "range": "0.2.0",
-      "field": "dependencies",
-      "at": "cloud/package.json"
-     }
-    ],
-    "@broberg/pwa": [
-     {
-      "range": "^0.2.2",
-      "field": "dependencies",
-      "at": "cloud/package.json"
-     }
-    ],
-    "@broberg/webpush": [
-     {
-      "range": "0.5.0",
-      "field": "dependencies",
-      "at": "cloud/package.json"
-     }
-    ],
-    "@broberg/ai-sdk": [
-     {
-      "range": "^0.28.0",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ]
-   }
+   "no_manifests": true,
+   "deps": {}
   },
   "broberg-ai/notesmem": {
    "branch": "main",
@@ -1044,96 +780,11 @@
    "unreadable": 0,
    "deps": {}
   },
-  "cbroberg/pitch": {
+  "broberg-ai/sanneandersen-services": {
    "branch": "main",
-   "manifests": 2,
+   "manifests": 1,
    "unreadable": 0,
-   "deps": {
-    "@broberg/ai-sdk": [
-     {
-      "range": "0.19.0",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ],
-    "@broberg/lens": [
-     {
-      "range": "0.1.2",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ],
-    "@broberg/pwa": [
-     {
-      "range": "0.1.0",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ]
-   }
-  },
-  "webhousecode/sanneandersen": {
-   "branch": "main",
-   "manifests": 2,
-   "unreadable": 0,
-   "deps": {
-    "@broberg/ai-sdk": [
-     {
-      "range": "^0.36.7",
-      "field": "dependencies",
-      "at": "site/package.json"
-     }
-    ],
-    "@broberg/cmdk": [
-     {
-      "range": "0.1.0",
-      "field": "dependencies",
-      "at": "site/package.json"
-     }
-    ],
-    "@broberg/cms-inline-edit": [
-     {
-      "range": "0.5.5",
-      "field": "dependencies",
-      "at": "site/package.json"
-     }
-    ],
-    "@broberg/lens": [
-     {
-      "range": "0.1.1",
-      "field": "dependencies",
-      "at": "site/package.json"
-     }
-    ],
-    "@broberg/mail": [
-     {
-      "range": "0.1.0",
-      "field": "dependencies",
-      "at": "site/package.json"
-     }
-    ],
-    "@broberg/stripe": [
-     {
-      "range": "0.3.0",
-      "field": "dependencies",
-      "at": "site/package.json"
-     }
-    ],
-    "@upmetrics/sdk": [
-     {
-      "range": "^0.4.1",
-      "field": "dependencies",
-      "at": "site/package.json"
-     }
-    ],
-    "@broberg/lens-engine": [
-     {
-      "range": "^0.4.0",
-      "field": "devDependencies",
-      "at": "site/package.json"
-     }
-    ]
-   }
+   "deps": {}
   },
   "broberg-ai/storeform": {
    "branch": "main",
@@ -1225,9 +876,14 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "^0.19.0",
+      "range": "^0.38.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
+     },
+     {
+      "range": "^0.38.0",
+      "field": "dependencies",
+      "at": "packages/shared/package.json"
      }
     ],
     "@broberg/secret-scan": [
@@ -1288,28 +944,14 @@
     ]
    }
   },
-  "webhousecode/vnlekerv2": {
+  "broberg-ai/upmetrics-swift": {
    "branch": "main",
-   "manifests": 1,
+   "manifests": 0,
    "unreadable": 0,
-   "deps": {
-    "@broberg/mail": [
-     {
-      "range": "^0.10.1",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ],
-    "@broberg/mail-core": [
-     {
-      "range": "0.7.0",
-      "field": "dependencies",
-      "at": "package.json"
-     }
-    ]
-   }
+   "no_manifests": true,
+   "deps": {}
   },
-  "webhousecode/whop": {
+  "broberg-ai/video": {
    "branch": "main",
    "manifests": 1,
    "unreadable": 0,
@@ -1415,6 +1057,550 @@
      }
     ]
    }
+  },
+  "cbroberg/coverletter-generator": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "^0.34.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/media": [
+     {
+      "range": "^0.2.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "^0.4.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
+  "cbroberg/moovyy": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/apikey": [
+     {
+      "range": "0.3.1",
+      "field": "dependencies",
+      "at": "cloud/package.json"
+     }
+    ],
+    "@broberg/auth": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "cloud/package.json"
+     }
+    ],
+    "@broberg/gravatar": [
+     {
+      "range": "0.2.1",
+      "field": "dependencies",
+      "at": "cloud/package.json"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "cloud/package.json"
+     }
+    ],
+    "@broberg/notifications": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "cloud/package.json"
+     }
+    ],
+    "@broberg/pwa": [
+     {
+      "range": "^0.2.2",
+      "field": "dependencies",
+      "at": "cloud/package.json"
+     }
+    ],
+    "@broberg/webpush": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "cloud/package.json"
+     }
+    ],
+    "@broberg/ai-sdk": [
+     {
+      "range": "^0.28.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
+  "cbroberg/pitch": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.19.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/lens": [
+     {
+      "range": "0.1.2",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/pwa": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/buddy": {
+   "branch": "main",
+   "manifests": 11,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "^0.28.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     },
+     {
+      "range": "^0.28.0",
+      "field": "dependencies",
+      "at": "packages/cli/package.json"
+     },
+     {
+      "range": "^0.28.0",
+      "field": "dependencies",
+      "at": "packages/transport/package.json"
+     }
+    ],
+    "@broberg/db-sdk": [
+     {
+      "range": "^0.1.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/fleet-contracts": [
+     {
+      "range": "^0.1.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/secret-scan": [
+     {
+      "range": "^0.5.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "^0.4.1",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     },
+     {
+      "range": "^0.4.1",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/cron": [
+     {
+      "range": "0.1.0",
+      "field": "devDependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/claudestatus": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/cms": {
+   "branch": "main",
+   "manifests": 32,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.34.0",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     },
+     {
+      "range": "^0.34.0",
+      "field": "dependencies",
+      "at": "packages/cms-ai/package.json"
+     }
+    ],
+    "@broberg/chat": [
+     {
+      "range": ">=0.5.0 <1",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@broberg/cms-chat-client": [
+     {
+      "range": "^0.4.14",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@broberg/cms-inline-edit": [
+     {
+      "range": ">=0.6.3 <1",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "0.7.1",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@broberg/mail-core": [
+     {
+      "range": ">=0.7.0 <1",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "^0.4.1",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@broberg/lens-engine": [
+     {
+      "range": ">=0.4.0",
+      "field": "peerDependencies",
+      "at": "packages/cms-cli/package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/cms-agents": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
+  },
+  "webhousecode/cms-docs": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/cronjobs": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/lens": [
+     {
+      "range": "0.1.3",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/dns-api": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/dns-gui": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/dns-mcp": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/fmc-automation": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/fysiodk-aalborg-sport": {
+   "branch": "main",
+   "manifests": 4,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "^0.21.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     },
+     {
+      "range": "^0.21.0",
+      "field": "devDependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/apikey": [
+     {
+      "range": "0.1.1",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/lens": [
+     {
+      "range": "0.1.2",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/webpush": [
+     {
+      "range": "0.1.1",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/gen2code-claude": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/gen2code-henosia": {
+   "branch": "main",
+   "manifests": 6,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/gen2code-qoder": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/gen2code-warp": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/maurseth": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/nextjs-boilerplate": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/nextjs-github-boilerplate": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/sanneandersen": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "^0.36.7",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
+    "@broberg/cmdk": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
+    "@broberg/cms-inline-edit": [
+     {
+      "range": "0.5.5",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
+    "@broberg/lens": [
+     {
+      "range": "0.1.1",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
+    "@broberg/stripe": [
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "^0.4.1",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
+    "@broberg/lens-engine": [
+     {
+      "range": "^0.4.0",
+      "field": "devDependencies",
+      "at": "site/package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/static-boilerplate": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/vnlekerv2": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/mail": [
+     {
+      "range": "^0.10.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/mail-core": [
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/webhouse-site": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/cms-inline-edit": [
+     {
+      "range": "0.5.5",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/forms-turnstile": [
+     {
+      "range": "^0.3.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
+  "webhousecode/website": {
+   "branch": "master",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
+  },
+  "webhousecode/whai-gateway": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/whapi": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {}
+  },
+  "webhousecode/whop": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
   }
+ },
+ "discovery": {
+  "orgs": [
+   "broberg-ai",
+   "webhousecode"
+  ],
+  "extra": [
+   "cbroberg/moovyy",
+   "cbroberg/pitch",
+   "cbroberg/coverletter-generator"
+  ]
  }
 }
