@@ -156,6 +156,26 @@ export interface ShellOpts extends BrandColors {
    *  hosted URL. Still honoured; prefer `logo` below, which can carry BOTH. */
   logoUrl?: string;
   logoAlt?: string;
+  /** How wide to DRAW the logo, in px. Omit and you get the historic centred
+   *  slot unchanged (`max-width:180px`, no width attribute) — byte-identical to
+   *  every mail sent before this field existed.
+   *
+   *  SET IT IF YOU CAN, and set it even when 180 is what you want: a supplied
+   *  width is emitted as an HTML `width` ATTRIBUTE as well as in the style, and
+   *  **the attribute is the only half Outlook reads.** Outlook's Word engine
+   *  ignores CSS dimensions on an image, so without the attribute it draws the
+   *  mark at its full FILE size.
+   *
+   *  WHICH IS WHY THIS EXISTS: vn-leker shipped a 480×480 mark — 2× for a 40px
+   *  logo, the correct decision — and the shell drew it 180px wide on a 520px
+   *  card. Christian opened it in Gmail: «Alt for stort logo». **The better the
+   *  source you supply, the worse the result**; a 96px file would have looked
+   *  fine. The careful consumer is the one this hits.
+   *
+   *  No `height` attribute is emitted, deliberately: this package serves
+   *  non-square logos, and a forced square distorts them in exactly the client
+   *  that honours attributes. */
+  logoWidth?: number;
   /** The logo, expressed as EVERY form you have, in preference order (F023.7).
    *
    *  WHY BOTH RATHER THAN A CHOICE. cardmem cannot always attach when it sends
@@ -227,10 +247,24 @@ export function renderShell(opts: ShellOpts): string {
 
   const logoSrc = resolveLogoSrc(opts.logo, opts.logoUrl);
   const logoAlt = opts.logo?.alt ?? opts.logoAlt ?? "";
+  // A supplied width is emitted as an ATTRIBUTE as well as in the style, because
+  // the attribute is the half Outlook reads. Omitted keeps the historic block
+  // byte-for-byte — existing production mail must not shift under consumers who
+  // never asked for anything.
+  //
+  // KNOWN AND DELIBERATE: the DEFAULT therefore stays Outlook-unsafe. A caller
+  // who omits logoWidth still gets a mark drawn at its full file size in
+  // Outlook. Making 180 emit an attribute would fix that for everyone and would
+  // change what every existing consumer's mail looks like in one client, which
+  // is not a change to make silently. Set logoWidth explicitly.
+  const logoW =
+    typeof opts.logoWidth === "number" && Number.isFinite(opts.logoWidth) && opts.logoWidth > 0
+      ? Math.round(opts.logoWidth)
+      : null;
   const logoBlock = logoSrc
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
     <tr><td>
-      <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" style="display:block;margin:0 auto;max-width:180px;height:auto;border:0;">
+      <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}"${logoW ? ` width="${logoW}"` : ""} style="display:block;margin:0 auto;${logoW ? `width:${logoW}px` : "max-width:180px"};height:auto;border:0;">
     </td></tr>
   </table>`
     : "";

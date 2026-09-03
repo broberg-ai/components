@@ -132,3 +132,32 @@ put that anchor into the rendered mail. No script is involved — a login link
 inside an otherwise genuine, correctly-branded transactional mail is the whole
 attack, and clients that strip script still render it. Validate at your own
 boundary too; this is the last line, not the only one.
+
+## Sizing the logo — set `logoWidth`, and set it even when 180 is what you want
+
+```ts
+renderShell({ …, logoUrl, logoWidth: 56 })
+```
+
+Omit it and you get the historic centred slot unchanged (`max-width:180px`, no
+width attribute) — byte-identical to every mail sent before the field existed.
+
+**Set it if you can.** A supplied width is emitted as an HTML `width` **attribute**
+as well as in the style, and **the attribute is the only half Outlook reads** —
+its Word engine ignores CSS dimensions on an image, so without the attribute it
+draws your mark at its full *file* size.
+
+That is also why the default remains Outlook-unsafe, deliberately: making 180
+emit an attribute would fix it for everyone and would change what every existing
+consumer's mail looks like in one client, which is not a change to make silently.
+
+**Why this field exists.** A consumer shipped a 480×480 mark — 2× for a 40px
+logo, the correct decision — and the shell drew it 180px wide on a 520px card.
+**The better the source you supply, the worse the result**; a 96px file would have
+looked fine. This hits the careful consumer, not the careless one.
+
+No `height` attribute is emitted: this package serves non-square logos, and a
+forced square distorts them in exactly the client that honours attributes.
+
+`logoWidth` is how you **draw** the logo. If you also need to **produce** it at a
+sane size, that is `@broberg/media-transform` — complementary, not an alternative.

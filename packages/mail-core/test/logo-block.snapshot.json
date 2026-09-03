@@ -1,0 +1,4 @@
+{
+  "_note": "Captured from dist/index.js as built at mail-core-v0.4.0, BEFORE logoWidth existed. Regenerating this from the new source would make the byte-identity test compare the new code to itself.",
+  "defaultLogo": "<img src=\"https://x.dk/logo.png\" alt=\"Mark\" style=\"display:block;margin:0 auto;max-width:180px;height:auto;border:0;\">"
+}
