@@ -47,7 +47,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/lens** v0.1.3 — A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem…. `npm i @broberg/lens`
 
 ### L1 — Identity (who the user is)
-- **@broberg/auth** v0.4.0 — Email+password, magic-link, six social providers, passkeys and 2FA by authenticator app. `npm i @broberg/auth`
+- **@broberg/auth** v0.4.1 — Email+password, magic-link, six social providers, passkeys and 2FA by authenticator app. `npm i @broberg/auth`
 - **@broberg/apikey** v0.3.1 — The fleet's inbound API-key primitives. `npm i @broberg/apikey`
 - **@broberg/event-log** v0.1.0 — A GDPR-aware event and activity log. `npm i @broberg/event-log`
 - **@broberg/gravatar** v0.2.1 — Isomorphic Gravatar helper (SHA-256 via crypto.subtle) + initials fallback. `npm i @broberg/gravatar`
