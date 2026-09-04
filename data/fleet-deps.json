@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-03T22:30:14.510Z",
+ "scanned_at": "2026-09-04T08:56:35.777Z",
  "repos_scanned": 57,
  "repos_failed": 0,
- "manifests_read": 205,
+ "manifests_read": 206,
  "manifests_unreadable": 0,
- "edges": 151,
+ "edges": 152,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -305,6 +305,11 @@
       "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
+     },
+     {
+      "range": "0.6.0",
+      "field": "devDependencies",
+      "at": "packages/shared/package.json"
      }
     ],
     "@broberg/media-transform": [
@@ -756,10 +761,17 @@
   },
   "broberg-ai/house-of-wellness": {
    "branch": "main",
-   "manifests": 0,
+   "manifests": 1,
    "unreadable": 0,
-   "no_manifests": true,
-   "deps": {}
+   "deps": {
+    "@broberg/mail-core": [
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "mail/package.json"
+     }
+    ]
+   }
   },
   "broberg-ai/lhd": {
    "branch": "main",
@@ -814,12 +826,12 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "^0.36.6",
+      "range": "^0.38.0",
       "field": "dependencies",
       "at": "scripts/aidan/package.json"
      },
      {
-      "range": "^0.36.6",
+      "range": "^0.38.0",
       "field": "dependencies",
       "at": "scripts/logo/package.json"
      }
