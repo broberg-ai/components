@@ -85,13 +85,13 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.1.0 — The fleet Data SDK. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.38.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@broberg/ai-sdk** v0.41.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
 - **@upmetrics/sdk** v0.3.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
 - **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts`
 - **@broberg/complimenta-sdk** v0.3.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk`
-- **@broberg/cms-inline-edit** v0.6.3 — Inline editing on live @webhouse/cms-sites, plus self-healing page links that rewrite themselves at render. `npm i @broberg/cms-inline-edit`
+- **@broberg/cms-inline-edit** v0.7.0 — Inline editing on live @webhouse/cms-sites, plus self-healing page links that rewrite themselves at render. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
 ## Tips & tricks — every tip inline (124 across 15 platforms)
