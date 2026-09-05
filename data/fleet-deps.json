@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-04T08:56:35.777Z",
+ "scanned_at": "2026-09-05T08:24:25.185Z",
  "repos_scanned": 57,
  "repos_failed": 0,
- "manifests_read": 206,
+ "manifests_read": 207,
  "manifests_unreadable": 0,
- "edges": 152,
+ "edges": 156,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -175,6 +175,13 @@
    "manifests": 1,
    "unreadable": 0,
    "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.39.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
     "@broberg/cms-chat-client": [
      {
       "range": "^0.4.16",
@@ -192,6 +199,20 @@
     "@broberg/forms-turnstile": [
      {
       "range": "^0.1.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "0.10.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/mail-core": [
+     {
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -826,7 +847,7 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "^0.38.0",
+      "range": "^0.41.0",
       "field": "dependencies",
       "at": "scripts/aidan/package.json"
      },
@@ -1191,7 +1212,7 @@
   },
   "webhousecode/buddy": {
    "branch": "main",
-   "manifests": 11,
+   "manifests": 12,
    "unreadable": 0,
    "deps": {
     "@broberg/ai-sdk": [
@@ -1199,6 +1220,11 @@
       "range": "^0.28.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
+     },
+     {
+      "range": "0.38.0",
+      "field": "dependencies",
+      "at": "apps/voice/package.json"
      },
      {
       "range": "^0.28.0",
@@ -1242,6 +1268,13 @@
       "range": "^0.4.1",
       "field": "dependencies",
       "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/speech-dictionary": [
+     {
+      "range": "^0.1.3",
+      "field": "dependencies",
+      "at": "apps/voice/package.json"
      }
     ],
     "@broberg/cron": [
