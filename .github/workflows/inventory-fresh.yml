@@ -116,13 +116,6 @@ jobs:
         run: |
           set +e
           node scripts/check-roster-versions.mjs
-
-      # F038.12 — a row nobody can find in Danish is a row the fleet rebuilds
-      # from scratch. Measured before this check existed: 11 of 30 Danish
-      # capability words returned nothing while their English twins returned
-      # 3-53 hits.
-      - name: The roster is findable in Danish
-        run: node scripts/check-roster-danish.mjs
           code=$?
           set -e
           if [ $code -eq 2 ]; then
@@ -130,6 +123,14 @@ jobs:
             exit 0
           fi
           exit $code
+
+      # F038.12 — a row nobody can find in Danish is a row the fleet rebuilds
+      # from scratch. Measured before this check existed: 11 of 30 Danish
+      # capability words returned nothing while their English twins returned
+      # 3-53 hits. No registry involved, so no exit-2 path: it either passes or
+      # names the rows.
+      - name: The roster is findable in Danish
+        run: node scripts/check-roster-danish.mjs
 
       - name: Regenerate the surfaces from the single source
         run: |
