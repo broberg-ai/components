@@ -90,7 +90,16 @@ export interface StoredCredential {
    * infer is indistinguishable from one nobody thought about.
    */
   counter: number;
-  /** Transport hints ("internal", "hybrid", …) — passed straight back to the browser. */
+  /**
+   * Transport hints ("internal", "hybrid", …), passed straight back to the
+   * browser.
+   *
+   * **Map a NULL column to `undefined`, never to `[]`.** An empty array is not
+   * "we do not know" — it tells the browser the credential has NO usable
+   * transport, which is a claim you have no basis for. Reported by trail while
+   * mapping their own table; the distinction is invisible until a credential
+   * stops being offered.
+   */
   transports?: string[];
 }
 
@@ -110,6 +119,18 @@ export interface ChallengeRecord {
  * that is a design decision, not an omission** — see the module docstring.
  */
 export interface PasskeyStore {
+  /**
+   * Persist a pending challenge.
+   *
+   * **YOUR TABLE WILL GROW, and nothing here will tell you.** A user who closes
+   * the tab mid-ceremony leaves a row that is never taken — `takeChallenge` only
+   * ever deletes rows that get used. Every store implementation hits this, so it
+   * is said here rather than left to be discovered as a table that only goes up:
+   * purge rows past `expiresAt` on a schedule you own (trail does it at boot).
+   *
+   * It is housekeeping, not a security property — an expired challenge is
+   * already refused with CHALLENGE_EXPIRED whether or not the row still exists.
+   */
   putChallenge(record: ChallengeRecord): Promise<void> | void;
   /**
    * Return the record for `id` **and delete it in the same operation.** A store
