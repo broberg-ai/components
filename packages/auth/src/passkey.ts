@@ -48,11 +48,25 @@ export interface PasskeyConfig {
   options?: Omit<PasskeyOptions, "rpID" | "rpName" | "origin">;
 }
 
-/** SimpleWebAuthn's verified-authentication result, narrowed to the one field
- *  this module reads. Structural on purpose: the full type lives in a transitive
- *  dependency, and importing it would put a pnpm-internal path in our emitted
- *  declarations (TS2742). */
-type VerifiedUV = { authenticationInfo?: { userVerified?: boolean } };
+/** SimpleWebAuthn's verified results, narrowed to the one field this module
+ *  reads. Structural on purpose: the full types live in a transitive dependency,
+ *  and importing them would put a pnpm-internal path in our emitted declarations
+ *  (TS2742). Registration and authentication put the same flag under DIFFERENT
+ *  keys, which is the whole reason both are named here. */
+type VerifiedUV = {
+  authenticationInfo?: { userVerified?: boolean };
+  registrationInfo?: { userVerified?: boolean };
+};
+
+/** The refusal, worded the same way whichever ceremony produced it. */
+function userVerificationRequired(what: "register" | "sign in"): never {
+  // 401, not 400: the credential is well-formed and the ceremony completed —
+  // what is missing is proof of WHO used it.
+  throw APIError.from("UNAUTHORIZED", {
+    code: "USER_VERIFICATION_REQUIRED",
+    message: `To ${what} here the device must verify you (Face ID, Touch ID, fingerprint or device passcode). The authenticator completed without doing so.`,
+  });
+}
 
 /** Build the Better Auth passkey plugin from `cfg`. Return type annotated to keep
  *  emitted declarations portable (the inferred type otherwise leaks a pnpm-internal
@@ -64,24 +78,36 @@ export function buildPasskeyPlugin(cfg: PasskeyConfig): ReturnType<typeof passke
   // silent bug in exactly the place a consumer put their audit logging.
   const consumerAfterVerification = options?.authentication?.afterVerification;
 
+  const consumerAfterRegistration = options?.registration?.afterVerification;
+
   const authentication: PasskeyOptions["authentication"] = requireUserVerification
     ? {
         ...options?.authentication,
         afterVerification: async (args) => {
           const verification = args.verification as VerifiedUV;
-          if (verification?.authenticationInfo?.userVerified !== true) {
-            // 401, not 400: the credential is well-formed and the ceremony
-            // completed — what is missing is proof of who used it.
-            throw APIError.from("UNAUTHORIZED", {
-              code: "USER_VERIFICATION_REQUIRED",
-              message:
-                "This sign-in requires the device to verify you (Face ID, Touch ID, fingerprint or device passcode). The authenticator completed without doing so.",
-            });
-          }
+          if (verification?.authenticationInfo?.userVerified !== true) userVerificationRequired("sign in");
           await consumerAfterVerification?.(args);
         },
       }
     : options?.authentication;
+
+  // REGISTRATION IS GUARDED TOO, and not for symmetry. Asking for
+  // `userVerification: "required"` in the options is only a REQUEST — Better
+  // Auth verifies the registration with `requireUserVerification: false`
+  // (dist/index.mjs:339), so a credential can still be enrolled without it. That
+  // credential then fails the authentication guard at EVERY later sign-in: the
+  // enrolment appears to succeed and the login never works, with the failure
+  // surfacing somewhere else, later, to someone who did not enrol it.
+  const registration: PasskeyOptions["registration"] = requireUserVerification
+    ? {
+        ...options?.registration,
+        afterVerification: async (args) => {
+          const verification = args.verification as VerifiedUV;
+          if (verification?.registrationInfo?.userVerified !== true) userVerificationRequired("register");
+          return consumerAfterRegistration?.(args);
+        },
+      }
+    : options?.registration;
 
   return passkeyPlugin({
     rpID: cfg.rpID,
@@ -100,5 +126,6 @@ export function buildPasskeyPlugin(cfg: PasskeyConfig): ReturnType<typeof passke
         }
       : {}),
     ...(authentication ? { authentication } : {}),
+    ...(registration ? { registration } : {}),
   });
 }

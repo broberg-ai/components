@@ -226,6 +226,15 @@ enforces it through the `afterVerification` hook instead — no fork.
 **It is off by default**, because turning it on would start refusing sign-ins
 that work today.
 
+**Both ceremonies are guarded, and the registration half is not symmetry.**
+Asking for `userVerification: "required"` in the options is only a *request* —
+Better Auth verifies the registration with `requireUserVerification: false`
+(`dist/index.mjs:339`), so a credential can still be enrolled without it. That
+credential then fails the sign-in guard at **every** later attempt: the enrolment
+appears to succeed and the login never works, with the failure surfacing later,
+elsewhere, to someone who did not enrol it. So 0.5.1 refuses the enrolment
+instead, where the person can still do something about it.
+
 ### The part worth reading even though it changes nothing on iPhone
 
 **On iOS the UV flag is always set.** iOS verifies locally *before* it will

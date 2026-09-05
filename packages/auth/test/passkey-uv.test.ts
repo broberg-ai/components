@@ -17,6 +17,10 @@ function afterVerificationOf(plugin: unknown) {
   const opts = (plugin as { options?: { authentication?: { afterVerification?: Function } } }).options;
   return opts?.authentication?.afterVerification;
 }
+function afterRegistrationOf(plugin: unknown) {
+  const opts = (plugin as { options?: { registration?: { afterVerification?: Function } } }).options;
+  return opts?.registration?.afterVerification;
+}
 function authenticatorSelectionOf(plugin: unknown) {
   return (plugin as { options?: { authenticatorSelection?: { userVerification?: string } } }).options
     ?.authenticatorSelection;
@@ -89,6 +93,56 @@ describe("requireUserVerification: true", () => {
     );
     await expect(hook!({ verification: verification(false) } as never)).rejects.toThrow();
     expect(sawIt).toBe(false);
+  });
+});
+
+describe("REGISTRATION is guarded too — asking is not enforcing", () => {
+  // `authenticatorSelection.userVerification: "required"` is a REQUEST. Better
+  // Auth verifies the registration with requireUserVerification:false, so a
+  // credential can still be enrolled without it — and that credential then
+  // fails the sign-in guard forever. The enrolment looks fine and the login
+  // never works, which is the worst shape: the failure surfaces later, to
+  // someone else.
+  const reg = (userVerified: boolean) => ({ registrationInfo: { userVerified } });
+
+  it("REJECTS enrolling a credential the device did not verify", async () => {
+    const hook = afterRegistrationOf(buildPasskeyPlugin({ ...base, requireUserVerification: true }));
+    expect(hook).toBeTypeOf("function");
+    await expect(hook!({ verification: reg(false) } as never)).rejects.toThrow(/register here/i);
+  });
+
+  it("ACCEPTS one it did", async () => {
+    const hook = afterRegistrationOf(buildPasskeyPlugin({ ...base, requireUserVerification: true }));
+    await expect(hook!({ verification: reg(true) } as never)).resolves.toBeUndefined();
+  });
+
+  it("reads the REGISTRATION key, not the authentication one — they are different fields", async () => {
+    // registrationInfo.userVerified vs authenticationInfo.userVerified. Reading
+    // the wrong one would make the guard pass on every registration, silently.
+    const hook = afterRegistrationOf(buildPasskeyPlugin({ ...base, requireUserVerification: true }));
+    await expect(
+      hook!({ verification: { authenticationInfo: { userVerified: true } } } as never),
+    ).rejects.toThrow(/register here/i);
+  });
+
+  it("chains the consumer's registration hook, and skips it when rejecting", async () => {
+    let calls = 0;
+    const mk = () =>
+      afterRegistrationOf(
+        buildPasskeyPlugin({
+          ...base,
+          requireUserVerification: true,
+          options: { registration: { afterVerification: async () => { calls++; } } },
+        }),
+      );
+    await mk()!({ verification: reg(true) } as never);
+    expect(calls).toBe(1);
+    await expect(mk()!({ verification: reg(false) } as never)).rejects.toThrow();
+    expect(calls).toBe(1);
+  });
+
+  it("adds NO registration hook when the flag is off", () => {
+    expect(afterRegistrationOf(buildPasskeyPlugin(base))).toBeUndefined();
   });
 });
 
