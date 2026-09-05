@@ -172,3 +172,57 @@ them is the point rather than a courtesy:
   failure mode, one level down: a run that read nothing reported clean.
 
 Nothing new is published by this epic; it is repo tooling plus a skill.
+
+---
+
+## F082.1 — delivered 2026-09-05
+
+`security-review-ledger.json` (empty, because nothing has been reviewed — an
+entry claiming otherwise is exactly what AC#4 fails on) and
+`scripts/security-sweep.mjs --plan`, wired into `pnpm test` so the gate runs it.
+
+**Measured on this repo the day it shipped:**
+
+```
+empty ledger      39 of 39 packages · 29,915 lines   (the epic measured 27,307
+                                                      a day earlier — it grows)
+auth pinned at an
+older commit         103 lines, 1 file   instead of 761 lines, 8 files
+auth pinned at HEAD  38 of 39 — absent from the plan entirely
+```
+
+That middle row is the whole epic in one line: the same package is a 761-line
+audit or a 103-line diff depending only on whether something recorded where we
+last looked.
+
+### Two findings from the harness, not from reading
+
+1. **A filter that read as a guard and guarded nothing.** `buildPlan` pre-filtered
+   the diff by `packages/<pkg>/` before applying `isSource`. The mutation harness
+   deleted it and every test stayed green — because `isSource` and the manifest's
+   own filename are already package-specific. Removed. Dead code that reads as a
+   guard is worse than no guard: the next reader trusts it.
+
+2. **The CLI silently did nothing when invoked through a symlinked path.**
+   `import.meta.url === \`file://${process.argv[1]}\`` is false when argv[1] goes
+   through a symlink (macOS `/tmp` → `/private/tmp`), so the whole `--plan` block
+   was skipped and the process exited 0. Found because the harness's temp-dir copy
+   failed the CLI case for *every* mutant including an unmutated one — a red that
+   carried no information about the mutation it was measuring. Now compared via
+   `realpathSync`. **The same idiom is in `check-roster-danish.mjs` and
+   `scan-fleet-deps.mjs`;** both are invoked by a plain relative path in CI so
+   neither is currently broken, and neither is this card's to change.
+
+### One number that decides whether this gets run
+
+**2m25s → 14.8s.** The first version called `git show` once per file: 160
+subprocesses, 2.3s of CPU and the rest pure spawn overhead. `git grep -c` answers
+the same question for all 160 files in 0.1s, and the plan it produces is
+byte-identical. A weekly job nobody waits for is a weekly job nobody runs.
+
+### Not yet built (the rest of F082)
+
+The sweep itself (`/security-sweep`: secret pre-scan → `npm audit` → OWASP read →
+findings as cards → write the ledger entry) and the `cronjobs.webhouse.net` →
+buddy weekly clock. This card is the ledger and the question it makes answerable;
+**nothing is marked reviewed by it.**
