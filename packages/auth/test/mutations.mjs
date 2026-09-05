@@ -11,18 +11,25 @@
 // unverified and then fail every single sign-in. A suite where one mutation
 // kills everything cannot tell those two halves apart.
 //
-// Mutations are applied to a COPY. The real source is never written to, so an
-// interrupted run cannot leave a mutant on disk, and no marker is needed.
+// THE SOURCE IS MUTATED ON DISK for a few seconds per mutation, so the fleet's
+// shared marker (F081.1) announces it: a reader who opens `git diff` mid-run
+// must not see a defect that is not there, and — the larger one — a restore
+// that FAILED must not look like a restore that was not needed. My first
+// version rolled its own backup and skipped the marker; the workspace gate
+// caught it and was right to. Reuse beats re-roll, including for our own
+// harness convention.
+//
 // Every mutation asserts its ANCHOR applied: a substitution that silently
 // matched nothing reads exactly like a surviving mutant.
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(PKG, "src", "passkey-ceremony.ts");
-const BACKUP = join(PKG, "src", ".passkey-ceremony.original.ts");
+const HARNESS = "@broberg/auth test/mutations.mjs";
 const original = readFileSync(SRC, "utf8");
 
 const MUTATIONS = [
@@ -122,7 +129,7 @@ function runSuite() {
   return out.split("\n").filter((l) => /^\s*×/.test(l)).map((l) => l.trim().replace(/^×\s*/, ""));
 }
 
-copyFileSync(SRC, BACKUP);
+writeMarker({ harness: HARNESS, file: SRC });
 let failures = 0;
 try {
   const baseline = runSuite();
@@ -142,8 +149,15 @@ try {
     }
 
     writeFileSync(SRC, original.replace(m.find, m.replace));
-    const red = runSuite();
-    writeFileSync(SRC, original);
+    let red;
+    try {
+      red = runSuite();
+    } finally {
+      writeFileSync(SRC, original);
+      // Read it BACK. The write is the intention; this is the guard. Does not
+      // return on mismatch — it exits non-zero with the marker left standing.
+      assertRestored({ harness: HARNESS, file: SRC, expected: original });
+    }
 
     const missingRed = (m.expectRed ?? []).filter((n) => !red.some((r) => r.includes(n)));
     const wrongGreen = (m.expectGreen ?? []).filter((n) => red.some((r) => r.includes(n)));
@@ -163,14 +177,9 @@ try {
     }
   }
 } finally {
-  // The read-back is the guard, not the copy. A restore that silently failed
-  // would leave a mutant in the tree and every later run would measure it.
-  copyFileSync(BACKUP, SRC);
-  rmSync(BACKUP, { force: true });
-  if (readFileSync(SRC, "utf8") !== original) {
-    console.log("\n✗✗ RESTORE FAILED — src/passkey-ceremony.ts is NOT the original. Do not commit.");
-    process.exit(2);
-  }
+  writeFileSync(SRC, original);
+  assertRestored({ harness: HARNESS, file: SRC, expected: original });
+  clearMarker();
 }
 
 console.log(failures ? `\n${failures} mutation(s) unproven\n` : `\n${MUTATIONS.length} mutations, all killed\n`);
