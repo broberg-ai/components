@@ -27,11 +27,21 @@ Everything else is per-entry, and you pay for it only when you import that entry
 
 | import | also install |
 | --- | --- |
-| `@broberg/auth` | — |
-| `@broberg/auth/hono` | `hono` |
-| `@broberg/auth/next` | `next` |
-| `@broberg/auth/passkey` | `@better-auth/passkey` |
-| `@broberg/auth/drizzle` | `drizzle-orm` |
+| `@broberg/auth` | `better-auth` |
+| `@broberg/auth/hono` | `better-auth`, `hono` |
+| `@broberg/auth/next` | `better-auth`, `next` |
+| `@broberg/auth/passkey` | `better-auth`, `@better-auth/passkey` |
+| `@broberg/auth/passkey-ceremony` | `@simplewebauthn/server` — **and no better-auth at all** |
+| `@broberg/auth/drizzle` | `better-auth`, `drizzle-orm` |
+| `@broberg/auth/two-factor` | `better-auth`, `uqr` |
+
+> **`better-auth` moved from a required peer to a per-entry one in 0.6.0.** Seven
+> of the eight entries need it; `passkey-ceremony` does not, and a manifest that
+> demanded it globally was making a false claim about that entry. Measured, with
+> a control: with `better-auth` absent from `node_modules`, `passkey-ceremony`
+> imports and runs, and the core entry correctly fails with
+> `Cannot find package 'better-auth'`. Nothing changes for existing consumers —
+> you already install it.
 
 Magic-link needs `@broberg/mail` at runtime, but only as a **type** at build — it
 never enters the import graph.
@@ -151,6 +161,92 @@ createAuth({
 - **Session creation** — Better Auth mints sessions; this wrapper only configures it.
 - **Email templates** — magic-link delivery routes through `@broberg/mail` (which owns
   delivery only); branded bodies are yours via the `render` option.
+
+
+## Passkeys when you already own your sessions
+
+`@broberg/auth/passkey` mounts Better Auth's passkey plugin, and that plugin
+**welds the ceremony to Better Auth's own session.** Measured in
+`@better-auth/passkey@1.6.23`: `verify-authentication` unconditionally calls
+`createSession()` → `findUserById()` → `setSessionCookie()`. No flag, no branch.
+Its `afterVerification` hook fires *before* that block, so a consumer who mints
+their own session there ends up with **two**. A hook that runs at the right
+moment is not an opt-out, though from the signature it reads like one.
+
+If your app already has a session table, a cookie and a login you are happy
+with, use **`@broberg/auth/passkey-ceremony`** instead. It answers one question
+and stops:
+
+> which user just proved possession of this credential, and did their device
+> verify who was holding it?
+
+```ts
+import { createPasskeyCeremony } from "@broberg/auth/passkey-ceremony";
+
+const pk = createPasskeyCeremony({
+  rpID: "app.example.com",
+  rpName: "Example",
+  origin: "https://app.example.com",
+  requireUserVerification: true,     // see the warning below
+  store,                             // your database, six methods
+});
+
+// enrol (the user is already signed in — you decided that, not us)
+const { options, challengeId } = await pk.registration.begin({ userId, userName });
+const { credentialId } = await pk.registration.finish({ challengeId, response });
+
+// sign in
+const begun = await pk.authentication.begin();          // no userId ⇒ usernameless
+const { userId } = await pk.authentication.finish({ challengeId: begun.challengeId, response });
+// …now mint YOUR session, exactly as you do today.
+```
+
+`authentication.finish` returns `{ userId, credentialId }` and nothing else. No
+session, no cookie, no user object, no `Set-Cookie` anywhere in the module.
+
+### The store is six methods, and there is deliberately no user method
+
+```ts
+interface PasskeyStore {
+  putChallenge(record): void;
+  takeChallenge(id): ChallengeRecord | null;   // MUST delete — that is what makes a challenge single-use
+  getCredential(credentialId): StoredCredential | null;
+  listCredentialsByUser(userId): StoredCredential[];
+  saveCredential(credential): void;
+  updateCredentialCounter(credentialId, counter): void;
+}
+```
+
+Three absences are decisions, not omissions — each one measured against a real
+consumer's schema:
+
+- **No user method.** A passkey registration often *cannot* lawfully create a
+  user: if your `users` table has a `NOT NULL` organisation FK, *which*
+  organisation is a business decision an auth ceremony has no way to derive. An
+  interface with a method a consumer must refuse to implement is broken, not
+  flexible.
+- **`userId` is opaque.** No UUID check, no prefix assumption. One consumer has
+  two live formats, one of them a synthetic principal — a format check would
+  have rejected that one and nothing else, i.e. broken only on the user nobody
+  tests with.
+- **No tenant scoping.** A credential is keyed by `credentialId` and carries a
+  `userId`. Scope it to a tenant and the same person on the same phone gets a
+  key that works in one workspace and not the other.
+
+### ⚠️ `requireUserVerification` is device-owner verification, not Face ID
+
+With no Face ID or Touch ID configured but a passcode set, iOS falls back to the
+passcode and still reports the user as verified. **Never promise a user a face
+and then accept a four-digit code.**
+
+It defaults to `false`, because turning it on refuses sign-ins that work today.
+On iOS the UV flag is always set anyway — so with the flag off, the guarantee
+holds because of the *platform*, not because anything enforces it. Turn it on
+for an unlock-the-app flow, where the guarantee **is** the feature.
+
+When on, it fails **closed** on a missing `userVerified`, in *both* ceremonies.
+That asymmetry is not hypothetical: 0.5.0 enforced it on authentication only, so
+a credential could be enrolled unverified and then fail every subsequent login.
 
 ## Versioning
 

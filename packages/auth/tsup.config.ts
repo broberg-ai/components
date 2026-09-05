@@ -1,6 +1,7 @@
 import { defineConfig } from "tsup";
 
 const SHARED_EXTERNAL = [
+  "@simplewebauthn/server",
   "better-auth",
   "better-auth/*",
   "@better-auth/passkey",
@@ -40,6 +41,18 @@ export default defineConfig([
     // F008.9 — passkey lives behind its own subpath so @better-auth/passkey is
     // NOT in the core import graph. A consumer without passkeys never needs it.
     entry: { passkey: "src/passkey.ts" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    external: SHARED_EXTERNAL,
+  },
+  {
+    // F008.13 — the ceremony-only entry point. Its own subpath so
+    // @simplewebauthn/server stays out of the core import graph, and — the point
+    // of the card — so a consumer can import it WITHOUT better-auth being in the
+    // graph at all. That is what lets a repo with its own sessions use passkeys.
+    entry: { "passkey-ceremony": "src/passkey-ceremony.ts" },
     format: ["esm", "cjs"],
     dts: true,
     sourcemap: true,

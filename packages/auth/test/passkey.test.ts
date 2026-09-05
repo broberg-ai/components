@@ -81,3 +81,54 @@ describe("the core import graph does not reach an optional peer", () => {
     expect(/^import\s+(?!type\s)[^;]*["']@better-auth\/passkey["']/m.test(src)).toBe(true);
   });
 });
+
+describe("F008.13 — the ceremony entry reaches NO Better Auth at all", () => {
+  /**
+   * The whole point of `@broberg/auth/passkey-ceremony` is that a repo which
+   * owns its own sessions can use it. If better-auth ever creeps into that
+   * graph — a convenience import, a shared error class — the entry silently
+   * requires the very framework the consumer does not have, and the failure
+   * lands at THEIR install, not our test run.
+   */
+  function reachableFrom(entry: string): string[] {
+    const seen = new Set<string>();
+    const queue = [resolve(entry)];
+    while (queue.length) {
+      const file = queue.pop()!;
+      if (seen.has(file) || !existsSync(file)) continue;
+      seen.add(file);
+      for (const m of readFileSync(file, "utf8").matchAll(/from\s+["'](\.[^"']+)["']/g)) {
+        queue.push(resolve(join(dirname(file), m[1]!.replace(/\.js$/, ".ts"))));
+      }
+    }
+    return [...seen];
+  }
+
+  // Any better-auth package, in a real (non-type) import.
+  const BETTER_AUTH = /^import\s+(?!type\s)[^;]*["']@?better-auth[/"']/m;
+
+  it("no file reachable from src/passkey-ceremony.ts imports better-auth", () => {
+    const offenders = reachableFrom("src/passkey-ceremony.ts")
+      .filter((f) => BETTER_AUTH.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+
+  it("…and the detector can fail: src/passkey.ts DOES import better-auth", () => {
+    // Positive control. Without it a typo in the pattern above passes forever
+    // while proving nothing — the class of green this package keeps finding.
+    expect(BETTER_AUTH.test(readFileSync("src/passkey.ts", "utf8"))).toBe(true);
+  });
+
+  // A silent `return` when dist is missing would report as PASSED — a check
+  // that never ran, wearing a green tick. skipIf reports it as SKIPPED instead,
+  // so "we did not look" and "we looked and it was clean" stay distinguishable.
+  // In CI turbo builds before it tests, so this always runs there.
+  it.skipIf(!existsSync("dist/passkey-ceremony.js"))("the BUILT entry imports only @simplewebauthn/server", () => {
+    // The source graph is what we control; the emitted file is what a consumer
+    // actually loads, and tsup's externals decide that. Read the artefact.
+    const built = "dist/passkey-ceremony.js";
+    const imports = [...readFileSync(built, "utf8").matchAll(/from\s*['"]([^'".][^'"]*)['"]/g)]
+      .map((m) => m[1]!);
+    expect([...new Set(imports)]).toEqual(["@simplewebauthn/server"]);
+  });
+});

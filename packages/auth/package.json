@@ -1,7 +1,7 @@
 {
   "name": "@broberg/auth",
-  "version": "0.5.1",
-  "description": "Thin fleet wrapper around Better Auth \u2014 one createAuth() for email+password, magic-link (via @broberg/mail), social login (Google/Apple/GitHub/Microsoft/LinkedIn/Facebook) and passkey/WebAuthn, with dark-ship provider guards and Hono + Next mount helpers. Runs in your own app/DB \u2014 no external service.",
+  "version": "0.6.0",
+  "description": "Thin fleet wrapper around Better Auth — one createAuth() for email+password, magic-link (via @broberg/mail), social login (Google/Apple/GitHub/Microsoft/LinkedIn/Facebook) and passkey/WebAuthn, with dark-ship provider guards and Hono + Next mount helpers. Runs in your own app/DB — no external service.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -43,6 +43,11 @@
       "types": "./dist/two-factor.d.ts",
       "import": "./dist/two-factor.js",
       "require": "./dist/two-factor.cjs"
+    },
+    "./passkey-ceremony": {
+      "types": "./dist/passkey-ceremony.d.ts",
+      "import": "./dist/passkey-ceremony.js",
+      "require": "./dist/passkey-ceremony.cjs"
     }
   },
   "scripts": {
@@ -58,7 +63,8 @@
     "@better-auth/passkey": ">=1.6.0",
     "hono": ">=4.0.0",
     "next": ">=14.0.0",
-    "uqr": ">=0.1.0"
+    "uqr": ">=0.1.0",
+    "@simplewebauthn/server": ">=13.0.0"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
@@ -78,9 +84,15 @@
     },
     "uqr": {
       "optional": true
+    },
+    "@simplewebauthn/server": {
+      "optional": true
+    },
+    "better-auth": {
+      "optional": true
     }
   },
-  "peerDependenciesComment": "better-auth is a peer so the consumer pins ONE version shared between this server wrapper and better-auth/client on the frontend. @broberg/mail is an optional peer \u2014 only needed when you enable magic-link (you pass the Mailer in; we import its type only).",
+  "peerDependenciesComment": "better-auth is a peer so the consumer pins ONE version shared between this server wrapper and better-auth/client on the frontend. It is marked optional because ONE entry does not need it: @broberg/auth/passkey-ceremony runs the WebAuthn ceremony with no Better Auth in its import graph (measured — it loads with better-auth absent, while the core entry correctly does not). @broberg/mail is an optional peer too — only needed for magic-link, and we import its type only.",
   "devDependencies": {
     "@better-auth/passkey": "^1.6.0",
     "@types/node": "^22.0.0",
@@ -91,17 +103,27 @@
     "typescript": "^5.6.0",
     "vitest": "^2.1.0",
     "uqr": "^0.1.3",
-    "jsqr": "^1.4.0"
+    "jsqr": "^1.4.0",
+    "@simplewebauthn/server": "^13.3.2"
   },
   "keywords": [
+    "ansigtsgenkendelse",
     "auth",
     "better-auth",
+    "biometri",
+    "biometric",
+    "broberg",
+    "face-id",
+    "faceid",
+    "fingeraftryk",
+    "magic-link",
     "oauth",
     "passkey",
-    "webauthn",
-    "magic-link",
+    "passkeys",
+    "simplewebauthn",
     "sso",
-    "broberg"
+    "touch-id",
+    "webauthn"
   ],
   "repository": {
     "type": "git",
@@ -112,22 +134,32 @@
     "access": "public"
   },
   "entryPeers": {
-    ".": [],
+    ".": [
+      "better-auth"
+    ],
     "./hono": [
+      "better-auth",
       "hono"
     ],
     "./next": [
+      "better-auth",
       "next"
     ],
     "./passkey": [
+      "better-auth",
       "@better-auth/passkey"
     ],
     "./drizzle": [
+      "better-auth",
       "drizzle-orm"
     ],
     "./two-factor": [
+      "better-auth",
       "uqr"
     ],
-    "./package.json": []
+    "./package.json": [],
+    "./passkey-ceremony": [
+      "@simplewebauthn/server"
+    ]
   }
 }
