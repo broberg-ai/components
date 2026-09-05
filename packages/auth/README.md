@@ -182,6 +182,88 @@ when you did not configure it.
 *"should I render this button"*, which you know regardless of where the plugin was
 built.
 
+## Face ID in a PWA — passkeys, and the guarantee that was missing (0.5.0)
+
+**Yes, an installed PWA on an iPhone can sign in with Face ID.** It is a passkey
+(WebAuthn) ceremony: the site registers a platform credential, iOS stores it in
+the iCloud keychain, and every later sign-in shows Apple's own prompt. There is
+no biometric API on the web — Face ID cannot be *called*; it only ever appears as
+the system's confirmation of a passkey.
+
+```ts
+import { createTypedAuth } from "@broberg/auth";
+import { buildPasskeyPlugin } from "@broberg/auth/passkey";
+
+const auth = createTypedAuth(
+  { database: drizzle(db, { provider: "sqlite" }), secret: process.env.BETTER_AUTH_SECRET },
+  [buildPasskeyPlugin({
+      rpID: "cardmem.com",              // the registrable DOMAIN — no scheme, no port
+      rpName: "cardmem",
+      requireUserVerification: true,    // ← the guarantee; see below
+   })],
+);
+```
+
+### What `requireUserVerification` buys you
+
+Without it, a passkey proves **possession of a device**. With it, the assertion
+also carries proof that the device **checked who was holding it**.
+
+Measured in `@better-auth/passkey@1.6.23`, which is why this option exists:
+
+```
+dist/index.mjs:273   userVerification: "preferred"    authentication — hardcoded
+dist/index.mjs:444   requireUserVerification: false   verification   — hardcoded
+
+PasskeyAuthenticationOptions = { extensions, afterVerification }
+                                 ↑ no userVerification field at all
+```
+
+So the server accepts an assertion with the user-verification flag **clear**, and
+the authentication ceremony cannot be configured to ask for more. This option
+enforces it through the `afterVerification` hook instead — no fork.
+
+**It is off by default**, because turning it on would start refusing sign-ins
+that work today.
+
+### The part worth reading even though it changes nothing on iPhone
+
+**On iOS the UV flag is always set.** iOS verifies locally *before* it will
+produce an assertion at all, and `"preferred"` and `"required"` behave
+identically there. So an iPhone shows Face ID whether or not the server asked.
+
+Which means the guarantee currently holds **because of the platform, not because
+anything enforces it**. That is fine until a security key, an Android device or a
+future browser behaves differently — and for an *unlock-the-app* flow, the
+guarantee is the entire feature.
+
+### ⚠️ This is device-owner verification, NOT Face ID
+
+With no Face ID or Touch ID configured but a **passcode** set, iOS falls back to
+the passcode and still reports the user as verified. So the honest label for the
+button is "unlock with your device", not "unlock with Face ID". **Never promise a
+user a face and then accept a four-digit code.**
+
+### Two more things a PWA needs to get right
+
+- **`rpID` is the registrable domain** (`cardmem.com`), never a URL and never a
+  path. A credential is bound to it, so moving the app to another subdomain
+  without planning for it strands every passkey already enrolled.
+- **HTTPS only.** `http://localhost` is the single exception, for development.
+
+### "Lock the app on open"
+
+There is no separate API for it: you call `signIn.passkey()` again when the app
+becomes visible. The user sees the same prompt, the app unlocks. Two consequences
+worth knowing before you design around it — the prompt is Apple's own bottom
+sheet and cannot be styled, and the user must have enrolled a passkey once
+before, so the flow needs an "enable this" step after an ordinary first login.
+
+**And standalone home-screen web apps DO work in the EU.** Apple announced
+removing them under the DMA and then reversed it before iOS 17.4 shipped — but
+articles asserting the removal are still the top search result, so it is written
+down here rather than looked up again.
+
 ## The signing secret is asserted, not assumed (0.4.0)
 
 `createAuth` and `createTypedAuth` **refuse to build** when no signing secret
