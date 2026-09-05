@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-05T08:24:25.185Z",
+ "scanned_at": "2026-09-05T12:53:21.047Z",
  "repos_scanned": 57,
  "repos_failed": 0,
  "manifests_read": 207,
  "manifests_unreadable": 0,
- "edges": 156,
+ "edges": 158,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -191,7 +191,7 @@
     ],
     "@broberg/cms-inline-edit": [
      {
-      "range": "0.6.3",
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -905,6 +905,25 @@
       "range": "^0.1.5",
       "field": "dependencies",
       "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/webpush": [
+     {
+      "range": "^0.5.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     },
+     {
+      "range": "^0.5.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/pwa": [
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
      }
     ],
     "@broberg/ai-sdk": [
