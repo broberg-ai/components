@@ -76,7 +76,19 @@ export interface StoredCredential {
   userId: string;
   /** Base64URL of the COSE public key bytes. Produced by `registration.finish`. */
   publicKey: string;
-  /** WebAuthn signature counter. Many platform authenticators leave it at 0. */
+  /**
+   * WebAuthn signature counter.
+   *
+   * **A REGRESSION IS NOT REFUSED, deliberately.** A counter going backwards is
+   * the classic signal of a cloned authenticator — but Apple and Google
+   * platform authenticators leave it at 0 forever, so a hard refusal would lock
+   * out ordinary phone users to catch a hardware-key attack we do not have. We
+   * store the new value on every sign-in; if you issue security keys and want
+   * the check, compare `counter` yourself before minting your session.
+   *
+   * Said here rather than left as a silent choice: an omission a reader has to
+   * infer is indistinguishable from one nobody thought about.
+   */
   counter: number;
   /** Transport hints ("internal", "hybrid", …) — passed straight back to the browser. */
   transports?: string[];

@@ -244,7 +244,18 @@ On iOS the UV flag is always set anyway — so with the flag off, the guarantee
 holds because of the *platform*, not because anything enforces it. Turn it on
 for an unlock-the-app flow, where the guarantee **is** the feature.
 
-When on, it fails **closed** on a missing `userVerified`, in *both* ceremonies.
+### The signature counter is stored, not enforced
+
+A counter going backwards is the classic sign of a cloned authenticator. We
+store the new value on every sign-in and do **not** refuse a regression: Apple
+and Google platform authenticators leave it at 0 forever, so a hard refusal
+would lock out ordinary phone users to catch a hardware-key attack most apps do
+not face. If you issue security keys, compare `counter` yourself before minting
+your session.
+
+### ⚠️ continued
+
+When on, `requireUserVerification` fails **closed** on a missing `userVerified`, in *both* ceremonies.
 That asymmetry is not hypothetical: 0.5.0 enforced it on authentication only, so
 a credential could be enrolled unverified and then fail every subsequent login.
 
