@@ -206,8 +206,11 @@ jobs:
     outputs:
       relevant: ${{ steps.f.outputs.relevant }}
     steps:
+      # FULL HISTORY (F038.15). `fetch-depth: 2` cannot resolve
+      # github.event.before on a push of MORE THAN ONE commit, and the failure
+      # was silent — see the three-outcome block below for what that cost.
       - uses: actions/checkout@v4
-        with: { fetch-depth: 2 }
+        with: { fetch-depth: 0 }
       - id: f
         run: |
           if [ "${{ github.event_name }}" != "push" ]; then
@@ -215,7 +218,34 @@ jobs:
             echo "::notice::${{ github.event_name }} — deploying regardless of paths."
             exit 0
           fi
-          CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+
+          # THREE OUTCOMES, NOT TWO — and the missing third one skipped a deploy
+          # that was needed while the run went GREEN (2026-09-06, run 34051821073).
+          #
+          # This was `git diff A B 2>/dev/null || git diff HEAD~1 HEAD`. With
+          # fetch-depth 2, a push of three commits has no commit A in the clone,
+          # so the first diff failed, the `||` swallowed it, and the fallback
+          # answered a NARROWER question — "what did the LAST commit touch?" That
+          # push rewrote llms-full.txt, the roster and the app; its last commit
+          # touched one plan-doc. So `relevant=false`, deploy skipped, everything
+          # green, and the live site kept serving the old file.
+          #
+          # A fallback that quietly answers a different question is worse than an
+          # error, because it is success-shaped. So: say which question was
+          # answered, and when the base is unreachable DEPLOY rather than skip.
+          # The cost of a needless build is one build; the cost of a silent
+          # non-deploy is a fleet reading a stale surface with a green tick above
+          # it.
+          BASE="${{ github.event.before }}"
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            CHANGED=$(git diff --name-only "$BASE" "${{ github.sha }}")
+            echo "::notice::Comparing the whole push: $BASE..${{ github.sha }}"
+          else
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Base commit '$BASE' is not in this clone, so the push's file list is UNKNOWN — deploying rather than guessing from one commit."
+            exit 0
+          fi
+
           echo "$CHANGED" | sed 's/^/    /'
           if echo "$CHANGED" | grep -Eq '^(scripts/inventory-data\.mjs|scripts/build-.*\.mjs|scripts/npm-latest\.mjs|apps/discovery/|docs/(inventory|onboarding)\.html|docs/llms.*\.txt|\.github/workflows/(inventory-fresh|fly-server-deploy)\.yml)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
@@ -263,3 +293,13 @@ jobs:
       # its own header says a local file cannot prove a deploy landed.
       - name: The "Just shipped" card on the LIVE site names the newest release
         run: bun scripts/check-featured-fresh.mjs https://discovery.broberg.ai
+
+      # F038.15 — the SAME predicate as in `check`, pointed at the live site.
+      # The build output being right and the site serving it are different
+      # claims, and this repo paid for conflating them the day the check was
+      # written: `check` passed, the run went green, `deploy` was SKIPPED, and
+      # the live /llms-full.txt stayed a byte-identical copy for another twenty
+      # minutes. A 200 proves the surface answered, not that it answered with
+      # the full text.
+      - name: The LIVE /llms-full.txt carries every complete description
+        run: bun scripts/check-llms-full.mjs https://discovery.broberg.ai

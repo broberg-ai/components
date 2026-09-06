@@ -26,15 +26,37 @@
 //
 // Exit 0 pass · exit 1 a real failure, with the rows named · exit 3 the check
 // could not discriminate (see the floor below).
+//
+// PASS A BASE URL to run the identical predicate against the LIVE SITE:
+//
+//   node scripts/check-llms-full.mjs https://discovery.broberg.ai
+//
+// One predicate, two subjects, on purpose. The build output being right and the
+// site serving it are different claims, and this repo has already paid for
+// conflating them — a deploy was SKIPPED while its run went green, and the live
+// files stayed byte-identical for another twenty minutes with every local check
+// passing.
 import { readFileSync } from "node:fs";
 import { DATA, oneLiner } from "./inventory-data.mjs";
 
-const read = (p) => readFileSync(new URL(`../docs/${p}`, import.meta.url), "utf8");
+const BASE = process.argv[2];
 const SHORT = "llms.txt";
 const FULL = "llms-full.txt";
 
-const short = read(SHORT);
-const full = read(FULL);
+const readLocal = (p) => readFileSync(new URL(`../docs/${p}`, import.meta.url), "utf8");
+const readLive = async (p) => {
+  const res = await fetch(`${BASE.replace(/\/$/, "")}/${p}`);
+  if (!res.ok) {
+    console.error(`✗ GET ${BASE}/${p} → ${res.status}. Not a verdict on the content — the surface did not answer.`);
+    process.exit(2);
+  }
+  return res.text();
+};
+
+const [short, full] = BASE
+  ? await Promise.all([readLive(SHORT), readLive(FULL)])
+  : [readLocal(SHORT), readLocal(FULL)];
+const WHERE = BASE ? `${BASE}/` : "docs/";
 const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
 
 const packages = DATA.flatMap((L) => (L.items || []).filter((x) => x.pkg)).map((p) => ({
@@ -49,7 +71,7 @@ const fail = [];
 // take one line to do it again.
 if (short === full) {
   fail.push(
-    `docs/${SHORT} and docs/${FULL} are BYTE-IDENTICAL (${short.length} bytes each).\n` +
+    `${WHERE}${SHORT} and ${WHERE}${FULL} are BYTE-IDENTICAL (${short.length} bytes each).\n` +
       `      They are two surfaces with two jobs: ${SHORT} is the one-line map, ${FULL} is every\n` +
       `      sentence. Writing one string to both is how this defect shipped the first time.`,
   );
@@ -59,7 +81,7 @@ if (short === full) {
 const truncated = packages.filter((p) => p.full && !full.includes(p.full));
 if (truncated.length) {
   fail.push(
-    `${truncated.length} of ${packages.length} package descriptions are NOT complete in docs/${FULL}:\n` +
+    `${truncated.length} of ${packages.length} package descriptions are NOT complete in ${WHERE}${FULL}:\n` +
       truncated
         .slice(0, 8)
         .map((p) => `        ${p.pkg} — has ${p.full.length} chars of desc, cut in the file`)
@@ -76,7 +98,7 @@ const tailed = packages.filter((p) => p.full && p.full !== p.short && p.full.len
 const leaked = tailed.filter((p) => short.includes(p.full));
 if (leaked.length) {
   fail.push(
-    `${leaked.length} full description(s) have leaked into docs/${SHORT}, which is the MAP:\n` +
+    `${leaked.length} full description(s) have leaked into ${WHERE}${SHORT}, which is the MAP:\n` +
       leaked.slice(0, 8).map((p) => `        ${p.pkg}`).join("\n") +
       `\n      Fixing truncation by making both files long is the same failure from the other side.`,
   );
@@ -97,15 +119,15 @@ if (!tailed.length) {
 }
 
 if (fail.length) {
-  console.error(`✗ docs/${FULL} is not doing what its name says:\n`);
+  console.error(`✗ ${WHERE}${FULL} is not doing what its name says:\n`);
   for (const f of fail) console.error(`  · ${f}\n`);
-  console.error(`  Fix: bun scripts/build-onboarding.mjs, then commit docs/.`);
+  console.error(`  ${BASE ? "The LIVE site is serving this. Check the deploy actually ran — a skipped deploy reports success." : "Fix: bun scripts/build-onboarding.mjs, then commit docs/."}`);
   process.exit(1);
 }
 
 const longest = tailed.reduce((a, b) => (b.full.length > a.full.length ? b : a));
 console.log(
-  `✓ docs/${FULL} carries all ${packages.length} complete descriptions ` +
+  `✓ ${WHERE}${FULL} carries all ${packages.length} complete descriptions ` +
     `(${Buffer.byteLength(full).toLocaleString("en-US")} bytes vs ${Buffer.byteLength(short).toLocaleString("en-US")}).\n` +
     `  ${tailed.length} rows have content past the first sentence — longest is ${longest.pkg} ` +
     `at ${longest.full.length} chars, of which ${longest.short.length} reach ${SHORT}.`,
