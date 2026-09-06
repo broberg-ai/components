@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { factBox, fill, fillHtml, heading, paragraph, renderShell, signOff, SHELL_VERSION } from "../src/index";
+import { cta, eyebrow, factBox, fill, fillHtml, heading, paragraph, renderShell, signOff, SHELL_VERSION } from "../src/index";
 import fixture from "./shell-contract.snapshot.json";
 
 /** F023.11 — the payload verbatim from the card. */
@@ -90,6 +90,13 @@ function outputsFor(name: string): string {
     case "minimal": return renderShell({ subject: "s", accentColor: "#0f7391", bodyHtml: "<p>x</p>" } as never);
     case "full": return renderShell({ subject: "s", accentColor: "#0f7391", bodyHtml: "<p>x</p>", footerLines: ["a", "b"], footerHref: "https://x.dk", logoUrl: "https://x.dk/l.png", logoWidth: 56 } as never);
     case "dark": return renderShell({ subject: "s", accentColor: "#0f7391", cardBg: "#1a1a1a", backdropColor: "#101010", bodyHtml: "<p>x</p>", footerLines: ["a"] } as never);
+    // F023.13 — every sealed case used ONE dark accent AND no footerHref, so the
+    // seal was blind to both halves of the defect this card fixes: a light brand,
+    // and the footer LINK. A contract fixture that only covers the colour our own
+    // default happens to be is a contract for one consumer.
+    case "lightAccent": return renderShell({ subject: "s", accentColor: "#F7BB2E", bodyHtml: "<p>x</p>", footerLines: ["a"], footerHref: "https://webhouse.dk", footerLabel: "webhouse.dk" } as never);
+    case "lightCta": return cta("https://webhouse.dk", "Svar til Mette", { accentColor: "#F7BB2E" });
+    case "lightEyebrow": return eyebrow("NY HENVENDELSE", { accentColor: "#F7BB2E" });
     case "signOff": return signOff([{ text: "a" }, { text: "b", tier: "name" }, { text: "c", tier: "meta" }]);
     case "factBox": return factBox([{ label: "L", value: "V" }], { accentColor: "#0f7391" });
     default: throw new Error(`no renderer for fixture key ${name}`);
@@ -116,6 +123,11 @@ describe("the opacity invariant COVERS every HTML-emitting export (F023.12 AC#3)
     // editing it. That is the guard doing exactly what AC#3 asked for, on its
     // first real encounter. It is a test seam returning void, not a renderer.
     "__resetLogoWarning",
+    // F023.13 — the same guard caught these three the moment they were added,
+    // again without anyone editing the test. They compute a colour and return a
+    // string; they emit no markup. Their OUTPUT reaches HTML through cta,
+    // eyebrow and renderShell, which are covered above.
+    "contrastRatio", "readableInk", "readableAccent",
   ]);
 
   it("every HTML-emitting export is exercised by the opacity check", async () => {

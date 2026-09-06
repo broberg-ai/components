@@ -118,6 +118,109 @@ export function assertFontStack(field: string, value: string | undefined): void 
   );
 }
 
+// ── contrast ────────────────────────────────────────────────────────────────
+//
+// F023.13. One `accentColor` was doing two jobs — a SURFACE (the top bar, the
+// cta background, a border) and TEXT (the eyebrow, the footer link) — and a
+// brand that works as one is usually illegal as the other.
+//
+// MEASURED on WebHouse gold #F7BB2E, reported by cms and recomputed here:
+//
+//   accent as TEXT on white                1.74:1
+//   accent as TEXT on the footer's #f4f4f5 1.58:1
+//   WHITE label on the accent surface      1.74:1     ← was hardcoded
+//   dark label on the accent surface      12.10:1
+//
+// WCAG AA wants 4.5:1. And a FIXED label colour cannot be right: on #0f7391
+// white is correct (5.41) and dark is not (3.22); on gold it is the exact
+// reverse. Only this file sees both sides of the pair, so this file has to pick.
+
+/** WCAG relative luminance. NOT the BT.601 perceived brightness `isDark` uses:
+ *  that answers "does this look dark", which is a different question and gets
+ *  the boundary wrong. Measured — #808080: isDark says false, so a
+ *  brightness-based pick would choose WHITE at 3.95:1 over dark at 4.41:1, i.e.
+ *  the worse of the two. */
+function relativeLuminance(r: number, g: number, b: number): number {
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+/** #rgb / #rrggbb → [r,g,b], or null for anything else. Deliberately narrow: a
+ *  functional colour (rgb()/hsl()) or a named one is left ALONE rather than
+ *  half-parsed, because a wrong contrast decision is worse than no decision. */
+function parseHex(value: string): [number, number, number] | null {
+  const v = value.trim();
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v);
+  if (!m) return null;
+  const h = m[1]!.length === 3 ? m[1]!.split("").map((c) => c + c).join("") : m[1]!;
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** WCAG contrast ratio between two colours, or null if either is not a hex we
+ *  parse. Exported so a consumer can assert their own brand before shipping it
+ *  — the check cms had to write by hand. */
+export function contrastRatio(a: string, b: string): number | null {
+  const x = parseHex(a), y = parseHex(b);
+  if (!x || !y) return null;
+  const la = relativeLuminance(...x), lb = relativeLuminance(...y);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** The ink to print ON a coloured surface: whichever of the shell's two inks
+ *  contrasts MORE. Not a threshold — a choice between the only two we have, so
+ *  it always returns the better one even where neither reaches 4.5:1. */
+export function readableInk(surface: string): string {
+  const dark = contrastRatio("#1a1a1a", surface);
+  const light = contrastRatio("#ffffff", surface);
+  if (dark === null || light === null) return "#ffffff"; // unparseable: today's behaviour
+  return dark > light ? "#1a1a1a" : "#ffffff";
+}
+
+/** An accent used AS TEXT, adjusted until it is legible on `surface` —
+ *  **and returned UNCHANGED when it already is.** That last clause is what
+ *  keeps every existing consumer's mail byte-identical: #0f7391 measures 4.92:1
+ *  on #f4f4f5 and comes back untouched.
+ *
+ *  Moves AWAY from the surface's luminance, so it darkens on a light background
+ *  and LIGHTENS on a dark one. A "darken until legible" helper would be right
+ *  for cms and wrong for our own dark shell, where the footer link sits on
+ *  #101010 — measured at 3.52:1 with our own default teal, i.e. already failing
+ *  before this card existed.
+ *
+ *  Scales all three channels by one factor, which preserves hue and saturation
+ *  exactly and only moves brightness: the brand stays recognisably the brand. */
+export function readableAccent(accent: string, surface: string): string {
+  const current = contrastRatio(accent, surface);
+  if (current === null) return accent;      // not a hex we parse — leave it alone
+  if (current >= 4.5) return accent;        // already legible: DO NOT TOUCH
+
+  const rgb = parseHex(accent)!;
+  const surf = parseHex(surface)!;
+  const goDarker = relativeLuminance(...surf) > 0.5;
+  const hex = (c: [number, number, number]) =>
+    "#" + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+
+  // 40 steps of 2.5%: fine enough that the result is still visibly the brand,
+  // bounded so this can never loop. If even the endpoint fails we return the
+  // endpoint — the most legible value available beats silently giving up.
+  let best = accent, bestRatio = current;
+  for (let i = 1; i <= 40; i++) {
+    const t = i / 40;
+    const candidate: [number, number, number] = goDarker
+      ? [rgb[0] * (1 - t), rgb[1] * (1 - t), rgb[2] * (1 - t)]
+      : [rgb[0] + (255 - rgb[0]) * t, rgb[1] + (255 - rgb[1]) * t, rgb[2] + (255 - rgb[2]) * t];
+    const h = hex(candidate);
+    const r = contrastRatio(h, surface)!;
+    if (r > bestRatio) { best = h; bestRatio = r; }
+    if (r >= 4.5) return h;
+  }
+  return best;
+}
+
 function isDark(hex: string): boolean {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return false;
@@ -248,7 +351,11 @@ export function resolveLogoSrc(logo: LogoSource | undefined, fallbackUrl?: strin
  *  An HTML COMMENT rather than an attribute: comments survive every client we
  *  have measured, and an attribute on <html> is one of the first things a
  *  sanitising webmail rewrites. */
-export const SHELL_VERSION = "2";
+export const SHELL_VERSION = "3";
+// 3 (F023.13): where the accent was used as TEXT — the cta label, the eyebrow,
+// the footer link — the colour is now DERIVED for contrast. A brand that was
+// already legible renders byte-identically (proven against the published 0.7.0
+// across seven shapes); a light brand changes, which is the fix.
 
 /** Warn ONCE per process that a logo is being drawn without an explicit width.
  *
@@ -338,7 +445,7 @@ export function renderShell(opts: ShellOpts): string {
     ? `<tr>
       <td bgcolor="${backdropColor}" style="background:${backdropColor};padding:16px 40px 32px;text-align:center;border-top:1px solid ${accentColor};">
         ${(opts.footerLines ?? []).map((l) => `<p style="margin:0 0 4px;font-size:11px;color:${footerText};">${escapeHtml(l)}</p>`).join("")}
-        ${opts.footerHref ? `<p style="margin:0;font-size:11px;"><a href="${escapeAttr(opts.footerHref)}" style="color:${accentColor};text-decoration:none;font-weight:600;">${escapeHtml(opts.footerLabel ?? opts.footerHref)}</a></p>` : ""}
+        ${opts.footerHref ? `<p style="margin:0;font-size:11px;"><a href="${escapeAttr(opts.footerHref)}" style="color:${readableAccent(accentColor, backdropColor)};text-decoration:none;font-weight:600;">${escapeHtml(opts.footerLabel ?? opts.footerHref)}</a></p>` : ""}
       </td>
     </tr>`
     : "";
@@ -452,9 +559,14 @@ export function heading(
 
 /** The small uppercase label above a heading ("PROJECT UPDATE"). Letter-spaced
  *  and in the accent colour; a recurring component in every surveyed template. */
-export function eyebrow(text: string, opts: { accentColor: string }): string {
+export function eyebrow(text: string, opts: { accentColor: string; surface?: string }): string {
   assertColor("accentColor", opts.accentColor);
-  return `<p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${opts.accentColor};text-align:center;">${escapeHtml(text)}</p>`;
+  assertColor("surface", opts.surface);
+  // The eyebrow sits on the CARD, so that is what it is measured against —
+  // #fffffe by default, matching resolveColors. `surface` exists for a caller
+  // who renders it somewhere else; it is not a colour override.
+  const colour = readableAccent(opts.accentColor, opts.surface ?? "#fffffe");
+  return `<p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${colour};text-align:center;">${escapeHtml(text)}</p>`;
 }
 
 /** Free prose with a coloured left rule — a NOTE, not a table.
@@ -593,10 +705,14 @@ export function signOff(
  *  button — the pattern every surveyed template hand-rolled per-brand. */
 export function cta(href: string, label: string, opts: { accentColor: string }): string {
   assertColor("accentColor", opts.accentColor);
+  // The BACKGROUND keeps the brand colour exactly; only the LABEL is derived.
+  // That is the half cms could not fix from outside: their workaround had to
+  // darken the button itself, so the button stopped being WebHouse gold.
+  const ink = readableInk(opts.accentColor);
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:28px auto 8px;">
     <tr>
       <td bgcolor="${opts.accentColor}" style="background:${opts.accentColor};border-radius:999px;">
-        <a href="${escapeAttr(href)}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">${escapeHtml(label)}</a>
+        <a href="${escapeAttr(href)}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:${ink};text-decoration:none;">${escapeHtml(label)}</a>
       </td>
     </tr>
   </table>`;

@@ -202,6 +202,69 @@ their inbox, where nobody is watching. If you call both, compose them into one
 function so a call site cannot get the order wrong. (Filed by cardmem, who hit it
 in their own template store.)
 
+## A brand colour is a SURFACE and a TEXT colour, and it is rarely both
+
+`accentColor` used to be printed straight into both jobs — the top bar and the
+cta background (surfaces), *and* the eyebrow and footer link (text) — while the
+cta's own label was hardcoded `#ffffff`. For a dark brand that happens to work.
+For a light one it produces a mail nobody can read, and **nothing errors**: it
+renders, it sends, and it looks like a deliberately pale style.
+
+Measured on WebHouse gold `#F7BB2E`, reported by the cms session after their
+Lens contrast critic caught it on a real form notification:
+
+```
+accent as TEXT on white                 1.74:1
+accent as TEXT on the footer's #f4f4f5  1.58:1
+WHITE label on the accent surface       1.74:1     ← was hardcoded
+dark label on the accent surface       10.03:1
+                                        WCAG AA wants 4.5:1
+```
+
+**No fixed label colour can be correct.** On `#0f7391` white measures 5.41 and
+dark 3.22; on gold it is the exact reverse. Only this package sees both sides of
+the pair, so from 0.8.0 it picks:
+
+| where the accent is… | what happens |
+| --- | --- |
+| the top bar, the cta background, a border — a **surface** | **untouched**, exactly your brand |
+| the cta **label** | `readableInk()` — the shell ink that contrasts more |
+| the eyebrow, the footer link — **text** | `readableAccent()` — darkened (or lightened) only if below 4.5:1 |
+
+Two exported helpers you can use for your own assertions:
+
+```ts
+import { contrastRatio, readableInk, readableAccent } from "@broberg/mail-core";
+
+contrastRatio("#ffffff", "#F7BB2E")     // 1.74…  (null if either is not a hex)
+readableInk("#F7BB2E")                  // "#1a1a1a"
+readableAccent("#F7BB2E", "#f4f4f5")    // a darker gold that clears AA
+readableAccent("#0f7391", "#f4f4f5")    // "#0f7391" — already legible, untouched
+```
+
+### Nothing moves if your brand was already legible
+
+`readableAccent` returns its input unchanged above 4.5:1, so a dark accent
+renders **byte-identically**. Proven against the published 0.7.0 across seven
+shapes (shell, footer, logo, cta, eyebrow, factBox, noteBox) — not against our
+own previous build, which is a different artefact.
+
+`SHELL_VERSION` still moved to `3`, because the output **does** change for a
+light brand. That is what the marker is for: you need to be able to tell "my
+template changed" from "the shared shell changed".
+
+### Two things worth stealing
+
+**Do not measure against white.** The footer sits on `#f4f4f5`. `#767676` clears
+AA against white at 4.54 and fails at 4.13 there — so a helper that used white as
+a stand-in would ship an illegible footer link and pass its own test. Measure
+against the surface the text actually sits on.
+
+**Perceived brightness is not contrast.** `#0078fa` reads as "dark" to the
+BT.601 formula, so a brightness-based pick chooses white (4.14) over the dark ink
+(4.20). Swept the colour cube in steps of 5: the two disagree on **14,440**
+colours. This is a region, not an edge case.
+
 ## `SHELL_VERSION` — and what it was worth before 0.6.0
 
 `SHELL_VERSION` is emitted into every mail as `<!-- @broberg/mail-core shell vN -->`
