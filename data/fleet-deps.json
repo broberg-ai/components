@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-05T12:53:21.047Z",
+ "scanned_at": "2026-09-06T08:43:29.213Z",
  "repos_scanned": 57,
  "repos_failed": 0,
  "manifests_read": 207,
  "manifests_unreadable": 0,
- "edges": 158,
+ "edges": 159,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -191,7 +191,7 @@
     ],
     "@broberg/cms-inline-edit": [
      {
-      "range": "0.7.0",
+      "range": "0.7.1",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -876,6 +876,13 @@
       "at": "apps/server/package.json"
      }
     ],
+    "@broberg/auth": [
+     {
+      "range": "0.6.0",
+      "field": "dependencies",
+      "at": "apps/admin-server/package.json"
+     }
+    ],
     "@broberg/lens": [
      {
       "range": "0.1.1",
@@ -1358,7 +1365,7 @@
     ],
     "@broberg/mail-core": [
      {
-      "range": ">=0.7.0 <1",
+      "range": ">=0.8.0 <1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
