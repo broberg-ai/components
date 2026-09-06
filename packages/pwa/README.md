@@ -8,6 +8,44 @@ as one small, framework- and bundler-agnostic package instead of a fifth copy.
 npm i @broberg/pwa
 ```
 
+## 0.4.0 — READ, don't remember (F054.8)
+
+**Take 0.4.0.** Before it, `updateReady` could only ever go **up**, and only from
+an event: one read of `registration.waiting` at attach, plus `updatefound`. The
+interval and focus checks called `registration.update()` and never looked at
+`registration.waiting` at all. So the banner got **exactly one chance to be
+seen** — dismiss it once, or miss the seconds it was up, and nothing in the
+package could raise it again for that tab. The client then sat on the old bundle
+indefinitely.
+
+It fails in the reassuring direction: deploy green, server on the new build,
+feature live — and the only symptom available to anyone is a person saying a
+feature is missing. That is how cardmem found it, in their own copy of this
+pattern.
+
+**What changes for you:**
+
+| | 0.3.x | 0.4.0 |
+|---|---|---|
+| `updateReady` | rises once, ever | re-derived from `registration.waiting` on every interval / focus / visibility tick |
+| `subscribe()` | emits at most **once** | emits whenever the answer moves, **in both directions** |
+| "Later" | your problem | `snooze()` — 30 min by default, persisted, then it comes back |
+
+**`updateReady` CAN NOW GO FALSE.** If your code assumes it only ever rises — a
+`useState` you never reset, a banner you unmount by hand — read that line before
+upgrading. Everything else is additive.
+
+```ts
+const { updateReady, applyUpdate, snooze } = usePwaUpdate();
+// "Update" → applyUpdate()     "Later" → snooze(), NOT a local setState(false)
+```
+
+`snooze()` is deliberately not a mute, and there is no option to make it one: a
+banner that can be silenced forever is the defect above, made official. The
+snooze is persisted (`localStorage` by default, `snoozeStorage: null` for
+memory-only) so the reload the banner is *asking for* cannot defeat it.
+
+
 - **`@broberg/pwa`** — `createPwaUpdater()`, a zero-dependency controller for the
   service-worker update lifecycle (works with Serwist, Workbox or a hand-rolled SW).
 - **`@broberg/pwa/react`** — `usePwaUpdate()` hook + an **unstyled** `<PwaUpdateBanner>`
