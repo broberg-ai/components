@@ -44,8 +44,20 @@ const SHORT = "llms.txt";
 const FULL = "llms-full.txt";
 
 const readLocal = (p) => readFileSync(new URL(`../docs/${p}`, import.meta.url), "utf8");
+// THREE OUTCOMES against a live surface, never two. A 4xx/5xx and a network
+// blip are BOTH "we could not ask", and neither is a verdict on the content —
+// this file must not turn an outage at Fly into a red gate that reads like the
+// full text went missing. Same shape as check-roster-versions.mjs's exit 2, and
+// as @broberg/cron's contract-drift split. An UNCAUGHT fetch rejection would
+// have exited non-zero with a stack, which is loud but says the wrong thing.
 const readLive = async (p) => {
-  const res = await fetch(`${BASE.replace(/\/$/, "")}/${p}`);
+  let res;
+  try {
+    res = await fetch(`${BASE.replace(/\/$/, "")}/${p}`);
+  } catch (e) {
+    console.error(`✗ GET ${BASE}/${p} did not complete: ${e.message}\n  NOT a verdict on the content — the surface could not be reached.`);
+    process.exit(2);
+  }
   if (!res.ok) {
     console.error(`✗ GET ${BASE}/${p} → ${res.status}. Not a verdict on the content — the surface did not answer.`);
     process.exit(2);

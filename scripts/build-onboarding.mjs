@@ -205,7 +205,7 @@ const BASE = "https://discovery.broberg.ai";
 // which llms.txt ALREADY was, so the one line telling a reader to fetch the full
 // file described a difference that did not exist. A reader following it exactly
 // had no reason to go, and nothing to find if they did.
-const preambleFor = (kind) => `# broberg.ai shared inventory — @broberg/* packages + fleet tips
+const preambleFor = (isFull) => `# broberg.ai shared inventory — @broberg/* packages + fleet tips
 
 > You are an AI coding assistant. A developer pointed you here because they are starting or
 > extending a project in the **broberg.ai** fleet. **Rule: reuse before you build** — every
@@ -219,7 +219,7 @@ const preambleFor = (kind) => `# broberg.ai shared inventory — @broberg/* pack
 - Enroll when you adopt: \`POST ${BASE}/api/enroll\` (trust-on-first-use key; see ${BASE}/api).
 - All ${tipCount} tips are inline below, in full. That part needs no second fetch.
 ${
-  kind === "full"
+  isFull
     ? `- **Package descriptions here are COMPLETE** — every sentence we have written about each package, including what was learned after the first one. The short map, one line per package, is at ${BASE}/llms.txt.`
     : `- **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at ${BASE}/llms-full.txt. Fetch it before you decide a capability is missing.`
 }
@@ -307,8 +307,8 @@ ${packagesMd}
 ${tipsFullMd}
 `;
 
-const llms = `${preambleFor("short")}\n${body(pkgMd, "")}`;
-const llmsFull = `${preambleFor("full")}\n${body(pkgFullMd, " — complete descriptions")}`;
+const llms = `${preambleFor(false)}\n${body(pkgMd, "")}`;
+const llmsFull = `${preambleFor(true)}\n${body(pkgFullMd, " — complete descriptions")}`;
 
 writeFileSync(new URL("../docs/llms.txt", import.meta.url), llms);
 writeFileSync(new URL("../docs/llms-full.txt", import.meta.url), llmsFull);

@@ -301,5 +301,21 @@ jobs:
       # the live /llms-full.txt stayed a byte-identical copy for another twenty
       # minutes. A 200 proves the surface answered, not that it answered with
       # the full text.
+      #
+      # EXIT 2 IS NOT A FAILURE HERE, same as the roster check in `check`: a
+      # 5xx or a network blip is "we could not ask", not "the full text went
+      # missing", and a hard red on it would make an outage at Fly look like
+      # this defect returning. Without this wrapper the script's three outcomes
+      # collapse back to two under `bash -e` — the guard would exist and be
+      # bypassed by the step that runs it.
       - name: The LIVE /llms-full.txt carries every complete description
-        run: bun scripts/check-llms-full.mjs https://discovery.broberg.ai
+        run: |
+          set +e
+          bun scripts/check-llms-full.mjs https://discovery.broberg.ai
+          code=$?
+          set -e
+          if [ $code -eq 2 ]; then
+            echo "::warning::Could not reach discovery.broberg.ai — the live files were NOT verified. Nothing was found wrong."
+            exit 0
+          fi
+          exit $code
