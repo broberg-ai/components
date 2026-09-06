@@ -14,7 +14,6 @@ import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, npmUrl, repoUrl } from "../
 // refreshed by a daily job. The hand-written array survives only as role text
 // and `pub` (what a session publishes), which no manifest can tell us.
 import { fleetRows as buildFleetRows, scanAge } from "../../scripts/fleet-graph.mjs";
-import { readFileSync } from "node:fs";
 let fleetScan: any = { repos: {} };
 try {
   fleetScan = JSON.parse(readFileSync(new URL("../../data/fleet-deps.json", import.meta.url), "utf8"));
@@ -209,9 +208,16 @@ try {
 }
 
 // Onboarding surface (F060): generated from the SAME single source by
-// scripts/build-onboarding.mjs. /onboarding = human page; /llms.txt (+ /ai alias,
-// /llms-full.txt) = the web-standard AI map (llmstxt.org) a new agent can discover
-// by its guessable name, in markdown, without knowing a bespoke endpoint.
+// scripts/build-onboarding.mjs. /onboarding = human page; /llms.txt (+ /ai alias)
+// = the web-standard AI map (llmstxt.org) a new agent can discover by its
+// guessable name, in markdown, without knowing a bespoke endpoint.
+//
+// F038.15 — /llms.txt and /llms-full.txt are TWO SURFACES, not an alias pair.
+// They were byte-identical for months (67,393 bytes each), which meant every
+// sentence written about a package after its first one reached nobody: the map
+// carries one line per package, and the long text lived only in the dashboard
+// HTML and the JSON API. Now /llms.txt is the map and /llms-full.txt is every
+// sentence. scripts/check-llms-full.mjs gates it in CI.
 const readDoc = (rel: string, fallback: string) => {
   try {
     return readFileSync(new URL(rel, import.meta.url), "utf8");
@@ -237,7 +243,8 @@ const manifest = () => ({
     "New here and don't know what to search for? GET /llms.txt — the whole map in one markdown file (every @broberg/* package by category + all fleet tips), the web-standard AI onboarding file (llmstxt.org). Humans: /onboarding. Otherwise, every endpoint and every value you can filter by is listed below. Typical flow: GET /api/search?q=<what-you-need> → if nothing fits, you're clear to build (then tell components so it's added for everyone). Search is tokenized and alias-aware: 'send email' and 'mail' both find @broberg/mail, 'dark mode' finds @broberg/theme, 'postgres' finds Supabase.",
   stats,
   endpoints: [
-    { method: "GET", path: "/llms.txt", description: "START HERE — the whole inventory as one markdown map (packages by category + tips), the standard AI onboarding file. /ai aliases it; /llms-full.txt inlines every tip.", example: "/llms.txt" },
+    { method: "GET", path: "/llms.txt", description: "START HERE — the whole inventory as one markdown map (a ONE-LINE description per package, plus every fleet tip inline), the standard AI onboarding file. /ai aliases it.", example: "/llms.txt" },
+    { method: "GET", path: "/llms-full.txt", description: "The same map with the COMPLETE description of every package — every sentence, including what was learned after the first one (a caveat, a sub-path, a 'this is NOT in this package'). Fetch it before you decide a capability is missing.", example: "/llms-full.txt" },
     { method: "GET", path: "/onboarding", description: "the human-browsable onboarding page — same map, rendered", example: "/onboarding" },
     { method: "GET", path: "/api", description: "this self-describing manifest — all endpoints + searchable vocabularies", example: "/api" },
     { method: "GET", path: "/api/components", description: "all components; filter with ?q= &layer= &status= &model=", example: "/api/components?q=mail&status=shipped" },

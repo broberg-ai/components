@@ -58,7 +58,13 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      # FULL HISTORY — apps/discovery's own test script ends in the mutation
+      # selector, which decides what a push could have affected by diffing
+      # against a base commit. A shallow clone has none, so it would fail safe
+      # and run everything while looking like it had chosen.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
 
       # A cc session's `grep` skips some text files SILENTLY (no match, exit 1,
@@ -149,6 +155,29 @@ jobs:
       # goes green). It asserts every row's COMPLETE description is present.
       - name: /llms-full.txt carries every complete description
         run: node scripts/check-llms-full.mjs
+
+      # THE APP THAT SERVES ALL OF THIS HAD NO GATE AT ALL. Found while wiring
+      # the check above (F038.15): `apps/discovery` is NOT in pnpm-workspace.yaml
+      # (`packages/*` only), so `turbo run typecheck` and `turbo run test` — the
+      # workspace gate in test.yml, which runs on every push — see 39 packages and
+      # none of them is this one. Measured: `turbo run test --dry` lists 78 tasks,
+      # zero from apps/discovery.
+      #
+      # So its 60 tests and its typecheck have never run in CI, and the only thing
+      # any workflow used its path for was deciding whether to deploy it. A type
+      # error sat on main for three days as a result: server.ts imported
+      # readFileSync twice (b0503fc, 2026-09-03), which `tsc --noEmit` rejects and
+      # nothing ever ran.
+      #
+      # Wired HERE rather than by adding apps/* to the workspace: this is the job
+      # the Discovery deploy `needs`, so the gate sits on the thing it guards, and
+      # the install topology of 39 published packages does not move for it.
+      - name: The Discovery app typechecks and its own tests pass
+        working-directory: apps/discovery
+        run: |
+          bun install
+          bun run typecheck
+          bun run test
 
       - name: Fail if the committed docs are stale
         run: |

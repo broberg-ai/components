@@ -7,7 +7,7 @@ process.env.ENROLL_DB_URL = ":memory:";
 
 import { app } from "./server";
 import { getEnrollStore } from "./enroll";
-import { SESSION_ALIASES } from "../../scripts/inventory-data.mjs";
+import { DATA, SESSION_ALIASES } from "../../scripts/inventory-data.mjs";
 
 describe("Discovery API", () => {
   it("GET /health → ok", async () => {
@@ -151,9 +151,38 @@ describe("Discovery API", () => {
   it("GET /onboarding → human page; /ai + /llms-full.txt resolve (F060)", async () => {
     expect((await app.request("/onboarding")).status).toBe(200);
     expect((await app.request("/ai")).status).toBe(200);
-    const full = await app.request("/llms-full.txt");
-    expect(full.status).toBe(200);
-    expect(await full.text()).toContain("every tip inline");
+    expect((await app.request("/llms-full.txt")).status).toBe(200);
+  });
+
+  // F038.15 — /llms-full.txt served a BYTE-IDENTICAL copy of /llms.txt for
+  // months. The assertion that used to stand here was `toContain("every tip
+  // inline")`, and that phrase is in BOTH files — so it passed happily on the
+  // aliased version. It is the exact shape this repo keeps finding: a check that
+  // answers a narrower question than the one it is used for.
+  //
+  // What it asserts now is what the name promises: the COMPLETE description,
+  // taken from the single source at test time rather than a quoted sentence that
+  // rots the next time someone edits a roster row.
+  it("GET /llms-full.txt → the complete descriptions, and /llms.txt the one-liners (F038.15)", async () => {
+    const short = await (await app.request("/llms.txt")).text();
+    const full = await (await app.request("/llms-full.txt")).text();
+    expect(full).not.toBe(short);
+
+    const descs = (DATA as { items?: { pkg?: string; desc?: string }[] }[])
+      .flatMap((L) => L.items ?? [])
+      .filter((p) => p.pkg && p.desc)
+      .map((p) => ({ pkg: p.pkg!, desc: p.desc!.replace(/\s+/g, " ").trim() }));
+    expect(descs.length).toBeGreaterThan(10);
+
+    // EVERY row, not a sample: remove the truncation from one renderer only and
+    // the two files differ while the full one is still cut.
+    const missing = descs.filter((d) => !full.includes(d.desc));
+    expect(missing.map((d) => d.pkg)).toEqual([]);
+
+    // …and the map did not become a second copy of the full text.
+    const longest = descs.reduce((a, b) => (b.desc.length > a.desc.length ? b : a));
+    expect(longest.desc.length).toBeGreaterThan(1000);
+    expect(short.includes(longest.desc)).toBe(false);
   });
 
   it("GET /api/infra → platforms incl. fly with tipCount", async () => {
