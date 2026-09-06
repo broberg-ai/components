@@ -40,6 +40,24 @@ const { updateReady, applyUpdate, snooze } = usePwaUpdate();
 // "Update" → applyUpdate()     "Later" → snooze(), NOT a local setState(false)
 ```
 
+**The pattern to look for in your own code**, named by cardmem when they read
+this report against their adoption — it is not hypothetical, it is what a
+consumer writes when the flag can only ever rise:
+
+```ts
+// ⚠️ the 0.3.x shape: a local mirror, reset only on dismiss
+const [needRefresh, setNeedRefresh] = useState(false);
+useEffect(() => { if (updateReady) setNeedRefresh(true); }, [updateReady]);
+const onDismiss = () => setNeedRefresh(false);   // ← the only way down
+```
+
+That mirror cannot fall when `updateReady` does, and dismissing it is permanent
+— which is the original defect, reproduced one layer up. Drop the mirror and
+render from `updateReady` directly; wire "Later" to `snooze()`.
+
+So an upgrade here is a small **migration**, not a free version bump. It is the
+one place 0.4.0 asks anything of you.
+
 `snooze()` is deliberately not a mute, and there is no option to make it one: a
 banner that can be silenced forever is the defect above, made official. The
 snooze is persisted (`localStorage` by default, `snoozeStorage: null` for
