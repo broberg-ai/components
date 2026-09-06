@@ -137,6 +137,19 @@ jobs:
           bun scripts/build-inventory.mjs
           bun scripts/build-onboarding.mjs
 
+      # F038.15 — /llms-full.txt must actually be full. It was a byte-for-byte
+      # copy of /llms.txt for months (67,393 bytes each), so every sentence
+      # written about a package after its first one reached nobody — while our
+      # own CLAUDE.md told ~30 repos this surface has "nothing behind a further
+      # link". Re-aliasing the two files is ONE line, which is why this is a gate
+      # and not a note. It runs in `check`, so it blocks the deploy.
+      #
+      # It does NOT merely compare the two files: they can differ and the full
+      # one still be truncated (remove oneLiner() from one renderer and `cmp`
+      # goes green). It asserts every row's COMPLETE description is present.
+      - name: /llms-full.txt carries every complete description
+        run: node scripts/check-llms-full.mjs
+
       - name: Fail if the committed docs are stale
         run: |
           if ! git diff --quiet -- docs/inventory.html docs/onboarding.html docs/llms.txt docs/llms-full.txt; then

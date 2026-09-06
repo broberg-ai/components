@@ -12,6 +12,13 @@ const esc = (s) =>
 // One-liner now lives in inventory-data.mjs (F038.7) — the "Just shipped"
 // hero card must serve the identical string, so there is exactly one definition.
 
+// F038.15 — the LONG form, for /llms-full.txt. Same source field as oneLiner(),
+// with no truncation at all: whitespace collapsed so a whole description sits on
+// one markdown line, and nothing is cut. `oneLiner` is deliberately untouched —
+// the defect was never that the short form was wrong, it was that NOTHING served
+// the long one to the audience our own CLAUDE.md sends here first.
+const fullDesc = (c) => String(c.desc ?? c.nm ?? "").replace(/\s+/g, " ").trim();
+
 // ---- aggregation (also feeds the /llms.txt map) ----
 const categories = DATA.map((L) => ({
   layer: L.n,
@@ -22,6 +29,7 @@ const categories = DATA.map((L) => ({
     .map((p) => ({
       pkg: p.pkg,
       oneLiner: oneLiner(p),
+      desc: fullDesc(p),
       version: p.ver || null,
       status: p.s || "planned",
       install: npmUrl ? `npm i ${p.pkg}` : `npm i ${p.pkg}`,
@@ -190,7 +198,14 @@ writeFileSync(new URL("../docs/onboarding.html", import.meta.url), html);
 
 // ---- llms.txt (llmstxt.org standard) — the AI-discoverable markdown map ----
 const BASE = "https://discovery.broberg.ai";
-const preamble = `# broberg.ai shared inventory — @broberg/* packages + fleet tips
+
+// F038.15 — THE TWO FILES MUST SAY WHAT THEY ARE, and each must point at the
+// other. Until today `llms-full.txt` was written from the same string as
+// `llms.txt` and the pointer line here advertised it as "every tip inline" —
+// which llms.txt ALREADY was, so the one line telling a reader to fetch the full
+// file described a difference that did not exist. A reader following it exactly
+// had no reason to go, and nothing to find if they did.
+const preambleFor = (kind) => `# broberg.ai shared inventory — @broberg/* packages + fleet tips
 
 > You are an AI coding assistant. A developer pointed you here because they are starting or
 > extending a project in the **broberg.ai** fleet. **Rule: reuse before you build** — every
@@ -202,7 +217,12 @@ const preamble = `# broberg.ai shared inventory — @broberg/* packages + fleet 
 ## Using the inventory
 - Found it? \`npm i @broberg/<name>\`. Missing it? Build it, then tell \`components\`.
 - Enroll when you adopt: \`POST ${BASE}/api/enroll\` (trust-on-first-use key; see ${BASE}/api).
-- Every one of the ${tipCount} tips, inline: ${BASE}/llms-full.txt
+- All ${tipCount} tips are inline below, in full. That part needs no second fetch.
+${
+  kind === "full"
+    ? `- **Package descriptions here are COMPLETE** — every sentence we have written about each package, including what was learned after the first one. The short map, one line per package, is at ${BASE}/llms.txt.`
+    : `- **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at ${BASE}/llms-full.txt. Fetch it before you decide a capability is missing.`
+}
 `;
 
 const pkgLines = (c) =>
@@ -214,6 +234,19 @@ const pkgLines = (c) =>
     .join("\n");
 const pkgMd = categories
   .map((c) => `### ${c.layer} — ${c.title} (${c.desc})\n${pkgLines(c)}`)
+  .join("\n\n");
+
+// F038.15 — the same rows, with the WHOLE description. Install command on the
+// header line so the paragraph underneath is the description and nothing else.
+const pkgFullLines = (c) =>
+  c.packages
+    .map(
+      (p) =>
+        `- **${p.pkg}**${p.version ? ` v${p.version}` : " (planned)"} · \`npm i ${p.pkg}\`\n  ${p.desc}`,
+    )
+    .join("\n");
+const pkgFullMd = categories
+  .map((c) => `### ${c.layer} — ${c.title} (${c.desc})\n${pkgFullLines(c)}`)
   .join("\n\n");
 const tipsFullMd = tips
   .map(
@@ -245,24 +278,42 @@ const secretsVaultMd = [
   "**Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.",
 ].join("\n");
 
-// The AI map is COMPLETE — packages by category AND every tip inline — so a new
-// agent gets the whole briefing in ONE fetch of /llms.txt (or /ai), no second hop.
-// /llms-full.txt is kept as a convention alias for the same content.
-const llms = `${preamble}
-${secretsVaultMd}
+// TWO FILES, TWO JOBS (F038.15). Both carry every tip inline; they differ in how
+// much of each package they carry.
+//
+//   llms.txt       the MAP. One line per package, so the whole shelf fits in one
+//                  read and a session can see WHAT exists before spending on it.
+//   llms-full.txt  the WHOLE TEXT. Every sentence of every description.
+//
+// These used to be the same string, written twice — 67,393 bytes each, `cmp`
+// byte-identical — with a comment calling the second "a convention alias for the
+// same content". So a capability described in sentence four reached nobody: the
+// dashboard HTML and the JSON API had it, and those are exactly the "further
+// link" the fleet's own CLAUDE.md promises there is none of. The precedent is on
+// the books one level down — cms-inline-edit grew a page-link resolver that lived
+// past the first sentence, and the fix then was to rewrite that ONE row's opening
+// segment. That works once. There are 54 rows.
+//
+// scripts/check-llms-full.mjs is the gate that keeps them apart; it runs in the
+// `check` job that the Discovery deploy needs, so a re-alias cannot ship.
+const body = (packagesMd, heading) => `${secretsVaultMd}
 
-## Packages by category (${pkgCount})
+## Packages by category (${pkgCount})${heading}
 
-${pkgMd}
+${packagesMd}
 
 ## Tips & tricks — every tip inline (${tipCount} across ${tips.length} platforms)
 
 ${tipsFullMd}
 `;
 
+const llms = `${preambleFor("short")}\n${body(pkgMd, "")}`;
+const llmsFull = `${preambleFor("full")}\n${body(pkgFullMd, " — complete descriptions")}`;
+
 writeFileSync(new URL("../docs/llms.txt", import.meta.url), llms);
-writeFileSync(new URL("../docs/llms-full.txt", import.meta.url), llms);
+writeFileSync(new URL("../docs/llms-full.txt", import.meta.url), llmsFull);
 
 console.log(
-  `onboarding.html + llms.txt + llms-full.txt written · ${pkgCount} packages / ${categories.length} categories · ${tipCount} tips / ${tips.length} platforms`,
+  `onboarding.html + llms.txt (${llms.length}b) + llms-full.txt (${llmsFull.length}b) written · ` +
+    `${pkgCount} packages / ${categories.length} categories · ${tipCount} tips / ${tips.length} platforms`,
 );
