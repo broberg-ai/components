@@ -58,6 +58,38 @@ render from `updateReady` directly; wire "Later" to `snooze()`.
 So an upgrade here is a small **migration**, not a free version bump. It is the
 one place 0.4.0 asks anything of you.
 
+### Upgrading does NOT fix this on its own if you have your own dismissal
+
+fd-sundhed found this by reading their own installed code rather than this
+report, and it is the half that would otherwise produce a green claim and an
+unchanged user. Their banner carries a second dismissal on top of the hook:
+
+```ts
+const [dismissed] = useState(() => sessionStorage.getItem(KEY) === "1");
+if (!updateReady || dismissed) return null;   // "Later" hides it for the whole tab
+```
+
+The defect is **doubled** — ours in the hook, theirs in the component — and only
+ours goes away with a `pnpm up`. Upgrade, report it fixed, and the person still
+never sees the banner again.
+
+**So before you upgrade, grep your own component for a second way the banner can
+be hidden**: a `sessionStorage`/`localStorage` flag, a `dismissed` state, a
+`useRef` that latches. Whatever holds it down has to become the snooze, or the
+snooze is decorative.
+
+### If you need something stricter than 30 minutes
+
+`snoozeMs` is a plain number, so a large one is available and this package will
+not stop you. The honest statement is therefore narrower than "a mute is
+impossible": there is no OPTION named mute, and the default comes back.
+
+If the policy you actually want is *"gone for the rest of this tab"*, express it
+as scope rather than duration — `snoozeStorage: sessionStorage` with a long
+`snoozeMs`. It dies with the tab instead of pretending to be permanent, so a
+person who closes and reopens the app is asked again, and nobody has to reason
+about a timestamp in the year 2255.
+
 `snooze()` is deliberately not a mute, and there is no option to make it one: a
 banner that can be silenced forever is the defect above, made official. The
 snooze is persisted (`localStorage` by default, `snoozeStorage: null` for
