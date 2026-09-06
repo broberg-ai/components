@@ -253,6 +253,20 @@ own previous build, which is a different artefact.
 light brand. That is what the marker is for: you need to be able to tell "my
 template changed" from "the shared shell changed".
 
+### Upgrading: raise your shell-version floor in the SAME commit
+
+If your code checks `SHELL_VERSION` — and it should — **move the floor to `3` in
+the same commit that adopts 0.8.0.** cms found this while rolling back their own
+workaround, and it is the sharpest thing in their report:
+
+> roll the local patch back, leave the requirement at `>= 2`, and a downgrade to
+> 0.7 gives you a white label on gold at 1.74:1 — **and nothing fails.**
+
+Code that assumes shell 3 while accepting shell 2 is a silent bomb: the
+workaround that used to compensate is gone, the version that needs compensating
+is still allowed, and the only symptom is a mail nobody can read. The rollback
+and the floor are one change, not two.
+
 ### Two things worth stealing
 
 **Do not measure against white.** The footer sits on `#f4f4f5`. `#767676` clears
