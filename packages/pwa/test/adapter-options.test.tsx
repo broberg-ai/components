@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { renderHook, cleanup } from "@testing-library/react";
 import { usePwaUpdate as useReact } from "../src/react.js";
+import { optionsKey } from "../src/options-key.js";
 
 afterEach(cleanup);
 
@@ -150,5 +151,30 @@ it("changing an option RECREATES the updater — the effect key is not a constan
     rerender({ swUrl: "/a.js" });
     await Promise.resolve();
     expect(container.register).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * F054.8 — optionsKey's own docstring predicted this and named the remedy:
+ * "That option must be given its own identity here, not merely added to the
+ * core." snoozeStorage is the first option JSON cannot express.
+ */
+describe("F054.8 — a value JSON cannot express keeps its own identity", () => {
+  it("two different snoozeStorage objects are NOT the same options identity", () => {
+    const a = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    const b = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    // Before the fix both rendered as {} and the keys were byte-identical, so a
+    // consumer swapping storages kept the first updater forever.
+    expect(optionsKey({ snoozeStorage: a })).not.toBe(optionsKey({ snoozeStorage: b }));
+  });
+
+  it("the SAME object is stable across calls — otherwise every render remounts the updater", () => {
+    const a = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    expect(optionsKey({ snoozeStorage: a })).toBe(optionsKey({ snoozeStorage: a }));
+  });
+
+  it("plain values are untouched — the identity must not become opaque for everything", () => {
+    expect(optionsKey({ swUrl: "/sw.js", pollIntervalMs: 5 })).toContain("/sw.js");
+    expect(optionsKey({ disabled: true })).toContain("true");
   });
 });

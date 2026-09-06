@@ -29,10 +29,37 @@ import type { PwaUpdaterOptions } from "./index.js";
  * is the obvious candidate). That option must be given its own identity here,
  * not merely added to the core.
  */
+/**
+ * F054.8 — the boundary above is no longer hypothetical: `snoozeStorage` is an
+ * object of functions, and `JSON.stringify` renders it `{}`. Two different
+ * storages would produce the byte-identical key, so a caller swapping one would
+ * keep the first updater and never see the new one — the exact collapse the
+ * paragraph above predicted, arriving one option later.
+ *
+ * So a value JSON cannot express gets a stable identity of its own instead: the
+ * same object gives the same tag for the life of the page, a different object a
+ * different tag. Kept in a WeakMap so holding the tag cannot hold the object.
+ */
+const identities = new WeakMap<object, string>();
+let nextIdentity = 0;
+const identify = (value: unknown): unknown => {
+  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
+    return value;
+  }
+  const obj = value as object;
+  let tag = identities.get(obj);
+  if (tag === undefined) {
+    tag = `@ref:${nextIdentity++}`;
+    identities.set(obj, tag);
+  }
+  return tag;
+};
+
 export function optionsKey(options: PwaUpdaterOptions): string {
   return JSON.stringify(
     Object.entries(options)
       .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => [k, identify(v)]),
   );
 }

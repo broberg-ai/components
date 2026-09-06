@@ -1,6 +1,9 @@
 import { SKIP_WAITING_MESSAGE } from "./message.js";
+import { shouldOfferUpdate } from "./should-offer.js";
 
 export { SKIP_WAITING, SKIP_WAITING_MESSAGE } from "./message.js";
+export { shouldOfferUpdate } from "./should-offer.js";
+export type { ShouldOfferInput } from "./should-offer.js";
 export type { SkipWaitingMessage } from "./message.js";
 
 export interface PwaUpdaterOptions {
@@ -24,6 +27,20 @@ export interface PwaUpdaterOptions {
   /** Reload the page once the new worker takes control. Default `true`. */
   reloadOnControllerChange?: boolean;
   /**
+   * How long `snooze()` holds the offer down (ms). Default 30 min.
+   *
+   * F054.8 — "Later" is a SNOOZE, never a mute. The defect this replaced was a
+   * banner that got exactly one chance to be seen; a permanent dismiss is that
+   * defect made official.
+   */
+  snoozeMs?: number;
+  /**
+   * Where a snooze is remembered, so it survives the reload the banner is
+   * asking for. Defaults to `localStorage` when available; pass `null` to keep
+   * the snooze in memory only.
+   */
+  snoozeStorage?: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null;
+  /**
    * Consumer guard. When `true` the updater is an inert no-op (registers
    * nothing). Pass your own policy, e.g. `disabled: isNativeCapacitor || isDev`
    * — the package never hardcodes an environment or a `.native` check.
@@ -42,11 +59,20 @@ export interface PwaUpdater {
   getState(): PwaUpdaterState;
   /** Tell the waiting worker to activate (posts SKIP_WAITING). No-op if none waits. */
   applyUpdate(): void;
+  /**
+   * "Later". Holds the offer down for `snoozeMs`, then it comes back on the
+   * next tick — this is NOT a mute, and it deliberately cannot be made one.
+   */
+  snooze(): void;
+  /** Re-read `registration.waiting` right now and emit if the answer moved. */
+  check(): void;
   /** Stop polling + remove all listeners. */
   destroy(): void;
 }
 
 const DEFAULT_POLL_MS = 60 * 60 * 1000;
+const DEFAULT_SNOOZE_MS = 30 * 60 * 1000;
+const SNOOZE_KEY = "broberg-pwa:snoozed-until";
 
 /**
  * Framework- and bundler-agnostic controller for the PWA "new version
@@ -65,6 +91,7 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
     pollIntervalMs = DEFAULT_POLL_MS,
     updateOnFocus = true,
     reloadOnControllerChange = true,
+    snoozeMs = DEFAULT_SNOOZE_MS,
     disabled = false,
   } = options;
 
@@ -91,6 +118,8 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
       subscribe,
       getState,
       applyUpdate() {},
+      snooze() {},
+      check() {},
       destroy() {
         listeners.clear();
       },
@@ -103,10 +132,67 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
   let reloading = false;
   let destroyed = false;
 
-  const markReady = (worker: ServiceWorker): void => {
-    waitingWorker = worker;
-    if (!updateReady) {
-      updateReady = true;
+  // F054.8 — READ the answer, never remember it.
+  //
+  // This used to be markReady(worker), the only writer of `updateReady`, and it
+  // was guarded by `if (!updateReady)` — so `emit()` fired AT MOST ONCE for the
+  // life of the updater. Both adapters drive their state from subscribe(), so a
+  // consumer who dismissed the banner had no channel that could ever raise it
+  // again. cardmem measured the consequence in production: a client sat on an
+  // old bundle indefinitely, and the only symptom anyone had was a person
+  // saying a feature was missing.
+  //
+  // `registration` is captured once resolved so every tick can re-read
+  // `.waiting` rather than wait to be told.
+  let registrationRef: ServiceWorkerRegistration | null = null;
+
+  const storage: PwaUpdaterOptions["snoozeStorage"] =
+    options.snoozeStorage !== undefined
+      ? options.snoozeStorage
+      : typeof localStorage !== "undefined"
+        ? localStorage
+        : null;
+
+  let snoozedUntil: number | null = null;
+  const readSnooze = (): number | null => {
+    if (!storage) return snoozedUntil;
+    try {
+      const raw = storage.getItem(SNOOZE_KEY);
+      if (!raw) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      // A browser with site data blocked THROWS on read. That is not a reason to
+      // stop offering updates — fall back to the in-memory value.
+      return snoozedUntil;
+    }
+  };
+  const writeSnooze = (until: number | null): void => {
+    snoozedUntil = until;
+    if (!storage) return;
+    try {
+      if (until === null) storage.removeItem(SNOOZE_KEY);
+      else storage.setItem(SNOOZE_KEY, String(until));
+    } catch {
+      // in-memory only for this tab; already recorded above
+    }
+  };
+
+  /**
+   * Re-derive from what is true RIGHT NOW and emit only when the answer moved.
+   * Emits in BOTH directions: false→true raises the banner, true→false takes it
+   * down when the worker is gone or the user snoozed.
+   */
+  const check = (): void => {
+    const waiting = registrationRef?.waiting ?? null;
+    waitingWorker = waiting;
+    const next = shouldOfferUpdate({
+      waiting,
+      snoozedUntil: readSnooze(),
+      now: Date.now(),
+    });
+    if (next !== updateReady) {
+      updateReady = next;
       emit();
     }
   };
@@ -135,21 +221,24 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
       // A new worker reaching `installed` WHILE a controller already exists is
       // an update. Reaching `installed` with no controller is the FIRST install
       // — nothing to update, so we stay quiet.
-      if (installing.state === "installed" && container.controller) {
-        markReady(installing);
-      }
+      if (installing.state === "installed") check();
     });
   };
 
   const wireFocusChecks = (registration: ServiceWorkerRegistration): void => {
     if (!updateOnFocus) return;
-    const check = (): void => {
-      registration.update().catch(() => {});
+    // update() asks the SERVER for a new worker; check() reads whether one is
+    // already WAITING. The second is the half that was missing — reg.update()
+    // resolves without firing updatefound when a worker is already waiting, so
+    // a tab that missed the original event could never learn about it.
+    const tick = (): void => {
+      check();
+      registration.update().catch(() => {}).then(check, check);
     };
-    const onFocus = (): void => check();
+    const onFocus = (): void => tick();
     const onVisibility = (): void => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        check();
+        tick();
       }
     };
     if (typeof window !== "undefined") window.addEventListener("focus", onFocus);
@@ -171,13 +260,18 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
   registrationPromise
     .then((registration) => {
       if (destroyed) return;
-      if (registration.waiting) markReady(registration.waiting);
+      registrationRef = registration;
+      check();
       registration.addEventListener("updatefound", () => watchInstalling(registration));
       if (pollIntervalMs > 0) {
         pollId = setInterval(() => {
-          registration.update().catch(() => {
-            // ignore transient update-check network errors
-          });
+          check();
+          registration
+            .update()
+            .catch(() => {
+              // ignore transient update-check network errors
+            })
+            .then(check, check);
         }, pollIntervalMs);
       }
       wireFocusChecks(registration);
@@ -192,6 +286,11 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
     applyUpdate() {
       if (waitingWorker) waitingWorker.postMessage(SKIP_WAITING_MESSAGE);
     },
+    snooze() {
+      writeSnooze(Date.now() + snoozeMs);
+      check();
+    },
+    check,
     destroy() {
       destroyed = true;
       if (pollId !== null) clearInterval(pollId);

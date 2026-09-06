@@ -10,6 +10,10 @@ import { optionsKey } from "./options-key.js";
 export function usePwaUpdate(options: PwaUpdaterOptions = {}): {
   updateReady: boolean;
   applyUpdate: () => void;
+  /** "Later" — F054.8. Holds the offer down for `snoozeMs`, then it returns. */
+  snooze: () => void;
+  /** Re-read `registration.waiting` now. Rarely needed; the ticks do it. */
+  check: () => void;
 } {
   // The effect's identity comes from the options the CALLER passed, so a new
   // core option needs no edit here. eslint's exhaustive-deps cannot see
@@ -36,6 +40,8 @@ export function usePwaUpdate(options: PwaUpdaterOptions = {}): {
   return {
     updateReady,
     applyUpdate: () => updaterRef.current?.applyUpdate(),
+    snooze: () => updaterRef.current?.snooze(),
+    check: () => updaterRef.current?.check(),
   };
 }
 

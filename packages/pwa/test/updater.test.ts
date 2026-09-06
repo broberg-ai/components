@@ -10,8 +10,21 @@ class FakeWorker extends EventTarget {
     super();
     this.state = state;
   }
+  /** The registration this worker belongs to, so `installed` can move it to `waiting`. */
+  registration: FakeRegistration | null = null;
   setState(state: string) {
     this.state = state;
+    // THE SPEC, WHICH THE OLD FAKE DID NOT MODEL: a worker that finishes
+    // installing while another is ACTIVE becomes `registration.waiting`. With
+    // nothing active it activates directly and never waits. The old fake left
+    // `.waiting` null forever, so a test of the updatefound path asserted
+    // against a state a browser cannot produce — and that is exactly the state
+    // the old implementation read from.
+    if (state === "installed" && this.registration) {
+      if (this.registration.active) this.registration.waiting = this;
+      else this.registration.active = this;
+      this.registration.installing = null;
+    }
     this.dispatchEvent(new Event("statechange"));
   }
 }
@@ -19,6 +32,7 @@ class FakeWorker extends EventTarget {
 class FakeRegistration extends EventTarget {
   waiting: FakeWorker | null = null;
   installing: FakeWorker | null = null;
+  active: FakeWorker | null = null;
   update = vi.fn(() => Promise.resolve());
 }
 
@@ -60,13 +74,15 @@ describe("createPwaUpdater", () => {
     expect(updater.getState().updateReady).toBe(true);
   });
 
-  it("flags updateReady on updatefound→installed while a controller exists", async () => {
+  it("flags updateReady on updatefound→installed while a worker is already active", async () => {
     container.controller = {}; // an active controller = this is an update
+    container.registration.active = new FakeWorker("activated");
     const updater = createPwaUpdater();
     await flush();
     const seen: boolean[] = [];
     updater.subscribe((s) => seen.push(s.updateReady));
     const worker = new FakeWorker("installing");
+    worker.registration = container.registration;
     container.registration.installing = worker;
     container.registration.dispatchEvent(new Event("updatefound"));
     worker.setState("installed");
@@ -74,11 +90,13 @@ describe("createPwaUpdater", () => {
     expect(seen).toContain(true);
   });
 
-  it("suppresses the first install (no existing controller → no banner)", async () => {
-    container.controller = null; // first install
+  it("suppresses the FIRST install — nothing is active, so the worker never waits", async () => {
+    container.controller = null;
+    container.registration.active = null; // first install: nothing to wait behind
     const updater = createPwaUpdater();
     await flush();
     const worker = new FakeWorker("installing");
+    worker.registration = container.registration;
     container.registration.installing = worker;
     container.registration.dispatchEvent(new Event("updatefound"));
     worker.setState("installed");
@@ -164,5 +182,143 @@ describe("createPwaUpdater", () => {
     await vi.advanceTimersByTimeAsync(3000);
     expect(container.registration.update).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
+  });
+});
+
+/**
+ * F054.8 — the defect this card exists for.
+ *
+ * Every test above passes against the OLD implementation too. These do not, and
+ * that is what makes them evidence rather than decoration: they exercise the
+ * path where a worker is ALREADY waiting and no event will ever announce it.
+ */
+describe("F054.8 — re-derive from registration.waiting, do not wait to be told", () => {
+  it("raises the banner from a POLL tick when a worker started waiting with NO event fired", async () => {
+    vi.useFakeTimers();
+    try {
+      container.controller = {};
+      container.registration.active = new FakeWorker("activated");
+      const updater = createPwaUpdater({ pollIntervalMs: 1000 });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(updater.getState().updateReady).toBe(false);
+
+      // A worker becomes waiting with NO updatefound and NO statechange — the
+      // state a second tab, or a backgrounded tab, actually finds itself in.
+      container.registration.waiting = new FakeWorker("installed");
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(updater.getState().updateReady).toBe(true);
+      updater.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("raises it from a FOCUS tick under the same conditions", async () => {
+    container.controller = {};
+    const updater = createPwaUpdater({ pollIntervalMs: 0 });
+    await flush();
+    expect(updater.getState().updateReady).toBe(false);
+
+    container.registration.waiting = new FakeWorker("installed");
+    fakeWindow.dispatchEvent(new Event("focus"));
+    await flush();
+
+    expect(updater.getState().updateReady).toBe(true);
+    updater.destroy();
+  });
+
+  it("EMITS more than once — the old markReady fired at most once per updater", async () => {
+    container.controller = {};
+    const updater = createPwaUpdater({ pollIntervalMs: 0, snoozeStorage: null });
+    await flush();
+    const seen: boolean[] = [];
+    updater.subscribe((s) => seen.push(s.updateReady));
+
+    container.registration.waiting = new FakeWorker("installed");
+    updater.check();
+    updater.snooze();          // "Later" → down
+    await vi.waitFor(() => expect(seen.length).toBeGreaterThanOrEqual(2));
+
+    expect(seen).toEqual([true, false]);
+    updater.destroy();
+  });
+
+  it("a snooze EXPIRES — Later means later, never never", async () => {
+    vi.useFakeTimers();
+    try {
+      container.controller = {};
+      container.registration.waiting = new FakeWorker("installed");
+      const updater = createPwaUpdater({
+        pollIntervalMs: 1000,
+        snoozeMs: 5000,
+        snoozeStorage: null,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(updater.getState().updateReady).toBe(true);
+
+      updater.snooze();
+      expect(updater.getState().updateReady).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(updater.getState().updateReady).toBe(false); // still snoozed
+
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(updater.getState().updateReady).toBe(true);  // and it comes BACK
+      updater.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the snooze survives a destroy+recreate — a reload must not defeat it", async () => {
+    const store = new Map<string, string>();
+    const snoozeStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    };
+    container.controller = {};
+    container.registration.waiting = new FakeWorker("installed");
+
+    const first = createPwaUpdater({ pollIntervalMs: 0, snoozeMs: 60_000, snoozeStorage });
+    await flush();
+    first.snooze();
+    first.destroy();
+
+    // The banner asked for a reload; a reload must not be the way out of a snooze.
+    const second = createPwaUpdater({ pollIntervalMs: 0, snoozeMs: 60_000, snoozeStorage });
+    await flush();
+    expect(second.getState().updateReady).toBe(false);
+    second.destroy();
+  });
+
+  it("takes the banner DOWN when the waiting worker is gone (it could only ever go up)", async () => {
+    container.controller = {};
+    container.registration.waiting = new FakeWorker("installed");
+    const updater = createPwaUpdater({ pollIntervalMs: 0, snoozeStorage: null });
+    await flush();
+    expect(updater.getState().updateReady).toBe(true);
+
+    container.registration.waiting = null; // activated in another tab
+    updater.check();
+
+    expect(updater.getState().updateReady).toBe(false);
+    updater.destroy();
+  });
+
+  it("a storage that THROWS does not stop updates being offered", async () => {
+    const hostile = {
+      getItem: () => { throw new Error("site data blocked"); },
+      setItem: () => { throw new Error("site data blocked"); },
+      removeItem: () => { throw new Error("site data blocked"); },
+    };
+    container.controller = {};
+    container.registration.waiting = new FakeWorker("installed");
+    const updater = createPwaUpdater({ pollIntervalMs: 0, snoozeStorage: hostile });
+    await flush();
+    expect(updater.getState().updateReady).toBe(true);
+    expect(() => updater.snooze()).not.toThrow();
+    updater.destroy();
   });
 });
