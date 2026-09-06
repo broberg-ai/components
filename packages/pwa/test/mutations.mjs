@@ -65,6 +65,25 @@ const MUTATIONS = [
     to: '    register: _ignored = true,',
   },
 
+  // ---- F054.8: cardmem's trap — a suite that passes against an INERT adapter ----
+  // Their point: under happy-dom a hand-rolled setTimeout(...,0) flush never runs
+  // Preact's rAF-scheduled effect, so an adapter test can agree with every
+  // assertion while the component did nothing at all. These two mutations make
+  // the adapter inert and demand a named red — if either survives, our adapter
+  // suites cannot tell a working hook from one that never ran.
+  {
+    name: 'F054.8 the REACT adapter is inert — the effect may as well never have run',
+    file: REACT,
+    from: '    const updater = createPwaUpdater(options);',
+    to: '    const updater = createPwaUpdater({ ...options, disabled: true });',
+  },
+  {
+    name: 'F054.8 the PREACT adapter is inert — same trap, other entry point',
+    file: PREACT,
+    from: '    const updater = createPwaUpdater(options);',
+    to: '    const updater = createPwaUpdater({ ...options, disabled: true });',
+  },
+
   // ---- F054.8: the answer must be READ every tick, never remembered ----
   {
     name: 'F054.8 the POLL tick reads only AFTER update() resolves (hangs forever offline)',
