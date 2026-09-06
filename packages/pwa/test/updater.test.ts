@@ -214,6 +214,35 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
     }
   });
 
+  it("raises it BEFORE update() resolves — a slow network must not hold the banner back", async () => {
+    // THE DISCRIMINATING CASE, and it is why the tick reads BEFORE it asks.
+    // The mutation harness caught me here: removing the leading check() killed
+    // nothing, because the fake's update() resolves instantly and the trailing
+    // .then(check) covered for it. A real update() is a network round-trip and
+    // can hang for the whole timeout — offline, it never resolves at all. A tab
+    // that ALREADY has a worker waiting must not sit bannerless meanwhile.
+    vi.useFakeTimers();
+    try {
+      container.controller = {};
+      container.registration.update = vi.fn(() => new Promise<void>(() => {})); // never resolves
+      container.registration.waiting = new FakeWorker("installed");
+      const updater = createPwaUpdater({
+        pollIntervalMs: 1000,
+        snoozeMs: 5000,
+        snoozeStorage: null,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      updater.snooze();
+      expect(updater.getState().updateReady).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(10_000); // snooze expires; update() still hanging
+      expect(updater.getState().updateReady).toBe(true);
+      updater.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("raises it from a FOCUS tick under the same conditions", async () => {
     container.controller = {};
     const updater = createPwaUpdater({ pollIntervalMs: 0 });

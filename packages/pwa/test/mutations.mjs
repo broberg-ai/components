@@ -64,6 +64,52 @@ const MUTATIONS = [
     from: '    register = true,',
     to: '    register: _ignored = true,',
   },
+
+  // ---- F054.8: the answer must be READ every tick, never remembered ----
+  {
+    name: 'F054.8 the POLL tick reads only AFTER update() resolves (hangs forever offline)',
+    file: CORE,
+    from: `        pollId = setInterval(() => {
+          check();
+          registration`,
+    to: `        pollId = setInterval(() => {
+          registration`,
+  },
+  {
+    name: 'F054.8 the FOCUS tick stops re-deriving (the 0.2.3 shape, verbatim)',
+    file: CORE,
+    from: `    const tick = (): void => {
+      check();
+      registration.update().catch(() => {}).then(check, check);
+    };`,
+    to: `    const tick = (): void => {
+      registration.update().catch(() => {});
+    };`,
+  },
+  {
+    name: 'F054.8 emit goes back to ONE-SHOT — the latch that caused all of this',
+    file: CORE,
+    from: `    if (next !== updateReady) {`,
+    to: `    if (next && !updateReady) {`,
+  },
+  {
+    name: 'F054.8 "Later" becomes a MUTE instead of a snooze',
+    file: CORE,
+    from: `      writeSnooze(Date.now() + snoozeMs);`,
+    to: `      writeSnooze(Number.MAX_SAFE_INTEGER);`,
+  },
+  {
+    name: 'F054.8 the snooze is never persisted, so a reload defeats it',
+    file: CORE,
+    from: `      else storage.setItem(SNOOZE_KEY, String(until));`,
+    to: `      else void until;`,
+  },
+  {
+    name: 'F054.8 optionsKey collapses a value JSON cannot express (predicted by its own docstring)',
+    file: join(HERE, 'src/options-key.ts'),
+    from: `      .map(([k, v]) => [k, identify(v)]),`,
+    to: `      .map(([k, v]) => [k, v]),`,
+  },
 ];
 
 function redSet() {
