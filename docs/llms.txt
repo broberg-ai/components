@@ -32,7 +32,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 ## Packages by category (54)
 
 ### L0 — Rails (foundation every app stands on)
-- **@broberg/theme** v0.6.0 — The design-token foundation every surface inherits. `npm i @broberg/theme`
+- **@broberg/theme** v0.7.0 — The design-token foundation every surface inherits. `npm i @broberg/theme`
 - **@broberg/stack-b-base** (planned) — A ready-to-run base scaffold for Stack B apps (Bun · Hono · Preact · Tailwind v4) so a new lightweight service boots with the house wiring already …. `npm i @broberg/stack-b-base`
 - **@broberg/stack-a-base** (planned) — The Stack A counterpart. `npm i @broberg/stack-a-base`
 - **@broberg/config** v0.2.0 — The fleet's single-source config helper. `npm i @broberg/config`
@@ -56,7 +56,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/consent-cookie** v0.1.0 — A consent and cookie banner. `npm i @broberg/consent-cookie`
 
 ### L2 — Shell (the app frame & controls)
-- **@broberg/theme** v0.6.0 — DELIVERED by @broberg/theme (0.3.1). `npm i @broberg/theme`
+- **@broberg/theme** v0.7.0 — DELIVERED by @broberg/theme (0.3.1). `npm i @broberg/theme`
 - **@broberg/ui-controls-core** v0.1.1 — The custom-control kit. `npm i @broberg/ui-controls-core`
 - **@broberg/cmdk** v0.1.0 — A Cmd+K command palette. `npm i @broberg/cmdk`
 - **@broberg/i18n** v0.1.0 — i18n and a language switch. `npm i @broberg/i18n`
@@ -72,7 +72,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
 - **@broberg/bodymap** v0.12.0 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.3.0 — The fleet's one Stripe chokepoint, and the one place that knows where Stripe MOVED a field to (invoice.subscription is gone, so is the period). `npm i @broberg/stripe`
-- **@broberg/pwa** v0.3.0 — The fleet's PWA primitive. `npm i @broberg/pwa`
+- **@broberg/pwa** v0.4.0 — The fleet's PWA primitive. `npm i @broberg/pwa`
 - **@broberg/forms-turnstile** v0.3.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
 - **@broberg/logger** v0.2.0 — Structured server logging for the fleet. `npm i @broberg/logger`
 - **@broberg/http** v0.1.0 — Framework-free, zero-dep HTTP header/response primitives for Node/Bun/edge. `npm i @broberg/http`
@@ -92,7 +92,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
 - **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts`
 - **@broberg/complimenta-sdk** v0.3.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk`
-- **@broberg/cms-inline-edit** v0.8.0 — Inline editing on live @webhouse/cms-sites, plus self-healing page links that rewrite themselves at render. `npm i @broberg/cms-inline-edit`
+- **@broberg/cms-inline-edit** v0.9.2 — Inline editing on live @webhouse/cms-sites, plus self-healing page links that rewrite themselves at render. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
 ## Tips & tricks — every tip inline (124 across 15 platforms)
