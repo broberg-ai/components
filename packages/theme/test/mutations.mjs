@@ -22,7 +22,12 @@ import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutat
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(HERE, "src/design-md.ts");
-const SRC_FOR_GUARD = "src/design-md.ts";
+const CORE = join(HERE, "src/index.ts");
+// F001.16 — a harness that can only mutate ONE file leaves every decision in the
+// other file undefended, and says nothing about it. Each mutation names its own
+// target now; `SRC` stays the default so no existing entry moves.
+const GUARDED = ["src/design-md.ts", "src/index.ts"];
+const fileOf = (m) => m.file ?? SRC;
 
 const MUTATIONS = [
   // The classification order IS the design. Name-first drops a duration into the
@@ -102,6 +107,55 @@ const MUTATIONS = [
     from: `      const ratio = wcagContrast(resolved[fg]!, resolved[bg]!);`,
     to: `      const ratio = wcagContrast(colors[fg], colors[bg]);`,
   },
+  // ---- F001.16: preference vs theme, and the listener that must not be conditional ----
+  {
+    name: "F001.16 the OS listener is attached ONLY while the preference is 'system'",
+    file: CORE,
+    from: `  const onChange = (): void => {
+    if (preference !== "system") return; // re-read, never captured`,
+    to: `  if (preference !== "system") return;
+  const onChange = (): void => {`,
+  },
+  {
+    name: "F001.16 getPreference() returns the RESOLVED theme instead of the choice",
+    file: CORE,
+    from: `export function getPreference(): ThemePreference {
+  return preference;
+}`,
+    to: `export function getPreference(): ThemePreference {
+  return current;
+}`,
+  },
+  {
+    name: "F001.16 initTheme reuses a stale watch instead of re-attaching",
+    file: CORE,
+    from: `  stopWatchingSystem();
+  watchSystem();
+  return current;`,
+    to: `  watchSystem();
+  return current;`,
+  },
+  {
+    name: "F001.16 a stored preference is read with the OLD key test, so 'system' is dropped",
+    file: CORE,
+    from: `    return isPreference(raw) ? raw : null;`,
+    to: `    return isThemeKey(raw) ? raw : null;`,
+  },
+  {
+    name: "F001.16 setTheme no longer syncs the preference, so the OS keeps speaking for a hand-picked theme",
+    file: CORE,
+    from: `  preference = theme;
+  current = theme;`,
+    to: `  current = theme;`,
+  },
+  {
+    name: "F001.16 setPreference accepts anything (the guard that keeps 'neon' off <html>)",
+    file: CORE,
+    from: `export function setPreference(pref: ThemePreference): void {
+  if (!isPreference(pref)) return;`,
+    to: `export function setPreference(pref: ThemePreference): void {`,
+  },
+
 ];
 
 function redSet() {
@@ -153,7 +207,7 @@ function redSet() {
  * whole class.
  */
 {
-  const dirty = execFileSync("git", ["status", "--porcelain", "--", SRC_FOR_GUARD], {
+  const dirty = execFileSync("git", ["status", "--porcelain", "--", ...GUARDED], {
     cwd: HERE,
     encoding: "utf8",
   }).trim();
@@ -181,10 +235,11 @@ let problems = 0;
 
 // BEFORE the first mutation (F081.1). Written after it, the marker would leave
 // open the exact window it exists to close.
-writeMarker({ harness: "@broberg/theme test/mutations.mjs", file: SRC });
+writeMarker({ harness: "@broberg/theme test/mutations.mjs", file: GUARDED.join(", ") });
 try {
 for (const m of MUTATIONS) {
-  const original = readFileSync(SRC, "utf8");
+  const target = fileOf(m);
+  const original = readFileSync(target, "utf8");
   // THE RECEIPT. Without it, a substitution that never matched is reported as a
   // surviving mutant and a load-bearing guard is deleted on the strength of it.
   if (!original.includes(m.from)) {
@@ -192,15 +247,15 @@ for (const m of MUTATIONS) {
     problems++;
     continue;
   }
-  writeFileSync(SRC, original.replace(m.from, m.to));
+  writeFileSync(target, original.replace(m.from, m.to));
   let red;
   try {
     red = redSet();
   } finally {
-    writeFileSync(SRC, original);
+    writeFileSync(target, original);
     // F081.1 — a restore that FAILED is otherwise indistinguishable from one
     // that was not needed. Does not return on mismatch.
-    assertRestored({ harness: "@broberg/theme test/mutations.mjs", file: SRC, expected: original });
+    assertRestored({ harness: "@broberg/theme test/mutations.mjs", file: target, expected: original });
   }
 
   const key = red.join("|");
