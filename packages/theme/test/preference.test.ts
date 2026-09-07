@@ -148,6 +148,23 @@ describe("backward compatibility, both directions", () => {
    * assert that a NEW stored value read by the OLD parser degrades rather than
    * throwing. This is 0.6.0's isThemeKey, verbatim.
    */
+  it("a stored 'system' SURVIVES a reload — the round-trip, not just the write", () => {
+    // The mutation harness found this hole: swapping isPreference for the old
+    // isThemeKey in readStored() killed NOTHING, because every test asserted the
+    // write and none asserted the read. A preference that persists but cannot be
+    // read back is indistinguishable from one that was never stored.
+    const os = stubMatchMedia(true);
+    initTheme();
+    setPreference("system");
+    expect(localStorage.getItem(KEY)).toBe("system");
+
+    initTheme(); // a reload
+    expect(getPreference()).toBe("system");
+    expect(getTheme()).toBe("light");
+    os.flip(false);
+    expect(getTheme()).toBe("dark"); // and it is still following
+  });
+
   it("a stored 'system' read by the OLD parser yields null, so an old copy falls back", () => {
     const OLD_KEYS = ["light", "dark", "light-cool", "light-warm", "dark-cool", "dark-warm"];
     const oldIsThemeKey = (v: unknown) => typeof v === "string" && OLD_KEYS.includes(v);
@@ -161,15 +178,24 @@ describe("backward compatibility, both directions", () => {
     expect(oldIsThemeKey(raw)).toBe(false); // -> old readStored() returns null
   });
 
-  it("setTheme still works AND now keeps the preference in sync", () => {
+  // SPLIT IN TWO on purpose. As one test its two claims produced the same red set
+  // as the deafness mutation, so the harness could not tell "setTheme forgot to
+  // sync the preference" from "the listener is conditional". Two failures that
+  // cannot be told apart are one failure.
+  it("setTheme still applies the theme, and now RECORDS it as the preference", () => {
+    stubMatchMedia(true);
+    initTheme();
+    setPreference("system");
+    setTheme("dark-warm");
+    expect(getTheme()).toBe("dark-warm");
+    expect(getPreference()).toBe("dark-warm");
+  });
+
+  it("after setTheme the OS no longer speaks for a user who chose by hand", () => {
     const os = stubMatchMedia(true);
     initTheme();
     setPreference("system");
     setTheme("dark-warm");
-
-    expect(getTheme()).toBe("dark-warm");
-    expect(getPreference()).toBe("dark-warm");
-    // and the OS no longer speaks for a user who just chose by hand
     os.flip(true);
     expect(getTheme()).toBe("dark-warm");
   });
