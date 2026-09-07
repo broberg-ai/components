@@ -2639,22 +2639,57 @@ jobs:
           echo "::warning::npm did not serve ${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }} within 5 minutes — not bumping. check-roster-versions will catch it on the next Discovery run."
           echo "SKIP=1" >> "$GITHUB_ENV"
 
-      - name: Bump the roster and regenerate the surfaces
+      # TWO PACKAGES CAN RELEASE AT ONCE, and then two roster jobs race for the
+      # same branch: both check out the same main, both commit, and the second
+      # push is rejected as non-fast-forward. Losing that push loses exactly the
+      # bump this card exists to guarantee.
+      #
+      # So each attempt RE-DERIVES from a freshly fetched main rather than
+      # rebasing a commit built on a stale one — the regenerated docs/ would
+      # conflict line-for-line with the other job's, and a rebase conflict in CI
+      # is a silent no-bump wearing a red X. Re-running is safe because the bump
+      # is idempotent: on a roster already naming this version it changes
+      # nothing and exits 0.
+      - name: Bump the roster, regenerate, and land it
         if: env.SKIP != '1'
         run: |
-          node scripts/bump-roster-version.mjs "${{ steps.t.outputs.pkg }}" "${{ steps.t.outputs.ver }}"
-          bun scripts/build-inventory.mjs
-          bun scripts/build-onboarding.mjs
-
-      - name: Commit, if anything moved
-        if: env.SKIP != '1'
-        run: |
-          if git diff --quiet; then
-            echo "::notice::roster already named ${{ steps.t.outputs.ver }} — nothing to commit."
-            exit 0
-          fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/inventory-data.mjs docs/
-          git commit -m "chore(roster): ${{ steps.t.outputs.pkg }} -> ${{ steps.t.outputs.ver }} (F038.16, by the release that published it)"
-          git push origin main
+
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin main
+            git checkout --quiet -B main origin/main
+
+            # THREE OUTCOMES, NOT TWO. Bare under `bash -e` an exit 2 — the
+            # registry unreachable, which is not a verdict on anything — would
+            # fail this job identically to exit 1, which IS one. That collapse
+            # is the same defect F038.15 fixed one workflow over.
+            set +e
+            node scripts/bump-roster-version.mjs "${{ steps.t.outputs.pkg }}" "${{ steps.t.outputs.ver }}"
+            code=$?
+            set -e
+            if [ "$code" = "2" ]; then
+              echo "::warning::npm went unreachable between the wait and the bump — not bumping. check-roster-versions catches it on the next Discovery run."
+              exit 0
+            fi
+            [ "$code" = "0" ] || exit "$code"
+
+            bun scripts/build-inventory.mjs
+            bun scripts/build-onboarding.mjs
+
+            if git diff --quiet; then
+              echo "::notice::roster already names ${{ steps.t.outputs.ver }} — nothing to commit."
+              exit 0
+            fi
+
+            git add scripts/inventory-data.mjs docs/
+            git commit -q -m "chore(roster): ${{ steps.t.outputs.pkg }} -> ${{ steps.t.outputs.ver }} (F038.16, by the release that published it)"
+            if git push origin main; then
+              echo "::notice::roster bumped on attempt $attempt."
+              exit 0
+            fi
+            echo "::warning::push rejected (attempt $attempt) — another release landed first; re-deriving from the new main."
+          done
+
+          echo "::error::could not land the roster bump after 5 attempts. The release itself is fine; the roster row is behind and check-roster-versions will block the next Discovery deploy until it is fixed."
+          exit 1

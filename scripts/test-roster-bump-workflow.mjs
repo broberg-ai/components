@@ -83,5 +83,47 @@ const check = (name, ok, detail = "") => {
   );
 }
 
+// ---------------------------------------------------------------------------
+// 4. THE RACE. Two packages can release at once. Both roster jobs then check out
+//    the same main and the second push is rejected as non-fast-forward — losing
+//    exactly the bump this card guarantees. The retry must RE-DERIVE from a
+//    freshly fetched main, not rebase a commit built on a stale one: the
+//    regenerated docs/ conflict line-for-line, and a rebase conflict in CI is a
+//    silent no-bump wearing a red X.
+// ---------------------------------------------------------------------------
+{
+  const roster = publish.slice(publish.indexOf("\n  roster:"));
+  // The `done` to bound on is the one AFTER the loop opens — the wait step has
+  // its own `for … done` earlier in the same job, and slicing to that one
+  // yields an EMPTY string, which fails every includes() for the wrong reason.
+  const loopAt = roster.indexOf("for attempt in");
+  const loop = roster.slice(loopAt, roster.indexOf("\n          done", loopAt));
+  check(
+    "the push is retried, and each attempt re-fetches main first",
+    loop.includes("git fetch") && /git checkout[^\n]*-B main origin\/main/.test(loop) && loop.includes("git push origin main"),
+    "without a re-fetch inside the loop, a concurrent release silently loses one bump",
+  );
+  check(
+    "...and a rebase is NOT how it recovers",
+    !/git (pull --rebase|rebase)/.test(roster),
+    "regenerated docs/ conflict line-for-line; a CI rebase conflict is a no-bump that looks like a failure to fix",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 5. THREE OUTCOMES, NOT TWO. Bare under `bash -e`, the script's exit 2 — npm
+//    unreachable, which is not a verdict on anything — fails the job identically
+//    to exit 1, which IS one. That exact collapse was the defect F038.15 fixed
+//    one workflow over, four lines below the guard that defined the outcomes.
+// ---------------------------------------------------------------------------
+{
+  const roster = publish.slice(publish.indexOf("\n  roster:"));
+  check(
+    "exit 2 from the bump script does not fail the job",
+    /set \+e[\s\S]{0,400}code=\$\?[\s\S]{0,400}\[ "\$code" = "2" \][\s\S]{0,300}exit 0/.test(roster),
+    "an unreachable registry is not a verdict on the release — running it bare under `bash -e` makes it one",
+  );
+}
+
 console.log(failed ? `\n${failed} failing\n` : `\nall green\n`);
 process.exit(failed ? 1 : 0);
