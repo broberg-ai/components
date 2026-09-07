@@ -2569,3 +2569,92 @@ jobs:
       - name: Publish (OIDC)
         working-directory: packages/notifications
         run: npm publish --access public --provenance
+
+  # F038.16 — THE RELEASE CARRIES THE ROSTER BUMP.
+  #
+  # "Remember to update scripts/inventory-data.mjs after publishing" failed TWICE
+  # IN ONE NIGHT, four hours apart, in the same session. The first time cost
+  # twelve consecutive red Discovery deploys, because a stale roster blocks the
+  # `check` job and therefore the deploy of everything ELSE too. The
+  # Harness-kontrakt already names the shape: a gate does not depend on an agent
+  # remembering anything. This workflow already HOLDS the package and the
+  # version — requiring a human or an agent to copy a number the pipeline owns is
+  # a duplicate fact with an owner.
+  #
+  # WHY IT NEEDS NO `needs:` ON 39 JOBS, and why that is not laziness: a skipped
+  # job propagates as skipped, so a fan-in over 39 conditional jobs would need
+  # `if: !cancelled()` plus per-job status inspection — machinery that can drift
+  # from the jobs it watches. Instead this derives the package and the version
+  # from the TAG, and the bump script then asks NPM whether that version is
+  # actually served. A publish that failed leaves npm without the version, the
+  # script refuses, and the roster is untouched. The guard is the registry, which
+  # is the same thing the roster is claiming.
+  #
+  # NO PUBLISH LOOP: `publish` triggers on TAGS only, and this pushes a plain
+  # commit to main. It does re-trigger `discovery`, which is exactly what we
+  # want — that run redeploys with the corrected roster.
+  roster:
+    needs: gate
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the one job here that writes back to the repo
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main # the tag is a detached commit; the roster lives on the branch
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      # <slug>-v<semver>  ->  @broberg/<slug> and <semver>. One shape for all 39
+      # tag prefixes, so a new package needs no edit here.
+      - name: Derive the package and version from the tag
+        id: t
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          SLUG="${TAG%-v*}"
+          VER="${TAG##*-v}"
+          if [ -z "$SLUG" ] || [ -z "$VER" ] || [ "$SLUG" = "$TAG" ]; then
+            echo "::error::tag '$TAG' is not <slug>-v<version> — refusing to guess."
+            exit 1
+          fi
+          echo "pkg=@broberg/$SLUG" >> "$GITHUB_OUTPUT"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          echo "::notice::roster bump target: @broberg/$SLUG@$VER"
+
+      # WAIT FOR THE REGISTRY, don't race it. A green publish job, a registry
+      # document, and an installable version land minutes apart; bumping on the
+      # first would name a version a consumer cannot yet resolve.
+      - name: Wait until npm actually serves it
+        run: |
+          for i in $(seq 1 20); do
+            if npm view "${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }}" version >/dev/null 2>&1; then
+              echo "npm serves ${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }}"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::npm did not serve ${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }} within 5 minutes — not bumping. check-roster-versions will catch it on the next Discovery run."
+          echo "SKIP=1" >> "$GITHUB_ENV"
+
+      - name: Bump the roster and regenerate the surfaces
+        if: env.SKIP != '1'
+        run: |
+          node scripts/bump-roster-version.mjs "${{ steps.t.outputs.pkg }}" "${{ steps.t.outputs.ver }}"
+          bun scripts/build-inventory.mjs
+          bun scripts/build-onboarding.mjs
+
+      - name: Commit, if anything moved
+        if: env.SKIP != '1'
+        run: |
+          if git diff --quiet; then
+            echo "::notice::roster already named ${{ steps.t.outputs.ver }} — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/inventory-data.mjs docs/
+          git commit -m "chore(roster): ${{ steps.t.outputs.pkg }} -> ${{ steps.t.outputs.ver }} (F038.16, by the release that published it)"
+          git push origin main
