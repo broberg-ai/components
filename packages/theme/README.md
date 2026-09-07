@@ -13,6 +13,33 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
+## 0.7.0 — "system" is a preference, not a theme (F001.16)
+
+Before this, `followSystem` was in force **only until the first click**: a stored
+value won forever, there was no way to *say* "system", and nothing listened — so
+an OS that flipped while the app was open changed nothing.
+
+```ts
+setPreference("system");   // follows the OS, and KEEPS following it
+getPreference();           // "system" — the CHOICE
+getTheme();                // "light" | "dark" | … — the RESOLVED key on <html>
+```
+
+**`getTheme()` still returns only a `ThemeKey`.** Putting `"system"` into
+`THEME_KEYS` would have made the value every consumer paints from able to hold
+something that is not a palette.
+
+`preference` is `ThemeKey | "system"`, so a consumer on `light-warm` keeps it.
+
+**Additive — nothing you have needs to change.** `followSystem` behaves exactly
+as before; it is deprecated only in its doc comment, in favour of
+`defaultPreference: "system"`, which keeps following instead of reading once.
+
+**Rolling out across several apps?** A stored `"system"` read by **0.6.0** fails
+that version's `isThemeKey` check, so the older copy falls back to its default
+rather than throwing. Two versions coexist safely; the older one simply does not
+follow the OS.
+
 ## Install
 
 ```bash
