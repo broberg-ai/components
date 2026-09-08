@@ -138,6 +138,26 @@ for (const { name, fn } of checks) {
   }
 }
 
+// A FLOOR, because `failed === 0` is also true of a run that checked NOTHING.
+// trail's sharpest measurement of the evening: they copied a guard-test to /tmp
+// to compare two versions and both answered "0 passed · 0 failed" — the file
+// locates its target relative to itself and could not see it from there. TWO
+// IDENTICAL ZEROES, which is the one shape where "did not run" looks like a
+// result in both directions at once. They caught it only because 0/0 was absurd
+// for that suite; for a suite that legitimately has few cases it would not be.
+//
+// The floor is the population, not the outcome — every guard in this file asks
+// "did the check answer?", and this one asks "was there anything to check?".
+// Set at the real count so losing even one assertion is visible, not at 1.
+const EXPECTED = 10;
+if (checks.length < EXPECTED) {
+  console.log(
+    `\n✗ only ${checks.length} of ${EXPECTED} assertions were REGISTERED — this run did not ` +
+      `check what it claims to. Raise EXPECTED deliberately when adding one; never lower it.`,
+  );
+  process.exit(2);
+}
+
 console.log(
   failed === 0
     ? `\n✓ ${checks.length} assertions — the shape check cannot report success without having run.`
