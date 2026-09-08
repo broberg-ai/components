@@ -118,6 +118,32 @@ const catNav = categories
   .map((c) => `<a href="#cat-${esc(c.layer)}">${esc(c.layer)} ${esc(c.title)}</a>`)
   .join("");
 
+// F038.17 — the same three states on the HUMAN page. Caught by the review gate:
+// the first cut of this card fixed /llms.txt and /llms-full.txt and left
+// /onboarding showing 0 of 17, even though the plan-doc named it. The AC was
+// written narrower than the defect it described.
+const nonPkgCards = (rows, planned) =>
+  rows
+    .map(
+      (r) => `<div class="pk">
+      <div class="pk-h"><code>${esc(r.name)}</code><span class="v${
+        planned ? " plan" : ""
+      }">${planned ? "not built yet" : "not on npm"}</span></div>
+      <p>${esc(r.oneLiner)}</p>
+      <p class="own">${esc(r.layer)} · owner: ${esc(r.owner)}${
+        planned ? " — ask them before building a second one" : " — you call it, nothing to install"
+      }</p></div>`,
+    )
+    .join("");
+
+const nonPkgHtml = `
+<h2 class="sec" id="notnpm">Shipped, but not an npm package (${nonPkgShipped.length})</h2>
+<section class="layer"><div class="pk-grid">${nonPkgCards(nonPkgShipped, false)}</div></section>
+
+<h2 class="sec" id="planned">Planned — not built yet (${nonPkgFuture.length})</h2>
+<section class="layer"><div class="layer-h"><span class="t">None of these exist</span><span class="d">listed so you do not conclude the fleet has nothing and quietly build a second one</span><span class="ct">${nonPkgFuture.length}</span></div>
+<div class="pk-grid">${nonPkgCards(nonPkgFuture, true)}</div></section>`;
+
 const html = `<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -161,6 +187,7 @@ h2.sec{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:upperc
 .pk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:11px}
 .pk{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px}
 .pk-h{display:flex;align-items:center;gap:9px}
+.pk .own{color:var(--faint);font-size:12px;margin-top:6px}
 .pk-h code{font-size:13px;font-weight:600;color:var(--fg)}
 .pk .v{margin-left:auto;font:600 11px ui-monospace,monospace;color:var(--green);background:color-mix(in oklab,var(--green) 13%,transparent);padding:2px 7px;border-radius:20px}
 .pk .v.plan{color:var(--amber);background:color-mix(in oklab,var(--amber) 13%,transparent)}
@@ -198,10 +225,12 @@ footer a{color:var(--muted)}
   </div>
 </section>
 
-<nav class="jump"><a href="#packages">Packages</a><a href="#tips">Tips &amp; tricks</a>${catNav}</nav>
+<nav class="jump"><a href="#packages">Packages</a><a href="#notnpm">Not on npm</a><a href="#planned">Planned</a><a href="#tips">Tips &amp; tricks</a>${catNav}</nav>
 
 <h2 class="sec" id="packages">Packages by category</h2>
 ${layersHtml}
+
+${nonPkgHtml}
 
 <h2 class="sec" id="tips">Tips &amp; tricks — ${tipCount} across ${tips.length} platforms</h2>
 ${tipsHtml}

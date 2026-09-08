@@ -59,7 +59,17 @@ for (const r of rows) {
   if (!line.includes(marker)) unmarked.push(`${r.nm} (expected "${marker}")`);
 }
 
-if (missing.length || unmarked.length) {
+// THE HUMAN PAGE IS A SECOND SURFACE, and leaving it out is how the first cut of
+// this card shipped: /llms.txt was fixed, /onboarding still showed 0 of 17, and
+// every check was green because no check looked there. A guard that covers one
+// of two surfaces reports on the one that happens to be right.
+const htmlMissing = [];
+if (!base) {
+  const html = readFileSync(join(ROOT, "docs", "onboarding.html"), "utf8");
+  for (const r of rows) if (!html.includes(r.nm)) htmlMissing.push(r.nm);
+}
+
+if (missing.length || unmarked.length || htmlMissing.length) {
   if (missing.length)
     console.error(
       `✗ ${missing.length} of ${rows.length} non-package row(s) are MISSING from llms.txt:\n    ` +
@@ -72,11 +82,18 @@ if (missing.length || unmarked.length) {
         unmarked.join("\n    ") +
         `\n  A planned item that reads like an available one is worse than not listing it.`,
     );
+  if (htmlMissing.length)
+    console.error(
+      `✗ ${htmlMissing.length} of ${rows.length} non-package row(s) are MISSING from docs/onboarding.html:\n    ` +
+        htmlMissing.join("\n    ") +
+        `\n  The HUMAN page is a second surface. The first cut of F038.17 fixed llms.txt and\n` +
+        `  left this one at 0 of 17, and nothing went red because nothing looked here.`,
+    );
   process.exit(1);
 }
 
 console.log(
-  `✓ all ${rows.length} non-package rows are in llms.txt, each with its status marker ` +
+  `✓ all ${rows.length} non-package rows are in llms.txt${base ? "" : " AND onboarding.html"}, each with its status marker ` +
     `(${rows.filter((r) => r.s === "shipped").length} shipped-not-npm, ` +
     `${rows.filter((r) => (r.s || "planned") !== "shipped").length} not-built-yet).`,
 );
