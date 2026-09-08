@@ -222,7 +222,14 @@ let problems = 0;
 
 // BEFORE the first mutation. Written after it, the marker would leave open the
 // exact window it exists to close.
-for (const abs of Object.values(FILES)) writeMarker({ harness: "@broberg/stripe test/mutations.mjs", file: abs });
+// ONE marker naming EVERY file this run may touch. Writing one per file
+// overwrote the entry (they share a pid), so the marker named whichever came
+// LAST — telling a human who falls over it to check the wrong file. Caught by
+// scripts/test-mutation-marker.mjs, which asserts the mutated file is named.
+writeMarker({
+  harness: "@broberg/stripe test/mutations.mjs",
+  file: Object.values(FILES).join(", "),
+});
 try {
 for (const m of MUTATIONS) {
   const REL = relOf(m);
