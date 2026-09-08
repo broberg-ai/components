@@ -87,8 +87,8 @@ const MUTATIONS = [
   {
     file: "src/spec-drift.ts",
     name: "a FALLBACK going missing counts as drift — the check reddens on a change in our favour",
-    from: `    const drifted = findings.some((f) => f.role === "primary" && !f.present);`,
-    to: `    const drifted = findings.some((f) => !f.present);`,
+    from: `  const drifted = findings.some((f) => f.role === "primary" && !f.present);`,
+    to: `  const drifted = findings.some((f) => !f.present);`,
     // Both fallbacks are absent in the REAL spec today, so this turns the
     // everyday state into a permanent red — the fastest way to get it ignored.
   },
@@ -127,8 +127,8 @@ const MUTATIONS = [
   {
     file: "src/probe.ts",
     name: "DRIFT ignores WHICH location resolved — the early warning is gone",
-    from: `    const drifted = readers.some((r) => !r.resolved || r.from !== "current");`,
-    to: `    const drifted = readers.some((r) => !r.resolved);`,
+    from: `    const drifted = readers.some((r) => !r.skipped && (!r.resolved || r.from !== "current"));`,
+    to: `    const drifted = readers.some((r) => !r.skipped && !r.resolved);`,
   },
   {
     file: "src/probe.ts",
