@@ -153,6 +153,9 @@ jobs:
       # It does NOT merely compare the two files: they can differ and the full
       # one still be truncated (remove oneLiner() from one renderer and `cmp`
       # goes green). It asserts every row's COMPLETE description is present.
+      - name: Every non-package row reaches /llms.txt
+        run: node scripts/check-nonpkg-rows.mjs
+
       - name: /llms-full.txt carries every complete description
         run: node scripts/check-llms-full.mjs
 

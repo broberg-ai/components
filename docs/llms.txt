@@ -92,8 +92,55 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
 - **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts`
 - **@broberg/complimenta-sdk** v0.3.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk`
-- **@broberg/cms-inline-edit** v0.9.2 — Inline editing on live @webhouse/cms-sites including structural LIST editing (add/remove items), plus self-healing page links. `npm i @broberg/cms-inline-edit`
+- **@broberg/cms-inline-edit** v0.11.0 — Inline editing on live @webhouse/cms-sites including structural LIST editing (add/remove items), plus self-healing page links. `npm i @broberg/cms-inline-edit`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
+
+## Shipped, but NOT an npm package (1)
+
+These are real and usable TODAY. There is no `npm i` — you call them or you copy
+them — so a grep for a package name will never find them.
+
+- **Podcast engine (article to two-host audio)** (SDK) · NOT AN NPM PACKAGE — you call it, there is nothing to install · owner: cms
+  A podcast engine any site drives over HTTP: article to two-host script to human approval to audio, the script doubling as the subtitles
+
+## Planned — NOT BUILT YET (16)
+
+**None of these exist.** They are on the map so you do not conclude the fleet has
+nothing and quietly build a second one. If one is what you need: talk to the
+owner. That conversation is the whole point of this inventory.
+
+- **User management + invitation** (L1) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
+  User management and invitation flows
+- **Profile + image upload** (L1) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: xrt81 — ASK THEM before building a second one
+  Profile editing and image upload
+- **Settings — tabbed config shell** (L2) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
+  A tabbed settings shell
+- **PWA setup** (L2) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: xrt81 — ASK THEM before building a second one
+  PWA setup
+- **PWA update banner** (L2) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cardmem — ASK THEM before building a second one
+  A PWA update banner
+- **User menu (account dropdown)** (L2) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms + xrt81 — ASK THEM before building a second one
+  The account dropdown in the top bar
+- **Chat / chatbot UI** (L3) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
+  A chat / chatbot UI
+- **Trail — second-brain / RAG** (L3) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: trail — ASK THEM before building a second one
+  The fleet's cross-session second-brain + RAG
+- **Contract Manager — draft + sign customer contracts** (L3) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: contract-manager — ASK THEM before building a second one
+  Draft a customer contract from a template for a human to send
+- **Beacon — Hue signal lights (local)** (L3) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: beacon — ASK THEM before building a second one
+  Physical signal lights + Philips Hue control for the fleet: raise an alarm and the house shows it
+- **Deployment Mgmt (observe)** (L3) · ⛔ NOT BUILT YET (moved) — nothing to install, nothing to import · owner: upmetrics — ASK THEM before building a second one
+  The observe half of deployment management
+- **Podcast manager / maker** (L3) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
+  A podcast manager / maker
+- **Multi-tenant management** (L4) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
+  Multi-tenant management
+- **Native mobile boilerplate** (L4) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
+  A native mobile boilerplate (Capacitor)
+- **Greenfield scaffolder** (L4) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cardmem — ASK THEM before building a second one
+  The greenfield scaffolder
+- **create-app CLI + manifest** (L4) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
+  create-app CLI plus a machine-readable manifest
 
 ## Tips & tricks — every tip inline (124 across 15 platforms)
 

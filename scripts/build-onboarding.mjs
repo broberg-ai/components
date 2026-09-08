@@ -36,6 +36,32 @@ const categories = DATA.map((L) => ({
     })),
 })).filter((c) => c.packages.length);
 
+// F038.17 — the rows `.filter((x) => x.pkg)` above drops. Measured 2026-09-08:
+// 17 of 71, and ZERO of them reached /llms.txt — the surface CLAUDE.md orders
+// every session to read FIRST, before wiring any cross-cutting capability. So
+// the one page whose job is answering "do we already have something that does
+// X?" was answering only the npm-shaped quarter of the question.
+//
+// They are NOT rendered like packages, and that is the whole design. 15 of the
+// 17 are `planned` — they do not exist. A row that reads like something you can
+// use, for something that does not exist, is the webpush precedent and is worse
+// than the silence it replaces. So: THREE STATES, never two.
+const nonPkg = DATA.flatMap((L) =>
+  (L.items || [])
+    .filter((x) => !x.pkg)
+    .map((r) => ({
+      id: r.f,
+      name: r.nm,
+      layer: L.n,
+      status: r.s || "planned",
+      owner: r.own || "unassigned",
+      oneLiner: oneLiner(r),
+      desc: fullDesc(r),
+    })),
+);
+const nonPkgShipped = nonPkg.filter((r) => r.status === "shipped");
+const nonPkgFuture = nonPkg.filter((r) => r.status !== "shipped");
+
 const tips = INFRA.filter((p) => (p.tips || []).length).map((p) => ({
   platform: p.name || p.id,
   count: p.tips.length,
@@ -296,19 +322,53 @@ const secretsVaultMd = [
 //
 // scripts/check-llms-full.mjs is the gate that keeps them apart; it runs in the
 // `check` job that the Discovery deploy needs, so a re-alias cannot ship.
-const body = (packagesMd, heading) => `${secretsVaultMd}
+// Shipped and real, just not installable — you CALL it, so there is no `npm i`.
+const shippedNonPkgMd = (isFull) =>
+  nonPkgShipped
+    .map(
+      (r) =>
+        `- **${r.name}** (${r.layer}) · NOT AN NPM PACKAGE — you call it, there is nothing to install · owner: ${r.owner}\n  ${isFull ? r.desc : r.oneLiner}`,
+    )
+    .join("\n");
+
+// The marker sits on the SAME LINE as the name, deliberately: a reader who skims
+// one line must not be able to mistake a plan for a capability.
+const futureNonPkgMd = (isFull) =>
+  nonPkgFuture
+    .map(
+      (r) =>
+        `- **${r.name}** (${r.layer}) · ⛔ NOT BUILT YET (${r.status}) — nothing to install, nothing to import · owner: ${r.owner} — ASK THEM before building a second one\n  ${isFull ? r.desc : r.oneLiner}`,
+    )
+    .join("\n");
+
+const body = (packagesMd, heading, isFull) => `${secretsVaultMd}
 
 ## Packages by category (${pkgCount})${heading}
 
 ${packagesMd}
+
+## Shipped, but NOT an npm package (${nonPkgShipped.length})
+
+These are real and usable TODAY. There is no \`npm i\` — you call them or you copy
+them — so a grep for a package name will never find them.
+
+${shippedNonPkgMd(isFull)}
+
+## Planned — NOT BUILT YET (${nonPkgFuture.length})
+
+**None of these exist.** They are on the map so you do not conclude the fleet has
+nothing and quietly build a second one. If one is what you need: talk to the
+owner. That conversation is the whole point of this inventory.
+
+${futureNonPkgMd(isFull)}
 
 ## Tips & tricks — every tip inline (${tipCount} across ${tips.length} platforms)
 
 ${tipsFullMd}
 `;
 
-const llms = `${preambleFor(false)}\n${body(pkgMd, "")}`;
-const llmsFull = `${preambleFor(true)}\n${body(pkgFullMd, " — complete descriptions")}`;
+const llms = `${preambleFor(false)}\n${body(pkgMd, "", false)}`;
+const llmsFull = `${preambleFor(true)}\n${body(pkgFullMd, " — complete descriptions", true)}`;
 
 writeFileSync(new URL("../docs/llms.txt", import.meta.url), llms);
 writeFileSync(new URL("../docs/llms-full.txt", import.meta.url), llmsFull);
