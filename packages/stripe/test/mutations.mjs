@@ -24,8 +24,13 @@ import { fileURLToPath } from "node:url";
 import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = join(PKG, "src/fields.ts");
-const SRC_REL = "src/fields.ts";
+// F053.12 — the harness was pinned to ONE file, so a decision in src/probe.ts
+// could not be defended by it at all. Each mutation now names its own file and
+// defaults to fields.ts, so the existing entries are untouched.
+const FILES = { "src/fields.ts": join(PKG, "src/fields.ts"), "src/probe.ts": join(PKG, "src/probe.ts") };
+const DEFAULT_REL = "src/fields.ts";
+const relOf = (m) => m.file ?? DEFAULT_REL;
+const absOf = (m) => FILES[relOf(m)];
 
 const MUTATIONS = [
   // ---- readSubscriptionId: each fallback branch, removed in turn ----------
@@ -73,6 +78,31 @@ const MUTATIONS = [
     name: "period precedence swapped: the top level wins over the item",
     from: "  const end = asSeconds(item?.current_period_end) ?? asSeconds(top.current_period_end);",
     to: "  const end = asSeconds(top.current_period_end) ?? asSeconds(item?.current_period_end);",
+  },
+  // ---- F053.12, the scheduled shape probe (src/probe.ts) -------------------
+  {
+    file: "src/probe.ts",
+    name: "the LIVE-KEY guard is removed — the probe would create and delete on a real account",
+    from: `  if (!apiKey.startsWith("sk_test_") && !apiKey.startsWith("rk_test_")) throw new LiveKeyRefused();`,
+    to: `  void apiKey;`,
+  },
+  {
+    file: "src/probe.ts",
+    name: "a network failure is reported as DRIFT — an outage wakes someone for our readers",
+    from: `    if (isNetworkish(e)) {`,
+    to: `    if (false) {`,
+  },
+  {
+    file: "src/probe.ts",
+    name: "DRIFT ignores WHICH location resolved — the early warning is gone",
+    from: `    const drifted = readers.some((r) => !r.resolved || r.from !== "current");`,
+    to: `    const drifted = readers.some((r) => !r.resolved);`,
+  },
+  {
+    file: "src/probe.ts",
+    name: "a failed cleanup is swallowed instead of reported as a leak",
+    from: `        leaked.push(\`${c.kind}:${c.id}\`);`,
+    to: `        void c;`,
   },
   {
     name: "seconds are returned as seconds (the caller reads 1970)",
@@ -124,7 +154,7 @@ function redSet() {
 }
 
 {
-  const dirty = execFileSync("git", ["status", "--porcelain", "--", SRC_REL], {
+  const dirty = execFileSync("git", ["status", "--porcelain", "--", ...Object.keys(FILES)], {
     cwd: PKG,
     encoding: "utf8",
   }).trim();
@@ -145,15 +175,20 @@ if (base.died) {
 }
 console.log("  0 failures — so every red below is the mutation\n");
 
-const original = readFileSync(SRC, "utf8");
+const originals = Object.fromEntries(
+  Object.entries(FILES).map(([rel, abs]) => [rel, readFileSync(abs, "utf8")]),
+);
 const seen = new Map();
 let problems = 0;
 
 // BEFORE the first mutation. Written after it, the marker would leave open the
 // exact window it exists to close.
-writeMarker({ harness: "@broberg/stripe test/mutations.mjs", file: SRC });
+for (const abs of Object.values(FILES)) writeMarker({ harness: "@broberg/stripe test/mutations.mjs", file: abs });
 try {
 for (const m of MUTATIONS) {
+  const REL = relOf(m);
+  const ABS = absOf(m);
+  const original = originals[REL];
   if (!original.includes(m.from)) {
     console.log(`ANCHOR MISSING — ${m.name}\n    the substitution matched nothing, so this mutation never applied`);
     problems++;
@@ -165,16 +200,16 @@ for (const m of MUTATIONS) {
     problems++;
     continue;
   }
-  writeFileSync(SRC, mutated);
+  writeFileSync(ABS, mutated);
   let r;
   try {
     r = redSet();
   } finally {
-    writeFileSync(SRC, original);
+    writeFileSync(ABS, original);
     // The guard. A restore that FAILED is otherwise indistinguishable from one
     // that was not needed — which is how buddy's harness lost a file on
     // 2026-08-14 with a green run to show for it. Does not return on mismatch.
-    assertRestored({ harness: "@broberg/stripe test/mutations.mjs", file: SRC, expected: original });
+    assertRestored({ harness: "@broberg/stripe test/mutations.mjs", file: ABS, expected: original });
   }
   if (!r.died) {
     console.log(`  UNCAUGHT  ${m.name}\n            the suite stayed GREEN — this decision is undefended.`);

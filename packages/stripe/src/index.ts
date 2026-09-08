@@ -285,4 +285,9 @@ export function createStripeWebhookHandler(config: WebhookHandlerConfig): Stripe
 export { readSubscriptionId, readPeriod } from "./fields.js";
 export type { PeriodRead, PeriodUnreadable } from "./fields.js";
 
+// F053.12 — the scheduled shape probe. Not a health check: Stripe never went
+// down, it moved a field and everything kept answering 200.
+export { probeStripeShape, LiveKeyRefused } from "./probe.js";
+export type { ProbeStatus, ProbeResult, ReaderReport, ResolvedFrom, ProbeOptions } from "./probe.js";
+
 export type { Stripe };
