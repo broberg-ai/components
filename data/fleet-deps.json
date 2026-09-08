@@ -1,5 +1,5 @@
 {
- "scanned_at": "2026-09-07T09:25:55.435Z",
+ "scanned_at": "2026-09-08T08:55:11.509Z",
  "repos_scanned": 57,
  "repos_failed": 0,
  "manifests_read": 207,
@@ -191,7 +191,7 @@
     ],
     "@broberg/cms-inline-edit": [
      {
-      "range": "0.9.2",
+      "range": "0.10.3",
       "field": "dependencies",
       "at": "package.json"
      }
