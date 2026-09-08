@@ -251,6 +251,72 @@ renewal (and has therefore been a safety net all along). It is an inference from
 Stripe's documentation that nobody has watched happen. First real renewal:
 2026-09-27.
 
+## Watching Stripe move a field (0.4.0)
+
+Stripe has broken a consumer of this package **twice in two months, and neither
+time was an outage.** `current_period_end` moved onto the subscription's items;
+`invoice.subscription` was removed outright. Both times every request answered
+200, nothing threw, and a webhook branch simply stopped running — one of them the
+branch that reacts to a declined card, so a customer kept full access without
+paying. A monitor asking *"is Stripe up?"* would have been green through both.
+
+So the thing this package watches is not uptime. It is **whether the fields we
+read are still where we read them.**
+
+```ts
+import { checkSpecDrift } from "@broberg/stripe";
+
+const r = await checkSpecDrift();
+// { status: "ok" | "drift" | "unknown", specVersion, findings: [
+//     { reader: "readPeriod", role: "primary",
+//       schema: "subscription_item", property: "current_period_end",
+//       present: true }, … ] }
+```
+
+It reads **Stripe's own published OpenAPI spec** — no account, no key, nothing
+created and nothing to clean up. That was a deliberate correction: the first
+build used a test-mode account, and a test-mode account is *one* account, whose
+key someone has to hold, rotate and pay attention to. Stripe publishes where its
+fields live openly, so the cheaper instrument is also the more honest one.
+
+`FIELD_EXPECTATIONS` is the list it asserts, and it lives beside the readers it
+guards. That placement is the whole point — a copy of this list in a monitoring
+repo is wrong the day one of the two is updated, which is the drift this package
+exists to remove, one layer up.
+
+**Three outcomes, and the third is not one of the first two.** A spec that cannot
+be fetched is `unknown`, never `ok` and never `drift`: reported as drift it wakes
+someone for a network blip, reported as ok it hides a real move.
+
+**Only a missing PRIMARY is drift.** Both fallbacks — the pre-move locations — are
+absent from today's spec and reported so, without turning the run red. A check
+that fires every single day is a check someone switches off.
+
+Run it on a schedule; this repo runs it daily and routes a `drift` to its
+incident tracker. `probeStripeShape` answers the same question against a real
+test-mode account when you have one — it refuses a non-`sk_test_` key *before* it
+creates anything, and reports whether its own cleanup succeeded.
+
+### The limit of it, stated plainly
+
+**The spec it reads is Stripe's LATEST. Your consumers speak the pinned
+`STRIPE_API_VERSION`, which is older.** They are not the same document, so:
+
+- A field that moves in a version we have not adopted goes **red before it can
+  hurt us**. That is early warning, and it is the direction you want.
+- A field present in the latest spec but *not* in our pinned version reads **ok
+  while a consumer breaks**. That direction is not covered.
+
+Neither incident above would have escaped it, because both moved the field in the
+version we were already on. But `ok` here means *"the readers point where the
+newest spec says"* — it does not mean *"the wire our consumers speak is
+unchanged"*, and those are two claims.
+
+Not yet proven: that this catches a **real future** move. The tests exercise it
+against a spec document we mutate ourselves, and against the real spec it returns
+real, discriminating data (two properties present, two absent). What no one has
+watched happen is Stripe moving a field with this running.
+
 ## Non-goals
 
 - Concrete **fee percentages** (yours — inject them).
@@ -272,7 +338,11 @@ Stripe's documentation that nobody has watched happen. First real renewal:
 | `createStripeWebhookHandler(config)` | `(rawBody, signature) => { ok, status, event?, error? }` |
 | `createStripeWebhookRoute(handler)` | `@broberg/stripe/next` — `(Request) => Response` |
 | `readSubscriptionId(invoice)` | the subscription id, new location → any line → the removed field; `null`, never a throw |
-| `readPeriod(subscription)` | `{ start, end }` in **ms**, item → top level. `null` means *unreadable*, not *no expiry* |
+| `readPeriod(subscription)` | `{ ok:true, start, end }` in **ms**, item → top level — or `{ ok:false, reason }` with **no `end` at all**, so an unreadable period cannot be stored by accident (0.4.0, breaking) |
+| `checkSpecDrift(opts?)` | asks Stripe's **published spec** whether our readers still point where the fields live. `ok` / `drift` / `unknown`. No account, no key |
+| `FIELD_EXPECTATIONS` | the four (reader, role, schema, property) rows `checkSpecDrift` asserts — this is the list that must stay in one place |
+| `STRIPE_SPEC_URL` | where that spec is fetched from |
+| `probeStripeShape({stripe, apiKey})` | the same question against a **real test-mode account**. Refuses a non-`sk_test_` key before it creates anything, and reports its own cleanup |
 | `STRIPE_API_VERSION` | the fleet-pinned Stripe API version |
 
 MIT · part of the [broberg.ai shared inventory](https://discovery.broberg.ai).
