@@ -192,14 +192,14 @@ describe("readPeriod — milliseconds, from wherever Stripe put them", () => {
     expect(Object.prototype.hasOwnProperty.call(LIVE_SUB, "current_period_end")).toBe(false);
     expect((LIVE_SUB as unknown as { current_period_end?: unknown }).current_period_end).toBeUndefined();
 
-    expect(readPeriod(LIVE_SUB)).toEqual({ start: START * 1000, end: END * 1000 });
+    expect(readPeriod(LIVE_SUB)).toEqual({ ok: true, start: START * 1000, end: END * 1000 });
   });
 
   it("from the ITEM, where Stripe puts it now", () => {
     const sub = {
       items: { data: [{ current_period_start: START, current_period_end: END }] },
     } as unknown as Stripe.Subscription;
-    expect(readPeriod(sub)).toEqual({ start: START * 1000, end: END * 1000 });
+    expect(readPeriod(sub)).toEqual({ ok: true, start: START * 1000, end: END * 1000 });
   });
 
   it("falls back to the TOP LEVEL, for an older stored payload", () => {
@@ -208,7 +208,7 @@ describe("readPeriod — milliseconds, from wherever Stripe put them", () => {
       current_period_start: START,
       current_period_end: END,
     } as unknown as Stripe.Subscription;
-    expect(readPeriod(sub)).toEqual({ start: START * 1000, end: END * 1000 });
+    expect(readPeriod(sub)).toEqual({ ok: true, start: START * 1000, end: END * 1000 });
   });
 
   it("the ITEM WINS when both carry a value", () => {
@@ -220,15 +220,17 @@ describe("readPeriod — milliseconds, from wherever Stripe put them", () => {
       current_period_start: 1,
       current_period_end: 2,
     } as unknown as Stripe.Subscription;
-    expect(readPeriod(sub).end).toBe(END * 1000);
+    const r = readPeriod(sub);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.end).toBe(END * 1000);
   });
 
-  it("NEITHER location: nulls, not a guess", () => {
+  it("NEITHER location: ok:false, not a guess and not a null", () => {
     // The old code guessed `now + 30 days` here. A guessed date looks right and
     // is never noticed; a missing one is.
     expect(readPeriod({ items: { data: [{}] } } as unknown as Stripe.Subscription)).toEqual({
-      start: null,
-      end: null,
+      ok: false,
+      reason: "no-period-field",
     });
   });
 
@@ -242,20 +244,41 @@ describe("readPeriod — milliseconds, from wherever Stripe put them", () => {
     ["zero, which is not a date", { current_period_end: 0, current_period_start: 0 }],
     ["a negative timestamp", { current_period_end: -5, current_period_start: -5 }],
     ["NaN", { current_period_end: NaN, current_period_start: NaN }],
-  ])("foreign input — %s — gives nulls and does not throw", (_label, input) => {
+  ])("foreign input — %s — reports ok:false and does not throw", (_label, input) => {
     expect(() => readPeriod(input as unknown as Stripe.Subscription)).not.toThrow();
-    expect(readPeriod(input as unknown as Stripe.Subscription)).toEqual({ start: null, end: null });
+    expect(readPeriod(input as unknown as Stripe.Subscription).ok).toBe(false);
   });
 
-  it("null means COULD NOT READ, never 'no expiry'", () => {
-    // The distinction this package must not let a consumer lose. F098.4 was an
-    // access rule reading a null end date as an unlimited gift, so an unreadable
-    // field became free lifetime access for a cancelled subscription. The
-    // package cannot enforce the consumer's rule; it can refuse to hand back
-    // anything that looks like a decision.
+  // F053.11 — THE FAILURE BRANCH CARRIES NO `end` AT ALL.
+  //
+  // Asserted as ABSENCE, not as `end === null`. That is the whole fix: with the
+  // property missing, a consumer who writes `result.end` into a nullable column
+  // gets a TYPE ERROR instead of `undefined`, which would store as `null` and
+  // land back in the incident. sanneandersen's column already uses `null` for
+  // "gift, deliberately no expiry", so "could not read it" arriving as the same
+  // value made the two indistinguishable.
+  it("ok:false has NO end property — absence is what stops the consumer", () => {
     const unreadable = readPeriod({ items: { data: [{}] } } as unknown as Stripe.Subscription);
-    expect(unreadable.end).toBeNull();
-    expect(unreadable.end).not.toBe(0);
-    expect(unreadable.end).not.toBe(Infinity);
+    expect(unreadable.ok).toBe(false);
+    expect("end" in unreadable).toBe(false);
+    expect("start" in unreadable).toBe(false);
+  });
+
+  it("the two unreadable reasons are DISTINGUISHABLE", () => {
+    // Merging them would be the same defect one level up: "there was no
+    // subscription" and "the subscription had no period" need different
+    // handling, and a single reason string cannot carry both.
+    expect(readPeriod(null)).toEqual({ ok: false, reason: "no-subscription" });
+    expect(readPeriod({ items: { data: [{}] } } as unknown as Stripe.Subscription)).toEqual({
+      ok: false,
+      reason: "no-period-field",
+    });
+  });
+
+  it("a readable END with an unreadable START still succeeds", () => {
+    // The END is what gates access. Refusing the whole read over a missing
+    // start would throw away the field that matters.
+    const sub = { items: { data: [{ current_period_end: END }] } } as unknown as Stripe.Subscription;
+    expect(readPeriod(sub)).toEqual({ ok: true, start: null, end: END * 1000 });
   });
 });

@@ -103,12 +103,37 @@ type WithPeriod = {
   current_period_end?: unknown;
 };
 
-export interface SubscriptionPeriod {
-  /** Start of the current period, in MILLISECONDS. */
-  start: number | null;
-  /** End of the current period, in MILLISECONDS. */
-  end: number | null;
-}
+/** Why a period could not be read. Two distinct causes, never merged. */
+export type PeriodUnreadable =
+  /** No subscription object at all — null, undefined, or not an object. */
+  | "no-subscription"
+  /** A subscription, but no `current_period_end` in any location we know. */
+  | "no-period-field";
+
+/**
+ * THE FAILURE BRANCH CARRIES NO `end`, and that is the entire design.
+ *
+ * The old shape returned `{ start: null, end: null }` for "could not read it".
+ * sanneandersen stores that in a column where `null` ALREADY means "gift,
+ * deliberately no expiry" — so an unreadable field and a lifetime gift arrived
+ * as the same value, and their access rule could not tell them apart. The
+ * package handed them the colliding value and then documented that they must
+ * not let it collide. A warning is not a guard.
+ *
+ * `ok: false` therefore has no `end` PROPERTY — not `end: null`. If the two
+ * branches were shaped alike, a consumer could keep writing `result.end`, get
+ * `undefined`, and store `null` again. Absence is what makes the compiler stop
+ * them.
+ */
+export type PeriodRead =
+  | {
+      ok: true;
+      /** Start of the current period, in MILLISECONDS. `null` if only the end was present. */
+      start: number | null;
+      /** End of the current period, in MILLISECONDS. Always a number on this branch. */
+      end: number;
+    }
+  | { ok: false; reason: PeriodUnreadable };
 
 /**
  * The current billing period, in MILLISECONDS (Stripe reports seconds).
@@ -116,19 +141,25 @@ export interface SubscriptionPeriod {
  * Reads the subscription ITEM first — where Stripe puts it now — and falls back
  * to the subscription top level for older payloads.
  *
- * ⚠️ `null` MEANS "COULD NOT READ IT". It does NOT mean "no expiry". That
+ * ⚠️ `ok: false` MEANS "COULD NOT READ IT". It NEVER means "no expiry". That
  * translation is the whole of F098.4: their access rule treated a missing end
  * date as an unlimited gift, so an unreadable field silently became free
- * lifetime access for a cancelled subscription. If your app grants access on a
- * missing date, branch on `null` explicitly before you get there.
+ * lifetime access for a cancelled subscription.
+ *
+ * You cannot store the failure by accident any more — there is no `end` on that
+ * branch to store. Decide what an unreadable period means for YOUR app:
+ *
+ *     const p = readPeriod(sub);
+ *     if (!p.ok) { … keep the date you already have, or refuse the write … }
+ *     else { row.current_period_end = p.end; }
  *
  * NOTHING IS GUESSED. A fallback like `now + 30 days` writes a number that looks
  * right and is not — and a wrong date is never noticed, where a missing one is.
  */
 export function readPeriod(
   subscription: Stripe.Subscription | null | undefined,
-): SubscriptionPeriod {
-  if (!subscription || typeof subscription !== "object") return { start: null, end: null };
+): PeriodRead {
+  if (!subscription || typeof subscription !== "object") return { ok: false, reason: "no-subscription" };
 
   const items = (subscription as { items?: { data?: unknown } }).items?.data;
   const item = (Array.isArray(items) ? items[0] : null) as WithPeriod | null;
@@ -137,8 +168,11 @@ export function readPeriod(
   const start = asSeconds(item?.current_period_start) ?? asSeconds(top.current_period_start);
   const end = asSeconds(item?.current_period_end) ?? asSeconds(top.current_period_end);
 
-  return {
-    start: start === null ? null : start * 1000,
-    end: end === null ? null : end * 1000,
-  };
+  // The END is what gates access, so it decides whether this read succeeded. A
+  // start we could not find is reported as null on the success branch — it has
+  // never gated anything, and refusing the whole read over it would throw away
+  // the field that matters.
+  if (end === null) return { ok: false, reason: "no-period-field" };
+
+  return { ok: true, start: start === null ? null : start * 1000, end: end * 1000 };
 }

@@ -1,7 +1,7 @@
 {
   "name": "@broberg/stripe",
-  "version": "0.3.0",
-  "description": "The fleet's one Stripe chokepoint — a dark-ship client factory (pinned apiVersion), a Connect destination-charge Checkout builder (application_fee + on_behalf_of + transfer_data + metadata.kind), an injected fee calculator, a raw-body webhook handler/route factory (constructEvent + dispatch-by-type), and readers for the fields Stripe MOVES (readSubscriptionId / readPeriod) so an API change is not discovered once per repo by a paying customer. One pinned Stripe SDK, one signature-verification path for every @broberg/* app.",
+  "version": "0.4.0",
+  "description": "The fleet's one Stripe chokepoint \u2014 a dark-ship client factory (pinned apiVersion), a Connect destination-charge Checkout builder (application_fee + on_behalf_of + transfer_data + metadata.kind), an injected fee calculator, a raw-body webhook handler/route factory (constructEvent + dispatch-by-type), and readers for the fields Stripe MOVES (readSubscriptionId / readPeriod) so an API change is not discovered once per repo by a paying customer. One pinned Stripe SDK, one signature-verification path for every @broberg/* app.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -33,7 +33,7 @@
   "peerDependencies": {
     "stripe": ">=22.0.0"
   },
-  "peerDependenciesComment": "stripe is a peer so the consumer pins ONE Stripe SDK version shared across the whole app (same reasoning as @broberg/auth pinning better-auth). The /next subpath uses only the Web-standard Request/Response globals — no next import — so it also runs under Hono, Bun and edge runtimes.",
+  "peerDependenciesComment": "stripe is a peer so the consumer pins ONE Stripe SDK version shared across the whole app (same reasoning as @broberg/auth pinning better-auth). The /next subpath uses only the Web-standard Request/Response globals \u2014 no next import \u2014 so it also runs under Hono, Bun and edge runtimes.",
   "devDependencies": {
     "@types/node": "^22.0.0",
     "stripe": "^22.1.0",

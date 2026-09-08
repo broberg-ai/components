@@ -154,8 +154,31 @@ just a branch that quietly did not run.
 import { readSubscriptionId, readPeriod } from "@broberg/stripe";
 
 readSubscriptionId(invoice); // string | null
-readPeriod(subscription);    // { start: number | null, end: number | null }  — MILLISECONDS
+readPeriod(subscription);    // { ok: true, start: number | null, end: number }  — MILLISECONDS
+                             // { ok: false, reason: "no-subscription" | "no-period-field" }
 ```
+
+### `ok: false` means UNREADABLE. It never means "no expiry". (0.4.0, breaking)
+
+That one translation is the whole of F098.4. sanneandersen stores the end date
+in a column where `null` **already** means *"gift, deliberately no expiry"* — so
+when the old `readPeriod` returned `end: null` for *"I could not read it"*, the
+two arrived as the same value and their access rule could not tell them apart. A
+cancelled paying subscription would have kept access forever.
+
+The old shape documented that trap. **A warning is not a guard**, so 0.4.0
+removes it: the failure branch carries **no `end` property at all**, and the
+compiler stops the write.
+
+```ts
+// before (0.3.x)                    // after (0.4.0)
+const { end } = readPeriod(sub);     const p = readPeriod(sub);
+row.current_period_end = end;        row.current_period_end = p.ok ? p.end : /* your call */ row.current_period_end;
+```
+
+Deciding what an unreadable period means is **yours** — keep the date you
+already have, refuse the write, alert. What you can no longer do is store it by
+accident.
 
 **What moved, measured on a live account (`2026-04-22.dahlia`):**
 

@@ -283,6 +283,6 @@ export function createStripeWebhookHandler(config: WebhookHandlerConfig): Stripe
  * repo, and always by a paying customer. See `./fields.ts`.
  */
 export { readSubscriptionId, readPeriod } from "./fields.js";
-export type { SubscriptionPeriod } from "./fields.js";
+export type { PeriodRead, PeriodUnreadable } from "./fields.js";
 
 export type { Stripe };
