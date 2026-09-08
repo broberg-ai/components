@@ -76,8 +76,11 @@ const MUTATIONS = [
   },
   {
     name: "seconds are returned as seconds (the caller reads 1970)",
-    from: "    end: end === null ? null : end * 1000,",
-    to: "    end: end,",
+    // F053.11 moved this line when readPeriod became a discriminated union. The
+    // harness caught it as ANCHOR MISSING rather than reporting a kill it had
+    // not performed — which is the whole reason the anchor count is asserted.
+    from: "  return { ok: true, start: start === null ? null : start * 1000, end: end * 1000 };",
+    to: "  return { ok: true, start: start === null ? null : start * 1000, end };",
   },
   {
     name: "zero counts as a date (an epoch-0 timestamp becomes a real period)",
