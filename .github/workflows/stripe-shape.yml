@@ -24,7 +24,11 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # >= 22.18: importing the .ts source directly needs unflagged type
+          # stripping. Below it the import fails, which now FAILS THE RUN rather
+          # than reporting a green (see the last step) — but pin the floor so it
+          # does not come to that.
+          node-version: "22.18"
       - run: pnpm install --frozen-lockfile
 
       # THREE OUTCOMES, and the job must not collapse them. `unknown` (GitHub
@@ -36,9 +40,7 @@ jobs:
         run: |
           set +e
           node -e "
-            import('./packages/stripe/src/spec-drift.ts').catch(() =>
-              import('./packages/stripe/dist/index.js')
-            ).then(async (m) => {
+            import('./packages/stripe/src/spec-drift.ts').then(async (m) => {
               const r = await m.checkSpecDrift();
               console.log(JSON.stringify(r, null, 2));
               if (r.status === 'drift') {
@@ -76,3 +78,20 @@ jobs:
       - name: Fail the run if a field moved
         if: steps.check.outputs.code == '1'
         run: exit 1
+
+      # THE THIRD EXIT CODE. `continue-on-error` swallows every non-zero, and
+      # the two steps above only ever look for '1' — so before this step a
+      # CRASH (the module failing to load, a rename, a syntax error) produced a
+      # GREEN run. A monitor that reports success when it could not run is the
+      # exact failure this card exists to prevent, one layer up: silence and
+      # "nothing moved" were indistinguishable.
+      #
+      # It is not `drift` and not `unknown`. `unknown` means we asked and could
+      # not get an answer, which is a fact about Stripe or GitHub. This means we
+      # never asked, which is a fact about US — so it fails loudly and stays a
+      # separate outcome rather than being folded into either.
+      - name: Fail the run if the check itself could not run
+        if: steps.check.outputs.code != '0' && steps.check.outputs.code != '1'
+        run: |
+          echo "::error::the shape check did not run (exit ${{ steps.check.outputs.code }}) — this is NOT 'no drift'"
+          exit 1
