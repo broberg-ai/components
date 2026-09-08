@@ -101,8 +101,8 @@ const MUTATIONS = [
   {
     file: "src/probe.ts",
     name: "a failed cleanup is swallowed instead of reported as a leak",
-    from: `        leaked.push(\`${c.kind}:${c.id}\`);`,
-    to: `        void c;`,
+    from: '        leaked.push(`${c.kind}:${c.id}`);',
+    to: '        void c;',
   },
   {
     name: "seconds are returned as seconds (the caller reads 1970)",
@@ -135,7 +135,14 @@ function redSet() {
   let out = "";
   let died = false;
   try {
-    execFileSync("npx", ["vitest", "run", "test/fields.test.ts"], { cwd: PKG, stdio: "pipe" });
+    // BOTH suites. It ran fields.test.ts alone, so every decision in src/probe.ts
+    // was undefended by construction — four probe mutations came back UNCAUGHT
+    // on their first run, and the harness was right to say so. A harness that
+    // runs a subset of the tests reports on the subset.
+    execFileSync("npx", ["vitest", "run", "test/fields.test.ts", "test/probe.test.ts"], {
+      cwd: PKG,
+      stdio: "pipe",
+    });
   } catch (e) {
     out = (e.stdout?.toString() ?? "") + (e.stderr?.toString() ?? "");
     died = true;
