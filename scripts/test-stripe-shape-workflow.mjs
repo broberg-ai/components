@@ -103,14 +103,38 @@ check("it ships dark: no DSN means a warning, not a crash", () => {
   return null;
 });
 
+// THREE OUTCOMES HERE TOO, which is the same lesson one level in. `if (problem)`
+// treats a check that returned `undefined` — one that fell off its own end, or
+// threw and was caught somewhere — as a PASS, byte-identical to one that
+// deliberately returned null. That is the failure this whole file exists to
+// seal, rebuilt in the file that seals it. trail measured the same shape in
+// their deploy-guard test the same evening: 36 green ticks on a guard that was
+// not running, because their predicate's silent case defaulted to pass.
+//
+// So a check must ANSWER: `null` for pass, a string for the problem. Anything
+// else is "the check did not run" and fails, loudly and by name.
 let failed = 0;
 for (const { name, fn } of checks) {
-  const problem = fn();
-  if (problem) {
+  let problem;
+  try {
+    problem = fn();
+  } catch (err) {
+    failed++;
+    console.log(`  ✗ ${name}\n      the check THREW: ${err.message}`);
+    continue;
+  }
+
+  if (problem === null) {
+    console.log(`  ✓ ${name}`);
+  } else if (typeof problem === "string" && problem.length > 0) {
     failed++;
     console.log(`  ✗ ${name}\n      ${problem}`);
   } else {
-    console.log(`  ✓ ${name}`);
+    failed++;
+    console.log(
+      `  ✗ ${name}\n      the check DID NOT ANSWER (returned ${JSON.stringify(problem)}) — ` +
+        `not a pass. A check must return null or a non-empty reason.`,
+    );
   }
 }
 
