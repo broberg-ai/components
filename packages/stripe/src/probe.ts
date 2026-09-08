@@ -38,6 +38,15 @@ export interface ReaderReport {
   reader: "readPeriod" | "readSubscriptionId";
   resolved: boolean;
   from: ResolvedFrom;
+  /**
+   * MEASURED ON THE FIRST LIVE RUN, 2026-09-08. A brand-new trialing
+   * subscription may carry no invoice at all, and readSubscriptionId reads an
+   * INVOICE. Reporting that as drift is a monitor crying about its own
+   * limitation — the fastest way to get an alarm switched off. It is a third
+   * state: nothing to read, so nothing proven. It does NOT cause drift, and it
+   * is visible in the result so a green is never mistaken for full coverage.
+   */
+  skipped?: "no-invoice-yet";
 }
 
 export interface ProbeResult {
@@ -103,6 +112,15 @@ export async function probeStripeShape(opts: ProbeOptions): Promise<ProbeResult>
       unit_amount: 1000,
       recurring: { interval: "month" },
     });
+    // A price cannot be DELETED, only archived — and Stripe refuses to delete a
+    // product that still has an active price. Measured on the first live run:
+    // the product leaked every time. Archive the price first, and the product
+    // delete below then succeeds.
+    created.push({
+      kind: "price",
+      id: price.id,
+      remove: () => stripe.prices.update(price.id, { active: false }),
+    });
 
     const customer = await stripe.customers.create({ description: "F053.12 shape probe" });
     created.push({ kind: "customer", id: customer.id, remove: () => stripe.customers.del(customer.id) });
@@ -111,6 +129,9 @@ export async function probeStripeShape(opts: ProbeOptions): Promise<ProbeResult>
       customer: customer.id,
       items: [{ price: price.id }],
       trial_period_days: 7,
+      // Without this, `latest_invoice` is an ID STRING (or absent) and the
+      // reader has nothing to read — measured live: it reported drift.
+      expand: ["latest_invoice"],
     });
     created.push({ kind: "subscription", id: sub.id, remove: () => stripe.subscriptions.cancel(sub.id) });
 
@@ -122,7 +143,7 @@ export async function probeStripeShape(opts: ProbeOptions): Promise<ProbeResult>
     // DRIFT is "did not resolve, OR resolved from somewhere we did not expect".
     // The second half is the early warning: the reader still works today,
     // because the fallback caught it, and the current location has moved.
-    const drifted = readers.some((r) => !r.resolved || r.from !== "current");
+    const drifted = readers.some((r) => !r.skipped && (!r.resolved || r.from !== "current"));
 
     return { status: drifted ? "drift" : "ok", readers, cleanedUp, leaked };
   } catch (e) {
@@ -167,7 +188,9 @@ function subscriptionIdReport(sub: Stripe.Subscription): ReaderReport {
   // report here is about the invoice the subscription points at, when it has
   // one, and "not-found" when it does not exist YET rather than a false drift.
   const latest = (sub as { latest_invoice?: unknown }).latest_invoice;
-  if (!latest) return { reader: "readSubscriptionId", resolved: false, from: "not-found" };
+  // No invoice, or an unexpanded id string: nothing to read, nothing proven.
+  if (!latest || typeof latest === "string")
+    return { reader: "readSubscriptionId", resolved: false, from: "not-found", skipped: "no-invoice-yet" };
   const invoice = latest as Stripe.Invoice;
   const id = readSubscriptionId(invoice);
   if (!id) return { reader: "readSubscriptionId", resolved: false, from: "not-found" };

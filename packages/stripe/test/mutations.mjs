@@ -27,7 +27,11 @@ const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
 // F053.12 — the harness was pinned to ONE file, so a decision in src/probe.ts
 // could not be defended by it at all. Each mutation now names its own file and
 // defaults to fields.ts, so the existing entries are untouched.
-const FILES = { "src/fields.ts": join(PKG, "src/fields.ts"), "src/probe.ts": join(PKG, "src/probe.ts") };
+const FILES = {
+  "src/fields.ts": join(PKG, "src/fields.ts"),
+  "src/probe.ts": join(PKG, "src/probe.ts"),
+  "src/spec-drift.ts": join(PKG, "src/spec-drift.ts"),
+};
 const DEFAULT_REL = "src/fields.ts";
 const relOf = (m) => m.file ?? DEFAULT_REL;
 const absOf = (m) => FILES[relOf(m)];
@@ -79,6 +83,34 @@ const MUTATIONS = [
     from: "  const end = asSeconds(item?.current_period_end) ?? asSeconds(top.current_period_end);",
     to: "  const end = asSeconds(top.current_period_end) ?? asSeconds(item?.current_period_end);",
   },
+  // ---- F053.12, the PUBLISHED-SPEC check (src/spec-drift.ts) ---------------
+  {
+    file: "src/spec-drift.ts",
+    name: "a FALLBACK going missing counts as drift — the check reddens on a change in our favour",
+    from: `    const drifted = findings.some((f) => f.role === "primary" && !f.present);`,
+    to: `    const drifted = findings.some((f) => !f.present);`,
+    // Both fallbacks are absent in the REAL spec today, so this turns the
+    // everyday state into a permanent red — the fastest way to get it ignored.
+  },
+  {
+    file: "src/spec-drift.ts",
+    name: "a document that is not the spec is treated as ok instead of unknown",
+    from: `  if (!schemas || typeof schemas !== "object") {`,
+    to: `  if (false) {`,
+  },
+  {
+    file: "src/spec-drift.ts",
+    name: "a fetch failure is reported as DRIFT — a GitHub outage becomes a Stripe alarm",
+    from: `      status: "unknown",
+      specVersion: null,
+      findings: [],
+      reason: \`could not read the Stripe spec: \${e instanceof Error ? e.message : String(e)}\`,`,
+    to: `      status: "drift",
+      specVersion: null,
+      findings: [],
+      reason: "x",`,
+  },
+
   // ---- F053.12, the scheduled shape probe (src/probe.ts) -------------------
   {
     file: "src/probe.ts",
@@ -139,7 +171,7 @@ function redSet() {
     // was undefended by construction — four probe mutations came back UNCAUGHT
     // on their first run, and the harness was right to say so. A harness that
     // runs a subset of the tests reports on the subset.
-    execFileSync("npx", ["vitest", "run", "test/fields.test.ts", "test/probe.test.ts"], {
+    execFileSync("npx", ["vitest", "run", "test/fields.test.ts", "test/probe.test.ts", "test/spec-drift.test.ts"], {
       cwd: PKG,
       stdio: "pipe",
     });

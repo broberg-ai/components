@@ -287,6 +287,14 @@ export type { PeriodRead, PeriodUnreadable } from "./fields.js";
 
 // F053.12 — the scheduled shape probe. Not a health check: Stripe never went
 // down, it moved a field and everything kept answering 200.
+// PRIMARY: Stripe's own published spec — no account, no key, no cleanup.
+// Christian's question on 2026-09-08 is what redirected this: a test-mode probe
+// is tied to ONE account, and Stripe publishes where its fields live openly.
+export { checkSpecDrift, FIELD_EXPECTATIONS, STRIPE_SPEC_URL } from "./spec-drift.js";
+export type { SpecDriftStatus, SpecDriftResult, FieldExpectation, FieldFinding, SpecDriftOptions } from "./spec-drift.js";
+
+// SECONDARY: the account-based probe. Proves the readers work against a REAL
+// payload, which the spec cannot — at the cost of a key and a Stripe account.
 export { probeStripeShape, LiveKeyRefused } from "./probe.js";
 export type { ProbeStatus, ProbeResult, ReaderReport, ResolvedFrom, ProbeOptions } from "./probe.js";
 

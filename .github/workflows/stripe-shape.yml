@@ -1,0 +1,78 @@
+name: stripe-shape
+
+# F053.12 — Stripe never went down. It MOVED A FIELD, and everything kept
+# answering 200. Twice in two months that cost sanneandersen a production
+# outage, and a "is Stripe up?" check was green both times.
+#
+# NO ACCOUNT AND NO KEY. This reads Stripe's own PUBLISHED OpenAPI spec, which
+# names where every field lives. Christian's question is what got us here: a
+# test-mode probe is tied to one customer's account, and would die the day that
+# key rotates. The spec belongs to nobody and answers the same question earlier
+# — the day Stripe publishes a move, possibly before it reaches us.
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # 06:17 UTC — 08:17 dansk sommertid, before the working day
+  workflow_dispatch:
+
+jobs:
+  shape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+
+      # THREE OUTCOMES, and the job must not collapse them. `unknown` (GitHub
+      # unreachable, a 404 page instead of the spec) says nothing about Stripe
+      # and nothing about us — failing on it would train everyone to ignore a
+      # red X here, which is how a monitor dies.
+      - name: Do our readers still point where Stripe says the fields are?
+        id: check
+        run: |
+          set +e
+          node -e "
+            import('./packages/stripe/src/spec-drift.ts').catch(() =>
+              import('./packages/stripe/dist/index.js')
+            ).then(async (m) => {
+              const r = await m.checkSpecDrift();
+              console.log(JSON.stringify(r, null, 2));
+              if (r.status === 'drift') {
+                const bad = r.findings.filter(f => f.role === 'primary' && !f.present);
+                console.log('::error::Stripe MOVED a field one of our readers depends on: ' +
+                  bad.map(f => f.schema + '.' + f.property + ' (' + f.reader + ')').join(', ') +
+                  ' — spec ' + r.specVersion);
+                process.exit(1);
+              }
+              if (r.status === 'unknown') {
+                console.log('::warning::could not read the spec — NOT a verdict. ' + r.reason);
+                process.exit(0);
+              }
+              console.log('::notice::readers still point at the current locations (spec ' + r.specVersion + ')');
+            }).catch(e => { console.error(e); process.exit(2); });
+          "
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      # Reported to Upmetrics — they own NOTICING; this repo owns knowing what
+      # Stripe calls things. Ship-dark: no DSN, no post, no crash.
+      - name: Raise it with Upmetrics
+        if: steps.check.outputs.code == '1'
+        env:
+          DSN: ${{ secrets.UPMETRICS_DSN }}
+        run: |
+          if [ -z "$DSN" ]; then
+            echo "::warning::no UPMETRICS_DSN — the drift is in this run's log only."
+            exit 0
+          fi
+          curl -sS -X POST "$DSN" -H 'content-type: application/json' \
+            -d "{\"level\":\"error\",\"message\":\"Stripe moved a field @broberg/stripe reads\",\"logger\":\"stripe-shape\",\"extra\":{\"run\":\"${{ github.run_id }}\"}}" \
+            || echo "::warning::could not reach Upmetrics; the drift is still in this log."
+
+      - name: Fail the run if a field moved
+        if: steps.check.outputs.code == '1'
+        run: exit 1
