@@ -32,7 +32,12 @@ function fakeStripe(o: Overrides = {}) {
   const stripe = {
     _deleted: deleted,
     products: { create: async () => (boom("product"), { id: "prod_1" }), del },
-    prices: { create: async () => ({ id: "price_1" }) },
+    prices: {
+      create: async () => ({ id: "price_1" }),
+      // A price cannot be deleted, only archived — and the product delete fails
+      // while an active price hangs off it. Measured live: the product leaked.
+      update: async (id: string) => del(id),
+    },
     customers: { create: async () => (boom("customer"), { id: "cus_1" }), del },
     subscriptions: {
       create: async () => (
@@ -127,7 +132,19 @@ describe("probeStripeShape — the fields, not the uptime", () => {
 
   it("cleans up what it created, and SAYS so", async () => {
     const r = await probeStripeShape({ stripe: fakeStripe(), apiKey: KEY });
-    expect(r.cleanedUp).toEqual(["subscription:sub_1", "customer:cus_1", "product:prod_1"]);
+    // Newest-first, and the load-bearing part is that the PRICE is archived
+    // BEFORE the product is deleted — Stripe refuses to delete a product that
+    // still has an active price, which is how the product leaked on the first
+    // live run.
+    expect(r.cleanedUp).toEqual([
+      "subscription:sub_1",
+      "customer:cus_1",
+      "price:price_1",
+      "product:prod_1",
+    ]);
+    expect(r.cleanedUp.indexOf("price:price_1")).toBeLessThan(
+      r.cleanedUp.indexOf("product:prod_1"),
+    );
     expect(r.leaked).toEqual([]);
   });
 
@@ -135,13 +152,18 @@ describe("probeStripeShape — the fields, not the uptime", () => {
     // A monitor that leaks a subscription per run is a monitor someone turns
     // off. Silence about it is how that goes unnoticed for a month.
     const r = await probeStripeShape({ stripe: fakeStripe({ failDelete: true }), apiKey: KEY });
-    expect(r.leaked).toEqual(["subscription:sub_1", "customer:cus_1", "product:prod_1"]);
+    expect(r.leaked).toEqual([
+      "subscription:sub_1",
+      "customer:cus_1",
+      "price:price_1",
+      "product:prod_1",
+    ]);
     expect(r.cleanedUp).toEqual([]);
   });
 
   it("cleanup runs even when the probe could not reach Stripe", async () => {
     const r = await probeStripeShape({ stripe: fakeStripe({ throwOn: "subscription" }), apiKey: KEY });
     expect(r.status).toBe("unknown");
-    expect(r.cleanedUp).toEqual(["customer:cus_1", "product:prod_1"]);
+    expect(r.cleanedUp).toEqual(["customer:cus_1", "price:price_1", "product:prod_1"]);
   });
 });
