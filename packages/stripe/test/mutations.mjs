@@ -137,6 +137,18 @@ const MUTATIONS = [
     to: '        void c;',
   },
   {
+    // F053.11 AC#4. THE mutation for this card: collapse the discriminated union
+    // back to the 0.3.x shape, where "could not read it" and "no expiry" arrive
+    // as the same value. Every other mutation here proves a READING is right;
+    // this one proves the SHAPE is, and the shape is the whole release.
+    //
+    // It must redden `ok:false has NO end property` — an absence check, and an
+    // absence check is worth nothing until it has been seen to fail.
+    name: "the union is collapsed back to { start, end: null } — F098.4's colliding value, restored",
+    from: '  if (end === null) return { ok: false, reason: "no-period-field" };',
+    to: '  if (end === null) return { ok: false, reason: "no-period-field", start: null, end: null };',
+  },
+  {
     name: "seconds are returned as seconds (the caller reads 1970)",
     // F053.11 moved this line when readPeriod became a discriminated union. The
     // harness caught it as ANCHOR MISSING rather than reporting a kill it had
