@@ -122,6 +122,14 @@ const catNav = categories
 // the first cut of this card fixed /llms.txt and /llms-full.txt and left
 // /onboarding showing 0 of 17, even though the plan-doc named it. The AC was
 // written narrower than the defect it described.
+// A one-liner that merely restates the name is not a description. We do NOT
+// invent one — desc text is the owner's to write (the weekly-sweep rule) — but
+// printing the name twice, the second time dressed as an explanation, is worse
+// than printing it once. 7 of 17 read that way on the day this shipped.
+const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const saysNothingNew = (r) =>
+  norm(r.oneLiner).includes(norm(r.name)) && norm(r.oneLiner).length < norm(r.name).length + 18;
+
 const nonPkgCards = (rows, planned) =>
   rows
     .map(
@@ -129,7 +137,7 @@ const nonPkgCards = (rows, planned) =>
       <div class="pk-h"><code>${esc(r.name)}</code><span class="v${
         planned ? " plan" : ""
       }">${planned ? "not built yet" : "not on npm"}</span></div>
-      <p>${esc(r.oneLiner)}</p>
+      ${saysNothingNew(r) ? "" : `<p>${esc(r.oneLiner)}</p>`}
       <p class="own">${esc(r.layer)} · owner: ${esc(r.owner)}${
         planned ? " — ask them before building a second one" : " — you call it, nothing to install"
       }</p></div>`,
@@ -189,7 +197,7 @@ h2.sec{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:upperc
 .pk-h{display:flex;align-items:center;gap:9px}
 .pk .own{color:var(--faint);font-size:12px;margin-top:6px}
 .pk-h code{font-size:13px;font-weight:600;color:var(--fg)}
-.pk .v{margin-left:auto;font:600 11px ui-monospace,monospace;color:var(--green);background:color-mix(in oklab,var(--green) 13%,transparent);padding:2px 7px;border-radius:20px}
+.pk .v{margin-left:auto;white-space:nowrap;flex-shrink:0;font:600 11px ui-monospace,monospace;color:var(--green);background:color-mix(in oklab,var(--green) 13%,transparent);padding:2px 7px;border-radius:20px}
 .pk .v.plan{color:var(--amber);background:color-mix(in oklab,var(--amber) 13%,transparent)}
 .pk p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.5}
 .plat{margin-top:22px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:6px 18px 14px}
