@@ -16,7 +16,28 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const wf = readFileSync(join(ROOT, ".github/workflows/stripe-shape.yml"), "utf8");
+const raw = readFileSync(join(ROOT, ".github/workflows/stripe-shape.yml"), "utf8");
+
+// STRIP COMMENTS BEFORE MATCHING. Measured 2026-09-08: with the real crash guard
+// deleted and only a COMMENT quoting it left behind, the headline assertion —
+// "a crash fails the run" — stayed GREEN, because its pattern matched the `if:`
+// line inside the prose. The suite went red only because two NEIGHBOURING checks
+// noticed other pieces were missing. A comment that quoted those too would have
+// passed all ten.
+//
+// helpdesk named the general shape an hour earlier, having hit it in their own
+// residency guard: their mutation test could not distinguish `regionOfHost(u)
+// === "eu"` from `u.includes("mistral")`, because every fixture they had made
+// the two agree. A predicate is only tested by a case where the right answer and
+// the plausible-wrong answer DIFFER — and a file's own explanation of a pattern
+// is not the pattern.
+//
+// Only whole-line `#` comments are stripped; a `#` inside a value stays, since
+// dropping it would change the very directives being asserted.
+const wf = raw
+  .split("\n")
+  .filter((line) => !/^\s*#/.test(line))
+  .join("\n");
 
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
