@@ -177,6 +177,58 @@ Precedence follows what happens at send time, not what reads nicely: `no-key` an
 `disabled` beat `live`, because `send()` returns early on both before the
 allowlist gate is consulted.
 
+## Nothing broken leaves the house (v0.13.0)
+
+`send()` now checks the finished message before it goes, and **blocks nothing
+until you say so**.
+
+```ts
+const mailer = createMailer({ /* … */ integrity: "enforcing" });
+mailer.integrity;   // "enforcing" | "report-only" | "not-configured"
+```
+
+Three defects reached a **paying customer** in two days, and none of them came
+from a template — which is why the check lives here and not beside the HTML:
+
+| what the customer saw | why a template check misses it |
+|---|---|
+| *"Den angivne fil blev ikke fundet"* in Outlook | `href="/da/shop/…"` is valid on a web page; in a mail there is no domain to resolve against. Click-throughs were lost for months. |
+| the subject line `{{subject}}` | the template was fine — the **caller** never supplied the key |
+| a broken square where the logo belongs | a script grabbed the transport directly and skipped the function that attaches the logo |
+
+A **mistyped** content-id is caught too, not only a missing attachment: they
+produce the identical broken square while the code reads as if everything is
+wired.
+
+> **The failure mode here is OVER-rejection.** A guard that rejects too much gets
+> switched off, and then it protects nothing. `mailto:`, `tel:`, `sms:`,
+> `#anchor`, `cid:`, `data:`, scheme-relative and absolute URLs are each asserted
+> to pass **by name** — sanne shipped a guard that rewrote `mailto:` and `tel:`
+> to `#`, breaking the two links a customer needs most.
+
+**Report-only is the default on arrival, and that is not timidity.** `send()` is
+the fleet's single mail chokepoint: a guard that is too strict here does not
+break one app, it stops every app's mail at once. Enforcement is set **once** at
+`createMailer` — not per call (25 call sites is 25 chances to forget) and not via
+an env var (a mistyped value lands silently in the permissive state and looks
+exactly like a working guard).
+
+**`integrity` has three values because "nobody chose" must not render as
+"report-only".** A consumer asserting `mailer.integrity === "enforcing"` before
+deleting its own local guard is asking a question that can be answered wrongly in
+exactly one direction.
+
+**And the report separates "nothing wrong" from "could not check".** A message
+with no HTML, or an `html` field with no markup in it, reports the link and
+attachment checks as **not performed** — never as clean:
+
+```ts
+const r = checkMailIntegrity(message);   // exported; send() runs it anyway
+r.findings;   // what is wrong
+r.checked;    // which checks actually ran
+r.skipped;    // which did NOT, and why  ← an empty `findings` here is not a pass
+```
+
 ## `verifySendingDomain()` (v0.6.0) — is the domain you send FROM able to deliver?
 
 A **different question** from `mailer.mode`, and the difference is the whole reason this exists.
