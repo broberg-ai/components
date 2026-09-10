@@ -282,6 +282,8 @@ regexes — most-specific first so attribution is correct:
   Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),
   Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`).
 - **Fleet:** upmetrics (`uk_`), cardmem (`pa_/pi_/pk_`, `piw_`), cms (`wh_`),
+  HelpDesk (`hd_live_` + 64 hex — the shorter `hd_live_f4b4cf` PREVIEW is
+  deliberately **not** matched, see below),
   trail (`trail_`), cronjobs (`cj_` + 43 base64url).
 - **Generic:** JWT (`eyJ…` — also Turso + Supabase service_role tokens), PEM
   private-key blocks, Discord bot/MFA tokens, and `labeled-hex-secret` (a 40+ hex
@@ -361,6 +363,41 @@ invented negative is chosen by the same author who chose the pattern.
 > **Output changes for real text on this release.** A consumer who has been
 > storing or logging AWS pairs will see previously-visible values start coming
 > back redacted. That is the fix working, not the package becoming noisy.
+
+### HelpDesk: the preview must stay readable (v0.9.0)
+
+`hd_live_` followed by **exactly 64 lowercase hex**. HelpDesk mints through
+`@broberg/apikey`, which is ours — `generateKey(prefix, 32)` returns
+`${prefix}_${randomBytes(32).toString("hex")}` — so the length is a fact about
+our own minter, not a guess. The test generates its fixture by calling the real
+`generateKey`, so it cannot drift from what HelpDesk actually issues.
+
+**The exact length is the load-bearing part.** HelpDesk shows a preview —
+`hd_live_f4b4cf`, prefix plus 6 hex — on purpose, in their UI and their logs, so
+a human can see *which* key was revoked. It is not a secret. Redact it and a
+value designed to be read stops doing its job.
+
+> If you are reading this because you want to catch shortened keys too: that is
+> the one change this pattern must not take. A named test asserts
+> `classify('hd_live_f4b4cf') === null`, and loosening `{64}` reddens it.
+
+This is the mirror of the AWS seal above:
+
+| | the risk | what the mutation proves |
+|---|---|---|
+| AWS | a pattern that can only be **too narrow** | widening it reddens a false-positive test |
+| HelpDesk | a pattern that can only be **too broad** | loosening `{64}` reddens the preview test |
+
+**No publishable variant, measured not assumed.** HelpDesk is headless and its
+console is a client of the same API using a session token; `grep -c "hd_"` in the
+deployed bundle returns 0. No key reaches a browser, so Stripe's `pk_live_` trap
+has no counterpart here — re-check if that ever changes.
+
+**What generalises:** every fleet key minted through `@broberg/apikey` has a
+64-hex tail, so the next prefix needs no measurement — only the prefix. What does
+**not** generalise is a single `<prefix>_[0-9a-f]{64}` rule: a 64-hex tail is also
+a sha256, so `etag_<sha256>` and every content-addressed identifier would match.
+Per-prefix stays.
 
 ### Deliberately NOT detected
 
