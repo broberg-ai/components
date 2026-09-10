@@ -229,6 +229,16 @@ const MUTATIONS = [
     to: "  const timeoutMs = Infinity;",
   },
   {
+    // F046.4 — a REJECTED close reported as a clean one, which is what the old
+    // `catch { /* already gone */ }` did. "already gone" is one of the cases,
+    // not all of them, and collapsing them is part of why 30 s of silence told
+    // the consumer nothing about which failure they had.
+    name: 'a rejected close is reported as success (the old catch {})',
+    file: CAPTURE,
+    from: "      (err: unknown) => ({ ok: false as const, why: `close failed: ${err instanceof Error ? err.message : String(err)}` }),",
+    to: "      () => ({ ok: true as const }),",
+  },
+  {
     // F046.4 — the state cleared BEFORE the close is known to have worked, which
     // is what the previous version did. This is the mutation that matters: a
     // bound WITHOUT this fix turns one hang into an accumulating pile of

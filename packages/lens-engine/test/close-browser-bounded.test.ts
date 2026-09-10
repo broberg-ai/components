@@ -28,6 +28,8 @@ import { describe, expect, it, vi } from 'vitest';
 let closeCalls = 0;
 let launchCalls = 0;
 let resolveClose: (() => void) | undefined;
+/** When set, the mocked close() REJECTS with this message instead of hanging. */
+let rejectWith: string | undefined;
 
 vi.mock('playwright', () => ({
   chromium: {
@@ -38,6 +40,7 @@ vi.mock('playwright', () => ({
         isConnected: () => true,
         close: () => {
           closeCalls++;
+          if (rejectWith) return Promise.reject(new Error(rejectWith));
           return new Promise<void>((resolve) => {
             resolveClose = resolve;
           });
@@ -102,6 +105,41 @@ describe('a close that never settles', () => {
     await getBrowser();
 
     expect(launchCalls).toBe(before); // the wedged browser is still THE browser
+  });
+});
+
+describe('a close that REJECTS is a different fact from one that worked', () => {
+  it('reports false with the reason, instead of swallowing it', async () => {
+    // The old code wrapped the close in `catch { /* already gone */ }`, so a
+    // close that FAILED was indistinguishable from a clean one. "already gone"
+    // is one of the cases, not all of them — and it is part of why 30 s of
+    // silence told the consumer nothing about which of the two they had.
+    const { getBrowser, closeBrowser } = await import('../src/capture');
+    await getBrowser();
+    rejectWith = 'target page, context or browser has been closed';
+    try {
+      const warnings: string[] = [];
+      const closed = await closeBrowser({ timeoutMs: 5000, onWarn: (m) => warnings.push(m) });
+
+      expect(closed).toBe(false);
+      expect(warnings[0]).toContain('close failed:');
+      expect(warnings[0]).toContain('has been closed');
+      // and it must NOT read as a timeout — the two causes need different answers
+      expect(warnings[0]).not.toContain('did not complete within');
+    } finally {
+      rejectWith = undefined;
+    }
+  });
+
+  it('…and never throws at a caller mid-teardown', async () => {
+    const { getBrowser, closeBrowser } = await import('../src/capture');
+    await getBrowser();
+    rejectWith = 'boom';
+    try {
+      await expect(closeBrowser({ timeoutMs: 5000 })).resolves.toBe(false);
+    } finally {
+      rejectWith = undefined;
+    }
   });
 });
 
