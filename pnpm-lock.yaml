@@ -628,6 +628,9 @@ importers:
 
   packages/secret-scan:
     devDependencies:
+      '@broberg/apikey':
+        specifier: workspace:*
+        version: link:../apikey
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)

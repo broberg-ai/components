@@ -186,6 +186,28 @@ const MUTATIONS = [
     from: "(?=[\\s\"'`,;]|$))[^\\s\"'`,;]{20,}/gi,",
     to: "(?=[\\s\"'`,;]|$))[A-Za-z0-9_-]{20,}/gi,",
   },
+  {
+    // The pattern removed: HelpDesk keys go back to standing in every log.
+    name: "the HelpDesk pattern is gone (a live flagship's keys are unredacted again)",
+    from: "    label: 'helpdesk-api-key',",
+    to: "    label: 'helpdesk-api-key-disabled',",
+  },
+  {
+    // THE ONE THAT MATTERS. The well-meaning loosening — "catch the shortened
+    // ones too" — redacts the PREVIEW, a value HelpDesk shows on purpose so a
+    // human can see which key was revoked. F035.13's seal guards a pattern that
+    // can only be too narrow; this guards the opposite.
+    name: "{64} loosened to {6,} (the deliberately-readable preview is redacted)",
+    from: "regex: /\\bhd_live_[0-9a-f]{64}(?![0-9a-fA-F])/g,",
+    to: "regex: /\\bhd_live_[0-9a-f]{6,}/g,",
+  },
+  {
+    // The trailing lookahead dropped: a 65-hex string reports a key in its
+    // first 64 characters, i.e. a match where there is nothing to match.
+    name: "the trailing lookahead is dropped (65 hex reports a key)",
+    from: "regex: /\\bhd_live_[0-9a-f]{64}(?![0-9a-fA-F])/g,",
+    to: "regex: /\\bhd_live_[0-9a-f]{64}/g,",
+  },
 ];
 
 function redSet() {

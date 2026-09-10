@@ -334,7 +334,40 @@ const PATTERNS: SecretPattern[] = [
     regex: /\bcj_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
   },
   {
+    // HelpDesk API key (helpdesk.broberg.ai) — minted through @broberg/apikey,
+    // which is OURS: generateKey(prefix, 32) → `${prefix}_${randomBytes(32).hex}`,
+    // so exactly 64 LOWERCASE hex. Verified in packages/apikey/src/core.ts rather
+    // than taken from the report. There is no checksum and no internal structure
+    // to anchor on; prefix + fixed length + hex is everything there is, and it is
+    // enough — `hd_live_` followed by exactly 64 hex does not occur by accident.
+    //
+    // THE LENGTH IS EXACT ON PURPOSE, and this is the half that needs defending
+    // in six months. HelpDesk shows a PREVIEW — `hd_live_f4b4cf`, prefix + 6 hex
+    // — deliberately, in their UI and their logs, so a human can see WHICH key
+    // was revoked. It is not a secret. Redacting it breaks a value designed to be
+    // read, and then the preview stops doing its job.
+    //
+    // So the tempting loosening — "let us catch the shortened ones too" — is the
+    // one thing this pattern must never accept. `{64}` excludes the preview, and
+    // a NAMED test says so, because by then nobody will remember why.
+    //
+    // The trailing lookahead covers BOTH cases: 65 hex is not a key, and neither
+    // is 64 lowercase followed by an uppercase hex digit.
+    //
+    // NO PUBLISHABLE VARIANT, measured not assumed: HelpDesk is headless and its
+    // console is a client of the same API using a session token. `grep -c "hd_"`
+    // in the deployed bundle returns 0, so no key ever reaches a browser and the
+    // Stripe pk_live_ trap has no counterpart here. Re-check if that changes.
+    label: 'helpdesk-api-key',
+    description: 'HelpDesk API key (hd_live_ + 64 hex, minted by @broberg/apikey)',
+    regex: /\bhd_live_[0-9a-f]{64}(?![0-9a-fA-F])/g,
+  },
+  {
     // randomBytes(32).hex → wh_ + 64 lowercase hex (67 chars total).
+    // NOTE: unlike cj_ and hd_live_ above, this one has no trailing lookahead, so
+    // wh_ + 65 hex matches its first 64. Not a leak (the value is still redacted)
+    // and not changed here — flagged rather than silently altered in a card about
+    // something else.
     label: 'cms-access-token',
     description: 'webhouse.app CMS access token (wh_ + 64 hex)',
     regex: /\bwh_[0-9a-f]{64}/g,
