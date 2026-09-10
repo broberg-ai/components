@@ -209,6 +209,46 @@ if (!r.ok) console.warn("[mail]", r.summary, ...r.missing);
 //   MX  — bounces cannot come back; add MX on send.broberg.ai: 10 feedback-smtp.eu-west-1.amazonses.com
 ```
 
+**DMARC is checked as a POLICY, not as a name that answered (v0.12.0).** Up to
+0.11.0 this function reasoned about DMARC *in a comment* and never looked it up.
+Without a policy the **receiver** has no rule to fall back on, so a forged mail
+from the customer's own domain has nothing stopping it — a security property, not
+a deliverability nicety, for anything onboarding customer domains.
+
+```ts
+const r = await verifySendingDomain("support@support.fdsundhed.dk");
+r.dmarc;          // 'ok' | 'missing' | 'unknown'
+r.foundAt.dmarc;  // "_dmarc.support.fdsundhed.dk"
+```
+
+Three things the obvious implementation gets wrong, all of them measured:
+
+- **A TXT at `_dmarc.<domain>` is not a policy.** The name can answer with a
+  `google-site-verification` string. The record must **start with** `v=DMARC1`
+  (case-insensitive) — `includes` would accept a TXT that merely mentions it,
+  and RFC 7489 §6.4 requires the version tag first.
+- **The chunks must be joined.** A policy carrying `rua`/`ruf` addresses passes
+  255 bytes and arrives as *several strings in one record*. Matching per chunk
+  misses it.
+- **The organisational domain is the fallback**, because that is how a receiver
+  resolves it. Measured 2026-09-10: `_dmarc.send.broberg.ai` is empty and
+  `_dmarc.broberg.ai` carries the policy, so checking only the first name would
+  report a domain that genuinely passes DMARC as having none. `foundAt.dmarc`
+  names the host that answered. *(The org domain is taken as the last two
+  labels, which is one level too high on a multi-part public suffix like
+  `co.uk`. It cannot produce a false `ok` — nobody publishes DMARC on a public
+  suffix — and the host is named so you can check.)*
+
+> **The remedy proposes report-only mode, never a strict policy.** A new domain
+> with no traffic history set to reject loses legitimate mail if any one link is
+> wrong — invisible to the sender, visible to the customer's users. The fix line
+> names exactly one policy value, and it is the safe one: a dangerous value
+> written into an explanation is a copyable wrong answer sitting next to the
+> right one.
+
+> **A domain without DMARC now reports `ok: false`.** That is the check getting
+> wider, not the domain getting worse — the same correction shape as v0.11.0.
+
 **Three states, never two.** Each record is `ok` | `missing` | `unknown`. A DNS lookup that *failed* (timeout, SERVFAIL, no resolver) is **not** a record that is absent, and the two are decided on the error code — never on an empty result. Collapsing them turns a network hiccup into a confident false alarm about a domain that is fine, and a false alarm at boot is how a check gets switched off. Both absence codes are handled: `ENOTFOUND` (NXDOMAIN — the name does not exist) *and* `ENODATA` (NOERROR with no answer — the name exists, the record does not). The fleet's two domains produce one of each.
 
 **It reports incompleteness, not failure.** `send.webhouse.dk` has no DKIM and still *passes* DMARC — relaxed alignment means SPF alone carries it. It is downweighted by Google, not rejected. A check that shouts "mail will not arrive" about that domain would be wrong, and over-harsh checks get disabled.
