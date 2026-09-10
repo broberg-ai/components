@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-09T09:00:57.030Z",
+ "scanned_at": "2026-09-10T09:00:34.522Z",
  "repos_scanned": 58,
  "repos_failed": 0,
  "manifests_read": 213,
  "manifests_unreadable": 0,
- "edges": 165,
+ "edges": 168,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -342,7 +342,7 @@
     ],
     "@broberg/secret-scan": [
      {
-      "range": "0.5.0",
+      "range": "0.7.2",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
@@ -790,9 +790,16 @@
    "manifests": 6,
    "unreadable": 0,
    "deps": {
+    "@broberg/gravatar": [
+     {
+      "range": "^0.2.1",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     }
+    ],
     "@broberg/ai-sdk": [
      {
-      "range": "^0.41.1",
+      "range": "^0.42.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -802,6 +809,18 @@
       "range": "^0.3.1",
       "field": "dependencies",
       "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/chat": [
+     {
+      "range": "0.6.3",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     },
+     {
+      "range": "0.6.3",
+      "field": "devDependencies",
+      "at": "tests/e2e/package.json"
      }
     ],
     "@broberg/config": [
@@ -830,6 +849,18 @@
       "range": "^0.7.2",
       "field": "dependencies",
       "at": "apps/core/package.json"
+     },
+     {
+      "range": "^0.7.2",
+      "field": "dependencies",
+      "at": "tests/e2e/package.json"
+     }
+    ],
+    "@broberg/deploy-core": [
+     {
+      "range": "0.1.0",
+      "field": "devDependencies",
+      "at": "package.json"
      }
     ]
    }
