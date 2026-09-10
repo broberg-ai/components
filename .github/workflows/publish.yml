@@ -188,6 +188,27 @@ jobs:
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
 
+      # THE PACKAGE'S OWN SCRIPT IS `tsc --noEmit`, and `working-directory` means
+      # pnpm runs exactly that — turbo is never invoked, so the task graph that
+      # says typecheck needs `^build` is never consulted and no dependency is
+      # ever built. Fixing turbo.json (which was also a real defect, and is also
+      # fixed) left this half untouched: the workspace gate went green on main
+      # while the release kept failing on the same line.
+      #
+      #   test/f035-14.test.ts(13,29): error TS2307:
+      #     Cannot find module '@broberg/apikey'
+      #
+      # `^...` is "the dependencies OF this package, excluding itself". Verified
+      # on the task graph rather than by re-running a release:
+      #   turbo run build --filter="@broberg/secret-scan^..." --dry=json
+      #   -> @broberg/apikey#build          (one task, not the package's own)
+      #
+      # secret-scan is the ONLY one of 40 packages with a `workspace:` dependency
+      # today, which is exactly why scripts/check-workspace-dep-builds.mjs exists
+      # — the SECOND one gets no warning otherwise. See F080.4.
+      - name: Build workspace dependencies
+        run: pnpm turbo run build --filter="@broberg/secret-scan^..."
+
       - name: Typecheck
         working-directory: packages/secret-scan
         run: pnpm typecheck

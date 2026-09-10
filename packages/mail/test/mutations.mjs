@@ -327,7 +327,16 @@ try {
         clean
           .split("\n")
           .filter((l) => /^\s*(\u00d7|\u2715|FAIL)/.test(l))
-          .map((l) => l.trim()),
+          // STRIP THE DURATION. vitest appends "10ms" / "1ms" / "2s" to each
+          // failing line, and the identical-red-set check below compares these
+          // strings. With the timing left in, two mutations that redden exactly
+          // the SAME tests still compare unequal whenever one run was a
+          // millisecond slower — so the discrimination check passed by accident.
+          // Measured 2026-09-10: this harness reported "0 identical red sets"
+          // locally and "1" in CI, same 24 mutations, same red counts. The CI
+          // answer was the true one. A check whose verdict depends on how fast
+          // the machine is, is not a check.
+          .map((l) => l.trim().replace(/\s+\d+(?:\.\d+)?m?s$/, "")),
       ),
     ];
 
@@ -362,9 +371,24 @@ try {
   clearMarker();
 }
 
-const identical = redSets.length !== new Set(redSets).size;
+// NAME THE PAIR. "two mutations produced identical red sets" sends the reader to
+// re-run 24 mutations by hand to find out which two; the harness already knows.
+const collisions = [];
+{
+  const seen = new Map();
+  redSets.forEach((sig, i) => {
+    if (seen.has(sig)) collisions.push([MUTATIONS[seen.get(sig)].name, MUTATIONS[i].name, sig]);
+    else seen.set(sig, i);
+  });
+}
+const identical = collisions.length > 0;
 if (identical) {
-  console.log("\nWARNING: two mutations produced IDENTICAL red sets - one test may carry both");
+  console.log("\nIDENTICAL RED SETS - one test is carrying both mutations, so only one of them is proven:");
+  for (const [a, b, sig] of collisions) {
+    console.log(`  . ${a}`);
+    console.log(`  . ${b}`);
+    sig.split("|").forEach((l) => console.log(`      both reddened: ${l}`));
+  }
 }
 console.log(
   `\n${identical || uncaught ? "FAIL" : "OK"} - ${MUTATIONS.length} mutations, ${uncaught} uncaught, ${identical ? 1 : 0} identical red sets.`,

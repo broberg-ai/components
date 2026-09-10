@@ -455,6 +455,75 @@ describe('defect 1 — the records were looked for one level beside where they a
   });
 });
 
+// --- SPF AND MX ARE TWO LOOKUPS, AND THE SUITE COULD NOT TELL THEM APART -----
+//
+// Found by CI, not by reading: the mutation harness reported "1 identical red
+// set" there and "0" locally, on the same 24 mutations with the same red counts.
+// The signature it compares included vitest's per-test DURATION, so two
+// mutations that redden exactly the SAME tests still compared unequal whenever
+// one run was a millisecond slower. Locally they were. The CI answer was true.
+//
+// The colliding pair:
+//     SPF is looked up on the apex only (one level beside where it lives)
+//     MX  is looked up on the apex only
+//
+// Both reddened the same four tests, because `fdsundhed` has BOTH records on
+// `send.` and nothing on the apex — so moving either lookup breaks the same
+// assertion, and "spf is ok" and "mx is ok" fall together. Two mutations, one
+// proof. Whichever of the two was actually guarded, the other was riding on it.
+//
+// What separates them is a fixture where the two records DISAGREE about where
+// they live. Each test below is red for exactly one of the mutations and green
+// for the other, which is what makes them two proofs instead of one.
+
+/** SPF only on the send subdomain; MX on BOTH. Isolates the SPF lookup. */
+const spfOnlyOnSend = fakeResolver(
+  {
+    'split.example': dnsError('ENOTFOUND'),
+    'send.split.example': [['v=spf1 include:amazonses.com ~all']],
+    'resend._domainkey.split.example': [[DKIM_KEY]],
+    '_dmarc.split.example': [['v=DMARC1; p=none;']],
+  },
+  {
+    'split.example': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }],
+    'send.split.example': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }],
+  },
+);
+
+/** MX only on the send subdomain; SPF on BOTH. Isolates the MX lookup. */
+const mxOnlyOnSend = fakeResolver(
+  {
+    'mxsplit.example': [['v=spf1 include:amazonses.com ~all']],
+    'send.mxsplit.example': [['v=spf1 include:amazonses.com ~all']],
+    'resend._domainkey.mxsplit.example': [[DKIM_KEY]],
+    '_dmarc.mxsplit.example': [['v=DMARC1; p=none;']],
+  },
+  {
+    'mxsplit.example': dnsError('ENOTFOUND'),
+    'send.mxsplit.example': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }],
+  },
+);
+
+describe('the SPF lookup and the MX lookup are separately proven', () => {
+  it('SPF is read from send.<domain> even when the apex carries a usable MX', async () => {
+    // Red iff the SPF lookup moves to the apex. The MX is fine either way here,
+    // so an MX-only mutation leaves this green — that is the discrimination.
+    const r = await verifySendingDomain('x@split.example', { resolver: spfOnlyOnSend });
+    expect(r.spf).toBe('ok');
+    expect(r.foundAt.spf).toBe('send.split.example');
+    expect(r.mx).toBe('ok');
+  });
+
+  it('MX is read from send.<domain> even when the apex carries a usable SPF', async () => {
+    // The mirror. Red iff the MX lookup moves to the apex; an SPF-only mutation
+    // leaves it green.
+    const r = await verifySendingDomain('x@mxsplit.example', { resolver: mxOnlyOnSend });
+    expect(r.mx).toBe('ok');
+    expect(r.foundAt.mx).toBe('send.mxsplit.example');
+    expect(r.spf).toBe('ok');
+  });
+});
+
 describe('defect 2 — presence was accepted where the value was the question', () => {
   /** A domain whose MX is Google Workspace: real MX records, no SES bounces. */
   const googleMx = fakeResolver(

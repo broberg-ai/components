@@ -151,7 +151,13 @@ try {
         clean
           .split("\n")
           .filter((l) => /^\s*(×|✕|FAIL)/.test(l))
-          .map((l) => l.trim()),
+          // STRIP THE DURATION (F080.4). vitest appends "10ms" to each failing
+          // line, and the identical-red-set check below compares these strings —
+          // so two mutations reddening exactly the SAME tests compared unequal
+          // whenever one run was a millisecond slower. Measured in @broberg/mail:
+          // "0 identical" locally, "1" in CI, same mutations, same counts. The CI
+          // answer was the true one, and the collision was real.
+          .map((l) => l.trim().replace(/\s+\d+(?:\.\d+)?m?s$/, "")),
       ),
     ];
 
@@ -183,8 +189,29 @@ try {
   clearMarker();
 }
 
-if (redSets.length !== new Set(redSets).size) {
-  console.log("\nWARNING: two mutations produced IDENTICAL red sets - one test may carry both");
+// AN IDENTICAL RED SET IS A FAILURE, NOT A WARNING (F080.4). It used to print
+// and leave the exit code alone, so the one thing it measures — that each
+// mutation is proven by something of its OWN — could not block anything. A real
+// collision was found in @broberg/mail the day this changed: two mutations, one
+// proof, and whichever was actually guarded, the other was riding on it.
+// NAME the pair rather than sending the reader back through every mutation.
+const collisions = [];
+{
+  const seen = new Map();
+  redSets.forEach((sig, i) => {
+    if (seen.has(sig)) collisions.push([MUTATIONS[seen.get(sig)].name, MUTATIONS[i].name, sig]);
+    else seen.set(sig, i);
+  });
 }
-console.log(`\n${MUTATIONS.length} mutations, ${uncaught} uncaught`);
-process.exit(uncaught === 0 ? 0 : 1);
+if (collisions.length) {
+  console.log("\nIDENTICAL RED SETS - one test is carrying both mutations, so only one of them is proven:");
+  for (const [a, b, sig] of collisions) {
+    console.log(`  . ${a}`);
+    console.log(`  . ${b}`);
+    sig.split("|").forEach((l) => console.log(`      both reddened: ${l}`));
+  }
+}
+console.log(
+  `\n${collisions.length || uncaught ? "FAIL" : "OK"} - ${MUTATIONS.length} mutations, ${uncaught} uncaught, ${collisions.length} identical red set(s)`,
+);
+process.exit(uncaught === 0 && collisions.length === 0 ? 0 : 1);

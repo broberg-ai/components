@@ -85,7 +85,10 @@ try {
     // only reason it was merely noisy rather than a false all-clear.
     const clean = out.replace(/\u001B\[[0-9;]*m/g, "");
     const red = [...new Set(
-      clean.split("\n").filter((l) => /^\s*(×|✕|FAIL)/.test(l)).map((l) => l.trim()),
+      // STRIP THE DURATION (F080.4) — vitest appends "10ms", and the
+      // identical-red-set check below compares these strings, so a collision
+      // hid behind a millisecond. Measured in @broberg/mail.
+      clean.split("\n").filter((l) => /^\s*(×|✕|FAIL)/.test(l)).map((l) => l.trim().replace(/\s+\d+(?:\.\d+)?m?s$/, "")),
     )];
 
     // "the suite died but I cannot see WHICH test" is a third state, and it must
