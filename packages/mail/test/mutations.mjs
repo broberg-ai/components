@@ -258,6 +258,18 @@ const MUTATIONS = [
     to: "    checked.push(\"links\");",
     expect: ["NOT PERFORMED"],
   },
+  {
+    // The `\s*` back. `\s` is a subset of `[^}]`, so the engine gets two ways
+    // to split the same whitespace run and tries all of them when the closing
+    // braces never come — 583 ms at 20k characters, quadratic from there. The
+    // suite's assertion is a TIME, because the property is "it terminates";
+    // this mutation is what proves that assertion can actually fail.
+    name: "the redundant \\s* is back (an unclosed {{ hangs the send path)",
+    file: "integrity",
+    from: "const PLACEHOLDER = /\\{\\{[^}]*\\}\\}/g;",
+    to: "const PLACEHOLDER = /\\{\\{\\s*[^}]*\\}\\}/g;",
+    expect: ["answered immediately"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "mailmut-"));

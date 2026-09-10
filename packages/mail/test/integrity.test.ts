@@ -105,6 +105,33 @@ describe("BOTH DIRECTIONS — the links that must pass, by name", () => {
   });
 });
 
+describe('the placeholder scan terminates on a body it cannot close', () => {
+  it('an unclosed {{ followed by 100k spaces is answered immediately, not in a quarter of a minute', () => {
+    // A TIMING ASSERTION ON PURPOSE, because the property IS "it terminates".
+    // The first version of PLACEHOLDER had `\s*` before `[^}]*`, and `\s` is a
+    // subset of `[^}]` — two ways to split the same whitespace run, tried all of
+    // them when the closing braces never arrive. Measured: 20k chars = 583 ms,
+    // and it is quadratic, so 100k is ~15 seconds of a send() not answering.
+    // The margin here is ~30x, which no machine's speed can close.
+    const body = `<p>{{${' '.repeat(100_000)}</p>`;
+    const started = Date.now();
+    const report = checkMailIntegrity({ subject: 'x', html: body, text: '', attachments: [] });
+    const elapsed = Date.now() - started;
+    expect(elapsed).toBeLessThan(500);
+    // And it still ANSWERS — a guard that returns early would also be fast.
+    expect(report.checked).toContain('placeholders');
+    expect(report.findings.filter((f) => f.check === 'placeholders')).toHaveLength(0);
+  });
+
+  it('…and a body that DOES close is still found, at the same size', () => {
+    // The negative control. Without it, a PLACEHOLDER that matched nothing at
+    // all would pass the test above with the best possible timing.
+    const body = `<p>{{${' '.repeat(100_000)}}}</p>`;
+    const report = checkMailIntegrity({ subject: 'x', html: body, text: '', attachments: [] });
+    expect(report.findings.filter((f) => f.check === 'placeholders')).toHaveLength(1);
+  });
+});
+
 describe("'nothing wrong' and 'could not check' are different answers", () => {
   it("a message with NO html reports the link check as NOT PERFORMED, never as clean", () => {
     const r = checkMailIntegrity({ subject: "hej", text: "ren tekst" });
