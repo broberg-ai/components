@@ -191,15 +191,6 @@ const MUTATIONS = [
     expect: ["does not START with it is not a policy"],
   },
   {
-    // The chunks matched one at a time: a policy over 255 bytes arrives split,
-    // and the first chunk alone is not the record.
-    name: "the TXT chunks are not joined (a >255-byte policy stops matching)",
-    file: "verify",
-    from: "function isDmarcPolicy(parts: string[]): boolean {\n  return parts.join('')",
-    to: "function isDmarcPolicy(parts: string[]): boolean {\n  return (parts[parts.length - 1] ?? '')",
-    expect: ["MULTI-CHUNK"],
-  },
-  {
     // The case-insensitive fold dropped: a valid v=dmarc1 reads as missing —
     // a confident false alarm about a domain that is fine.
     name: "the prefix match becomes case-SENSITIVE (a valid v=dmarc1 reads as missing)",

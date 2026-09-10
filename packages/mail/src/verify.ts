@@ -208,11 +208,21 @@ async function lookup<T>(fn: () => Promise<T>): Promise<{ state: 'found'; value:
  *
  * TWO THINGS THE OBVIOUS VERSION GETS WRONG, both measured by helpdesk:
  *
- * 1. The chunks must be JOINED FIRST. A TXT value over 255 bytes arrives as
- *    SEVERAL strings inside ONE record, and a policy with `rua=` and `ruf=`
- *    addresses passes 255 easily. Matching per chunk finds `v=DMARC1` in the
- *    first and reports the rest as junk — or misses it entirely. The SPF branch
- *    above already joins; this is the house pattern, not a new idea.
+ * 1. The chunks are JOINED FIRST — and helpdesk measured, an hour after this
+ *    shipped, that the join is NOT a guard for detection today. `v=DMARC1` is
+ *    the first tag in every valid policy, so an implementation reading only
+ *    `parts[0]` detects exactly as well as this one. Verified here:
+ *
+ *      joined      -> true
+ *      parts[0]    -> true      ← the realistic wrong version, and it PASSES
+ *      last chunk  -> false
+ *
+ *    So the join is CORRECT and its correctness is currently unfalsifiable: it
+ *    becomes load-bearing the day anything READS the policy (p=, sp=, pct=),
+ *    where a value can straddle a chunk boundary. Written down rather than left
+ *    as an implied guarantee — claiming a seal that cannot fail is the thing
+ *    this package keeps finding in other people's code. The SPF branch above
+ *    joins for the same reason and has the same limit.
  *
  * 2. `startsWith`, NEVER `includes`. RFC 7489 §6.4 requires `v=DMARC1` to come
  *    FIRST in the record, so a TXT that merely MENTIONS the string mid-value is

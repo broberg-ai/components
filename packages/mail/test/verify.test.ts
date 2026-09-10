@@ -657,11 +657,21 @@ describe('F005.17 — DMARC is judged as a POLICY, not as a name that answered',
     expect(r.dmarc).toBe('missing');
   });
 
-  it('MULTI-CHUNK: a policy over 255 bytes arrives as several strings in ONE record', async () => {
-    // The chunks must be joined before matching — the SPF branch already does
-    // this, and a hand-written second implementation is exactly where a house
-    // pattern diverges.
+  it('MULTI-CHUNK: a policy over 255 bytes is accepted, not truncated or choked on', async () => {
+    // WHAT THIS PROVES AND WHAT IT DOES NOT, because helpdesk measured the
+    // difference an hour after it shipped and they were right.
+    //
+    // It proves a real >255-byte policy is accepted. It does NOT prove the join
+    // is doing the work: `v=DMARC1` is the first tag in every valid policy, so
+    // an implementation reading only parts[0] passes this test identically.
+    // Measured: joined -> true, parts[0] -> true, last chunk -> false.
+    //
+    // The join is correct and currently UNFALSIFIABLE. It becomes load-bearing
+    // the day anything reads the policy body (p=, sp=, pct=), where a value can
+    // straddle a chunk boundary. Saying so is cheaper than a mutation that
+    // reddens on a version nobody would write.
     expect(LONG_POLICY.join('').length).toBeGreaterThan(255);
+    expect(LONG_POLICY[0]!.length).toBeLessThan(256);
     const r = await verifySendingDomain('x@q.example', { resolver: withDmarc([LONG_POLICY]) });
     expect(r.dmarc).toBe('ok');
   });
