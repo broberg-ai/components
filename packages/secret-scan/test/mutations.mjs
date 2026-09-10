@@ -177,7 +177,7 @@ const MUTATIONS = [
     // variable literally named AWS_SECRET_ACCESS_KEY stays in the clear.
     name: 'the field rule demands AWS\'s exact 40 again (an S3-compatible secret survives)',
     from: "(?=[\\s\"'`,;]|$))[^\\s\"'`,;]{20,}/gi,",
-    to: "[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/gi,",
+    to: "(?=[\\s\"'`,;]|$))[A-Za-z0-9/+=]{40}/gi,",
   },
   {
     // The alphabet guess, restored: base64url only, so a Tigris/R2 secret
