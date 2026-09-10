@@ -36,7 +36,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/stack-b-base** (planned) — A ready-to-run base scaffold for Stack B apps (Bun · Hono · Preact · Tailwind v4) so a new lightweight service boots with the house wiring already …. `npm i @broberg/stack-b-base`
 - **@broberg/stack-a-base** (planned) — The Stack A counterpart. `npm i @broberg/stack-a-base`
 - **@broberg/config** v0.2.0 — The fleet's single-source config helper. `npm i @broberg/config`
-- **@broberg/mail** v0.10.1 — The fleet's thin Resend send primitive, plus a status lookup that answers whether a mail actually arrived. `npm i @broberg/mail`
+- **@broberg/mail** v0.11.0 — The fleet's thin Resend send primitive, plus a status lookup that answers whether a mail actually arrived. `npm i @broberg/mail`
 - **@broberg/media** v0.2.1 — The fleet's provider-agnostic media-storage facade. `npm i @broberg/media`
 - **@broberg/mail-core** v0.8.1 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core`
 - **@broberg/media-transform** v0.1.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform`
@@ -86,7 +86,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.1.0 — The fleet Data SDK. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.41.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@broberg/ai-sdk** v0.44.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
 - **@upmetrics/sdk** v0.4.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
