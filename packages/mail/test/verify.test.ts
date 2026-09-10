@@ -14,7 +14,7 @@
 // Neither is complete. Nobody knew. It was found by accident while looking at
 // something else — which is the argument for the check existing at all.
 import { describe, it, expect } from 'vitest';
-import { verifySendingDomain, type DnsResolver } from '../src/verify';
+import { verifySendingDomain, type DnsResolver, type ProviderLayout } from '../src/verify';
 
 /** A DNS error as node:dns raises it — the CODE is what carries the meaning. */
 function dnsError(code: string): Error & { code: string } {
@@ -384,5 +384,182 @@ describe('F005.10 — unreadable input claims NOTHING, and still does not throw'
   it('echoes the raw input back so the reader can see what they passed', async () => {
     const r = await verifySendingDomain('moovyy');
     expect(r.domain).toBe('moovyy');
+  });
+});
+
+// ── F005.15 — one level beside, and presence where it meant value ────────────
+//
+// THE FIXTURES ARE REAL AGAIN. Every answer below was measured with
+// `dig @8.8.8.8` on 2026-09-08, the day helpdesk reported that a Resend-VERIFIED
+// domain had been called broken by this check for three months.
+//
+// Why it survived: F005.9 was built and measured against send.broberg.ai and
+// send.webhouse.dk — domains that ARE already the `send.` subdomain, so the
+// lookup landed in the right place by construction of the fixture rather than
+// by correctness of the code. The convenient fixture was accidentally safe.
+
+/** support.fdsundhed.dk, 2026-09-08: apex empty, everything on send.<domain>. */
+const fdsundhed = fakeResolver(
+  {
+    'support.fdsundhed.dk': dnsError('ENODATA'),
+    'send.support.fdsundhed.dk': [['v=spf1 include:amazonses.com ~all']],
+    'resend._domainkey.support.fdsundhed.dk': [[DKIM_KEY]],
+  },
+  {
+    'support.fdsundhed.dk': dnsError('ENODATA'),
+    'send.support.fdsundhed.dk': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }],
+  },
+);
+
+describe('defect 1 — the records were looked for one level beside where they are', () => {
+  it('support.fdsundhed.dk reports ok — the shipped version called it permanently broken', async () => {
+    const r = await verifySendingDomain('support@support.fdsundhed.dk', { resolver: fdsundhed });
+    expect(r.ok).toBe(true);
+    expect([r.spf, r.dkim, r.mx]).toEqual(['ok', 'ok', 'ok']);
+  });
+
+  it('says WHICH hostname carried each record', async () => {
+    const r = await verifySendingDomain('support@support.fdsundhed.dk', { resolver: fdsundhed });
+    // Without this, "spf: ok" is a claim a reader who disagrees cannot re-run —
+    // the same unfalsifiability F005.10 fixed for the normalised domain.
+    expect(r.foundAt.spf).toBe('send.support.fdsundhed.dk');
+    expect(r.foundAt.mx).toBe('send.support.fdsundhed.dk');
+    expect(r.foundAt.dkim).toBe('resend._domainkey.support.fdsundhed.dk');
+    expect(r.summary).toContain('send.support.fdsundhed.dk');
+  });
+
+  it('still finds records that live on the domain itself (both shapes exist in the wild)', async () => {
+    const r = await verifySendingDomain('x@send.webhouse.dk', { resolver: webhouseDk });
+    expect(r.spf).toBe('ok');
+    expect(r.foundAt.spf).toBe('send.webhouse.dk');
+  });
+});
+
+describe('defect 2 — presence was accepted where the value was the question', () => {
+  /** A domain whose MX is Google Workspace: real MX records, no SES bounces. */
+  const googleMx = fakeResolver(
+    {
+      'send.g.example': dnsError('ENOTFOUND'),
+      'g.example': [['v=spf1 include:amazonses.com ~all']],
+      'resend._domainkey.g.example': [[DKIM_KEY]],
+    },
+    {
+      'send.g.example': dnsError('ENOTFOUND'),
+      'g.example': [
+        { exchange: 'alt3.aspmx.l.google.com', priority: 10 },
+        { exchange: 'aspmx.l.google.com', priority: 1 },
+      ],
+    },
+  );
+
+  it('THE FALSE GREEN: a Google MX does not carry SES bounces, so it is not ok', async () => {
+    const r = await verifySendingDomain('noreply@g.example', { resolver: googleMx });
+    expect(r.mx).not.toBe('ok');
+    expect(r.ok).toBe(false);
+  });
+
+  it('and says so as the thing it costs, not as an absence', async () => {
+    const r = await verifySendingDomain('noreply@g.example', { resolver: googleMx, region: 'eu-west-1' });
+    const mxLine = r.missing.find((m) => m.startsWith('MX'));
+    expect(mxLine).toContain('none of them carry');
+    expect(mxLine).toContain('never be reported back');
+  });
+
+  /** A real SPF record under which every SES send fails. */
+  const wrongSpf = fakeResolver(
+    {
+      'send.s.example': dnsError('ENOTFOUND'),
+      's.example': [['v=spf1 include:_spf.google.com ~all']],
+      'resend._domainkey.s.example': [[DKIM_KEY]],
+    },
+    {
+      'send.s.example': dnsError('ENOTFOUND'),
+      's.example': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }],
+    },
+  );
+
+  it('an SPF record that does not authorise the provider is not ok', async () => {
+    const r = await verifySendingDomain('x@s.example', { resolver: wrongSpf });
+    expect(r.spf).not.toBe('ok');
+  });
+
+  it('tells the reader to EDIT the record — a second SPF record is itself an error', async () => {
+    const r = await verifySendingDomain('x@s.example', { resolver: wrongSpf });
+    const spfLine = r.missing.find((m) => m.startsWith('SPF'));
+    expect(spfLine).toContain('does not authorise');
+    expect(spfLine).toContain('do not add a second one');
+  });
+});
+
+describe('the layout is named, never a hardcoded prefix', () => {
+  const postmark: ProviderLayout = {
+    name: 'postmark',
+    spfHosts: (d) => [`pm-bounces.${d}`],
+    mxHosts: (d) => [`pm-bounces.${d}`],
+    dkimHosts: (d) => [`20260908._domainkey.${d}`],
+    spfMechanisms: ['include:spf.mtasv.net'],
+    mxSuffixes: ['pmtasv.net'],
+  };
+
+  const pmDomain = fakeResolver(
+    { 'pm-bounces.p.example': [['v=spf1 include:spf.mtasv.net ~all']], '20260908._domainkey.p.example': [[DKIM_KEY]] },
+    { 'pm-bounces.p.example': [{ exchange: 'return.pmtasv.net', priority: 10 }] },
+  );
+
+  it('a consumer on another provider can express its own shape', async () => {
+    const r = await verifySendingDomain('x@p.example', { resolver: pmDomain, layout: postmark });
+    expect(r.ok).toBe(true);
+    expect(r.foundAt.spf).toBe('pm-bounces.p.example');
+  });
+
+  it('the Resend default does NOT clear a Postmark domain — the layout is doing real work', async () => {
+    const r = await verifySendingDomain('x@p.example', { resolver: pmDomain });
+    expect(r.ok).toBe(false);
+  });
+
+  it('names the provider in the remedy, so a wrong layout is visible', async () => {
+    const bare = fakeResolver({ 'send.n.example': [['v=spf1 include:_spf.google.com ~all']] }, {});
+    const r = await verifySendingDomain('x@n.example', { resolver: bare, layout: postmark });
+    expect(r.missing.find((m) => m.startsWith('SPF'))).toContain('spf.mtasv.net');
+  });
+});
+
+describe('three states survive the extra hostnames', () => {
+  // The fix multiplies the names visited, so there are more ways for one lookup
+  // to fail — and a failure must never decay into "the record is absent".
+  const firstCandidateTimesOut = fakeResolver(
+    {
+      'send.t.example': dnsError('ETIMEOUT'),
+      't.example': dnsError('ENOTFOUND'),
+      'resend._domainkey.t.example': [[DKIM_KEY]],
+    },
+    { 'send.t.example': dnsError('ESERVFAIL'), 't.example': dnsError('ENOTFOUND') },
+  );
+
+  it('a failure on ANY candidate keeps the record unknown, never missing', async () => {
+    const r = await verifySendingDomain('x@t.example', { resolver: firstCandidateTimesOut });
+    expect(r.spf).toBe('unknown');
+    expect(r.mx).toBe('unknown');
+    expect(r.missing).toEqual([]);
+    expect(r.unknown).toEqual(['SPF', 'MX']);
+  });
+
+  it('an unknown never counts as ok', async () => {
+    const r = await verifySendingDomain('x@t.example', { resolver: firstCandidateTimesOut });
+    expect(r.ok).toBe(false);
+  });
+
+  it('a record found on a LATER candidate is still ok — one dead name is not a verdict', async () => {
+    const secondCarriesIt = fakeResolver(
+      {
+        'send.u.example': dnsError('ETIMEOUT'),
+        'u.example': [['v=spf1 include:amazonses.com ~all']],
+        'resend._domainkey.u.example': [[DKIM_KEY]],
+      },
+      { 'send.u.example': dnsError('ENOTFOUND'), 'u.example': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }] },
+    );
+    const r = await verifySendingDomain('x@u.example', { resolver: secondCarriesIt });
+    expect(r.spf).toBe('ok');
+    expect(r.foundAt.spf).toBe('u.example');
   });
 });

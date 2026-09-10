@@ -27,6 +27,7 @@ const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILES = {
   index: join(PKG, "src", "index.ts"),
   events: join(PKG, "src", "events.ts"),
+  verify: join(PKG, "src", "verify.ts"),
 };
 
 // A mutant left on disk by a killed run is indistinguishable from real source.
@@ -109,6 +110,57 @@ const MUTATIONS = [
     from: `  'suppressed',\n];`,
     to: `];`,
     expect: ["email.suppressed"],
+  },
+  {
+    // F005.15, DEFECT 1 RESTORED. Resend puts SPF on send.<domain>; looking at
+    // the apex called helpdesk's verified domain broken for three months.
+    name: "SPF is looked up on the apex only (one level beside where it lives)",
+    file: "verify",
+    from: "  spfHosts: (d) => [`send.${d}`, d],",
+    to: "  spfHosts: (d) => [d],",
+    expect: ["support.fdsundhed.dk reports ok"],
+  },
+  {
+    name: "MX is looked up on the apex only",
+    file: "verify",
+    from: "  mxHosts: (d) => [`send.${d}`, d],",
+    to: "  mxHosts: (d) => [d],",
+    expect: ["says WHICH hostname carried each record"],
+  },
+  {
+    // F005.15, DEFECT 2 RESTORED — the false green, and the worse of the two.
+    // Any MX at all was accepted, so a Google-hosted domain was told its SES
+    // bounces would come back.
+    name: "MX is judged by presence again (a Google MX clears the SES check)",
+    file: "verify",
+    from: "      (mx) => mx.some((r) => matchesSuffix(r.exchange, layout.mxSuffixes)),",
+    to: "      (mx) => mx.length > 0,",
+    expect: ["a Google MX does not carry SES bounces"],
+  },
+  {
+    // The same shape on SPF: prefix accepted, authorisation never checked.
+    name: "SPF is judged by its v=spf1 prefix again (include: is never checked)",
+    file: "verify",
+    from: "        return record.startsWith('v=spf1')\n          && layout.spfMechanisms.some((m) => record.includes(m.toLowerCase()));",
+    to: "        return record.startsWith('v=spf1');",
+    expect: ["an SPF record that does not authorise the provider is not ok"],
+  },
+  {
+    // More hostnames means more ways to fail silently. A failed lookup must not
+    // decay into a confident "the record is absent".
+    name: "a failed lookup decays into missing (a resolver hiccup becomes a false alarm)",
+    file: "verify",
+    from: "  return sawUnknown ? { state: 'unknown' } : { state: 'missing', presentButUnmatched };",
+    to: "  return { state: 'missing', presentButUnmatched };",
+    expect: ["keeps the record unknown, never missing"],
+  },
+  {
+    // "spf: ok" without the hostname is a claim a reader cannot re-run.
+    name: "the record no longer says where it was found",
+    file: "verify",
+    from: "  if (spf === 'ok') foundAt.spf = spfProbe.host;",
+    to: "  if (spf === 'ok') foundAt.spf = undefined;",
+    expect: ["says WHICH hostname carried each record"],
   },
 ];
 

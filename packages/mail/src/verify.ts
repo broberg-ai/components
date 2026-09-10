@@ -52,6 +52,14 @@ export interface DomainReadiness {
   missing: string[];
   /** Records we could not check. Distinct from missing on purpose; do not alarm on these. */
   unknown: string[];
+  /**
+   * WHICH hostname carried each record that came back `ok`.
+   *
+   * F005.15 — the check now reads several names per record, so `spf: 'ok'` on
+   * its own is an unfalsifiable claim: a reader who disagrees has nothing to
+   * re-run. This is the same fix `domain` already got in F005.10.
+   */
+  foundAt: { spf?: string; dkim?: string; mx?: string };
   /** One line safe to log at boot. */
   summary: string;
 }
@@ -77,9 +85,51 @@ export interface VerifyDomainOptions {
    * and guessing the region would produce a confidently wrong instruction.
    */
   region?: string;
+  /**
+   * WHERE the provider keeps the records, and WHAT counts as authorising it.
+   *
+   * F005.15 — helpdesk's `support.fdsundhed.dk` is Resend-verified and this
+   * check called it broken for three months, because Resend puts SPF and MX on
+   * `send.<domain>` and we looked at the apex. A hardcoded `send.` prefix would
+   * be the same mistake pointed elsewhere — Postmark and SES place records
+   * differently — so the layout is a named option, exactly like `dkimSelector`.
+   */
+  layout?: ProviderLayout;
   /** Override the resolver (tests). Defaults to node:dns/promises. */
   resolver?: DnsResolver;
 }
+
+/**
+ * One provider's DNS shape: where each record lives, and what value proves the
+ * provider is actually authorised.
+ *
+ * The host lists are ORDERED CANDIDATES, not a single answer, because both
+ * shapes exist in the wild for the same provider: a domain registered with
+ * Resend as `fdsundhed.dk` gets its SPF on `send.fdsundhed.dk`, while one
+ * registered as `send.broberg.ai` gets it on `send.broberg.ai` itself.
+ * Guessing which flavour a caller is on is how the original defect happened.
+ */
+export interface ProviderLayout {
+  /** Named in reports, so a wrong layout is visible rather than inferred. */
+  name: string;
+  spfHosts(domain: string): string[];
+  mxHosts(domain: string): string[];
+  dkimHosts(domain: string, selector: string): string[];
+  /** SPF mechanisms that authorise this provider, e.g. `include:amazonses.com`. */
+  spfMechanisms: string[];
+  /** MX exchange suffixes that carry this provider's bounces. */
+  mxSuffixes: string[];
+}
+
+/** Resend (SES-backed) — the fleet's provider, and the default. */
+export const RESEND_LAYOUT: ProviderLayout = {
+  name: 'resend',
+  spfHosts: (d) => [`send.${d}`, d],
+  mxHosts: (d) => [`send.${d}`, d],
+  dkimHosts: (d, selector) => [`${selector}._domainkey.${d}`],
+  spfMechanisms: ['include:amazonses.com'],
+  mxSuffixes: ['amazonses.com'],
+};
 
 const DEFAULT_DKIM_SELECTOR = 'resend';
 
@@ -124,6 +174,48 @@ async function lookup<T>(fn: () => Promise<T>): Promise<{ state: 'found'; value:
     const code = (err as { code?: string } | null)?.code;
     return ABSENT_CODES.has(code ?? '') ? { state: 'absent' } : { state: 'unknown' };
   }
+}
+
+/** An MX exchange may or may not carry the root dot; neither form is wrong. */
+function matchesSuffix(exchange: string, suffixes: string[]): boolean {
+  const host = exchange.trim().toLowerCase().replace(/\.$/, '');
+  return suffixes.some((s) => {
+    const suffix = s.trim().toLowerCase().replace(/^\.|\.$/g, '');
+    return host === suffix || host.endsWith(`.${suffix}`);
+  });
+}
+
+/**
+ * Ask several hostnames for one record and merge the answers into ONE state.
+ *
+ * The merge is where the three-state discipline either survives the fix or
+ * quietly dies: visiting more names means more ways for a lookup to fail, and
+ * a failure anywhere must keep the whole record at `unknown` rather than
+ * decaying into `missing`. `missing` may only be returned when EVERY candidate
+ * answered and none of them carried what we need.
+ *
+ * `presentButUnmatched` is the third fact: the record exists here and is not
+ * the one we need. It is not absence, and the remedy is a different sentence.
+ */
+async function probeHosts<T>(
+  hosts: string[],
+  ask: (host: string) => Promise<T>,
+  matches: (value: T) => boolean,
+  isRecordOfThisKind?: (value: T) => boolean,
+): Promise<{ state: RecordState; host?: string; presentButUnmatched?: string }> {
+  let sawUnknown = false;
+  let presentButUnmatched: string | undefined;
+  for (const host of hosts) {
+    const r = await lookup(() => ask(host));
+    if (r.state === 'unknown') {
+      sawUnknown = true;
+      continue;
+    }
+    if (r.state !== 'found') continue;
+    if (matches(r.value)) return { state: 'ok', host };
+    if (!presentButUnmatched && (isRecordOfThisKind?.(r.value) ?? false)) presentButUnmatched = host;
+  }
+  return sawUnknown ? { state: 'unknown' } : { state: 'missing', presentButUnmatched };
 }
 
 /**
@@ -200,60 +292,88 @@ export async function verifySendingDomain(
       mx: 'unknown',
       missing: [],
       unknown: ['SPF', 'DKIM', 'MX'],
+      foundAt: {},
       summary: `${JSON.stringify(rawFrom)}: not a domain — pass a domain, an address, or "Name <address>". NOTHING was checked.`,
     };
   }
 
-  const [txt, dkim, mx] = await Promise.all([
-    lookup(() => dns.resolveTxt(domain)),
-    lookup(() => dns.resolveTxt(`${selector}._domainkey.${domain}`)),
-    lookup(() => dns.resolveMx(domain)),
+  const layout = options.layout ?? RESEND_LAYOUT;
+
+  const [spfProbe, dkimProbe, mxProbe] = await Promise.all([
+    probeHosts(
+      layout.spfHosts(domain),
+      (host) => dns.resolveTxt(host),
+      (txt) => txt.some((parts) => {
+        const record = parts.join('').trim().toLowerCase();
+        // Two questions, and the shipped version only asked the first: is this
+        // an SPF record, AND does it authorise the provider we send through?
+        // `v=spf1 include:_spf.google.com ~all` is a perfectly real SPF record
+        // under which every SES send fails.
+        return record.startsWith('v=spf1')
+          && layout.spfMechanisms.some((m) => record.includes(m.toLowerCase()));
+      }),
+      (txt) => txt.some((parts) => parts.join('').trim().toLowerCase().startsWith('v=spf1')),
+    ),
+    probeHosts(
+      layout.dkimHosts(domain, selector),
+      (host) => dns.resolveTxt(host),
+      // Present-and-non-empty is all we can judge without the provider's key;
+      // a malformed key is the provider's problem, an absent record is ours.
+      (txt) => txt.some((parts) => parts.join('').trim().length > 0),
+    ),
+    probeHosts(
+      layout.mxHosts(domain),
+      (host) => dns.resolveMx(host),
+      (mx) => mx.some((r) => matchesSuffix(r.exchange, layout.mxSuffixes)),
+      (mx) => mx.length > 0,
+    ),
   ]);
 
   const missing: string[] = [];
   const unknown: string[] = [];
+  const foundAt: DomainReadiness['foundAt'] = {};
 
-  // SPF — a TXT record may exist without an SPF record in it, so the presence of
-  // TXT is not the question; the presence of a v=spf1 string is.
-  let spf: RecordState;
-  if (txt.state === 'unknown') {
-    spf = 'unknown';
-    unknown.push('SPF');
-  } else if (txt.state === 'found' && txt.value.some((parts) => parts.join('').trim().toLowerCase().startsWith('v=spf1'))) {
-    spf = 'ok';
-  } else {
-    spf = 'missing';
-    missing.push('SPF — add TXT on ' + domain + ': "v=spf1 include:amazonses.com ~all"');
+  const spf = spfProbe.state;
+  if (spf === 'ok') foundAt.spf = spfProbe.host;
+  else if (spf === 'unknown') unknown.push('SPF');
+  else {
+    const where = layout.spfHosts(domain)[0];
+    missing.push(
+      spfProbe.presentButUnmatched
+        // A record IS there and does not authorise us. Telling this reader to
+        // "add SPF" would have them add a second TXT record, which is itself an
+        // SPF error — so the instruction has to be to EDIT the one they have.
+        ? `SPF — ${spfProbe.presentButUnmatched} has an SPF record that does not authorise ${layout.name} (needs ${layout.spfMechanisms.join(' or ')}); edit the existing record, do not add a second one`
+        : `SPF — add TXT on ${where}: "v=spf1 ${layout.spfMechanisms[0]} ~all"`,
+    );
   }
 
-  // DKIM. Present-and-non-empty is all we can judge without the provider's key;
-  // a malformed key is the provider's problem, an absent record is ours.
-  let dkimState: RecordState;
-  if (dkim.state === 'unknown') {
-    dkimState = 'unknown';
-    unknown.push('DKIM');
-  } else if (dkim.state === 'found' && dkim.value.some((parts) => parts.join('').trim().length > 0)) {
-    dkimState = 'ok';
-  } else {
-    dkimState = 'missing';
-    missing.push(`DKIM — no record at ${selector}._domainkey.${domain} (selector is provider-specific; pass dkimSelector if you are not on Resend)`);
-  }
+  const dkimState = dkimProbe.state;
+  if (dkimState === 'ok') foundAt.dkim = dkimProbe.host;
+  else if (dkimState === 'unknown') unknown.push('DKIM');
+  else missing.push(`DKIM — no record at ${layout.dkimHosts(domain, selector)[0]} (selector is provider-specific; pass dkimSelector if you are not on Resend)`);
 
   // MX. Its absence does not stop delivery — it stops BOUNCES coming back, so
   // you never learn that a send failed. Said plainly, because "MX missing" on a
   // send-only domain reads as harmless and is not.
-  let mxState: RecordState;
-  if (mx.state === 'unknown') {
-    mxState = 'unknown';
-    unknown.push('MX');
-  } else if (mx.state === 'found' && mx.value.length > 0) {
-    mxState = 'ok';
-  } else {
-    mxState = 'missing';
+  //
+  // F005.15 — and PRESENCE is not the question either. The shipped version
+  // accepted any MX at all, so a domain whose MX is Google Workspace was told
+  // its SES bounces would come back. It cleared the one property it exists to
+  // report.
+  const mxState = mxProbe.state;
+  if (mxState === 'ok') foundAt.mx = mxProbe.host;
+  else if (mxState === 'unknown') unknown.push('MX');
+  else {
     const target = options.region
       ? `feedback-smtp.${options.region}.amazonses.com`
       : 'feedback-smtp.<region>.amazonses.com (pass `region` — it cannot be guessed)';
-    missing.push(`MX — bounces cannot come back; add MX on ${domain}: 10 ${target}`);
+    const where = layout.mxHosts(domain)[0];
+    missing.push(
+      mxProbe.presentButUnmatched
+        ? `MX — ${mxProbe.presentButUnmatched} has MX records, but none of them carry ${layout.name} bounces; a send that fails will never be reported back. Add MX on ${where}: 10 ${target}`
+        : `MX — bounces cannot come back; add MX on ${where}: 10 ${target}`,
+    );
   }
 
   const ok = missing.length === 0 && unknown.length === 0;
@@ -264,16 +384,22 @@ export async function verifySendingDomain(
   // not arrive" about that domain is wrong — and an over-harsh check is one
   // people switch off, which is how it stops being a check at all. So: report
   // INCOMPLETENESS and what it costs, never a delivery failure we cannot know.
+  const where = [
+    foundAt.spf && `SPF at ${foundAt.spf}`,
+    foundAt.dkim && `DKIM at ${foundAt.dkim}`,
+    foundAt.mx && `MX at ${foundAt.mx}`,
+  ].filter(Boolean).join(', ');
   const summary = ok
-    ? `${domain}: SPF, DKIM and MX all present.`
+    ? `${domain}: SPF, DKIM and MX all present — ${where}.`
     : [
         `${domain}: INCOMPLETE — deliverability is degraded (spam-folder risk), not necessarily blocked.`,
         missing.length ? `missing ${missing.length} record(s).` : '',
         // Never phrased as a fault. An unchecked record is not a broken one.
         unknown.length ? `could not check: ${unknown.join(', ')} (DNS lookup failed — this is NOT the same as absent).` : '',
+        where ? `found ${where}.` : '',
       ]
         .filter(Boolean)
         .join(' ');
 
-  return { ok, domain, spf, dkim: dkimState, mx: mxState, missing, unknown, summary };
+  return { ok, domain, spf, dkim: dkimState, mx: mxState, missing, unknown, foundAt, summary };
 }
