@@ -204,9 +204,30 @@ const MUTATIONS = [
     // policy while a receiver would find one. F005.15's defect, one record over.
     name: "the org-domain fallback is dropped (a domain that passes DMARC reports missing)",
     file: "verify",
-    from: "  if (labels.length > 2) hosts.push(`_dmarc.${labels.slice(-2).join('.')}`);",
-    to: "",
+    from: "  for (let i = 0; i <= labels.length - 2; i++) hosts.push(`_dmarc.${labels.slice(i).join('.')}`);",
+    to: "  hosts.push(`_dmarc.${domain}`);",
     expect: ["falls back to the ORGANISATIONAL domain"],
+  },
+  {
+    // The FIRST version of this function, restored. It jumped straight to the
+    // last two labels, so `send.example.co.uk` never asked `_dmarc.example.co.uk`
+    // and a UK customer with a correct policy was told to create it again.
+    // Found reviewing this card's own code, not by a consumer.
+    name: "back to the last-two-labels rule (a four-label name skips its real org domain)",
+    file: "verify",
+    from: "  for (let i = 0; i <= labels.length - 2; i++) hosts.push(`_dmarc.${labels.slice(i).join('.')}`);",
+    to: "  hosts.push(`_dmarc.${domain}`); if (labels.length > 2) hosts.push(`_dmarc.${labels.slice(-2).join('.')}`);",
+    expect: ["asks the real organisational domain under a multi-part suffix"],
+  },
+  {
+    // The floor removed — the walk goes all the way to the bare TLD. A policy
+    // published at `_dmarc.dk` would then be reported as every .dk domain's own:
+    // a false `ok` on a security property, worse than the miss the walk fixes.
+    name: "the two-label floor is dropped (a TLD's policy reads as ours)",
+    file: "verify",
+    from: "  for (let i = 0; i <= labels.length - 2; i++) hosts.push(`_dmarc.${labels.slice(i).join('.')}`);",
+    to: "  for (let i = 0; i <= labels.length - 1; i++) hosts.push(`_dmarc.${labels.slice(i).join('.')}`);",
+    expect: ["NEVER asks a bare TLD"],
   },
   {
     // The other direction: the policy location follows SPF/MX under send.

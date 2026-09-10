@@ -816,4 +816,63 @@ describe('F005.17 — the policy lives at _dmarc, NEVER under the send subdomain
   it('a two-label domain has exactly ONE candidate — there is nothing above it', async () => {
     expect(dmarcHosts('broberg.ai')).toEqual(['_dmarc.broberg.ai']);
   });
+
+  // --- found reviewing this card's own code -------------------------------
+  //
+  // The first version jumped straight to the LAST TWO labels, so a four-label
+  // name under a multi-part public suffix skipped its real organisational
+  // domain entirely:
+  //
+  //   send.example.co.uk  ->  _dmarc.send.example.co.uk , _dmarc.co.uk
+  //                                    ^ _dmarc.example.co.uk never asked
+  //
+  // A UK customer with a correct policy would be told to create the record they
+  // already have. Resend puts sending on send.<domain>, so four labels is the
+  // ordinary shape, not an edge case.
+
+  it('asks the real organisational domain under a multi-part suffix — the case the last-two rule skipped', () => {
+    expect(dmarcHosts('send.example.co.uk')).toEqual([
+      '_dmarc.send.example.co.uk',
+      '_dmarc.example.co.uk', // ← this one, and BEFORE the public suffix
+      '_dmarc.co.uk',
+    ]);
+  });
+
+  it('…and finds a policy that only lives there', async () => {
+    // The behaviour, not just the list. probeHosts takes the FIRST candidate
+    // that answers, so the org domain must win while the sending subdomain has
+    // none of its own.
+    const ukResolver = fakeResolver(
+      {
+        'send.example.co.uk': [['v=spf1 include:amazonses.com ~all']],
+        'resend._domainkey.example.co.uk': [[DKIM_KEY]],
+        '_dmarc.send.example.co.uk': dnsError('ENOTFOUND'),
+        '_dmarc.example.co.uk': [['v=DMARC1; p=none;']],
+      },
+      { 'send.example.co.uk': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }] },
+    );
+    const r = await verifySendingDomain('x@send.example.co.uk', { resolver: ukResolver });
+    expect(r.dmarc).toBe('ok');
+    expect(r.foundAt.dmarc).toBe('_dmarc.example.co.uk');
+  });
+
+  it('NEVER asks a bare TLD — walking up without a floor would read someone else’s policy as ours', () => {
+    // The safety half, and the reason the walk stops at two labels rather than
+    // going all the way. A DMARC policy published at `_dmarc.dk` would otherwise
+    // be reported as every .dk domain's own — a false `ok` on a security
+    // property, which is worse than the miss the walk was added to fix.
+    for (const domain of ['send.support.fdsundhed.dk', 'a.b.c.d.example.com', 'send.broberg.ai']) {
+      const tld = `_dmarc.${domain.split('.').pop()}`;
+      expect(dmarcHosts(domain), domain).not.toContain(tld);
+      expect(dmarcHosts(domain).every((h) => h.split('.').length >= 3), domain).toBe(true);
+    }
+  });
+
+  it('every intermediate parent is asked, nearest first', () => {
+    expect(dmarcHosts('send.support.fdsundhed.dk')).toEqual([
+      '_dmarc.send.support.fdsundhed.dk',
+      '_dmarc.support.fdsundhed.dk',
+      '_dmarc.fdsundhed.dk',
+    ]);
+  });
 });

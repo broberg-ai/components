@@ -195,13 +195,29 @@ async function lookup<T>(fn: () => Promise<T>): Promise<{ state: 'found'; value:
  * genuinely passes DMARC as having no policy — which is F005.15's own defect
  * repeated one record over.
  *
- * THE LIMITATION, said plainly rather than discovered later: the organisational
- * domain is taken as the last two labels. That is wrong for a multi-part public
- * suffix (`foo.co.uk` → `co.uk`), where we would look one level too high. It
- * cannot produce a false `ok` in practice — nobody publishes a DMARC policy on a
- * public suffix — and `foundAt.dmarc` names the host that answered, so a reader
- * who disagrees can check rather than take our word. A full Public Suffix List
- * is the correct fix and is not worth a dependency for this.
+ * SO WE WALK UP ONE LABEL AT A TIME, and stop at two labels. The first version
+ * jumped straight to the last two, and its own review found the case that
+ * breaks: `send.example.co.uk` produced `_dmarc.send.example.co.uk` and
+ * `_dmarc.co.uk`, and NEVER ASKED `_dmarc.example.co.uk` — the real
+ * organisational domain. A UK customer with a correct policy would be told to
+ * create the record they already have, which is precisely the defect two
+ * paragraphs up, one suffix over. Resend puts sending on `send.<domain>`, so
+ * four labels is the ordinary shape rather than an edge case.
+ *
+ * The floor of two labels is what keeps this safe: we never ask `_dmarc.dk`.
+ * Walking up without a floor would add a query at the TLD, and a policy
+ * published there would read as every domain's own — a false `ok` on a security
+ * property, which is worse than the miss it fixes.
+ *
+ * THE REMAINING LIMITATION, said plainly rather than discovered later: for a
+ * multi-part public suffix the LAST candidate is still the suffix itself
+ * (`_dmarc.co.uk`). That is one level too high — but it is also where the first
+ * version already looked, so this is no new exposure, and nobody publishes a
+ * DMARC policy on a public suffix. `probeHosts` takes the FIRST candidate that
+ * answers, so the real organisational domain now wins whenever it has one.
+ * `foundAt.dmarc` names the host that answered, so a reader who disagrees can
+ * check rather than take our word. A full Public Suffix List is the correct
+ * fix and is not worth a dependency for this.
  */
 /**
  * Is this TXT record an actual DMARC policy?
@@ -238,8 +254,10 @@ function isDmarcPolicy(parts: string[]): boolean {
 
 export function dmarcHosts(domain: string): string[] {
   const labels = domain.split('.');
-  const hosts = [`_dmarc.${domain}`];
-  if (labels.length > 2) hosts.push(`_dmarc.${labels.slice(-2).join('.')}`);
+  const hosts: string[] = [];
+  // Every parent down to two labels, nearest first. `i` starts at 0 (the domain
+  // itself) and stops before `labels.length - 1`, which is the bare TLD.
+  for (let i = 0; i <= labels.length - 2; i++) hosts.push(`_dmarc.${labels.slice(i).join('.')}`);
   return hosts;
 }
 
