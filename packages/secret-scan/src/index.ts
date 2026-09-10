@@ -134,6 +134,16 @@ const PATTERNS: SecretPattern[] = [
     // (Terraform's spelling) would drag in far too much; that case is caught by
     // the paired rule below instead, which is the argument for having both.
     //
+    // AND THE VALUE CLASS IS "ANYTHING THAT IS NOT A DELIMITER", not an
+    // alphabet. cardmem measured their Tigris secret's charset after 0.8.1 and
+    // it contains `+` — which our class happened to include, but only because
+    // we guessed base64 rather than base64url. Their warning is the one worth
+    // acting on: that is ONE key. It tells us what CAN occur, never what always
+    // occurs, and the next provider's alphabet is another guess we would make
+    // the same way. Under a field literally named `aws_secret_access_key`, the
+    // NAME is the evidence; the value's alphabet adds nothing and can only be
+    // wrong. So the value runs to the first delimiter and no further.
+    //
     // THE LENGTH IS A FLOOR, NOT AWS'S 40 — measured by cardmem in production
     // and it is the finding that matters most here. Their four AWS_*-named
     // variables on Fly are NOT AWS: they are Tigris (Fly's S3-compatible
@@ -147,15 +157,15 @@ const PATTERNS: SecretPattern[] = [
     // name is the signal in every context-only pattern in this file; that is
     // the whole design, and requiring a second signal quietly undid it.
     label: 'aws-secret-access-key',
-    description: 'AWS/S3-compatible secret access key ((aws-)secret-access-key field + 20+ chars)',
-    regex: /\b(?:aws[_-]?)?secret[_-]?access[_-]?key\b["'`]?\s*[:=]\s*["'`]?[A-Za-z0-9/+=_-]{20,}(?![A-Za-z0-9/+=_-])/gi,
+    description: 'AWS/S3-compatible secret access key ((aws-)secret-access-key field + 20+ non-delimiter chars)',
+    regex: /\b(?:aws[_-]?)?secret[_-]?access[_-]?key\b["'`]?\s*[:=]\s*["'`]?[^\s"'`,;]{20,}/gi,
   },
   {
     // An STS session token is a live credential for as long as it lasts, and it
     // travels in the same dump as the pair above.
     label: 'aws-session-token',
     description: 'AWS session token ((aws-)session-token field + 100+ base64)',
-    regex: /\b(?:aws[_-]?)?session[_-]?token\b["'`]?\s*[:=]\s*["'`]?[A-Za-z0-9/+=]{100,}(?![A-Za-z0-9/+=])/gi,
+    regex: /\b(?:aws[_-]?)?session[_-]?token\b["'`]?\s*[:=]\s*["'`]?[^\s"'`,;]{100,}/gi,
   },
   {
     // THE WINDOW IS MEASURED, not chosen. Gap between the end of the id and the

@@ -180,3 +180,37 @@ describe("an AWS_* variable name does not mean an AWS key — measured, not assu
     expect(redactSecrets(TIGRIS_SECRET).redacted).toBe(TIGRIS_SECRET);
   });
 });
+
+describe("the value's alphabet is not evidence — only the field name is", () => {
+  // cardmem measured their Tigris secret's charset after 0.8.1: it contains
+  // `+`, which our class happened to include — but only because we guessed
+  // base64 rather than base64url. Their warning is the half that mattered:
+  // that is ONE key. It says what CAN occur, never what always occurs, and the
+  // next provider's alphabet is a guess we would make exactly the same way.
+  const ALPHABETS: Array<[name: string, value: string]> = [
+    ["base64 (with + and /)", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY"],
+    ["base64url (with _ and -)", "wJalrXUtnFEMI_K7MDENG-bPxRfiCYEXAMPLEKEY"],
+    ["tigris-shaped (letters, digits, + and -)", "tsec+" + "aB9-".repeat(18)],
+    ["hex", "a1b2c3d4".repeat(6)],
+    ["dots and tildes — an alphabet we have never seen", "aa.bb~cc.dd~" + "ee.ff~".repeat(6)],
+  ];
+
+  it.each(ALPHABETS)("%s is redacted under the field name", (_name, value) => {
+    const r = redactSecrets(`aws_secret_access_key=${value}`);
+    expect(r.redacted).not.toContain(value);
+  });
+
+  it("the value stops at a delimiter — the rest of the line survives", () => {
+    const value = "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY";
+    const r = redactSecrets(`{"SecretAccessKey":"${value}","Expiration":"2026-09-11"}`);
+    expect(r.redacted).not.toContain(value);
+    expect(r.redacted).toContain("Expiration");
+    expect(r.redacted).toContain("2026-09-11");
+  });
+
+  it("and the field name is STILL required — none of these match on their own", () => {
+    for (const [, value] of ALPHABETS) {
+      expect(redactSecrets(value).redacted).toBe(value);
+    }
+  });
+});
