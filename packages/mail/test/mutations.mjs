@@ -233,8 +233,16 @@ const MUTATIONS = [
     // The other direction: the policy location follows SPF/MX under send.
     name: "the DMARC lookup moves under the send subdomain (it is fixed by RFC, not by provider)",
     file: "verify",
-    from: "  const hosts = [`_dmarc.${domain}`];",
-    to: "  const hosts = [`_dmarc.send.${domain}`];",
+    // RE-ANCHORED with the walk-up rewrite. The old `from` was the array
+    // initialiser that rewrite deleted, so this stopped applying — and the
+    // harness said so, loudly: "ANCHOR MISSING — the substitution matched
+    // nothing, so this mutation was never applied", counted as uncaught. That
+    // is the contract earning its keep: a mutation that does not apply reads
+    // exactly like one that survived, and only the anchor check tells them
+    // apart. TWO anchors went stale in that rewrite; I re-anchored one and
+    // missed this one, and the harness found what I did not.
+    from: "  for (let i = 0; i <= labels.length - 2; i++) hosts.push(`_dmarc.${labels.slice(i).join('.')}`);",
+    to: "  for (let i = 0; i <= labels.length - 2; i++) hosts.push(`_dmarc.send.${labels.slice(i).join('.')}`);",
     expect: ["the lookup is _dmarc.<domain>"],
   },
   {
