@@ -10,12 +10,15 @@ KB. `components` owns + publishes it; every repo consumes the same canonical
 pattern set, so detection never drifts.
 
 **AWS, in one line, because a reader scans this far and no further:** an access
-key id (`AKIA…` long-term, `ASIA…` temporary) is caught on shape; the **secret
-access key and session token** are caught next to their field name (`20+` chars,
-any S3-compatible provider — Tigris, R2, MinIO — not only AWS's 40); and a
-40-char value **within 80 characters of an id** is caught as its pair. A bare
-40-char base64 string with no field name and no id nearby is deliberately **not**
-caught — it is the shape of every git hash. [Details](#aws-the-id-was-never-the-credential-v080).
+key id is caught on shape and labelled by kind (`AKIA…` long-term — rotate it;
+`ASIA…` temporary — it may already have expired); the **secret access key and
+session token** are caught next to their field name, at any length from 20 and
+in **any alphabet**, so every S3-compatible provider is covered (Tigris, R2,
+MinIO — not only AWS's 40 base64); and a 40-char value **within 80 characters of
+an id** is caught as its pair. Deliberately **not** caught: a bare string with no
+field name and no id nearby (the shape of every git hash), and a value that is a
+*reference* to a secret rather than one (`process.env.AWS_SECRET_ACCESS_KEY`).
+[Details](#aws-the-id-was-never-the-credential-v080).
 
 ```bash
 npm i @broberg/secret-scan
@@ -309,7 +312,7 @@ alternatives**:
 
 | label | fires on |
 |---|---|
-| `aws-secret-access-key` | a `(aws-)secret-access-key`-named field + 20 or more chars |
+| `aws-secret-access-key` | a `(aws-)secret-access-key`-named field + 20 or more non-delimiter chars, any alphabet |
 | `aws-session-token` | a `(aws-)session-token`-named field + 100+ base64 |
 | `aws-secret-access-key-paired` | a 40-char base64 value **within 80 characters of an `AKIA`/`ASIA` id** |
 
