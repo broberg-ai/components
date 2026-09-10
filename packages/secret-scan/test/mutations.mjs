@@ -138,7 +138,7 @@ const MUTATIONS = [
     // access key id and left the credential beside it, under a marker that told
     // the reader the text had been cleaned.
     name: 'the AWS secret-key field pattern is gone (only the harmless half is redacted)',
-    from: "    regex: /\\b(?:aws[_-]?)?secret[_-]?access[_-]?key\\b[\"'`]?\\s*[:=]\\s*[\"'`]?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/gi,",
+    from: "    regex: /\\b(?:aws[_-]?)?secret[_-]?access[_-]?key\\b[\"'`]?\\s*[:=]\\s*[\"'`]?[A-Za-z0-9/+=_-]{20,}(?![A-Za-z0-9/+=_-])/gi,",
     to: "    regex: /\\bthis-field-name-cannot-occur\\b/gi,",
   },
   {
@@ -161,6 +161,14 @@ const MUTATIONS = [
     name: 'temporary STS credentials are unmatched again (ASIA dropped)',
     from: "    regex: /\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b/g,",
     to: "    regex: /\\bAKIA[0-9A-Z]{16}\\b/g,",
+  },
+  {
+    // cardmem's finding, restored: pinning AWS's exact 40 puts a shape
+    // assumption on top of a name anchor, so a Tigris/R2/MinIO secret under a
+    // variable literally named AWS_SECRET_ACCESS_KEY stays in the clear.
+    name: 'the field rule demands AWS\'s exact 40 again (an S3-compatible secret survives)',
+    from: "[A-Za-z0-9/+=_-]{20,}(?![A-Za-z0-9/+=_-])/gi,",
+    to: "[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/gi,",
   },
 ];
 
