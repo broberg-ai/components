@@ -17,6 +17,13 @@ on:
     - cron: "17 4 * * *"
   workflow_dispatch: {}
   push:
+    # BRANCHES FIRST, and it is load-bearing. GitHub does not evaluate `paths:`
+    # for TAG pushes, so without this line every `<pkg>-v*` release tag started a
+    # full fleet scan — on a detached HEAD, where the bare `git push` below has no
+    # branch to resolve and exits 128. Measured 2026-09-10: 14 red runs in six
+    # hours, and the four that were green only got there by exiting at "no change"
+    # before reaching the push. See F083.5.
+    branches: [main]
     # Re-run when the scanner itself changes, so a bug in it is caught here
     # rather than at 04:17 the next morning.
     paths:
