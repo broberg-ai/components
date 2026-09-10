@@ -57,7 +57,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### L2 — Shell (the app frame & controls)
 - **@broberg/theme** v0.7.0 — DELIVERED by @broberg/theme (0.3.1). `npm i @broberg/theme`
-- **@broberg/ui-controls-core** v0.2.2 — The custom-control kit. `npm i @broberg/ui-controls-core`
+- **@broberg/ui-controls-core** v0.2.3 — The custom-control kit. `npm i @broberg/ui-controls-core`
 - **@broberg/cmdk** v0.1.0 — A Cmd+K command palette. `npm i @broberg/cmdk`
 - **@broberg/i18n** v0.1.0 — i18n and a language switch. `npm i @broberg/i18n`
 - **@broberg/seo** (planned) — SEO and metadata helpers for Stack A. `npm i @broberg/seo`
