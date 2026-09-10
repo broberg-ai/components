@@ -44,6 +44,22 @@ function edges() {
   return out;
 }
 
+/** Every @broberg package that has a package.json in packages/ — the ones a
+ *  `workspace:` range can actually resolve. */
+function localPackageNames() {
+  const names = new Set();
+  for (const dir of readdirSync(PKGS, { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
+    try {
+      const pkg = JSON.parse(readFileSync(new URL(`${dir.name}/package.json`, PKGS), "utf8"));
+      if (pkg.name) names.add(pkg.name);
+    } catch {
+      // A package.json we cannot read is not a package we can vouch for.
+    }
+  }
+  return names;
+}
+
 function latestOnNpm(name) {
   try {
     return execFileSync("npm", ["view", name, "version"], {
@@ -63,7 +79,22 @@ function latestOnNpm(name) {
  * waved through. A pin-checker that silently approves what it does not
  * understand is the thing it exists to prevent.
  */
-export function satisfiesLatest(range, latest) {
+export function satisfiesLatest(range, latest, isLocalPackage = false) {
+  // `workspace:*` / `workspace:^` / `workspace:~` are not a loose range — they
+  // are the TIGHTEST pin available, because they resolve to the source in this
+  // repo rather than to anything a registry serves. A conformance test wired
+  // this way cannot go stale against the package it tests: it IS that package.
+  //
+  // That is the opposite of the caret trap this gate exists for, so refusing it
+  // as "cannot reason about that range" said THE GATE IS CONFUSED when the truth
+  // was THE PIN IS AS STRICT AS IT GETS — the same misleading-verdict fault the
+  // bare-exact-version comment below records.
+  //
+  // It is only safe when the target actually LIVES here. A workspace: range to a
+  // package that is not in this workspace cannot install at all, so that stays
+  // "unknown" and the caller (which is what knows the answer) decides.
+  if (/^workspace:/.test(range.trim())) return isLocalPackage ? "ok" : "unknown";
+
   const [lMajor, lMinor, lPatch] = latest.split(".").map(Number);
   const m = /^([\^~>]=?)?\s*(\d+)\.(\d+)\.(\d+)/.exec(range.trim());
   if (!m) return "unknown";
@@ -111,6 +142,13 @@ export function satisfiesLatest(range, latest) {
 // importing it must stay side-effect-free, or the test would hit the registry.
 function main() {
   const rows = edges();
+  // The set of @broberg packages that live IN this workspace — the only ones a
+  // `workspace:` range can resolve. Read from the DIRECTORIES, not from the
+  // edges: a package with no @broberg dependencies of its own never appears as
+  // an edge's `from`, and @broberg/apikey is exactly that. Deriving it from the
+  // rows would have made every workspace: pin to a leaf package read "unknown"
+  // — the guard answering about the wrong set and looking right.
+  const local = localPackageNames();
   if (!rows.length) {
     console.log("✓ no @broberg → @broberg dependencies to check");
     process.exit(0);
@@ -126,7 +164,7 @@ function main() {
       unreachable.push(e);
       continue;
     }
-    const verdict = satisfiesLatest(e.range, latest);
+    const verdict = satisfiesLatest(e.range, latest, local.has(e.to));
     if (verdict === "stale") stale.push({ ...e, latest });
     else if (verdict === "unknown") unknown.push({ ...e, latest });
   }

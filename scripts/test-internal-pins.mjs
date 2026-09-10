@@ -9,8 +9,8 @@
 import { satisfiesLatest } from "./check-internal-pins.mjs";
 
 let failed = 0;
-const eq = (range, latest, want, why) => {
-  const got = satisfiesLatest(range, latest);
+const eq = (range, latest, want, why, isLocal = false) => {
+  const got = satisfiesLatest(range, latest, isLocal);
   if (got === want) return;
   failed++;
   console.error(`✗ satisfiesLatest(${JSON.stringify(range)}, ${JSON.stringify(latest)})\n    want ${want}\n    got  ${got}\n    ${why}`);
@@ -56,3 +56,31 @@ if (failed) {
   process.exit(1);
 }
 console.log("✓ satisfiesLatest: 22 verdicts correct (exact · unknown-stays-unknown · caret-0.x trap · >= floor)");
+
+// --- F035.14 fallout: `workspace:` is the TIGHTEST pin, not an unreadable one -
+//
+// Adding @broberg/apikey as a devDependency of secret-scan — so the key fixture
+// is minted by the REAL minter and cannot drift from it — turned this gate red:
+//
+//   ? @broberg/secret-scan → @broberg/apikey "workspace:*" — cannot reason
+//
+// That verdict said THE GATE IS CONFUSED when the truth was THE PIN IS AS STRICT
+// AS IT GETS: a workspace: range resolves to the source in this repo, so a
+// conformance test wired that way cannot go stale against what it tests — it IS
+// that thing. Same misleading-verdict fault as the bare-exact-version case above.
+eq("workspace:*", "0.3.1", "ok", "resolves this repo's own source — nothing to be behind", true);
+eq("workspace:^", "0.3.1", "ok", "same protocol, same guarantee", true);
+eq("workspace:~", "9.9.9", "ok", "the registry's version is irrelevant when the source is local", true);
+
+// THE NEGATIVE CONTROL, and the reason the flag exists at all rather than a
+// blanket pass: a workspace: range to a package that is NOT in this workspace
+// cannot install, so waving it through would be exactly the silent approval this
+// gate exists to prevent. (The `workspace:^` line further up asserts the same
+// thing via the default, which is the state a careless caller lands in.)
+eq("workspace:*", "0.3.1", "unknown", "not a local package — this cannot install at all");
+
+// AND THE FLAG MUST NOT RESCUE A GENUINELY STALE RANGE. A version of this that
+// returned "ok" whenever isLocal was true would pass every check above and stop
+// guarding anything.
+eq("^0.7.0", "0.8.1", "stale", "a caret on 0.x locks the MINOR, local or not", true);
+eq("^0.8.0", "0.8.1", "ok", "…and a correct caret is still correct", true);
