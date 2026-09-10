@@ -26,7 +26,16 @@ describe("the exact measurement from the report", () => {
   });
 
   it("a temporary (STS) credential id is matched too — it is just as usable while it lives", () => {
-    expect(classify(TEMP_ID)?.label).toBe("aws-access-key-id");
+    expect(classify(TEMP_ID)?.label).toBe("aws-temporary-access-key-id");
+  });
+
+  it("and it is labelled DISTINCTLY from a long-term key, because the response differs", () => {
+    // A leaked AKIA must be rotated; a leaked ASIA may already have expired.
+    // A reader seeing the marker in a log can only make that call if the marker
+    // says which one it was.
+    expect(classify(ID)?.label).toBe("aws-access-key-id");
+    expect(redactSecrets(TEMP_ID).redacted).toContain("aws-temporary-access-key-id");
+    expect(redactSecrets(ID).redacted).not.toContain("temporary");
   });
 });
 

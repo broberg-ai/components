@@ -182,11 +182,20 @@ const PATTERNS: SecretPattern[] = [
     regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\s\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,
   },
   {
-    // ASIA is a TEMPORARY (STS) credential and is just as usable as AKIA while
-    // it lives. It was not matched, so an assumed-role dump read as clean.
+    // A SEPARATE LABEL FROM AKIA, and the reason is operational rather than
+    // tidy: the two demand different responses. A leaked long-term key must be
+    // rotated; a leaked STS key may already have expired on its own. A reader
+    // seeing [REDACTED:…] in a log can only make that call if the marker says
+    // which one it was. ASIA was unmatched entirely before 0.8.0, so an
+    // assumed-role dump read as clean.
+    label: 'aws-temporary-access-key-id',
+    description: 'AWS temporary (STS) access key id (ASIA…)',
+    regex: /\bASIA[0-9A-Z]{16}\b/g,
+  },
+  {
     label: 'aws-access-key-id',
-    description: 'AWS access key id (AKIA…/ASIA…)',
-    regex: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
+    description: 'AWS long-term access key id (AKIA…)',
+    regex: /\bAKIA[0-9A-Z]{16}\b/g,
   },
   {
     label: 'github-token',

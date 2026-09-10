@@ -9,6 +9,14 @@ second-brain safeguard that found 9 real leaked keys already sitting in a shared
 KB. `components` owns + publishes it; every repo consumes the same canonical
 pattern set, so detection never drifts.
 
+**AWS, in one line, because a reader scans this far and no further:** an access
+key id (`AKIA…` long-term, `ASIA…` temporary) is caught on shape; the **secret
+access key and session token** are caught next to their field name (`20+` chars,
+any S3-compatible provider — Tigris, R2, MinIO — not only AWS's 40); and a
+40-char value **within 80 characters of an id** is caught as its pair. A bare
+40-char base64 string with no field name and no id nearby is deliberately **not**
+caught — it is the shape of every git hash. [Details](#aws-the-id-was-never-the-credential-v080).
+
 ```bash
 npm i @broberg/secret-scan
 ```

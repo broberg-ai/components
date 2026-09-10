@@ -159,8 +159,15 @@ const MUTATIONS = [
   {
     // ASIA taken back out: an assumed-role dump reads as clean again.
     name: 'temporary STS credentials are unmatched again (ASIA dropped)',
-    from: "    regex: /\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b/g,",
-    to: "    regex: /\\bAKIA[0-9A-Z]{16}\\b/g,",
+    from: "    regex: /\\bASIA[0-9A-Z]{16}\\b/g,",
+    to: "    regex: /\\bASIA-cannot-occur[0-9A-Z]{16}\\b/g,",
+  },
+  {
+    // The two AWS id kinds collapsed back into one label: a reader can no
+    // longer tell a key that must be rotated from one that may have expired.
+    name: 'ASIA and AKIA share one label again (the response differs and the marker stops saying which)',
+    from: "    label: 'aws-temporary-access-key-id',",
+    to: "    label: 'aws-access-key-id',",
   },
   {
     // cardmem's finding, restored: pinning AWS's exact 40 puts a shape
