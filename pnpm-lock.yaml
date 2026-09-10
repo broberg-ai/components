@@ -409,8 +409,8 @@ importers:
   packages/logger:
     dependencies:
       '@broberg/secret-scan':
-        specifier: ^0.8.1
-        version: 0.8.4
+        specifier: '>=0.9.3 <1'
+        version: 0.9.3
     devDependencies:
       '@types/node':
         specifier: ^26.2.0
@@ -979,8 +979,8 @@ packages:
   '@broberg/mail@0.3.0':
     resolution: {integrity: sha512-LhbExzhS599dqzwCl5Mr3XQWU4Y/zAFTVdTb71WIe382AlLHeWa7MR4rQyDCv2/n92L2mmb4uX3KGZiRlpos1Q==}
 
-  '@broberg/secret-scan@0.8.4':
-    resolution: {integrity: sha512-VjOkRp6fBGUt7keuAiuuRxXhjKCFMgW+rIu/rLTzLBXizQiB+Yo/uB4tMYGxHQ4D3kvTzr6HgeUEXU+cyoOizQ==}
+  '@broberg/secret-scan@0.9.3':
+    resolution: {integrity: sha512-PGxMNy9tA12cbHF0Q9RVVHv8urQmyPti8+OzKvkFyfxjRhR4+Ip8zV58M2FXpZnqo64nky9BjrNT736nGo+DpA==}
 
   '@broberg/ui-controls-core@0.1.1':
     resolution: {integrity: sha512-Uy/P5X4bJfEnIhxEY+KRsBdRux4Wjbinv392196Mihu52esqpkmpISJBtFU7u1MS31Bq1yxNG2ILWwhlaYYCRg==}
@@ -3870,7 +3870,7 @@ snapshots:
 
   '@broberg/mail@0.3.0': {}
 
-  '@broberg/secret-scan@0.8.4': {}
+  '@broberg/secret-scan@0.9.3': {}
 
   '@broberg/ui-controls-core@0.1.1': {}
 
