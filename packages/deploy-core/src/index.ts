@@ -6,6 +6,7 @@ export {
   buildManifest,
   signIcdRequest,
   generateSyncSecret,
+  redactSyncSecret,
 } from "./deploy/fly-live.js";
 
 export type {

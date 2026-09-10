@@ -222,20 +222,206 @@ function assertFlyctl(): void {
   }
 }
 
+/**
+ * Remove a secret value from text.
+ *
+ * Defence in depth ONLY. The value is never put into argv (see `stageSyncSecret`),
+ * so nothing we construct can carry it — this exists for the output we do not
+ * control: flyctl's own stdout/stderr.
+ */
+export function redactSyncSecret(text: string, secret: string): string {
+  if (!secret) return text;
+  return text.split(secret).join("«SYNC_SECRET redacted»");
+}
+
 function runFlyctl(args: string[], cwd: string): void {
   execFileSync("flyctl", args, { cwd, stdio: "inherit" });
 }
 
 /**
- * Provision (or re-provision) the Fly.io app from scratch.
- * Writes embedded assets to a temp dir, runs flyctl deploy.
+ * Run flyctl and capture its output instead of throwing.
+ *
+ * The caller decides what a failure means. That is the point: a swallowed error
+ * makes "already exists" and "the region is full" the same answer.
+ */
+function runFlyctlCapture(
+  args: string[],
+  cwd: string,
+): { ok: true; stdout: string } | { ok: false; stderr: string } {
+  try {
+    const stdout = execFileSync("flyctl", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return { ok: true, stdout: stdout ?? "" };
+  } catch (err) {
+    const e = err as { stderr?: Buffer | string; message?: string };
+    const stderr = e.stderr ? String(e.stderr) : (e.message ?? "unknown flyctl failure");
+    return { ok: false, stderr };
+  }
+}
+
+function parseFlyJson<T>(stdout: string, what: string): T[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    throw new Error(`flyctl ${what} did not return JSON — got: ${stdout.slice(0, 200)}`);
+  }
+  return Array.isArray(parsed) ? (parsed as T[]) : [];
+}
+
+/**
+ * Hand the sync secret to flyctl over STDIN.
+ *
+ * `secrets set KEY=value` puts the value in the argument list, where any process
+ * on the machine can read it with `ps`, the shell keeps it in history, and Node's
+ * own "Command failed: …" error prints it back. `secrets import` reads KEY=value
+ * from stdin, so none of those three can see it.
+ */
+function stageSyncSecret(config: FlyLiveConfig, cwd: string): void {
+  try {
+    execFileSync("flyctl", ["secrets", "import", "--stage", "--app", config.appName], {
+      cwd,
+      input: `SYNC_SECRET=${config.syncSecret}\n`,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (err) {
+    const e = err as { stderr?: Buffer | string; message?: string };
+    const detail = String(e.stderr ?? "") || String(e.message ?? "");
+    throw new Error(
+      `flyctl secrets import failed for app "${config.appName}": ` +
+        redactSyncSecret(detail, config.syncSecret).trim(),
+    );
+  }
+}
+
+/**
+ * Fail early, by name, when the app does not exist.
+ *
+ * Without this the first flyctl call returns a GraphQL "Could not find App" and
+ * the run dies three commands later on something unrelated.
+ */
+function assertAppExists(appName: string, cwd: string): void {
+  const res = runFlyctlCapture(["status", "--app", appName], cwd);
+  if (res.ok) return;
+  if (/could not find app/i.test(res.stderr)) {
+    throw new Error(
+      `Fly app "${appName}" does not exist. This function deploys INTO an app that already exists — it does not create one.\n` +
+        `Create it first:  flyctl apps create ${appName} --org <your-org>`,
+    );
+  }
+  throw new Error(`flyctl could not read the status of app "${appName}": ${res.stderr.trim()}`);
+}
+
+/** Create the volume only when it is genuinely absent — never by ignoring an error. */
+function ensureVolume(config: FlyLiveConfig, cwd: string): void {
+  const res = runFlyctlCapture(["volumes", "list", "--app", config.appName, "--json"], cwd);
+  if (!res.ok) {
+    throw new Error(`could not list volumes for app "${config.appName}": ${res.stderr.trim()}`);
+  }
+  const volumes = parseFlyJson<{ name?: string }>(res.stdout, "volumes list");
+  if (volumes.some((v) => v.name === config.volumeName)) return;
+  runFlyctl(
+    [
+      "volumes",
+      "create",
+      config.volumeName,
+      "--app",
+      config.appName,
+      "--region",
+      config.region,
+      "--size",
+      "1",
+      "--yes",
+    ],
+    cwd,
+  );
+}
+
+/**
+ * Allocate public IP addresses explicitly.
+ *
+ * A first deploy can report success while the IPv6 allocation inside it failed —
+ * the machine runs and <app>.fly.dev resolves nowhere, which then surfaces as a
+ * connection refused in whatever the caller does next.
+ */
+function ensurePublicIps(appName: string, cwd: string): void {
+  const res = runFlyctlCapture(["ips", "list", "--app", appName, "--json"], cwd);
+  if (!res.ok) {
+    throw new Error(`could not list IP addresses for app "${appName}": ${res.stderr.trim()}`);
+  }
+  const ips = parseFlyJson<{ Type?: string; type?: string }>(res.stdout, "ips list");
+  const kinds = new Set(ips.map((i) => String(i.Type ?? i.type ?? "").toLowerCase()));
+  if (!kinds.has("v6")) runFlyctl(["ips", "allocate-v6", "--app", appName], cwd);
+  if (!kinds.has("v4") && !kinds.has("shared_v4")) {
+    runFlyctl(["ips", "allocate-v4", "--shared", "--app", appName], cwd);
+  }
+}
+
+/** Add the certificate only when it is absent — a failure to add is reported, not swallowed. */
+function ensureCert(domain: string, appName: string, cwd: string): void {
+  const res = runFlyctlCapture(["certs", "list", "--app", appName, "--json"], cwd);
+  if (!res.ok) {
+    throw new Error(`could not list certificates for app "${appName}": ${res.stderr.trim()}`);
+  }
+  const certs = parseFlyJson<{ Hostname?: string; hostname?: string }>(res.stdout, "certs list");
+  if (certs.some((c) => (c.Hostname ?? c.hostname) === domain)) return;
+  runFlyctl(["certs", "add", domain, "--app", appName], cwd);
+}
+
+/**
+ * Ask the URL whether it is live before we hand it back as a fact.
+ *
+ * The returned URL IS the claim "this is running". Returning it unchecked is how
+ * a missing IP address, a crashed boot and a healthy app all look identical.
+ */
+async function verifyLive(
+  baseUrl: string,
+  secret: string,
+  attempts: number,
+  delayMs: number,
+): Promise<void> {
+  let last = "no attempt was made";
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await icdFetch(baseUrl, "GET", "/_icd/health", new Uint8Array(0), secret);
+      if (res.ok) return;
+      last = `HTTP ${res.status}`;
+    } catch (err) {
+      last = err instanceof Error ? err.message : String(err);
+    }
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  throw new Error(
+    `the deploy finished but ${baseUrl}/_icd/health never answered (${attempts} attempts, last: ${last}). ` +
+      `The app may have no public IP address — check \`flyctl ips list\`.`,
+  );
+}
+
+/**
+ * Deploy the Fly Live server into an EXISTING Fly app: writes the embedded
+ * assets to a temp dir, ensures the volume, stages the sync secret, deploys,
+ * ensures public IPs, and verifies the URL answers before returning it.
+ *
+ * It does NOT create the Fly app or the organisation — creating billable
+ * infrastructure is the caller's decision, not a library's. A missing app fails
+ * with the exact `flyctl apps create` command to run.
+ *
  * Requires flyctl on PATH.
  */
-export async function flyLiveRebuildInfra(config: FlyLiveConfig): Promise<string> {
+export async function flyLiveRebuildInfra(
+  config: FlyLiveConfig,
+  options?: { baseUrl?: string; verifyAttempts?: number; verifyDelayMs?: number },
+): Promise<string> {
   assertFlyctl();
   const tmpDir = join(tmpdir(), `fly-live-infra-${Date.now()}`);
   await mkdir(tmpDir, { recursive: true });
   try {
+    assertAppExists(config.appName, tmpDir);
+
     await writeFile(join(tmpDir, "server.ts"), FLY_LIVE_SERVER_TS, "utf8");
     await writeFile(join(tmpDir, "Dockerfile"), FLY_LIVE_DOCKERFILE, "utf8");
     const toml = FLY_LIVE_TOML_TEMPLATE.replace(/{{APP_NAME}}/g, config.appName)
@@ -243,48 +429,25 @@ export async function flyLiveRebuildInfra(config: FlyLiveConfig): Promise<string
       .replace(/{{VOLUME_NAME}}/g, config.volumeName);
     await writeFile(join(tmpDir, "fly.toml"), toml, "utf8");
 
-    // Create volume if it doesn't exist (ignore error if already exists)
-    try {
-      runFlyctl(
-        [
-          "volumes",
-          "create",
-          config.volumeName,
-          "--app",
-          config.appName,
-          "--region",
-          config.region,
-          "--size",
-          "1",
-          "--yes",
-        ],
-        tmpDir,
-      );
-    } catch {}
+    ensureVolume(config, tmpDir);
+    stageSyncSecret(config, tmpDir);
 
-    // Set sync secret
-    runFlyctl(
-      [
-        "secrets",
-        "set",
-        `SYNC_SECRET=${config.syncSecret}`,
-        "--app",
-        config.appName,
-        "--stage",
-      ],
-      tmpDir,
-    );
-
-    // Deploy
     runFlyctl(["deploy", "--app", config.appName, "--remote-only"], tmpDir);
 
+    ensurePublicIps(config.appName, tmpDir);
+
     if (config.customDomain) {
-      try {
-        runFlyctl(["certs", "add", config.customDomain, "--app", config.appName], tmpDir);
-      } catch {}
+      ensureCert(config.customDomain, config.appName, tmpDir);
     }
 
-    return `https://${config.appName}.fly.dev`;
+    const baseUrl = options?.baseUrl ?? `https://${config.appName}.fly.dev`;
+    await verifyLive(
+      baseUrl,
+      config.syncSecret,
+      options?.verifyAttempts ?? 12,
+      options?.verifyDelayMs ?? 5000,
+    );
+    return baseUrl;
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
@@ -316,7 +479,7 @@ export async function flyLiveDeploy(
 
   if (!appAlive) {
     // Provision infra first
-    await flyLiveRebuildInfra(config);
+    await flyLiveRebuildInfra(config, { baseUrl });
   }
 
   const syncResult = await syncContent(config, files, { baseUrl });
