@@ -162,6 +162,68 @@ const MUTATIONS = [
     to: "  if (spf === 'ok') foundAt.spf = undefined;",
     expect: ["says WHICH hostname carried each record"],
   },
+  {
+    // F005.17 — the lookup removed entirely: back to reasoning about DMARC in a
+    // comment and never asking.
+    name: "the DMARC lookup is dropped (the policy is reasoned about, never resolved)",
+    file: "verify",
+    from: "  const dmarcState = dmarcProbe.state;",
+    to: "  const dmarcState = 'ok';",
+    expect: ["a TXT that is NOT a policy yields missing"],
+  },
+  {
+    // THE ONE THAT MATTERS: "the name answered" accepted as "there is a policy".
+    // A google-site-verification at _dmarc.<domain> would clear the check.
+    name: "the policy check is loosened to 'a TXT exists' (a non-policy passes)",
+    file: "verify",
+    from: "  return parts.join('').trim().toLowerCase().startsWith('v=dmarc1');",
+    to: "  return parts.join('').trim().length > 0;",
+    expect: ["a TXT that is NOT a policy yields missing"],
+  },
+  {
+    // includes instead of startsWith — RFC 7489 requires the version tag first,
+    // so a TXT merely MENTIONING the string is not a policy.
+    name: "startsWith becomes includes (a record that mentions v=DMARC1 passes)",
+    file: "verify",
+    from: "startsWith('v=dmarc1')",
+    to: "includes('v=dmarc1')",
+    expect: ["does not START with it is not a policy"],
+  },
+  {
+    // The chunks matched one at a time: a policy over 255 bytes arrives split,
+    // and the first chunk alone is not the record.
+    name: "the TXT chunks are not joined (a >255-byte policy stops matching)",
+    file: "verify",
+    from: "function isDmarcPolicy(parts: string[]): boolean {\n  return parts.join('')",
+    to: "function isDmarcPolicy(parts: string[]): boolean {\n  return (parts[parts.length - 1] ?? '')",
+    expect: ["MULTI-CHUNK"],
+  },
+  {
+    // The case-insensitive fold dropped: a valid v=dmarc1 reads as missing —
+    // a confident false alarm about a domain that is fine.
+    name: "the prefix match becomes case-SENSITIVE (a valid v=dmarc1 reads as missing)",
+    file: "verify",
+    from: "  return parts.join('').trim().toLowerCase().startsWith('v=dmarc1');",
+    to: "  return parts.join('').trim().startsWith('v=DMARC1');",
+    expect: ["CASE-INSENSITIVE"],
+  },
+  {
+    // The organisational-domain fallback removed: send.broberg.ai reports no
+    // policy while a receiver would find one. F005.15's defect, one record over.
+    name: "the org-domain fallback is dropped (a domain that passes DMARC reports missing)",
+    file: "verify",
+    from: "  if (labels.length > 2) hosts.push(`_dmarc.${labels.slice(-2).join('.')}`);",
+    to: "",
+    expect: ["falls back to the ORGANISATIONAL domain"],
+  },
+  {
+    // The other direction: the policy location follows SPF/MX under send.
+    name: "the DMARC lookup moves under the send subdomain (it is fixed by RFC, not by provider)",
+    file: "verify",
+    from: "  const hosts = [`_dmarc.${domain}`];",
+    to: "  const hosts = [`_dmarc.send.${domain}`];",
+    expect: ["the lookup is _dmarc.<domain>"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "mailmut-"));

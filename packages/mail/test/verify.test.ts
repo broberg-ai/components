@@ -14,7 +14,7 @@
 // Neither is complete. Nobody knew. It was found by accident while looking at
 // something else — which is the argument for the check existing at all.
 import { describe, it, expect } from 'vitest';
-import { verifySendingDomain, type DnsResolver, type ProviderLayout } from '../src/verify';
+import { verifySendingDomain, dmarcHosts, type DnsResolver, type ProviderLayout } from '../src/verify';
 
 /** A DNS error as node:dns raises it — the CODE is what carries the meaning. */
 function dnsError(code: string): Error & { code: string } {
@@ -44,6 +44,10 @@ const brobergAi = fakeResolver(
   {
     'send.broberg.ai': dnsError('ENODATA'),
     'resend._domainkey.send.broberg.ai': [[DKIM_KEY]],
+    // F005.17 — measured 2026-09-10. send.broberg.ai has NO policy of its own;
+    // the organisational domain carries it, and a receiver falls back there.
+    '_dmarc.send.broberg.ai': dnsError('ENOTFOUND'),
+    '_dmarc.broberg.ai': [['v=DMARC1; p=quarantine; rua=mailto:buddy+dmarc@broberg.ai; adkim=r; aspf=r; pct=100']],
   },
   { 'send.broberg.ai': dnsError('ENODATA') },
 );
@@ -53,6 +57,9 @@ const webhouseDk = fakeResolver(
   {
     'send.webhouse.dk': [['v=spf1 include:amazonses.com ~all']],
     'resend._domainkey.send.webhouse.dk': dnsError('ENOTFOUND'),
+    // Measured 2026-09-10: same shape — the policy lives on the org domain.
+    '_dmarc.send.webhouse.dk': dnsError('ENOTFOUND'),
+    '_dmarc.webhouse.dk': [['v=DMARC1; p=quarantine; rua=mailto:buddy+dmarc@broberg.ai;']],
   },
   { 'send.webhouse.dk': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }] },
 );
@@ -94,11 +101,12 @@ describe('the measured case — 2026-08-22, the day the login mail vanished', ()
     expect(b.ok).toBe(false);
   });
 
-  it('a domain with all three is ok — the positive control', async () => {
+  it('a domain with all four is ok — the positive control', async () => {
     const complete = fakeResolver(
       {
         'send.done.example': [['v=spf1 include:amazonses.com ~all']],
         'resend._domainkey.send.done.example': [[DKIM_KEY]],
+        '_dmarc.send.done.example': [['v=DMARC1; p=none;']],
       },
       { 'send.done.example': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }] },
     );
@@ -118,6 +126,10 @@ describe('THREE STATES, NEVER TWO — a lookup that failed is not a record that 
     {
       'send.x.example': dnsError('ETIMEOUT'),
       'resend._domainkey.send.x.example': dnsError('ESERVFAIL'),
+      // F005.17 — the DMARC lookup is subject to the same discipline: a
+      // resolver that could not answer must not become "there is no policy".
+      '_dmarc.send.x.example': dnsError('ESERVFAIL'),
+      '_dmarc.x.example': dnsError('ETIMEOUT'),
     },
     { 'send.x.example': dnsError('ECONNREFUSED') },
   );
@@ -127,8 +139,9 @@ describe('THREE STATES, NEVER TWO — a lookup that failed is not a record that 
     expect(r.spf).toBe('unknown');
     expect(r.dkim).toBe('unknown');
     expect(r.mx).toBe('unknown');
+    expect(r.dmarc).toBe('unknown');
     expect(r.missing).toEqual([]); // nothing was proven absent
-    expect(r.unknown).toEqual(['SPF', 'DKIM', 'MX']);
+    expect(r.unknown.slice().sort()).toEqual(['DKIM', 'DMARC', 'MX', 'SPF']);
   });
 
   it('an unknown never counts as ok — we did not verify it, so we do not claim it', async () => {
@@ -165,7 +178,7 @@ describe('never throws, never blocks', () => {
     };
     const r = await verifySendingDomain('send.y.example', { resolver: hostile });
     expect(r.ok).toBe(false);
-    expect(r.unknown).toEqual(['SPF', 'DKIM', 'MX']);
+    expect(r.unknown.slice().sort()).toEqual(['DKIM', 'DMARC', 'MX', 'SPF']);
   });
 });
 
@@ -361,7 +374,11 @@ describe('F005.10 — the check accepts all three forms and never normalises sil
     expect(r.spf).toBe('missing');
     expect(r.mx).toBe('missing');
     expect(r.dkim).toBe('ok');
-    expect(r.missing).toHaveLength(2);
+    // F005.17 added a fourth record, and this fixture's domain has no DMARC
+    // policy at either candidate — so three are now genuinely absent. The count
+    // moved because the CHECK got wider, not because the domain got worse.
+    expect(r.dmarc).toBe('missing');
+    expect(r.missing).toHaveLength(3);
   });
 });
 
@@ -404,6 +421,9 @@ const fdsundhed = fakeResolver(
     'support.fdsundhed.dk': dnsError('ENODATA'),
     'send.support.fdsundhed.dk': [['v=spf1 include:amazonses.com ~all']],
     'resend._domainkey.support.fdsundhed.dk': [[DKIM_KEY]],
+    // Measured 2026-09-10: this one has its OWN policy, and the org domain has
+    // none — the opposite arrangement from send.broberg.ai, in the same fleet.
+    '_dmarc.support.fdsundhed.dk': [['v=DMARC1; p=none;']],
   },
   {
     'support.fdsundhed.dk': dnsError('ENODATA'),
@@ -502,7 +522,14 @@ describe('the layout is named, never a hardcoded prefix', () => {
   };
 
   const pmDomain = fakeResolver(
-    { 'pm-bounces.p.example': [['v=spf1 include:spf.mtasv.net ~all']], '20260908._domainkey.p.example': [[DKIM_KEY]] },
+    {
+      'pm-bounces.p.example': [['v=spf1 include:spf.mtasv.net ~all']],
+      '20260908._domainkey.p.example': [[DKIM_KEY]],
+      // DMARC is NOT a layout concern — the policy lives at _dmarc.<domain>
+      // whoever sends the mail, so a Postmark domain carries it in the same
+      // place a Resend one does.
+      '_dmarc.p.example': [['v=DMARC1; p=none;']],
+    },
     { 'pm-bounces.p.example': [{ exchange: 'return.pmtasv.net', priority: 10 }] },
   );
 
@@ -532,6 +559,7 @@ describe('three states survive the extra hostnames', () => {
       'send.t.example': dnsError('ETIMEOUT'),
       't.example': dnsError('ENOTFOUND'),
       'resend._domainkey.t.example': [[DKIM_KEY]],
+      '_dmarc.t.example': [['v=DMARC1; p=none;']],
     },
     { 'send.t.example': dnsError('ESERVFAIL'), 't.example': dnsError('ENOTFOUND') },
   );
@@ -561,5 +589,152 @@ describe('three states survive the extra hostnames', () => {
     const r = await verifySendingDomain('x@u.example', { resolver: secondCarriesIt });
     expect(r.spf).toBe('ok');
     expect(r.foundAt.spf).toBe('u.example');
+  });
+});
+
+// ── F005.17 — a TXT at the name is not a policy ──────────────────────────────
+//
+// Filed by helpdesk (#27208). The check reasoned about DMARC in a COMMENT at
+// verify.ts and never looked it up — the comment was the evidence the gap had
+// been seen and left open. Without a policy the RECEIVER has no rule to fall
+// back on, so a forged mail from the customer's own domain has nothing stopping
+// it. For a product onboarding customer domains that is a security property,
+// not a deliverability nicety.
+//
+// helpdesk had to write ~90 lines on top of this package to do it themselves.
+// That is the drift the shared package exists to prevent, and they filed it.
+
+/** A DMARC policy over 255 bytes — DNS splits it into several strings in ONE record. */
+const LONG_POLICY = [
+  'v=DMARC1; p=quarantine; rua=mailto:dmarc-aggregate-reports@example.com,mailto:dmarc-aggregate-secondary@example.com,',
+  'mailto:dmarc-aggregate-tertiary@example.com; ruf=mailto:dmarc-forensic-reports@example.com,mailto:dmarc-forensic-2@example.com; ',
+  'fo=1; adkim=r; aspf=r; pct=100; rf=afrf; ri=86400; sp=quarantine;',
+];
+
+describe('F005.17 — DMARC is judged as a POLICY, not as a name that answered', () => {
+  const withDmarc = (txt: string[][] | Error) =>
+    fakeResolver(
+      {
+        'send.q.example': [['v=spf1 include:amazonses.com ~all']],
+        'resend._domainkey.q.example': [[DKIM_KEY]],
+        '_dmarc.q.example': txt,
+      },
+      { 'send.q.example': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }] },
+    );
+
+  // helpdesk's three cases go in as a SET, and their point is why: the first
+  // one does not measure what it claims unless the other two stand beside it.
+  // Alone, an implementation that always answered `missing` would pass it.
+  it("helpdesk's case 1 — a TXT that is NOT a policy yields missing, not ok", async () => {
+    const r = await verifySendingDomain('x@q.example', {
+      resolver: withDmarc([['google-site-verification=abc123def456ghi789jkl012mno345pqr678']]),
+    });
+    expect(r.dmarc).toBe('missing');
+    expect(r.ok).toBe(false);
+  });
+
+  it("helpdesk's case 2 — a real policy yields ok", async () => {
+    const r = await verifySendingDomain('x@q.example', { resolver: withDmarc([['v=DMARC1; p=none;']]) });
+    expect(r.dmarc).toBe('ok');
+    expect(r.ok).toBe(true);
+  });
+
+  it("helpdesk's case 3 — the prefix match is CASE-INSENSITIVE", async () => {
+    // The RFC fixes no case, so a case-sensitive check would report a valid
+    // policy as missing — a false alarm about a domain that is fine.
+    for (const value of ['v=DMARC1; p=none;', 'v=dmarc1; p=none;', 'V=DmArC1; p=none;']) {
+      const r = await verifySendingDomain('x@q.example', { resolver: withDmarc([[value]]) });
+      expect(r.dmarc, value).toBe('ok');
+    }
+  });
+
+  it('ANCHORED: a TXT that CONTAINS v=DMARC1 but does not START with it is not a policy', async () => {
+    // RFC 7489 §6.4 requires the version tag first. `includes` would accept
+    // this, and accepting a non-policy is the whole failure this check prevents.
+    const r = await verifySendingDomain('x@q.example', {
+      resolver: withDmarc([['note=our policy is v=DMARC1; p=reject elsewhere']]),
+    });
+    expect(r.dmarc).toBe('missing');
+  });
+
+  it('MULTI-CHUNK: a policy over 255 bytes arrives as several strings in ONE record', async () => {
+    // The chunks must be joined before matching — the SPF branch already does
+    // this, and a hand-written second implementation is exactly where a house
+    // pattern diverges.
+    expect(LONG_POLICY.join('').length).toBeGreaterThan(255);
+    const r = await verifySendingDomain('x@q.example', { resolver: withDmarc([LONG_POLICY]) });
+    expect(r.dmarc).toBe('ok');
+  });
+
+  it('the remedy proposes p=none, NEVER p=reject', async () => {
+    // A new domain with no traffic history starting at p=reject rejects
+    // legitimate mail if any one link is wrong — invisible to the sender,
+    // visible to the customer's users. Our `missing` array carries the fix, so
+    // this is our sentence to get right, not advice we pass along.
+    const r = await verifySendingDomain('x@q.example', { resolver: withDmarc(dnsError('ENOTFOUND')) });
+    const line = r.missing.find((m) => m.startsWith('DMARC'))!;
+    expect(line).toContain('p=none');
+    expect(line).not.toContain('p=reject');
+    expect(line).toContain('_dmarc.q.example');
+  });
+
+  it('says what is AT STAKE, not merely that a record is absent', async () => {
+    const r = await verifySendingDomain('x@q.example', { resolver: withDmarc(dnsError('ENOTFOUND')) });
+    expect(r.missing.find((m) => m.startsWith('DMARC'))).toContain('forged mail');
+  });
+
+  it('a TXT that exists but is not a policy gets a DIFFERENT remedy from nothing at all', async () => {
+    const r = await verifySendingDomain('x@q.example', { resolver: withDmarc([['google-site-verification=xyz']]) });
+    // "add a record" is the wrong instruction for someone who already has one
+    // at that name: they must EDIT it, or they end up with two TXT values.
+    expect(r.missing.find((m) => m.startsWith('DMARC'))).toContain('not a DMARC policy');
+  });
+
+  it('THREE STATES: a resolver that could not answer is unknown, never missing', async () => {
+    for (const code of ['ESERVFAIL', 'ETIMEOUT', 'ECONNREFUSED']) {
+      const r = await verifySendingDomain('x@q.example', { resolver: withDmarc(dnsError(code)) });
+      expect(r.dmarc, code).toBe('unknown');
+      expect(r.missing.some((m) => m.startsWith('DMARC')), code).toBe(false);
+    }
+  });
+
+  it('…and ENOTFOUND / ENODATA are missing, because those ARE answers', async () => {
+    for (const code of ['ENOTFOUND', 'ENODATA']) {
+      const r = await verifySendingDomain('x@q.example', { resolver: withDmarc(dnsError(code)) });
+      expect(r.dmarc, code).toBe('missing');
+    }
+  });
+});
+
+describe('F005.17 — the policy lives at _dmarc, NEVER under the send subdomain', () => {
+  it('the lookup is _dmarc.<domain>, not _dmarc.send.<domain> or send._dmarc', async () => {
+    // The obvious mistake right after F005.15 moved SPF and MX to send.<domain>
+    // is to move this one with them. It is fixed by RFC 7489, not by the
+    // provider, so it must not follow.
+    expect(dmarcHosts('support.fdsundhed.dk')[0]).toBe('_dmarc.support.fdsundhed.dk');
+    expect(dmarcHosts('support.fdsundhed.dk').join(' ')).not.toContain('send.');
+  });
+
+  it('falls back to the ORGANISATIONAL domain, which is how a receiver resolves it', async () => {
+    // MEASURED 2026-09-10, and this is why the fallback is not optional:
+    //   _dmarc.send.broberg.ai   → nothing
+    //   _dmarc.broberg.ai        → v=DMARC1; p=quarantine; …
+    // Checking only the first name reports a domain that genuinely PASSES DMARC
+    // as having no policy — F005.15's own defect, one record over.
+    const r = await verifySendingDomain('x@send.broberg.ai', { resolver: brobergAi });
+    expect(r.dmarc).toBe('ok');
+    expect(r.foundAt.dmarc).toBe('_dmarc.broberg.ai');
+  });
+
+  it('…and prefers the domain’s OWN policy when it has one', async () => {
+    // The opposite arrangement, in the same fleet, also measured 2026-09-10:
+    // support.fdsundhed.dk carries its own and the org domain carries none.
+    const r = await verifySendingDomain('support@support.fdsundhed.dk', { resolver: fdsundhed });
+    expect(r.dmarc).toBe('ok');
+    expect(r.foundAt.dmarc).toBe('_dmarc.support.fdsundhed.dk');
+  });
+
+  it('a two-label domain has exactly ONE candidate — there is nothing above it', async () => {
+    expect(dmarcHosts('broberg.ai')).toEqual(['_dmarc.broberg.ai']);
   });
 });

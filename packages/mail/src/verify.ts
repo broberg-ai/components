@@ -48,6 +48,12 @@ export interface DomainReadiness {
   spf: RecordState;
   dkim: RecordState;
   mx: RecordState;
+  /**
+   * The DMARC policy at `_dmarc.<domain>`, or at the organisational domain it
+   * falls back to. `ok` requires an actual `v=DMARC1` policy — a TXT that merely
+   * EXISTS at the name is not one.
+   */
+  dmarc: RecordState;
   /** Records proven absent, each WITH the fix — so the reader can act without a second round-trip. */
   missing: string[];
   /** Records we could not check. Distinct from missing on purpose; do not alarm on these. */
@@ -59,7 +65,7 @@ export interface DomainReadiness {
    * its own is an unfalsifiable claim: a reader who disagrees has nothing to
    * re-run. This is the same fix `domain` already got in F005.10.
    */
-  foundAt: { spf?: string; dkim?: string; mx?: string };
+  foundAt: { spf?: string; dkim?: string; mx?: string; dmarc?: string };
   /** One line safe to log at boot. */
   summary: string;
 }
@@ -176,6 +182,57 @@ async function lookup<T>(fn: () => Promise<T>): Promise<{ state: 'found'; value:
   }
 }
 
+/**
+ * Where a DMARC policy for `domain` can legitimately live.
+ *
+ * NOT a ProviderLayout concern: DMARC's location is fixed by RFC 7489, not by
+ * who sends the mail, and it is never under the `send.` subdomain. Putting it in
+ * the layout is the obvious mistake right after F005.15 moved SPF and MX there.
+ *
+ * TWO candidates, because a receiver falls back to the ORGANISATIONAL domain:
+ * `send.webhouse.dk` has no policy of its own and is covered by
+ * `_dmarc.webhouse.dk`. Checking only the first name would report a domain that
+ * genuinely passes DMARC as having no policy — which is F005.15's own defect
+ * repeated one record over.
+ *
+ * THE LIMITATION, said plainly rather than discovered later: the organisational
+ * domain is taken as the last two labels. That is wrong for a multi-part public
+ * suffix (`foo.co.uk` → `co.uk`), where we would look one level too high. It
+ * cannot produce a false `ok` in practice — nobody publishes a DMARC policy on a
+ * public suffix — and `foundAt.dmarc` names the host that answered, so a reader
+ * who disagrees can check rather than take our word. A full Public Suffix List
+ * is the correct fix and is not worth a dependency for this.
+ */
+/**
+ * Is this TXT record an actual DMARC policy?
+ *
+ * TWO THINGS THE OBVIOUS VERSION GETS WRONG, both measured by helpdesk:
+ *
+ * 1. The chunks must be JOINED FIRST. A TXT value over 255 bytes arrives as
+ *    SEVERAL strings inside ONE record, and a policy with `rua=` and `ruf=`
+ *    addresses passes 255 easily. Matching per chunk finds `v=DMARC1` in the
+ *    first and reports the rest as junk — or misses it entirely. The SPF branch
+ *    above already joins; this is the house pattern, not a new idea.
+ *
+ * 2. `startsWith`, NEVER `includes`. RFC 7489 §6.4 requires `v=DMARC1` to come
+ *    FIRST in the record, so a TXT that merely MENTIONS the string mid-value is
+ *    not a policy. `includes` would accept it — and accepting a non-policy is
+ *    precisely the failure this whole check exists to prevent.
+ *
+ * The prefix match is case-insensitive: the RFC does not fix a case, and a
+ * case-sensitive check would report a perfectly valid `v=dmarc1` as missing.
+ */
+function isDmarcPolicy(parts: string[]): boolean {
+  return parts.join('').trim().toLowerCase().startsWith('v=dmarc1');
+}
+
+export function dmarcHosts(domain: string): string[] {
+  const labels = domain.split('.');
+  const hosts = [`_dmarc.${domain}`];
+  if (labels.length > 2) hosts.push(`_dmarc.${labels.slice(-2).join('.')}`);
+  return hosts;
+}
+
 /** An MX exchange may or may not carry the root dot; neither form is wrong. */
 function matchesSuffix(exchange: string, suffixes: string[]): boolean {
   const host = exchange.trim().toLowerCase().replace(/\.$/, '');
@@ -290,8 +347,9 @@ export async function verifySendingDomain(
       spf: 'unknown',
       dkim: 'unknown',
       mx: 'unknown',
+      dmarc: 'unknown',
       missing: [],
-      unknown: ['SPF', 'DKIM', 'MX'],
+      unknown: ['SPF', 'DKIM', 'MX', 'DMARC'],
       foundAt: {},
       summary: `${JSON.stringify(rawFrom)}: not a domain — pass a domain, an address, or "Name <address>". NOTHING was checked.`,
     };
@@ -299,7 +357,7 @@ export async function verifySendingDomain(
 
   const layout = options.layout ?? RESEND_LAYOUT;
 
-  const [spfProbe, dkimProbe, mxProbe] = await Promise.all([
+  const [spfProbe, dkimProbe, dmarcProbe, mxProbe] = await Promise.all([
     probeHosts(
       layout.spfHosts(domain),
       (host) => dns.resolveTxt(host),
@@ -319,6 +377,14 @@ export async function verifySendingDomain(
       (host) => dns.resolveTxt(host),
       // Present-and-non-empty is all we can judge without the provider's key;
       // a malformed key is the provider's problem, an absent record is ours.
+      (txt) => txt.some((parts) => parts.join('').trim().length > 0),
+    ),
+    probeHosts(
+      dmarcHosts(domain),
+      (host) => dns.resolveTxt(host),
+      (txt) => txt.some((parts) => isDmarcPolicy(parts)),
+      // A TXT that is not a policy is still a TXT: it means the NAME answered,
+      // which is a different remedy from nothing being there at all.
       (txt) => txt.some((parts) => parts.join('').trim().length > 0),
     ),
     probeHosts(
@@ -345,6 +411,38 @@ export async function verifySendingDomain(
         // SPF error — so the instruction has to be to EDIT the one they have.
         ? `SPF — ${spfProbe.presentButUnmatched} has an SPF record that does not authorise ${layout.name} (needs ${layout.spfMechanisms.join(' or ')}); edit the existing record, do not add a second one`
         : `SPF — add TXT on ${where}: "v=spf1 ${layout.spfMechanisms[0]} ~all"`,
+    );
+  }
+
+  // DMARC. Not a deliverability nicety: without a policy the RECEIVER has no
+  // rule to fall back on, and a forged mail from the customer's own domain has
+  // nothing stopping it. For a product onboarding customer domains that is a
+  // security property.
+  //
+  // The code used to REASON about this record in a comment — that a domain with
+  // SPF and no DKIM still passes DMARC — and never look it up. The comment was
+  // the evidence the gap had been seen and left open.
+  const dmarcState = dmarcProbe.state;
+  if (dmarcState === 'ok') foundAt.dmarc = dmarcProbe.host;
+  else if (dmarcState === 'unknown') unknown.push('DMARC');
+  else {
+    const where = dmarcHosts(domain)[0];
+    // THE SUGGESTED POLICY IS `p=none`, NEVER `p=reject`, and this is our
+    // sentence rather than advice we pass along. A new domain with no traffic
+    // history starting at p=reject REJECTS LEGITIMATE MAIL if any one link is
+    // wrong — invisible to the sender, visible to the customer's users. F005.15
+    // established that a fix which does not fix costs trust; a fix that actively
+    // breaks the customer's mail costs more.
+    // The line names EXACTLY ONE policy value, and it is the safe one. An
+    // explanation that spells out the dangerous setting is a copyable wrong
+    // value sitting next to the right one — the same trap as a remedy naming an
+    // app called "undefined". So the warning describes the consequence without
+    // writing the string.
+    const fix = `add TXT on ${where}: "v=DMARC1; p=none; rua=mailto:dmarc@${domain}" — start in report-only mode; a stricter policy on a domain with no traffic history silently rejects legitimate mail`;
+    missing.push(
+      dmarcProbe.presentButUnmatched
+        ? `DMARC — ${dmarcProbe.presentButUnmatched} answers with a TXT record, but it is not a DMARC policy (it must START with v=DMARC1); ${fix}`
+        : `DMARC — no policy, so a forged mail from this domain has nothing stopping it; ${fix}`,
     );
   }
 
@@ -387,10 +485,11 @@ export async function verifySendingDomain(
   const where = [
     foundAt.spf && `SPF at ${foundAt.spf}`,
     foundAt.dkim && `DKIM at ${foundAt.dkim}`,
+    foundAt.dmarc && `DMARC at ${foundAt.dmarc}`,
     foundAt.mx && `MX at ${foundAt.mx}`,
   ].filter(Boolean).join(', ');
   const summary = ok
-    ? `${domain}: SPF, DKIM and MX all present — ${where}.`
+    ? `${domain}: SPF, DKIM, MX and DMARC all present — ${where}.`
     : [
         `${domain}: INCOMPLETE — deliverability is degraded (spam-folder risk), not necessarily blocked.`,
         missing.length ? `missing ${missing.length} record(s).` : '',
@@ -401,5 +500,5 @@ export async function verifySendingDomain(
         .filter(Boolean)
         .join(' ');
 
-  return { ok, domain, spf, dkim: dkimState, mx: mxState, missing, unknown, foundAt, summary };
+  return { ok, domain, spf, dkim: dkimState, mx: mxState, dmarc: dmarcState, missing, unknown, foundAt, summary };
 }
