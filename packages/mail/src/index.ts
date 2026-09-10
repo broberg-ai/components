@@ -14,6 +14,20 @@
  */
 
 import { MAIL_EVENT_TYPES, verdictForEvent, type MailEventType, type MailVerdict } from "./events";
+import { checkMailIntegrity, describeIntegrity } from "./integrity.js";
+
+/**
+ * The integrity check, exported so a consumer can run it BEFORE handing us a
+ * message — a preview screen, a template linter, a test. send() runs it anyway;
+ * this is for the caller who wants the finding earlier than the send.
+ */
+export { checkMailIntegrity, describeIntegrity } from "./integrity.js";
+export type {
+  IntegrityCheck,
+  IntegrityFinding,
+  IntegrityReport,
+  IntegritySkip,
+} from "./integrity.js";
 
 export type { MailEventType, MailVerdict } from "./events";
 export { MAIL_EVENT_TYPES, verdictForEvent } from "./events";
@@ -102,6 +116,28 @@ export interface MailerConfig {
    * is added (backward compatible). A per-message mailId wins over this.
    */
   mailId?: string;
+  /**
+   * What happens when a mail fails the integrity check (F005.16).
+   *
+   *   omitted        report-only, and `mailer.integrity` reads "not-configured"
+   *   "report-only"  the check runs, the finding is logged, the mail is SENT
+   *   "enforcing"    the mail is refused: { ok: false, error: "integrity: …" }
+   *
+   * SET ONCE, HERE — deliberately not per call and deliberately not an env var.
+   * sanne has ~25 call sites, so a per-call flag is 25 chances to forget; and an
+   * env var fails the way this package already learned the hard way, where a
+   * mistyped value lands silently in the permissive state and looks exactly like
+   * a working guard.
+   *
+   * REPORT-ONLY IS THE DEFAULT ON ARRIVAL, and that is not timidity: send() is
+   * the fleet's single mail chokepoint, so a guard that is too strict here does
+   * not break one app — it stops every app's mail at once, at whatever hour the
+   * release lands. sanne's own first run is the argument: red on two templates,
+   * and both turned out to be unrealistic test FIXTURES rather than customer
+   * defects. An integrity check cannot tell those apart; only a human reading
+   * the output can, and only if the output exists before the blocking does.
+   */
+  integrity?: "report-only" | "enforcing";
 }
 
 /**
@@ -218,7 +254,21 @@ export interface Mailer {
    * `live` was left undefined.
    */
   readonly mode: DeliveryMode;
+  /**
+   * Whether the integrity check will BLOCK, read back at boot the same way
+   * `mode` is.
+   *
+   * THREE VALUES, and the third is the point: "not-configured" means nobody
+   * chose, which behaves as report-only but must never RENDER as it. A consumer
+   * asserting `mailer.integrity === "enforcing"` before deleting its own local
+   * guard is asking a question that can be answered wrongly in exactly one
+   * direction, and this is what makes it checkable rather than assumed.
+   */
+  readonly integrity: IntegrityEnforcement;
 }
+
+/** What a mailer will do with an integrity finding. */
+export type IntegrityEnforcement = "enforcing" | "report-only" | "not-configured";
 
 const list = (v: string | string[] | undefined): string[] =>
   v == null ? [] : Array.isArray(v) ? v : [v];
@@ -313,8 +363,13 @@ export function createMailer(config: MailerConfig = {}): Mailer {
       ? { verdict: "unknown", reason }
       : { verdict: "unknown", reason, providerStatus };
 
+  // Absent means NOBODY CHOSE, and that is a third state rather than a synonym
+  // for report-only: it behaves the same and must not read the same.
+  const integrity: IntegrityEnforcement = config.integrity ?? "not-configured";
+
   return {
     mode,
+    integrity,
 
     async getStatus(providerId: string, options?: MailStatusOptions): Promise<MailStatus> {
       // Every branch below returns `unknown` WITH A REASON rather than throwing
@@ -438,6 +493,29 @@ export function createMailer(config: MailerConfig = {}): Mailer {
         log("send skipped (recipient not in allowlist; mailer not live)", { to: message.to });
         return { ok: true, skipped: true };
       }
+      // F005.16 — the integrity check runs HERE, where the finished content and
+      // the real attachments are both in hand. A per-template check cannot see
+      // any of the three defects that reached a paying customer: two of them
+      // were the CALLER's doing and one was a script that skipped the function
+      // that attaches the logo.
+      //
+      // It runs on every send, including report-only, because the report is the
+      // point: a finding nobody can read before enforcement is turned on is a
+      // guard nobody can trust turning on.
+      const integrityReport = checkMailIntegrity(message);
+      if (integrityReport.findings.length > 0) {
+        const detail = describeIntegrity(integrityReport);
+        if (integrity === "enforcing") {
+          log("send REFUSED (integrity)", { to: message.to, subject: message.subject, detail });
+          return { ok: false, error: `integrity: ${detail}` };
+        }
+        log(`integrity: ${integrityReport.findings.length} finding(s) — NOT blocked (${integrity})`, {
+          to: message.to,
+          subject: message.subject,
+          detail,
+        });
+      }
+
       const from = resolveFrom(config, message);
       if (!from) return { ok: false, error: "no_from (set MailerConfig.from or message.from)" };
       if (!doFetch) return { ok: false, error: "no_fetch (no global fetch; pass MailerConfig.fetch)" };

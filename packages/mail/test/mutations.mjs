@@ -28,6 +28,7 @@ const FILES = {
   index: join(PKG, "src", "index.ts"),
   events: join(PKG, "src", "events.ts"),
   verify: join(PKG, "src", "verify.ts"),
+  integrity: join(PKG, "src", "integrity.ts"),
 };
 
 // A mutant left on disk by a killed run is indistinguishable from real source.
@@ -223,6 +224,48 @@ const MUTATIONS = [
     from: "  const hosts = [`_dmarc.${domain}`];",
     to: "  const hosts = [`_dmarc.send.${domain}`];",
     expect: ["the lookup is _dmarc.<domain>"],
+  },
+  {
+    // F005.16 — the link check removed: a relative href goes back out to a
+    // paying customer, where Outlook reads it as a file path.
+    name: "the relative-link check is dropped (a /da/shop href reaches the customer)",
+    file: "integrity",
+    from: "      if (!href || SAFE_LINK.test(href)) continue;",
+    to: "      continue;",
+    expect: ["a relative href"],
+  },
+  {
+    // THE ONE THAT MATTERS, and it is the opposite direction. sanne shipped a
+    // guard that rewrote mailto: and tel: to `#`, breaking the two links a
+    // customer needs most. Over-rejection is the failure mode here.
+    name: "mailto: and tel: are no longer safe (the guard breaks the links that matter)",
+    file: "integrity",
+    from: "const SAFE_LINK = /^(?:https?:|mailto:|tel:|sms:|cid:|data:|#|\\/\\/)/i;",
+    to: "const SAFE_LINK = /^(?:https?:|#)/i;",
+    expect: ["mailto: passes untouched"],
+  },
+  {
+    name: "the placeholder check is dropped (the subject arrives as {{subject}})",
+    file: "integrity",
+    from: "    for (const [where, body] of [",
+    to: "    for (const [where, body] of [] as Array<['subject' | 'html' | 'text', string]>) if (false) for (const _ of [",
+    expect: ["the customer received the SUBJECT LINE"],
+  },
+  {
+    name: "a mistyped content-id is accepted (the identical broken square, unreported)",
+    file: "integrity",
+    from: "      if (ids.has(id)) continue;",
+    to: "      if (ids.size > 0) continue;",
+    expect: ["a MISTYPED content-id is caught"],
+  },
+  {
+    // "could not look" collapsed into "found nothing" — this package's own
+    // recurring defect, in the report that exists to prevent it.
+    name: "a check that did not RUN is reported as clean",
+    file: "integrity",
+    from: '    skipped.push({ check: "links", reason: "no html body — there are no links to read" });',
+    to: "    checked.push(\"links\");",
+    expect: ["NOT PERFORMED"],
   },
 ];
 
