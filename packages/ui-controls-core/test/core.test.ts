@@ -234,3 +234,98 @@ describe("makeOutsideClickHandler — where the scroll came from", () => {
     done();
   });
 });
+
+/* ── buildMonthGrid: trailing-rows + the 1-12 guard ────────────────────────
+ *
+ * Reported by cms 10 Sep 2026 while measuring whether their own hand-rolled
+ * calendar could adopt this builder. All three findings below come from that
+ * measurement, and the package had NO consumers until then — which is why they
+ * had been sitting there since 0.1.0.
+ */
+describe('buildMonthGrid — month is 1-indexed and guarded', () => {
+  it('rejects 0 — the 0-indexed caller asking for January', () => {
+    // It used to return 42 cells with inMonth: false on every one. A silently
+    // empty month that renders as a perfectly normal calendar.
+    expect(() => buildMonthGrid(2026, 0)).toThrow(RangeError);
+  });
+
+  it('rejects 13 — the caller who added 1 to fix December', () => {
+    // The same silence lived at the OTHER end, which cms's report missed and
+    // components found: both bounds, not just the low one.
+    expect(() => buildMonthGrid(2026, 13)).toThrow(RangeError);
+  });
+
+  it('rejects non-integers rather than coercing them', () => {
+    expect(() => buildMonthGrid(2026, 1.5)).toThrow(RangeError);
+    expect(() => buildMonthGrid(2026, NaN)).toThrow(RangeError);
+  });
+
+  it('the error names the convention, so the fix is in the message', () => {
+    expect(() => buildMonthGrid(2026, 0)).toThrow(/1 = January/);
+  });
+
+  it('1 is January and 12 is December', () => {
+    expect(buildMonthGrid(2026, 1).find((c) => c.inMonth)!.date).toBe('2026-01-01');
+    expect(buildMonthGrid(2026, 12).find((c) => c.inMonth)!.date).toBe('2026-12-01');
+  });
+});
+
+describe('buildMonthGrid — trailing rows', () => {
+  it('DEFAULT IS UNCHANGED: still 42 cells, same dates as 0.1.1', () => {
+    // The load-bearing test of this change. A consumer that passes no option
+    // must see byte-identical output — otherwise this is a breaking change
+    // wearing an additive one's clothes.
+    for (const [y, m] of [[2026, 9], [2027, 2], [2024, 12]] as const) {
+      const g = buildMonthGrid(y, m);
+      expect(g).toHaveLength(42);
+    }
+    // Spot-check the actual dates, not just the count.
+    const sept = buildMonthGrid(2026, 9);
+    expect(sept[0]!.date).toBe('2026-08-31');
+    expect(sept[41]!.date).toBe('2026-10-11');
+  });
+
+  it('fill-week stops at the last full week — all three lengths', () => {
+    // 2024-2030 holds exactly one 28-cell month, 66 at 35 and 17 at 42.
+    // February 2027 starts on a Monday and has 28 days: the only 28.
+    expect(buildMonthGrid(2027, 2, { trailing: 'fill-week' })).toHaveLength(28);
+    expect(buildMonthGrid(2026, 9, { trailing: 'fill-week' })).toHaveLength(35);
+    expect(buildMonthGrid(2026, 3, { trailing: 'fill-week' })).toHaveLength(42);
+  });
+
+  it('the 28-cell month is EXACTLY the month, no padding at all', () => {
+    const feb = buildMonthGrid(2027, 2, { trailing: 'fill-week' });
+    expect(feb.every((c) => c.inMonth)).toBe(true);
+    expect(feb[0]!.date).toBe('2027-02-01');
+    expect(feb[27]!.date).toBe('2027-02-28');
+  });
+
+  it('fill-week and six-rows agree on every cell they share', () => {
+    // The shorter grid must be a PREFIX of the longer, not a different grid.
+    for (const [y, m] of [[2027, 2], [2026, 9], [2026, 3]] as const) {
+      const kort = buildMonthGrid(y, m, { trailing: 'fill-week' });
+      const lang = buildMonthGrid(y, m, { trailing: 'six-rows' });
+      expect(lang.slice(0, kort.length)).toEqual(kort);
+    }
+  });
+
+  it('never cuts a day that belongs to the month', () => {
+    // The failure this option could plausibly introduce: a month whose last
+    // days fall outside the truncated grid. Swept across 2024-2030.
+    for (let y = 2024; y <= 2030; y++) {
+      for (let m = 1; m <= 12; m++) {
+        const g = buildMonthGrid(y, m, { trailing: 'fill-week' });
+        const iMaaned = g.filter((c) => c.inMonth).length;
+        const dage = new Date(y, m, 0).getDate();
+        expect(iMaaned, `${y}-${m}: ${iMaaned} of ${dage} days survived`).toBe(dage);
+        expect(g.length % 7, `${y}-${m} is not whole weeks`).toBe(0);
+      }
+    }
+  });
+
+  it('Sunday-first still works with fill-week', () => {
+    const g = buildMonthGrid(2026, 9, { trailing: 'fill-week', weekStartsOn: 0 });
+    expect(g.length % 7).toBe(0);
+    expect(g.filter((c) => c.inMonth)).toHaveLength(30);
+  });
+});
