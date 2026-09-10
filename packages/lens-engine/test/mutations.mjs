@@ -220,6 +220,24 @@ const MUTATIONS = [
     from: "  for (const a of attempts) {\n    try {\n      const base = a.make();",
     to: "  for (const a of [...attempts].reverse()) {\n    try {\n      const base = a.make();",
   },
+  {
+    // F046.4 — the bound removed. cardmem's teardown hung 30 007 ms on a close
+    // that never settled; without a bound the caller waits forever.
+    name: 'the close bound is removed (a wedged browser hangs the caller forever)',
+    file: CAPTURE,
+    from: "  const timeoutMs = options.timeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;",
+    to: "  const timeoutMs = Infinity;",
+  },
+  {
+    // F046.4 — the state cleared BEFORE the close is known to have worked, which
+    // is what the previous version did. This is the mutation that matters: a
+    // bound WITHOUT this fix turns one hang into an accumulating pile of
+    // browsers, each later close answering instantly and wrongly.
+    name: 'the handle is cleared before the close succeeds (a second call lies)',
+    file: CAPTURE,
+    from: "  const p = _browser;\n  if (!p) return true; // nothing to close is a closed browser, not a failure",
+    to: "  const p = _browser;\n  _browser = null;\n  if (!p) return true;",
+  },
 ];
 
 /** The set of failing test names, so two mutations can be compared. */

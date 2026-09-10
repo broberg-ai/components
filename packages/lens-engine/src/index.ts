@@ -24,6 +24,7 @@ export {
   settle,
   takeShot,
   type CaptureOptions,
+  type CloseBrowserOptions,
   type CaptureResult,
   type StorageStateInput,
 } from './capture';

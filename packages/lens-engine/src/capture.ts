@@ -120,21 +120,92 @@ export function armIdleTimer(): void {
   _idleTimer.unref?.();
 }
 
-/** Close the warm browser (idle timeout / shutdown). Safe when nothing is open. */
-export async function closeBrowser(): Promise<void> {
+/**
+ * How long `closeBrowser()` waits for the browser to actually close.
+ *
+ * BOUNDED BY DEFAULT, and that is the whole point (F046.4). cardmem measured a
+ * close that hung 30 007 ms in a test teardown and had to hand-roll a race to
+ * get their suite back; an opt-in bound would only have protected the people
+ * who already knew — the same argument `assertBrowserAvailable` makes above.
+ *
+ * 10 s against a close measured at 24 ms (node) and 33 ms (bun) on a real
+ * Chromium is ~300x headroom, so a healthy close cannot reach it. Pass
+ * `timeoutMs: Infinity` for the old unbounded behaviour.
+ */
+const DEFAULT_CLOSE_TIMEOUT_MS = 10_000;
+
+export interface CloseBrowserOptions {
+  /** Bound in ms. `Infinity` waits forever (the pre-0.10 behaviour). */
+  timeoutMs?: number;
+  /** Called with one line when the close did NOT complete. Never throws at you. */
+  onWarn?: (message: string) => void;
+}
+
+/**
+ * Close the warm browser (idle timeout / shutdown). Safe when nothing is open.
+ *
+ * RETURNS WHETHER THE BROWSER IS ACTUALLY CLOSED — `true` also when there was
+ * nothing to close. `false` means **a Chromium may still be running**: the bound
+ * was reached, or the close rejected. The old signature returned `void`, which
+ * could not express the difference, which is exactly why the consumer who hit
+ * this had to build a race by hand.
+ *
+ * `await closeBrowser()` keeps working unchanged for every existing call-site;
+ * a promise that now resolves a boolean is still a promise.
+ *
+ * THE STATE IS ONLY CLEARED ON SUCCESS. The previous version set `_browser` to
+ * null BEFORE awaiting, so while a close was stuck: a second `closeBrowser()`
+ * returned instantly having closed nothing and looked like success, and the next
+ * `getBrowser()` launched a SECOND Chromium beside the wedged one. A bound
+ * without this fix makes that worse rather than better — it turns one hang into
+ * an accumulating pile of browsers, each close answering quickly and wrongly.
+ */
+export async function closeBrowser(options: CloseBrowserOptions = {}): Promise<boolean> {
   if (_idleTimer) {
     clearTimeout(_idleTimer);
     _idleTimer = null;
   }
   const p = _browser;
-  _browser = null;
-  if (!p) return;
-  try {
+  if (!p) return true; // nothing to close is a closed browser, not a failure
+
+  const timeoutMs = options.timeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
+  const warn = options.onWarn;
+
+  const attempt = (async (): Promise<true> => {
     const browser = await p;
     if (browser.isConnected()) await browser.close();
-  } catch {
-    /* already gone */
+    return true;
+  })();
+  // The close keeps running after a timeout; without this an eventual rejection
+  // is an unhandled promise rejection that can take the consumer's process down
+  // — a worse failure than the one being fixed.
+  attempt.catch(() => {});
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    attempt.then(
+      () => ({ ok: true as const }),
+      (err: unknown) => ({ ok: false as const, why: `close failed: ${err instanceof Error ? err.message : String(err)}` }),
+    ),
+    timeoutMs === Infinity
+      ? new Promise<never>(() => {})
+      : new Promise<{ ok: false; why: string }>((resolve) => {
+          timer = setTimeout(() => resolve({ ok: false, why: `close did not complete within ${timeoutMs} ms` }), timeoutMs);
+          timer.unref?.();
+        }),
+  ]);
+  if (timer) clearTimeout(timer);
+
+  if (outcome.ok) {
+    _browser = null;
+    return true;
   }
+  // `_browser` is deliberately LEFT SET: the handle is still the truth about
+  // what is running. getBrowser() re-checks isConnected() and relaunches if it
+  // really did die, so nothing is stranded — and a second closeBrowser() tries
+  // again instead of reporting a success nobody earned.
+  warn?.(`@broberg/lens-engine: ${outcome.why} — a Chromium may still be running.`);
+  return false;
 }
 
 /** Resolve the effective viewport: explicit viewport wins, then a device preset,
