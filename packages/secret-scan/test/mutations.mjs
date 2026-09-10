@@ -138,7 +138,9 @@ const MUTATIONS = [
     // access key id and left the credential beside it, under a marker that told
     // the reader the text had been cleaned.
     name: 'the AWS secret-key field pattern is gone (only the harmless half is redacted)',
-    from: "    regex: /\\b(?:aws[_-]?)?secret[_-]?access[_-]?key\\b[\"'`]?\\s*[:=]\\s*[\"'`]?[A-Za-z0-9/+=_-]{20,}(?![A-Za-z0-9/+=_-])/gi,",
+    from: "[^\\s\"'`,;]{20,}/gi,",
+    to: "[A-Za-z0-9/+=]{40}/gi,",
+    _placeholder: true,
     to: "    regex: /\\bthis-field-name-cannot-occur\\b/gi,",
   },
   {
@@ -174,15 +176,15 @@ const MUTATIONS = [
     // assumption on top of a name anchor, so a Tigris/R2/MinIO secret under a
     // variable literally named AWS_SECRET_ACCESS_KEY stays in the clear.
     name: 'the field rule demands AWS\'s exact 40 again (an S3-compatible secret survives)',
-    from: "[^\\s\"'`,;]{20,}/gi,",
+    from: "(?=[\\s\"'`,;]|$))[^\\s\"'`,;]{20,}/gi,",
     to: "[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/gi,",
   },
   {
     // The alphabet guess, restored: base64url only, so a Tigris/R2 secret
     // containing `+` walks straight past a field named aws_secret_access_key.
     name: "the value class goes back to a guessed alphabet (a `+` in the key defeats it)",
-    from: "[^\\s\"'`,;]{20,}/gi,",
-    to: "[A-Za-z0-9_-]{20,}/gi,",
+    from: "(?=[\\s\"'`,;]|$))[^\\s\"'`,;]{20,}/gi,",
+    to: "(?=[\\s\"'`,;]|$))[A-Za-z0-9_-]{20,}/gi,",
   },
 ];
 

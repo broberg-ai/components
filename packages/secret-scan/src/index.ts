@@ -144,6 +144,15 @@ const PATTERNS: SecretPattern[] = [
     // NAME is the evidence; the value's alphabet adds nothing and can only be
     // wrong. So the value runs to the first delimiter and no further.
     //
+    // ONE EXCLUSION, and it is a false positive our own docs produced the
+    // moment the class widened: a value that is a REFERENCE to a secret is not
+    // a secret. `secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!` is code
+    // showing how to READ the credential, and redacting it would put a
+    // [REDACTED:…] marker in a README about wiring up storage. So a value that
+    // is ENTIRELY a dotted identifier path, or starts with a shell/template
+    // expansion, is skipped. It must be the WHOLE value — a real secret may
+    // contain dots, and the exclusion must not fire on one that does.
+    //
     // THE LENGTH IS A FLOOR, NOT AWS'S 40 — measured by cardmem in production
     // and it is the finding that matters most here. Their four AWS_*-named
     // variables on Fly are NOT AWS: they are Tigris (Fly's S3-compatible
@@ -158,14 +167,14 @@ const PATTERNS: SecretPattern[] = [
     // the whole design, and requiring a second signal quietly undid it.
     label: 'aws-secret-access-key',
     description: 'AWS/S3-compatible secret access key ((aws-)secret-access-key field + 20+ non-delimiter chars)',
-    regex: /\b(?:aws[_-]?)?secret[_-]?access[_-]?key\b["'`]?\s*[:=]\s*["'`]?[^\s"'`,;]{20,}/gi,
+    regex: /\b(?:aws[_-]?)?secret[_-]?access[_-]?key\b["'`]?\s*[:=]\s*["'`]?(?!(?:\$|\{)|(?:[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+!?)(?=[\s"'`,;]|$))[^\s"'`,;]{20,}/gi,
   },
   {
     // An STS session token is a live credential for as long as it lasts, and it
     // travels in the same dump as the pair above.
     label: 'aws-session-token',
     description: 'AWS session token ((aws-)session-token field + 100+ base64)',
-    regex: /\b(?:aws[_-]?)?session[_-]?token\b["'`]?\s*[:=]\s*["'`]?[^\s"'`,;]{100,}/gi,
+    regex: /\b(?:aws[_-]?)?session[_-]?token\b["'`]?\s*[:=]\s*["'`]?(?!(?:\$|\{)|(?:[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+!?)(?=[\s"'`,;]|$))[^\s"'`,;]{100,}/gi,
   },
   {
     // THE WINDOW IS MEASURED, not chosen. Gap between the end of the id and the

@@ -214,3 +214,28 @@ describe("the value's alphabet is not evidence — only the field name is", () =
     }
   });
 });
+
+describe("a REFERENCE to a secret is not a secret", () => {
+  // Found by re-measuring the tracked tree after the class widened: our own
+  // packages/media/README.md started matching, because it documents how to READ
+  // the credential. A [REDACTED:…] marker in a README about wiring up storage
+  // is the crying-wolf direction, and a scanner that cries wolf gets switched
+  // off — after which it protects nothing.
+  const REFS = [
+    "secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!",
+    "aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}",
+    "awsSecretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY",
+    "secret_access_key: os.environ.AWS_SECRET_ACCESS_KEY_LONG_ENOUGH",
+  ];
+
+  it.each(REFS)("%s is left alone", (text) => {
+    expect(redactSecrets(text).redacted).toBe(text);
+  });
+
+  it("but a real secret that CONTAINS dots is still redacted", () => {
+    // The exclusion must match the WHOLE value, never a prefix of it —
+    // otherwise the first dot in a credential switches the rule off.
+    const dotted = "aa.bb~cc.dd~" + "ee.ff~".repeat(6);
+    expect(redactSecrets(`aws_secret_access_key=${dotted}`).redacted).not.toContain(dotted);
+  });
+});
