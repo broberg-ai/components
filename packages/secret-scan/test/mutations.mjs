@@ -132,6 +132,36 @@ const MUTATIONS = [
   // the same string for every input. An unkillable mutation is not a hole in the
   // suite; reporting it as UNCAUGHT would be the suite lying about itself. The
   // reason `return match` is still written that way is in a comment beside it.
+  // ── F035.13 ────────────────────────────────────────────────────────────
+  {
+    // THE DEFECT, RESTORED: no secret-key pattern at all. 0.7.2 redacted the
+    // access key id and left the credential beside it, under a marker that told
+    // the reader the text had been cleaned.
+    name: 'the AWS secret-key field pattern is gone (only the harmless half is redacted)',
+    from: "    regex: /\\b(?:aws[_-]?)?secret[_-]?access[_-]?key\\b[\"'`]?\\s*[:=]\\s*[\"'`]?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/gi,",
+    to: "    regex: /\\bthis-field-name-cannot-occur\\b/gi,",
+  },
+  {
+    // The pair rule removed: a credential whose field name we did not
+    // anticipate — Terraform's `secret_key` — goes back to the clear.
+    name: 'the paired rule is gone (a secret under an unanticipated field name survives)',
+    from: "    label: 'aws-secret-access-key-paired',",
+    to: "    label: 'aws-secret-access-key-paired-disabled',",
+  },
+  {
+    // The anchor removed — the crying-wolf direction. Any 40-char base64 string
+    // becomes a secret, so git hashes and integrity digests start being
+    // redacted, and a scanner that cries wolf gets switched off.
+    name: 'the paired rule loses its id anchor (every base64 string becomes a secret)',
+    from: "    regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\\s\\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,",
+    to: "    regex: /(?<=[\\s\\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,",
+  },
+  {
+    // ASIA taken back out: an assumed-role dump reads as clean again.
+    name: 'temporary STS credentials are unmatched again (ASIA dropped)',
+    from: "    regex: /\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b/g,",
+    to: "    regex: /\\bAKIA[0-9A-Z]{16}\\b/g,",
+  },
 ];
 
 function redSet() {

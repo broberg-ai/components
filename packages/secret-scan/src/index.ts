@@ -162,7 +162,11 @@ const PATTERNS: SecretPattern[] = [
     // named something we never anticipated, which the rule above cannot.
     label: 'aws-secret-access-key-paired',
     description: 'A 40-char base64 value within 80 characters of an AWS access key id',
-    regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\s\S]{0,80})(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,
+    // `=` is deliberately NOT in the leading lookbehind, though it IS in the
+    // value class: base64 padding never STARTS a value, and excluding it there
+    // blocked every `KEY=value` form — measured, `blob=<secret>` went
+    // unredacted while the same pair in CSV and Terraform was caught.
+    regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\s\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,
   },
   {
     // ASIA is a TEMPORARY (STS) credential and is just as usable as AKIA while
