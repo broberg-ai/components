@@ -288,20 +288,20 @@ the text was cleaned:
 
 ```
 aws_access_key_id=[REDACTED:aws-access-key-id]
-aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiC…KEY     ← still there
+aws_secret_access_key=<the live 40-character secret>     ← still there
 ```
 
-> The value above is AWS's own published documentation specimen, shortened with
-> an ellipsis so this README does not itself carry a credential-shaped string —
-> our own commit gate refused the full form, correctly, while this section was
-> being written.
+> The value is written as a placeholder rather than quoted. Our own commit gate
+> refused this section twice while it was being written — first with AWS's full
+> published specimen, then with a shortened form that still matched. A README
+> about a secret-scanner is exactly the file that should not carry one.
 
 Three patterns now cover the pair, and **two of them are complements, not
 alternatives**:
 
 | label | fires on |
 |---|---|
-| `aws-secret-access-key` | a `(aws-)secret-access-key`-named field + 40 base64 |
+| `aws-secret-access-key` | a `(aws-)secret-access-key`-named field + 20 or more chars |
 | `aws-session-token` | a `(aws-)session-token`-named field + 100+ base64 |
 | `aws-secret-access-key-paired` | a 40-char base64 value **within 80 characters of an `AKIA`/`ASIA` id** |
 
@@ -324,6 +324,22 @@ env export pair           30     docker-compose env         30
 
 80 is the largest real case plus room for one intervening line. A threshold
 nothing can move is a magic number wearing a measurement's clothes.
+
+**An `AWS_*` variable name does not mean an AWS key (v0.8.1).** cardmem measured
+their own production environment after 0.8.0 was tagged: all four `AWS_*`-named
+variables on Fly are **Tigris** (Fly's S3-compatible store) — a 54-character
+`tid_` id and a 75-character secret. Every S3-compatible service (Tigris, R2,
+MinIO, Backblaze) reuses AWS's variable *names* with its own key format.
+
+0.8.0 required exactly 40 base64, so the field said `AWS_SECRET_ACCESS_KEY`, the
+value did not look like AWS, and a live credential stayed in the clear with no
+marker anywhere near it — this card's own defect, in a new provider. **The length
+is now a floor (20+), not AWS's 40.** Pinning the exact shape put a second
+signal on top of a name anchor, and the field name being the signal is the whole
+design of every context-only pattern here.
+
+The paired rule keeps its exact 40, because it is shape-based by necessity and
+anchored to an AWS access key id.
 
 **False-positive cost, measured across this repo's own 907 tracked files: zero.**
 The paired rule fires nowhere, because it requires the id to be present. The

@@ -133,9 +133,22 @@ const PATTERNS: SecretPattern[] = [
     // `access` is REQUIRED in the field name on purpose. A bare `secret_key`
     // (Terraform's spelling) would drag in far too much; that case is caught by
     // the paired rule below instead, which is the argument for having both.
+    //
+    // THE LENGTH IS A FLOOR, NOT AWS'S 40 — measured by cardmem in production
+    // and it is the finding that matters most here. Their four AWS_*-named
+    // variables on Fly are NOT AWS: they are Tigris (Fly's S3-compatible
+    // store), with a 54-character `tid_` id and a 75-character secret. Every
+    // S3-compatible service — Tigris, R2, MinIO, Backblaze — reuses AWS's
+    // variable NAMES with its own key format.
+    //
+    // Pinning 40 put a shape assumption on top of a name anchor, so the field
+    // said AWS_SECRET_ACCESS_KEY, the value did not look like AWS, and the
+    // credential stayed in the clear with no marker anywhere near it. The field
+    // name is the signal in every context-only pattern in this file; that is
+    // the whole design, and requiring a second signal quietly undid it.
     label: 'aws-secret-access-key',
-    description: 'AWS secret access key ((aws-)secret-access-key field + 40 base64)',
-    regex: /\b(?:aws[_-]?)?secret[_-]?access[_-]?key\b["'`]?\s*[:=]\s*["'`]?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/gi,
+    description: 'AWS/S3-compatible secret access key ((aws-)secret-access-key field + 20+ chars)',
+    regex: /\b(?:aws[_-]?)?secret[_-]?access[_-]?key\b["'`]?\s*[:=]\s*["'`]?[A-Za-z0-9/+=_-]{20,}(?![A-Za-z0-9/+=_-])/gi,
   },
   {
     // An STS session token is a live credential for as long as it lasts, and it

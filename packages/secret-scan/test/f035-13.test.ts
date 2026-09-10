@@ -130,3 +130,44 @@ describe("the false-positive control — the half that decides whether this ship
     }
   });
 });
+
+describe("an AWS_* variable name does not mean an AWS key — measured, not assumed", () => {
+  // cardmem measured their own production env after 0.8.0 was tagged: all four
+  // AWS_*-named variables on Fly are TIGRIS (Fly's S3-compatible store), with a
+  // 54-character `tid_` id and a 75-character secret. Every S3-compatible
+  // service — Tigris, R2, MinIO, Backblaze — reuses AWS's variable names with
+  // its own key format.
+  //
+  // 0.8.0 required exactly 40 base64, so the field said AWS_SECRET_ACCESS_KEY,
+  // the value did not look like AWS, and the live credential stayed in the
+  // clear with no marker anywhere near it. Shapes only below — no value from
+  // their environment reached this repo or anyone's context.
+  const TIGRIS_ID = "tid_" + "a".repeat(50); // 54 chars, as measured
+  const TIGRIS_SECRET = "tsec_" + "b".repeat(70); // 75 chars, as measured
+
+  it("a 75-character secret under AWS_SECRET_ACCESS_KEY is redacted", () => {
+    const r = redactSecrets(`AWS_SECRET_ACCESS_KEY=${TIGRIS_SECRET}`);
+    expect(r.redacted).not.toContain(TIGRIS_SECRET);
+    expect(r.findings.map((f) => f.label)).toContain("aws-secret-access-key");
+  });
+
+  it("and so is the same value under the endpoint's own casing", () => {
+    const r = redactSecrets(`{"SecretAccessKey":"${TIGRIS_SECRET}"}`);
+    expect(r.redacted).not.toContain(TIGRIS_SECRET);
+  });
+
+  it("the id half is NOT the credential and is deliberately left alone", () => {
+    // Redacting a `tid_` id would repeat this card's own defect in a new
+    // provider: masking the harmless half and vouching for the text.
+    expect(redactSecrets(`AWS_ACCESS_KEY_ID=${TIGRIS_ID}`).redacted).toContain(TIGRIS_ID);
+  });
+
+  it("the length is a FLOOR, so a short value under that field name still counts", () => {
+    const short = "c".repeat(20);
+    expect(redactSecrets(`aws_secret_access_key=${short}`).redacted).not.toContain(short);
+  });
+
+  it("but the field name is still required — a bare 75-char string is not a secret", () => {
+    expect(redactSecrets(TIGRIS_SECRET).redacted).toBe(TIGRIS_SECRET);
+  });
+});

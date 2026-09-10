@@ -74,6 +74,23 @@ const MUTATIONS = [
     to: "    return;",
     expect: ["stops the deploy instead of running without storage"],
   },
+  {
+    // helpdesk's wrong call, restored: a missing appName reaches the remedy and
+    // prints `flyctl apps create undefined --org …` — right shape, invented
+    // content, copyable.
+    name: 'the missing-config guard is dropped (a remedy names an app called undefined)',
+    from: "  assertRequiredConfig(config);",
+    to: "",
+    expect: ["does not build a command about an app called undefined"],
+  },
+  {
+    // The other direction: a guard that refuses everything would pass the test
+    // above and break every real caller.
+    name: 'the guard refuses a COMPLETE config too (the over-strict direction)',
+    from: "    (k) => typeof config?.[k] !== 'string' || config[k].trim() === '',",
+    to: "    () => true,",
+    expect: ["the guard must not reject valid input"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "deploymut-"));

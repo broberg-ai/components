@@ -373,6 +373,31 @@ function ensureCert(domain: string, appName: string, cwd: string): void {
 }
 
 /**
+ * Refuse a config that is missing a field this function cannot work without.
+ *
+ * Reported by helpdesk from their own wrong call: `{ app: name }` instead of
+ * `{ appName: name }`. Plain JS, so no type error — and the run went all the
+ * way to the remedy we print, which then read:
+ *
+ *     flyctl apps create undefined --org <your-org>
+ *
+ * Right shape, invented content, and copyable. A reader who does not look twice
+ * runs it. A message that is WRONG is worse than one that is missing, because
+ * the missing one is not actionable.
+ */
+function assertRequiredConfig(config: FlyLiveConfig): void {
+  const missing = (['appName', 'region', 'volumeName', 'syncSecret'] as const).filter(
+    (k) => typeof config?.[k] !== 'string' || config[k].trim() === '',
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `flyLiveRebuildInfra: missing required config field(s): ${missing.join(', ')}. ` +
+        `Nothing was run — a remedy built from a missing app name would name an app that does not exist.`,
+    );
+  }
+}
+
+/**
  * Ask the URL whether it is live before we hand it back as a fact.
  *
  * The returned URL IS the claim "this is running". Returning it unchecked is how
@@ -416,6 +441,7 @@ export async function flyLiveRebuildInfra(
   config: FlyLiveConfig,
   options?: { baseUrl?: string; verifyAttempts?: number; verifyDelayMs?: number },
 ): Promise<string> {
+  assertRequiredConfig(config);
   assertFlyctl();
   const tmpDir = join(tmpdir(), `fly-live-infra-${Date.now()}`);
   await mkdir(tmpDir, { recursive: true });

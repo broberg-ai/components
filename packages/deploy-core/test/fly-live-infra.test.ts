@@ -253,3 +253,43 @@ describe("the doc-comment matches what the function does", () => {
     expect(lastBlock).toMatch(/does NOT create the Fly app/);
   });
 });
+
+describe("a config that is missing a field is refused BEFORE anything is printed", () => {
+  // Reported by helpdesk from their own wrong call: `{ app: name }` instead of
+  // `{ appName: name }`. Plain JS, so no type error — and the run reached the
+  // remedy we print, which then read `flyctl apps create undefined --org …`.
+  // Right shape, invented content, copyable. That is worse than no message.
+  it("names the field, and does not build a command about an app called undefined", async () => {
+    const wrong = { app: "helpdesk-console", region: "arn", volumeName: "data", syncSecret: SECRET };
+    const err = await flyLiveRebuildInfra(wrong as never, {
+      baseUrl: "https://stub.invalid",
+      verifyAttempts: 1,
+    }).catch((e: Error) => e);
+    expect((err as Error).message).toContain("appName");
+    expect((err as Error).message).not.toContain("undefined");
+    expect((err as Error).message).not.toContain("apps create");
+  });
+
+  it("nothing ran — flyctl was never invoked", async () => {
+    await flyLiveRebuildInfra({ region: "arn", volumeName: "data", syncSecret: SECRET } as never, {
+      baseUrl: "https://stub.invalid",
+      verifyAttempts: 1,
+    }).catch(() => {});
+    expect(recordedArgs()).toEqual([]);
+  });
+
+  it("an empty string is missing too — a blank app name builds the same bad command", async () => {
+    const err = await flyLiveRebuildInfra(config({ appName: "  " }), {
+      baseUrl: "https://stub.invalid",
+      verifyAttempts: 1,
+    }).catch((e: Error) => e);
+    expect((err as Error).message).toContain("appName");
+  });
+
+  it("a COMPLETE config is not refused — the guard must not reject valid input", async () => {
+    healthAnswers(true);
+    await expect(
+      flyLiveRebuildInfra(config(), { baseUrl: "https://stub.invalid", verifyAttempts: 1 }),
+    ).resolves.toBe("https://stub.invalid");
+  });
+});
