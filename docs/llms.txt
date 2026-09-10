@@ -80,7 +80,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/seti-client** v0.4.0 — The SETI streaming-chat client. `npm i @broberg/seti-client`
 - **@broberg/seti-server** v0.2.5 — The SETI proxy router. `npm i @broberg/seti-server`
 - **@broberg/soundkit** v0.1.0 — SoundKit. `npm i @broberg/soundkit`
-- **@broberg/deploy-core** v0.1.0 — The fleet's shared deploy execution layer. `npm i @broberg/deploy-core`
+- **@broberg/deploy-core** v0.2.0 — The fleet's shared deploy execution layer. `npm i @broberg/deploy-core`
 - **@broberg/changelog** (planned) — Auto product-changelog from git history. `npm i @broberg/changelog`
 - **@broberg/email-shell** (planned) — NOT A PACKAGE YET. `npm i @broberg/email-shell`
 
