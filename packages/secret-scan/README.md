@@ -266,7 +266,8 @@ regexes — most-specific first so attribution is correct:
 - **LLM:** Anthropic (`sk-ant-…`, incl. `oat01-`), OpenAI (`sk-`/`sk-proj-`),
   OpenRouter (`sk-or-v1-`), ElevenLabs, fal.ai, Google/Gemini (`AIza…`),
   Google OAuth (`GOCSPX-`), Mistral (field-anchored).
-- **Cloud / infra:** AWS (`AKIA…`), GitHub, GitLab, Slack, Stripe live, Resend,
+- **Cloud / infra:** AWS (access key id `AKIA…`/`ASIA…`, **secret access key**,
+  **session token** — see below), GitHub, GitLab, Slack, Stripe live, Resend,
   Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),
   Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`).
 - **Fleet:** upmetrics (`uk_`), cardmem (`pa_/pi_/pk_`, `piw_`), cms (`wh_`),
@@ -276,6 +277,63 @@ regexes — most-specific first so attribution is correct:
   value assigned to a `secret`/`token`/`password`/`api-key`-named field).
 - **Field-anchored (context-only, to avoid FP on bare tokens):** Cloudflare API
   token, Mistral, Vimeo — matched only next to their env-var name.
+
+### AWS: the id was never the credential (v0.8.0)
+
+Up to 0.7.2 this package shipped exactly one AWS pattern, `AKIA[0-9A-Z]{16}`.
+An access key **id** alone is useless to an attacker; the **secret** access key
+is the credential. So the output masked the half that does not matter and left
+the live one beside it — under a `[REDACTED:…]` marker, which tells the reader
+the text was cleaned:
+
+```
+aws_access_key_id=[REDACTED:aws-access-key-id]
+aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiC…KEY     ← still there
+```
+
+> The value above is AWS's own published documentation specimen, shortened with
+> an ellipsis so this README does not itself carry a credential-shaped string —
+> our own commit gate refused the full form, correctly, while this section was
+> being written.
+
+Three patterns now cover the pair, and **two of them are complements, not
+alternatives**:
+
+| label | fires on |
+|---|---|
+| `aws-secret-access-key` | a `(aws-)secret-access-key`-named field + 40 base64 |
+| `aws-session-token` | a `(aws-)session-token`-named field + 100+ base64 |
+| `aws-secret-access-key-paired` | a 40-char base64 value **within 80 characters of an `AKIA`/`ASIA` id** |
+
+A bare 40-character base64 string **cannot** be matched on shape — it is every
+git object hash and base64 body in every repo we own — so the field-anchored
+rule is the primary one. The paired rule exists because a real pair is often
+under a name we did not anticipate: Terraform spells it `secret_key`, which the
+field rule deliberately does **not** match (too broad on its own) and the pair
+rule catches because the id is 18 characters away.
+
+**The 80-character window is measured, and both sides of it are pinned by a
+fixture.** Gap between the end of the id and the start of the secret, in the six
+formats these actually arrive in:
+
+```
+console CSV row            1     terraform provider block   18
+sts assume-role JSON      21     aws CLI credentials file   25
+env export pair           30     docker-compose env         30
+```
+
+80 is the largest real case plus room for one intervening line. A threshold
+nothing can move is a magic number wearing a measurement's clothes.
+
+**False-positive cost, measured across this repo's own 907 tracked files: zero.**
+The paired rule fires nowhere, because it requires the id to be present. The
+negative fixtures are real shapes pulled from this repo — a commit sha, a pnpm
+integrity digest, JWT segments, a base64 body — not invented ones, since an
+invented negative is chosen by the same author who chose the pattern.
+
+> **Output changes for real text on this release.** A consumer who has been
+> storing or logging AWS pairs will see previously-visible values start coming
+> back redacted. That is the fix working, not the package becoming noisy.
 
 ### Deliberately NOT detected
 
