@@ -329,3 +329,38 @@ describe('buildMonthGrid — trailing rows', () => {
     expect(g.filter((c) => c.inMonth)).toHaveLength(30);
   });
 });
+
+describe('buildMonthGrid — year is guarded too', () => {
+  // Found by REVIEWING the month fix, not by the report. A guard shaped by what
+  // was reported closes the half that was named — the same lesson as the 13
+  // bound, one parameter over. All four cases below returned a full 42-cell
+  // grid with no error on the merged code.
+
+  it('NaN and Infinity throw instead of returning a grid of NaN dates', () => {
+    // These produced 42 cells all dated "NaN-NaN-NaN", inMonth 0 — the exact
+    // silently-empty grid this card exists to remove.
+    expect(() => buildMonthGrid(NaN, 5)).toThrow(RangeError);
+    expect(() => buildMonthGrid(Infinity, 5)).toThrow(RangeError);
+  });
+
+  it('a two-digit or fractional year throws rather than becoming another century', () => {
+    // The nastiest of the four: buildMonthGrid(1.5, 5) returned a perfectly
+    // ordinary calendar for APRIL 1901, because Date maps years 0-99 to 1900+.
+    // No error, no empty grid — just the wrong century.
+    expect(() => buildMonthGrid(1.5, 5)).toThrow(RangeError);
+    expect(() => buildMonthGrid(47, 5)).toThrow(RangeError);
+    expect(() => buildMonthGrid(99, 5)).toThrow(RangeError);
+  });
+
+  it('the error says WHY, so the caller is not left guessing at the floor', () => {
+    expect(() => buildMonthGrid(47, 5)).toThrow(/silently mapped to 1900/);
+  });
+
+  it('NEGATIVE CONTROL: ordinary years are not refused', () => {
+    // Without this, a guard that rejected everything would pass every test above.
+    for (const y of [100, 1900, 2026, 2100, 275760]) {
+      expect(() => buildMonthGrid(y, 5), `${y} must be accepted`).not.toThrow();
+    }
+    expect(buildMonthGrid(2026, 5).filter((c) => c.inMonth)).toHaveLength(31);
+  });
+});

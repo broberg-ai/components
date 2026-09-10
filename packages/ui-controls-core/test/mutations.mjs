@@ -75,6 +75,30 @@ const MUTATIONS = [
     to: "Math.floor((lead + daysInMonth) / 7) * 7",
     expect: ["never cuts a day that belongs to the month"],
   },
+  {
+    // The year guard dropped: NaN/Infinity go back to a 42-cell grid of
+    // "NaN-NaN-NaN", and a two-digit year to a calendar for another century.
+    name: "the year guard is dropped (NaN dates and a 1901 calendar come back)",
+    from: "  if (!Number.isInteger(year) || year < 100 || year > 275760) {",
+    to: "  if (false) {",
+    expect: ["NaN and Infinity throw instead of returning a grid of NaN dates"],
+  },
+  {
+    // Only the non-finite half guarded — the easy fix, and it leaves the
+    // WORST case open: 1.5 renders an ordinary calendar for April 1901.
+    name: "only non-finite years are guarded (the two-digit-year century shift survives)",
+    from: "year < 100 || year > 275760",
+    to: "year < -8.64e15",
+    expect: ["a two-digit or fractional year throws rather than becoming another century"],
+  },
+  {
+    // The over-strict direction: a guard that refuses everything passes every
+    // test above and breaks every caller.
+    name: "the year guard refuses ordinary years too (the over-strict direction)",
+    from: "!Number.isInteger(year) || year < 100 || year > 275760",
+    to: "true",
+    expect: ["NEGATIVE CONTROL: ordinary years are not refused"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "uicmut-"));
