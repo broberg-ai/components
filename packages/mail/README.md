@@ -217,6 +217,30 @@ if (!r.ok) console.warn("[mail]", r.summary, ...r.missing);
 
 **Node-only, on its own subpath.** The core entrypoint keeps zero dependencies and stays importable on edge/workers, where `node:dns` does not exist — same reason `./webhook` is separate.
 
+**Where the records live is a NAMED layout, not a guess (v0.11.0).** Resend puts SPF and MX on `send.<domain>` and DKIM on `resend._domainkey.<domain>`. The shipped versions up to 0.10.1 looked SPF and MX up on the sender domain's own apex, so a Resend-*verified* domain was reported permanently broken — and `missing` told the customer to add a record at a place nothing reads. Both shapes exist in the wild for the same provider, so the check now reads an ordered list of candidate hostnames and `report.foundAt` names the one that carried each record.
+
+```ts
+import { verifySendingDomain, RESEND_LAYOUT, type ProviderLayout } from "@broberg/mail/verify";
+
+const r = await verifySendingDomain("support@support.fdsundhed.dk");
+r.foundAt; // { spf: "send.support.fdsundhed.dk", dkim: "resend._domainkey.support.fdsundhed.dk", mx: "send.support.fdsundhed.dk" }
+
+// Another provider expresses its own shape rather than inheriting ours:
+const postmark: ProviderLayout = {
+  name: "postmark",
+  spfHosts: (d) => [`pm-bounces.${d}`],
+  mxHosts: (d) => [`pm-bounces.${d}`],
+  dkimHosts: (d) => [`20260908._domainkey.${d}`],
+  spfMechanisms: ["include:spf.mtasv.net"],
+  mxSuffixes: ["pmtasv.net"],
+};
+await verifySendingDomain("x@example.com", { layout: postmark });
+```
+
+**SPF and MX are judged by VALUE, not presence (v0.11.0) — this one changes answers.** Up to 0.10.1, any MX at all counted as `ok`. A domain whose MX is Google Workspace was therefore told its SES bounces would come back; they do not. That is the exact property the MX check exists to report, and it cleared it. SPF had the same shape: only the `v=spf1` prefix was tested, so `v=spf1 include:_spf.google.com ~all` read as `ok` while every send failed SPF.
+
+> **A domain may flip from `ok: true` to `ok: false` on this release.** That is a correction, not a regression — the old answer was wrong in the direction nobody notices. The remedy text distinguishes the two cases: a *missing* record says add it, a record that exists and does not authorise us says **edit** the one you have (a second SPF record is itself an SPF error).
+
 **`dkimSelector` is provider-specific.** It defaults to `resend`. On another provider you would otherwise be told "DKIM missing" about a domain that is perfectly fine — another false alarm, another reason to switch the check off. Pass your own selector.
 
 **`MAIL_FROM` is an ADDRESS, not a domain — pass it anyway (v0.7.0).** The check accepts a bare domain, `noreply@send.broberg.ai`, or `Moovyy <noreply@send.broberg.ai>`, and `senderDomain()` is exported if you want the parse on its own. It lives here because it is three lines every consumer writes identically, and the wrong version produces **no error** — only an alarm that looks right.

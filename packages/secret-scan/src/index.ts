@@ -111,10 +111,65 @@ const PATTERNS: SecretPattern[] = [
     description: 'Google OAuth client secret (GOCSPX-…)',
     regex: /GOCSPX-[A-Za-z0-9_-]{28}/g,
   },
+  // ── AWS ─────────────────────────────────────────────────────────────────
+  //
+  // ORDER IS LOAD-BEARING HERE, and it is not the order you would write first.
+  // redactSecrets() applies patterns in sequence to the text it has ALREADY
+  // redacted, so the id pattern must run LAST: it replaces `AKIA…` with a
+  // marker, and the paired rule below anchors on that id. Put the id first and
+  // the pair rule silently stops firing — a guard that is present, tested in
+  // isolation, and dead in place.
   {
+    // THE HALF THAT MATTERS, and it shipped unmatched for months. An access key
+    // id alone is useless to an attacker; the SECRET key is the credential. So
+    // redacting only the id — and stamping [REDACTED:…] right beside the live
+    // secret — is worse than redacting nothing, because the marker tells the
+    // reader the text was cleaned. Reported by cardmem the day they took AWS on.
+    //
+    // A bare 40-char base64 value CANNOT be matched: it is the shape of every
+    // git object hash and base64 body in every repo we own. So this is
+    // CONTEXT-ONLY, like every other prefix-less secret in this file.
+    //
+    // `access` is REQUIRED in the field name on purpose. A bare `secret_key`
+    // (Terraform's spelling) would drag in far too much; that case is caught by
+    // the paired rule below instead, which is the argument for having both.
+    label: 'aws-secret-access-key',
+    description: 'AWS secret access key ((aws-)secret-access-key field + 40 base64)',
+    regex: /\b(?:aws[_-]?)?secret[_-]?access[_-]?key\b["'`]?\s*[:=]\s*["'`]?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/gi,
+  },
+  {
+    // An STS session token is a live credential for as long as it lasts, and it
+    // travels in the same dump as the pair above.
+    label: 'aws-session-token',
+    description: 'AWS session token ((aws-)session-token field + 100+ base64)',
+    regex: /\b(?:aws[_-]?)?session[_-]?token\b["'`]?\s*[:=]\s*["'`]?[A-Za-z0-9/+=]{100,}(?![A-Za-z0-9/+=])/gi,
+  },
+  {
+    // THE WINDOW IS MEASURED, not chosen. Gap between the end of the id and the
+    // start of the secret, in the six formats these actually arrive in:
+    //
+    //   console CSV row            1     terraform provider block   18
+    //   sts assume-role JSON      21     aws CLI credentials file   25
+    //   env export pair           30     docker-compose env         30
+    //
+    // 80 is the largest real case plus room for one intervening line, and both
+    // sides of it are pinned by a fixture — a proximity threshold nothing can
+    // move is a magic number wearing a measurement's clothes (F035.12).
+    //
+    // The false-positive cost is near zero BECAUSE the id must be present: a
+    // 40-char base64 string is only redacted when an AWS access key id sits
+    // within 80 characters of it. That also catches the pair when the field is
+    // named something we never anticipated, which the rule above cannot.
+    label: 'aws-secret-access-key-paired',
+    description: 'A 40-char base64 value within 80 characters of an AWS access key id',
+    regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\s\S]{0,80})(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,
+  },
+  {
+    // ASIA is a TEMPORARY (STS) credential and is just as usable as AKIA while
+    // it lives. It was not matched, so an assumed-role dump read as clean.
     label: 'aws-access-key-id',
-    description: 'AWS access key id (AKIA…)',
-    regex: /\bAKIA[0-9A-Z]{16}\b/g,
+    description: 'AWS access key id (AKIA…/ASIA…)',
+    regex: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
   },
   {
     label: 'github-token',
