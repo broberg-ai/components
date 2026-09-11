@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- All 127 tips are inline below, in full. That part needs no second fetch.
+- All 128 tips are inline below, in full. That part needs no second fetch.
 - **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at https://discovery.broberg.ai/llms-full.txt. Fetch it before you decide a capability is missing.
 
 ## Secrets Vault — flådens delte krypterede secret-store
@@ -142,14 +142,15 @@ owner. That conversation is the whole point of this inventory.
 - **create-app CLI + manifest** (L4) · ⛔ NOT BUILT YET (planned) — nothing to install, nothing to import · owner: cms — ASK THEM before building a second one
   create-app CLI plus a machine-readable manifest
 
-## Tips & tricks — every tip inline (127 across 15 platforms)
+## Tips & tricks — every tip inline (128 across 15 platforms)
 
-### Fly.io (25)
+### Fly.io (26)
 - **[build-stamp]** health.build — stamp the running commit on your health endpoint, and say how much to trust it. Convention (beacon, measured on their own service): GET /v1/health returns build:{ commit, dirty, source } where source is env (a deploy declared its sha, e.g. BUILD env var — declared, not observed) then git (the process runs from a work tree and git was asked — observed) then unknown (commit MUST be null). Five decisions, each one a trap somebody already hit: (1) read it ONCE at startup, never per request — the question is what the process was started from, and a git lookup per request answers about the tree as it is NOW, i.e. code the process never loaded; (2) UNTRACKED files count as dirty — the process runs what is on disk, and an uncommitted file is still one it could load; (3) never invent a sha — null plus source unknown, because a sha that looks like an answer is worse than no answer; (4) dirty is not decoration, it says how far to trust the sha: a true sha on a dirty tree describes code that is not running; (5) for the CONSUMER of the field — when comparing two sides (a page against the service that serves it), a dirty on EITHER side must make the comparison SILENT. A bundle is stamped when it is built, i.e. before the commit that contains it, so during ordinary work the shas disagree all day; warn on that and the warning is ignored within a week. Two CLEAN builds that disagree is the thing worth flagging. And say what a difference means: beacons service ran 732e4241 while HEAD was 637bae6, a real 48-hour drift — but that commit only touched CLAUDE.md, so the drift was harmless. A field that reports difference without significance becomes why is my service always red. _(beacon)_
 - **[region]** Region is ALWAYS arn (Stockholm). Set primary_region = "arn" — never US/Amsterdam. _(components)_
 - **[cost]** Idle-cheap services: auto_stop_machines = "stop" + auto_start_machines = true + min_machines_running = 0. Cold-start ~1s. _(components)_
 - **[deploy]** fly deploy --remote-only builds on Fly's builder — no local Docker daemon needed. _(components)_
 - **[secrets]** Secrets via flyctl secrets set KEY=val (encrypted, injected at runtime). Never bake into the image or commit. _(components)_
+- **[secrets-visibility]** NEVER derive "is X configured?" from flyctl secrets list — ASK THE PROCESS, not the configuration. The list answers "what did someone set, that I can see", which is a different claim from "what is in this process's environment". Measured by sanne 2026-09-11 on a live app: three values side by side in the running process env, two listed by secrets list and SA_RESEND_API_KEY not — with fly.toml [env], Dockerfile ENV/ARG, the machine's config.env and the entrypoint all ruled out FIRST, so it arrives by Fly's own secret injection and the list omits it. Cause still open: a flyctl gap, or a secret set by a DIFFERENT principal and therefore invisible to yours (org-owned app, a separate admin UI that can also deploy). The rule holds either way — both produce the same confident FALSE NEGATIVE, and they were two steps from reporting a customer-mail outage that did not exist. _(sanne)_
 - **[tls]** Custom domain: fly certs add <domain> first; the cert validates by itself once the DNS record resolves. _(components)_
 - **[ops]** Debug live: fly logs -a <app>, fly ssh console -a <app>, fly status. Health check on /health in [[http_service.checks]]. _(components)_
 - **[ssh-not-shell]** flyctl ssh console -C does NOT parse as a shell — argv is split, so &&, ;, |, >, * become LITERAL args to the binary. One -C wiped all of /data once (rm got four path-args). One command per -C; for more, sftp a script then -C 'bash /tmp/x.sh'. _(trail)_
