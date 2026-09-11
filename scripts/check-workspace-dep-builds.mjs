@@ -103,9 +103,24 @@ const jobs = publishJobs();
 const subjects = packagesWithWorkspaceDeps();
 let failures = 0;
 
+const allPackages = readdirSync(PKG_DIR).filter((d) => existsSync(join(PKG_DIR, d, "package.json")));
+
+// A READER THAT FOUND NOTHING IS NOT A CLEAN REPO, and until now only the
+// message said so while the exit code said "fine". `&&` in `pnpm test` reads the
+// exit code, so the distinction was invisible to the one caller that matters.
+// Zero packages WITH a workspace: dep is a legitimate state (it was this repo
+// until recently) — zero packages AT ALL is this script failing to read.
+if (!allPackages.length) {
+  console.error("cannot check: found no package.json under packages/ — this check did not run");
+  process.exit(2);
+}
+
 if (!subjects.length) {
-  // Not a pass to celebrate: it is also what a broken reader produces. Say which.
-  console.log("no package in packages/ declares a `workspace:` dependency — nothing for this check to hold");
+  // Legitimate, and now provably distinct from the line above: we read N
+  // packages and none of them declares one.
+  console.log(
+    `no package in packages/ declares a \`workspace:\` dependency — nothing for this check to hold (${allPackages.length} read)`,
+  );
 }
 
 for (const { name, dir, deps } of subjects) {
@@ -137,7 +152,7 @@ for (const { name, dir, deps } of subjects) {
 // have the step. Without that half this rule would redden every correct job on
 // the day it shipped, and a gate switched off on day one still looks like
 // coverage. Printed so the number is visible rather than assumed.
-const untouched = readdirSync(PKG_DIR).filter((d) => existsSync(join(PKG_DIR, d, "package.json"))).length - subjects.length;
+const untouched = allPackages.length - subjects.length;
 console.log(
   failures
     ? `\n${failures} package(s) can typecheck against a sibling that was never built`

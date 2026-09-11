@@ -875,4 +875,39 @@ describe('F005.17 — the policy lives at _dmarc, NEVER under the send subdomain
       '_dmarc.fdsundhed.dk',
     ]);
   });
+
+  it('an INTERMEDIATE policy is honoured — a known, deliberate divergence from RFC 7489', async () => {
+    // PINNING A LIMITATION, not celebrating a feature. RFC 7489 §6.6.3 consults
+    // exactly two names: the domain, then its ORGANISATIONAL domain. We walk
+    // every parent, because computing the organisational domain exactly needs
+    // the Public Suffix List and this package will not carry one.
+    //
+    // So on a four-plus-label name under a multi-part suffix we ask names a
+    // receiver never would, and that is the PERMISSIVE direction: this reports
+    // `ok` while a real receiver, looking only at `a.b.example.co.uk` and
+    // `example.co.uk`, finds no policy at all.
+    const resolver = fakeResolver(
+      {
+        'send.a.b.example.co.uk': [['v=spf1 include:amazonses.com ~all']],
+        'resend._domainkey.a.b.example.co.uk': [[DKIM_KEY]],
+        '_dmarc.send.a.b.example.co.uk': dnsError('ENOTFOUND'),
+        // The only policy anywhere, and it sits at a level the RFC ignores.
+        '_dmarc.b.example.co.uk': [['v=DMARC1; p=none;']],
+        '_dmarc.example.co.uk': dnsError('ENOTFOUND'),
+      },
+      { 'send.a.b.example.co.uk': [{ exchange: 'feedback-smtp.eu-west-1.amazonses.com', priority: 10 }] },
+    );
+    const r = await verifySendingDomain('x@send.a.b.example.co.uk', { resolver });
+
+    expect(r.dmarc).toBe('ok');
+    expect(r.foundAt.dmarc).toBe('_dmarc.b.example.co.uk');
+
+    // WHY IT IS NOT "FIXED" BY NARROWING: the obvious two-candidate version
+    // (domain + last two labels) would ask `_dmarc.co.uk` INSTEAD of the real
+    // organisational domain, and report a correctly-configured UK customer as
+    // missing — sending them to change DNS that is already right. Over-reporting
+    // `missing` is the expensive error here (F005.15), which is why 77b03b5
+    // widened the walk rather than narrowing it.
+    expect(dmarcHosts('send.a.b.example.co.uk')).toContain('_dmarc.example.co.uk');
+  });
 });

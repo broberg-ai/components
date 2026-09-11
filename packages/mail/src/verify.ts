@@ -252,6 +252,42 @@ function isDmarcPolicy(parts: string[]): boolean {
   return parts.join('').trim().toLowerCase().startsWith('v=dmarc1');
 }
 
+/**
+ * The names a DMARC policy could live at, nearest first.
+ *
+ * RFC 7489 §6.6.3 consults exactly TWO names: the domain itself, then its
+ * ORGANISATIONAL domain. Computing the second one exactly requires the Public
+ * Suffix List, which this package will not carry — it is a megabyte that goes
+ * stale, in a dependency-free package whose job is a boot-time report.
+ *
+ * So this walks every parent instead, and the approximation is EXACT for two-
+ * and three-label domains, which is very nearly everything we send from:
+ *
+ *   broberg.dk        -> _dmarc.broberg.dk                        (1 = the RFC pair minus a redundant repeat)
+ *   send.broberg.ai   -> _dmarc.send.broberg.ai, _dmarc.broberg.ai (2 = exactly the RFC pair)
+ *
+ * WHERE IT DIVERGES, and in which direction — stated because a reader will
+ * otherwise assume it is the RFC algorithm:
+ *
+ *   x.y.z.co.uk -> _dmarc.x.y.z.co.uk, _dmarc.y.z.co.uk, _dmarc.z.co.uk, _dmarc.co.uk
+ *                                      ^^^^^^^^^^^^^^^^                  ^^^^^^^^^^^^
+ *                                      a receiver never looks here       nobody can publish here
+ *
+ * The last name is harmless: a query under a public suffix answers with nothing.
+ * The MIDDLE ones are the real divergence and they are PERMISSIVE — a policy
+ * published at an intermediate level would satisfy this check while a receiver,
+ * consulting only the domain and `z.co.uk`, finds none. So on a four-plus-label
+ * name under a multi-part suffix this can report `ok` where real mail is still
+ * unprotected.
+ *
+ * Kept anyway, because the alternative is worse in the direction that bites: a
+ * hard two-candidate version (domain + last two labels) would look at
+ * `_dmarc.co.uk` INSTEAD of `_dmarc.z.co.uk` and miss the real organisational
+ * policy — reporting a correctly-configured domain as missing, which sends a
+ * customer to change DNS that is already right. Over-reporting `missing` is the
+ * expensive error here; that was F005.15's whole lesson and it is why 77b03b5
+ * widened this walk in the first place.
+ */
 export function dmarcHosts(domain: string): string[] {
   const labels = domain.split('.');
   const hosts: string[] = [];
