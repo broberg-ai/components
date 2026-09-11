@@ -16,10 +16,15 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { FLY_LIVE_SERVER_TS } from "../src/deploy/fly-live-assets.js";
 
 const INDEX = "<!doctype html><title>app</title><div id=root></div>";
+
+/** Is this binary on PATH? Asked once, so the failure can say so in words. */
+function which(bin: string): boolean {
+  return spawnSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" }).status === 0;
+}
 
 /** Boot the real server against a temp /srv. Returns its base URL. */
 async function boot(env: Record<string, string>): Promise<{ url: string; stop: () => void; dir: string }> {
@@ -30,6 +35,19 @@ async function boot(env: Record<string, string>): Promise<{ url: string; stop: (
   writeFileSync(join(dir, "current", "real.css"), "body{}");
   const serverPath = join(dir, "server.ts");
   writeFileSync(serverPath, FLY_LIVE_SERVER_TS);
+
+  // A MISSING RUNTIME MUST NAME ITSELF. Measured 2026-09-11: without this,
+  // `spawn bun ENOENT` surfaced as an UNCAUGHT EXCEPTION that took 20 of 38
+  // tests down with it, and the visible failure was `ECONNREFUSED` on a port —
+  // which names the symptom and hides the cause. One named failure beats a
+  // cascade that sends the reader to the wrong place.
+  if (!which("bun")) {
+    throw new Error(
+      "bun is not on PATH, so the server this package SHIPS cannot be booted. " +
+        "These tests run the real generated server rather than reading its source. " +
+        "Install bun (https://bun.sh) — CI does this with oven-sh/setup-bun.",
+    );
+  }
 
   const port = 9000 + Math.floor(Math.random() * 900);
   const child: ChildProcess = spawn("bun", ["run", serverPath], {

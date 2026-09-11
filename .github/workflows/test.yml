@@ -70,6 +70,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # F033.12 — BUN IS A TEST DEPENDENCY OF THIS REPO, not a convenience.
+      # @broberg/deploy-core ships a Bun server as a string and deploys it to
+      # Fly; until now nothing ever RAN that string, which is exactly how the
+      # SPA-fallback gap survived. Its tests boot the real server, so the gate
+      # needs the runtime the artefact requires.
+      #
+      # Measured 2026-09-11: the gate went red with `spawn bun ENOENT` on a tree
+      # that was green locally — because bun is on the developer machine's PATH
+      # and was not on the runner's. A local green and a CI green were answers to
+      # two different questions, which is the distinction this repo spent the day
+      # on. publish.yml's roster job already sets bun up; the gate did not.
+      - uses: oven-sh/setup-bun@v2
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
