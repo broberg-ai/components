@@ -1,6 +1,6 @@
 {
- "scanned_at": "2026-09-10T18:37:03.019Z",
- "repos_scanned": 58,
+ "scanned_at": "2026-09-11T08:58:13.710Z",
+ "repos_scanned": 59,
  "repos_failed": 0,
  "manifests_read": 213,
  "manifests_unreadable": 0,
@@ -261,12 +261,12 @@
     ],
     "@broberg/lens-engine": [
      {
-      "range": "0.9.1",
+      "range": "0.10.0",
       "field": "dependencies",
       "at": "apps/agent/package.json"
      },
      {
-      "range": "0.9.1",
+      "range": "0.10.0",
       "field": "dependencies",
       "at": "apps/lens-cloud/package.json"
      }
@@ -453,7 +453,7 @@
     ],
     "@broberg/secret-scan": [
      {
-      "range": "^0.8.1",
+      "range": ">=0.9.3 <1",
       "field": "dependencies",
       "at": "packages/logger/package.json"
      }
@@ -1113,6 +1113,13 @@
    "unreadable": 0,
    "deps": {}
   },
+  "broberg-ai/voice-engine": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
+  },
   "broberg-ai/xrt81": {
    "branch": "main",
    "manifests": 5,
@@ -1665,7 +1672,7 @@
     ],
     "@broberg/mail": [
      {
-      "range": "0.1.0",
+      "range": "0.14.0",
       "field": "dependencies",
       "at": "site/package.json"
      }
