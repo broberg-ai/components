@@ -20,6 +20,9 @@ const CURRENT = join(DATA_ROOT, "current");
 const DEPLOYS = join(DATA_ROOT, "deploys");
 const SYNC_SECRET = process.env.SYNC_SECRET;
 const MAX_SKEW_SECONDS = 300;
+// F033.12 — opt-in. Compared as a literal string so an unset var and "false"
+// are the same thing; there is no third state.
+const SPA_FALLBACK = process.env.SPA_FALLBACK === "true";
 const KEEP_DEPLOYS = 5;
 
 if (!SYNC_SECRET) { console.error("[fly-live] SYNC_SECRET env var is required"); process.exit(1); }
@@ -31,7 +34,7 @@ Bun.serve({
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname.startsWith("/_icd/")) return handleIcd(req, url);
-    return serveStatic(url.pathname);
+    return serveStatic(url.pathname, req);
   },
   error(err) { console.error("[fly-live] server error", err); return new Response("Internal error", { status: 500 }); },
 });
@@ -56,7 +59,7 @@ async function handleIcd(req, url) {
   return json({ error: "not found" }, 404);
 }
 
-async function serveStatic(pathname) {
+async function serveStatic(pathname, req) {
   let rel = decodeURIComponent(pathname.replace(/^\\/+/, ""));
   if (rel === "") rel = "index.html";
   const full = resolve(CURRENT, rel);
@@ -67,9 +70,26 @@ async function serveStatic(pathname) {
     return fileResponse(full);
   } catch {
     try { await access(\`\${full}.html\`); return fileResponse(\`\${full}.html\`); } catch {}
+    // F033.12 — an unknown ROUTE is the SPA's own; an unknown ASSET is a broken
+    // deploy. TWO clauses, and neither is sufficient alone: an Accept check by
+    // itself hands index.html to a fetch() for a missing JSON file, and an
+    // extension check by itself hands it to a curl that wanted the 404.
+    // Serving with 200 is the point — 404.html below already serves the right
+    // bytes with the wrong number, which is a success reported as a failure.
+    if (SPA_FALLBACK && looksLikeRoute(pathname, req)) {
+      try { await access(join(CURRENT, "index.html")); return fileResponse(join(CURRENT, "index.html")); } catch {}
+    }
     try { await access(join(CURRENT, "404.html")); return fileResponse(join(CURRENT, "404.html"), 404); } catch {}
     return new Response("Not found", { status: 404 });
   }
+}
+
+/** A browser asking for a page, on a path that names no file. Both, never either. */
+function looksLikeRoute(pathname, req) {
+  const accept = req?.headers?.get("accept") || "";
+  if (!accept.includes("text/html")) return false;
+  const last = pathname.split("/").filter(Boolean).pop() || "";
+  return !last.includes(".");
 }
 
 function fileResponse(p, status = 200) { return new Response(Bun.file(p), { status }); }
@@ -205,6 +225,9 @@ primary_region = "{{REGION}}"
   auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]
+
+[env]
+  SPA_FALLBACK = "{{SPA_FALLBACK}}"
 
 [[vm]]
   size = "shared-cpu-1x"

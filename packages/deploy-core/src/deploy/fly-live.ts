@@ -18,6 +18,30 @@ export interface FlyLiveConfig {
   syncSecret: string;
   /** Custom domain (optional). */
   customDomain?: string;
+  /**
+   * Answer `index.html` with status **200** on an unknown ROUTE (F033.12).
+   *
+   * OFF BY DEFAULT, and deliberately: this package deploys live fleet sites, and
+   * a static-site consumer relying on a real 404 would silently begin serving a
+   * 200 for every typo.
+   *
+   * WHY IT EXISTS. Without it a single-page app is reachable only on exact file
+   * paths — helpdesk measured `/velkommen` 404 in production while `/` answered
+   * 200, with their invitation and forgot-password links dead. Every local check
+   * was green, INCLUDING a full browser run: Vite's dev server answers
+   * index.html on any path, so the test environment is kinder than production in
+   * exactly the dimension the test exists to rule out.
+   *
+   * A MISSING ASSET STILL 404s. The fallback fires only for a request that
+   * accepts HTML on an extensionless path, so a dropped `/assets/app-abc.js`
+   * keeps failing loudly rather than returning HTML with a 200 — which would
+   * make an incomplete deploy look like a working one.
+   *
+   * Note this lands in fly.toml's `[env]`, so it applies at INFRA-provision
+   * time. To flip it on an app that already exists without a re-provision:
+   * `flyctl secrets set SPA_FALLBACK=true` (a ~30s machine restart).
+   */
+  spaFallback?: boolean;
 }
 
 export interface FlyLiveDeployResult {
@@ -452,7 +476,11 @@ export async function flyLiveRebuildInfra(
     await writeFile(join(tmpDir, "Dockerfile"), FLY_LIVE_DOCKERFILE, "utf8");
     const toml = FLY_LIVE_TOML_TEMPLATE.replace(/{{APP_NAME}}/g, config.appName)
       .replace(/{{REGION}}/g, config.region)
-      .replace(/{{VOLUME_NAME}}/g, config.volumeName);
+      .replace(/{{VOLUME_NAME}}/g, config.volumeName)
+      // Written as the literal string the server compares against, so an absent
+      // field and an explicit `false` produce the same bytes — there is no third
+      // state to read differently at either end.
+      .replace(/{{SPA_FALLBACK}}/g, config.spaFallback === true ? "true" : "false");
     await writeFile(join(tmpDir, "fly.toml"), toml, "utf8");
 
     ensureVolume(config, tmpDir);

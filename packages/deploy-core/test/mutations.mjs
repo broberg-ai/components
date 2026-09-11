@@ -13,13 +13,20 @@ import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutat
 import { fileURLToPath } from "node:url";
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
-const FILE = join(PKG, "src", "deploy", "fly-live.ts");
+// F033.12 — TWO files now. The SPA fallback lives in the server we GENERATE
+// (fly-live-assets.ts); a harness that can only reach fly-live.ts cannot prove
+// it, and would have reported 0 uncaught while covering none of it.
+const FILES = {
+  "fly-live": join(PKG, "src", "deploy", "fly-live.ts"),
+  "fly-live-assets": join(PKG, "src", "deploy", "fly-live-assets.ts"),
+};
+const FILE = FILES["fly-live"]; // default for a mutation that names no file
 
 // A mutant left on disk by a killed run is indistinguishable from real source.
-const dirty = execFileSync("git", ["status", "--porcelain", "--", FILE], { cwd: PKG }).toString().trim();
+const dirty = execFileSync("git", ["status", "--porcelain", "--", ...Object.values(FILES)], { cwd: PKG }).toString().trim();
 if (dirty) {
   console.error(
-    "refusing to mutate an uncommitted file (src/deploy/fly-live.ts).\n" +
+    `refusing to mutate an uncommitted file:\n${dirty}\n` +
       "  Commit first: a killed run skips the restore, and mutated source then\n" +
       "  reads exactly like working source.",
   );
@@ -27,6 +34,45 @@ if (dirty) {
 }
 
 const MUTATIONS = [
+  {
+    // F033.12 — the trap in the obvious implementation. Without the extension
+    // guard a dropped /assets/app-abc123.js answers index.html with 200, the
+    // browser fails on a parse error naming the wrong problem, and an
+    // INCOMPLETE DEPLOY LOOKS LIKE A WORKING ONE. That trades a visible 404 for
+    // an invisible one, which is worse than the bug being fixed.
+    name: "the extension guard is dropped (a missing .js answers index.html, 200)",
+    file: "fly-live-assets",
+    from: '  const last = pathname.split("/").filter(Boolean).pop() || "";\n  return !last.includes(".");',
+    to: "  return true;",
+    expect: ["A MISSING ASSET STILL 404s"],
+  },
+  {
+    // The one that matters most: the BYTES were already reachable via 404.html.
+    // It was the NUMBER that was wrong — a success reported as a failure.
+    name: "the SPA fallback answers 404 instead of 200 (the 404.html defect, restored)",
+    file: "fly-live-assets",
+    from: '      try { await access(join(CURRENT, "index.html")); return fileResponse(join(CURRENT, "index.html")); } catch {}',
+    to: '      try { await access(join(CURRENT, "index.html")); return fileResponse(join(CURRENT, "index.html"), 404); } catch {}',
+    expect: ["an unknown ROUTE answers index.html with STATUS 200"],
+  },
+  {
+    // The other half of the predicate. Without the Accept clause a fetch() for a
+    // missing JSON endpoint receives HTML with a 200 and fails far away from here.
+    name: "the Accept clause is dropped (a JSON fetch gets HTML)",
+    file: "fly-live-assets",
+    from: '  if (!accept.includes("text/html")) return false;',
+    to: "",
+    expect: ["a NON-BROWSER client on an extensionless path still gets its 404"],
+  },
+  {
+    // Default-on, restored. A static-site consumer relying on a real 404 would
+    // silently begin serving 200 for every typo — fifteen live sites at once.
+    name: "the fallback defaults ON (every existing deploy changes behaviour)",
+    file: "fly-live-assets",
+    from: 'const SPA_FALLBACK = process.env.SPA_FALLBACK === "true";',
+    to: 'const SPA_FALLBACK = process.env.SPA_FALLBACK !== "false";',
+    expect: ["answers exactly as it does today"],
+  },
   {
     // THE DEFECT. helpdesk's 32-byte HMAC secret was in their log in plaintext
     // before it had been used for anything, because it was an argument.
@@ -94,8 +140,9 @@ const MUTATIONS = [
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "deploymut-"));
-const original = readFileSync(FILE, "utf8");
-copyFileSync(FILE, join(backup, "fly-live.ts"));
+const originals = Object.fromEntries(Object.entries(FILES).map(([k, f]) => [k, readFileSync(f, "utf8")]));
+for (const [k, f] of Object.entries(FILES)) copyFileSync(f, join(backup, `${k}.ts`));
+const original = originals["fly-live"];
 
 const ANSI = new RegExp(String.fromCharCode(27) + "\\[[0-9;]*m", "g");
 let uncaught = 0;
@@ -104,20 +151,21 @@ const redSets = [];
 writeMarker({ harness: "@broberg/deploy-core test/mutations.mjs", file: FILE });
 try {
   for (const m of MUTATIONS) {
-    if (!original.includes(m.from)) {
+    const src = originals[m.file ?? "fly-live"];
+    if (!src.includes(m.from)) {
       console.log(`ANCHOR MISSING - ${m.name}`);
       console.log("  the substitution matched nothing, so this mutation was never applied");
       uncaught++;
       continue;
     }
-    const mutated = original.replace(m.from, m.to);
-    if (mutated === original) {
+    const mutated = src.replace(m.from, m.to);
+    if (mutated === src) {
       console.log(`ANCHOR NO-OP - ${m.name}`);
       uncaught++;
       continue;
     }
 
-    writeFileSync(FILE, mutated);
+    writeFileSync(FILES[m.file ?? "fly-live"], mutated);
     let out = "";
     let died = false;
     try {
@@ -126,8 +174,8 @@ try {
       out = (e.stdout?.toString() ?? "") + (e.stderr?.toString() ?? "");
       died = true;
     } finally {
-      writeFileSync(FILE, original);
-      assertRestored({ harness: "@broberg/deploy-core test/mutations.mjs", file: FILE, expected: original });
+      writeFileSync(FILES[m.file ?? "fly-live"], originals[m.file ?? "fly-live"]);
+      assertRestored({ harness: "@broberg/deploy-core test/mutations.mjs", file: FILES[m.file ?? "fly-live"], expected: originals[m.file ?? "fly-live"] });
     }
 
     if (!died) {
@@ -175,8 +223,10 @@ try {
     }
   }
 } finally {
-  copyFileSync(join(backup, "fly-live.ts"), FILE);
-  assertRestored({ harness: "@broberg/deploy-core test/mutations.mjs", file: FILE, expected: original });
+  for (const [k, f] of Object.entries(FILES)) {
+    copyFileSync(join(backup, `${k}.ts`), f);
+    assertRestored({ harness: "@broberg/deploy-core test/mutations.mjs", file: f, expected: originals[k] });
+  }
   rmSync(backup, { recursive: true, force: true });
   clearMarker();
 }
