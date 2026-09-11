@@ -1236,6 +1236,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # F033.12 — BUN, AND THIS JOB NEEDS ITS OWN COPY. F080.4 ALL OVER AGAIN:
+      # the shared gate runs `turbo run test`, but every publish job re-runs the
+      # package's tests itself with `working-directory`, so nothing the gate job
+      # sets up is in scope here. I added setup-bun to test.yml, watched `gate /
+      # workspace` go GREEN, and deploy-core-v0.3.1 still died — in this job, on
+      # the same missing binary.
+      #
+      # Two mechanisms, one of them fixed, again. F080.4 was turbo's task graph
+      # being bypassed the same way; this is the runtime. The structural fact is
+      # the one to remember: A FIX APPLIED TO THE GATE DOES NOT REACH THE
+      # RELEASE, because the release does not run the gate — it re-runs the
+      # tests.
+      - uses: oven-sh/setup-bun@v2
+
       - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
 
       - uses: actions/setup-node@v4
