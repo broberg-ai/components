@@ -68,7 +68,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/sms** v0.12.0 — One SMS send primitive for the fleet. `npm i @broberg/sms`
 - **@broberg/notifications** v0.4.0 — The fleet's in-app notification list core: ONE counting rule shared by every app, so the list, the bell and the OS badge cannot disagree. `npm i @broberg/notifications`
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
-- **@broberg/lens-engine** v0.9.1 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
+- **@broberg/lens-engine** v0.10.0 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
 - **@broberg/bodymap** v0.12.0 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.4.1 — The fleet's one Stripe chokepoint, and the one place that knows where Stripe MOVED a field to (invoice.subscription is gone, so is the period). `npm i @broberg/stripe`
