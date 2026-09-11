@@ -5,7 +5,7 @@ to send transactional mail across every `@broberg/*` app.
 
 - **No SDK, no deps.** Raw POST to Resend's stable REST API, so it runs in Node,
   Bun and edge runtimes alike — and there's no SDK version-floor to chase.
-- **Never throws.** Every send returns a typed `{ ok, id?, error?, skipped? }`.
+- **Never throws.** Every send returns a typed `{ ok, id?, error?, skipped?, reason?, integrity? }`.
 - **Ship-dark + allowlist.** No API key ⇒ a logged no-op (your dev/preview flows
   don't crash). A non-`live` mailer only delivers to allowlisted recipients —
   the fleet admins (`cb@webhouse.dk` …) are always reachable — so test mail never
@@ -32,7 +32,8 @@ const r = await mailer.send({
   html: "<p>See you Tuesday.</p>",
   text: "See you Tuesday.",
 });
-// r: { ok: true, id: "…" } | { ok: false, error } | { ok: true, skipped: true }
+// r: { ok: true, id: "…" } | { ok: false, error } | { ok: true, skipped: true, reason }
+//    …and every one of them carries `integrity`, the report for THIS message
 ```
 
 Explicit config instead of env:
@@ -150,7 +151,10 @@ and the hardest to notice precisely because everyone else is fine.
 
 **Why one field and not a boolean `live`.** Three separate conditions stop this
 package from delivering — `live: false`, `disabled: true`, and a missing
-`apiKey` — and all three return the same success-shaped `{ ok: true, skipped: true }`.
+`apiKey`. Until 0.14.0 all three returned the same success-shaped
+`{ ok: true, skipped: true }`; they now carry `reason` (`"not-live"` /
+`"disabled"` / `"no-key"`), so the per-send answer is readable too. `mode` is
+still the right BOOT assertion, and the argument below is why.
 A `live`-only readback would let you write `if (isProd && !mailer.live) throw`
 and have it **pass** over a mailer with no API key at all. One field carrying the
 reason means there is exactly one thing to assert on and no way to assert the

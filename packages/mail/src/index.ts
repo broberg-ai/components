@@ -15,6 +15,7 @@
 
 import { MAIL_EVENT_TYPES, verdictForEvent, type MailEventType, type MailVerdict } from "./events";
 import { checkMailIntegrity, describeIntegrity } from "./integrity.js";
+import type { IntegrityReport } from "./integrity.js";
 
 /**
  * The integrity check, exported so a consumer can run it BEFORE handing us a
@@ -78,6 +79,23 @@ export interface MailMessage {
   mailId?: string;
 }
 
+/**
+ * WHY a send was not delivered (F005.18).
+ *
+ * Three different situations used to answer with one indistinguishable object,
+ * and two of them shared a single `return` — only the log line told them apart.
+ * `not-live` is the dangerous one: a key IS configured, so the caller believes
+ * mail is on, and every message quietly reaches the allowlist instead of the
+ * customer. sanne measured exactly that on an upgrade — booking confirmations,
+ * Stripe receipts and magic links all stopping at once, each answering
+ * `{ ok: true, skipped: true }`. cms hit the mirror image (F005.8).
+ *
+ * `mailer.mode` already answers this at BOOT and stays. It is not enough: a key
+ * that falls out for ONE tenant is a per-send fact, and the other ninety-nine
+ * look healthy from boot.
+ */
+export type MailSkipReason = "disabled" | "no-key" | "not-live";
+
 export interface MailResult {
   ok: boolean;
   /** Resend message id on a real send. */
@@ -85,6 +103,15 @@ export interface MailResult {
   error?: string;
   /** True when the send was intentionally NOT delivered (disabled / no key / not allowlisted). */
   skipped?: boolean;
+  /** WHICH of the three no-op causes. Present exactly when `skipped` is true. */
+  reason?: MailSkipReason;
+  /**
+   * The integrity report for this message — present on SKIPS too, which is the
+   * whole of F005.18. Before it, the check ran only after the skip gates, so it
+   * never fired in dev, in CI, or for a non-allowlisted recipient: the three
+   * environments where a broken template is cheap to find and free to fix.
+   */
+  integrity?: IntegrityReport;
 }
 
 export interface MailerConfig {
@@ -480,34 +507,54 @@ export function createMailer(config: MailerConfig = {}): Mailer {
     },
 
     async send(message: MailMessage): Promise<MailResult> {
+      // F005.16 — the integrity check looks at the FINISHED content and the real
+      // attachments together. A per-template check cannot see any of the three
+      // defects that reached a paying customer: two were the CALLER's doing and
+      // one was a script that skipped the function that attaches the logo.
+      //
+      // F005.18 — AND IT RUNS FIRST, BEFORE ANY GATE CAN RETURN. It used to sit
+      // below both skip gates, and the comment here claimed it "runs on every
+      // send". It did not: it ran on every send that got PAST two gates, so it
+      // never fired without an API key (dev, CI) or for a recipient off the
+      // allowlist (staging) — the three places a broken template is cheapest to
+      // find and free to fix. sanne had to set a key, `live` and a stubbed fetch
+      // in every test just to make it run at all, and a test without a key got
+      // `{ ok: true, skipped: true }` for a BROKEN mail, proving nothing.
+      //
+      // The report now travels on every result, skips included. ENFORCEMENT does
+      // not move: see below.
+      const integrityReport = checkMailIntegrity(message);
+
       // Dev kill-switch / ship-dark: never crash a flow when mail is off.
       if (config.disabled || !config.apiKey) {
+        const reason: MailSkipReason = config.disabled ? "disabled" : "no-key";
         log(`send skipped (${config.disabled ? "disabled" : "no RESEND key"})`, {
           to: message.to,
           subject: message.subject,
         });
-        return { ok: true, skipped: true };
+        // A SKIP IS NEVER REFUSED, not even under `enforcing`. Turning a dev
+        // no-op into `{ ok: false }` would land in every consumer at once and be
+        // a worse outage than the one this card fixes. Signal where it is cheap,
+        // enforcement where it matters.
+        return { ok: true, skipped: true, reason, integrity: integrityReport };
       }
       // Dev/staging allowlist gate — keep test mail off real users.
+      // `mailAllowed` returns true outright when `live`, so reaching here means
+      // live is false: the reason is never "this recipient", it is "not live".
       if (!mailAllowed(message.to, { live, allowlist: config.allowlist })) {
         log("send skipped (recipient not in allowlist; mailer not live)", { to: message.to });
-        return { ok: true, skipped: true };
+        return { ok: true, skipped: true, reason: "not-live", integrity: integrityReport };
       }
-      // F005.16 — the integrity check runs HERE, where the finished content and
-      // the real attachments are both in hand. A per-template check cannot see
-      // any of the three defects that reached a paying customer: two of them
-      // were the CALLER's doing and one was a script that skipped the function
-      // that attaches the logo.
-      //
-      // It runs on every send, including report-only, because the report is the
-      // point: a finding nobody can read before enforcement is turned on is a
-      // guard nobody can trust turning on.
-      const integrityReport = checkMailIntegrity(message);
+
+      // From here the mail IS being delivered, which is the only place a finding
+      // may block. The report is the point of report-only mode: a finding nobody
+      // can read before enforcement is turned on is a guard nobody can trust
+      // turning on.
       if (integrityReport.findings.length > 0) {
         const detail = describeIntegrity(integrityReport);
         if (integrity === "enforcing") {
           log("send REFUSED (integrity)", { to: message.to, subject: message.subject, detail });
-          return { ok: false, error: `integrity: ${detail}` };
+          return { ok: false, error: `integrity: ${detail}`, integrity: integrityReport };
         }
         log(`integrity: ${integrityReport.findings.length} finding(s) — NOT blocked (${integrity})`, {
           to: message.to,
@@ -517,8 +564,8 @@ export function createMailer(config: MailerConfig = {}): Mailer {
       }
 
       const from = resolveFrom(config, message);
-      if (!from) return { ok: false, error: "no_from (set MailerConfig.from or message.from)" };
-      if (!doFetch) return { ok: false, error: "no_fetch (no global fetch; pass MailerConfig.fetch)" };
+      if (!from) return { ok: false, error: "no_from (set MailerConfig.from or message.from)", integrity: integrityReport };
+      if (!doFetch) return { ok: false, error: "no_fetch (no global fetch; pass MailerConfig.fetch)", integrity: integrityReport };
 
       const payload: Record<string, unknown> = {
         from,
@@ -564,11 +611,14 @@ export function createMailer(config: MailerConfig = {}): Mailer {
         if (!res.ok) {
           const error = body.message ?? body.name ?? `resend_http_${res.status}`;
           log(`send failed: ${error}`, { status: res.status });
-          return { ok: false, error };
+          return { ok: false, error, integrity: integrityReport };
         }
-        return { ok: true, id: body.id };
+        // The report travels on a DELIVERED mail too, so a consumer reading
+        // `integrity` never has to ask whether its absence meant "clean" or
+        // "this path does not carry it".
+        return { ok: true, id: body.id, integrity: integrityReport };
       } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : "send_failed" };
+        return { ok: false, error: err instanceof Error ? err.message : "send_failed", integrity: integrityReport };
       }
     },
   };

@@ -130,9 +130,15 @@ describe("the readback is additive and inert", () => {
     expect(mailer.mode).toBe("live");
   });
 
-  it("send() still returns the same shape — nothing about the result changed", async () => {
+  it("send() adds only the integrity report — every OLD field is untouched", async () => {
+    // Renamed at F005.18. The old name ("nothing about the result changed") was
+    // true when `mode` was the only addition and is not true any more: the result
+    // now also carries `integrity`, and on a skip a `reason`. Leaving the name
+    // would have made the next reader trust a sentence the test no longer proves.
     const mailer = createMailer({ ...BASE, apiKey: "re_x", live: true, fetch: okFetch() });
     const res = await mailer.send({ to: "x@y.dk", subject: "s", html: "<p>h</p>" });
-    expect(res).toEqual({ ok: true, id: "msg_1" });
+    const { integrity, ...rest } = res;
+    expect(rest).toEqual({ ok: true, id: "msg_1" }); // STRICT: no other new field crept in
+    expect(integrity?.checked).toContain("links");
   });
 });

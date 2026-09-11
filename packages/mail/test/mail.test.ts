@@ -53,7 +53,9 @@ describe("createMailer.send", () => {
     const log = vi.fn();
     const mailer = createMailer({ from: "noreply@webhouse.dk", fetch: f, logger: log });
     const r = await mailer.send({ to: "a@b.dk", subject: "hi", html: "<p>x</p>" });
-    expect(r).toEqual({ ok: true, skipped: true });
+    const { integrity, ...rest } = r; // F005.18: the report now rides along; the rest is still exact
+    expect(rest).toEqual({ ok: true, skipped: true, reason: "no-key" });
+    expect(integrity).toBeDefined();
     expect(f).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalled();
   });
@@ -78,7 +80,9 @@ describe("createMailer.send", () => {
     const f = okFetch("msg_admin");
     const mailer = createMailer({ apiKey: "re_x", from: "noreply@webhouse.dk", live: false, fetch: f });
     const r = await mailer.send({ to: "cb@webhouse.dk", subject: "hi" });
-    expect(r).toEqual({ ok: true, id: "msg_admin" });
+    const { integrity: i1, ...r1 } = r;
+    expect(r1).toEqual({ ok: true, id: "msg_admin" });
+    expect(i1).toBeDefined();
     expect(f).toHaveBeenCalledOnce();
   });
 
@@ -106,7 +110,9 @@ describe("createMailer.send", () => {
       text: "ok",
       replyTo: "reply@webhouse.dk",
     });
-    expect(r).toEqual({ ok: true, id: "msg_live" });
+    const { integrity: i2, ...r2 } = r;
+    expect(r2).toEqual({ ok: true, id: "msg_live" });
+    expect(i2).toBeDefined();
   });
 
   it("FAIL-SAFE (0.3.0): key present but live UNSET ⇒ a real recipient is held back (skipped), not mass-sent", async () => {
@@ -124,7 +130,9 @@ describe("createMailer.send", () => {
     const f = okFetch("msg_admin");
     const mailer = createMailer({ apiKey: "re_x", from: "noreply@webhouse.dk", fetch: f });
     const r = await mailer.send({ to: "christian@broberg.ai", subject: "hi" });
-    expect(r).toEqual({ ok: true, id: "msg_admin" });
+    const { integrity: i3, ...r3 } = r;
+    expect(r3).toEqual({ ok: true, id: "msg_admin" });
+    expect(i3).toBeDefined();
   });
 
   it("message.from overrides the mailer default", async () => {
@@ -163,7 +171,9 @@ describe("createMailer.send", () => {
     ) as unknown as typeof fetch;
     const mailer = createMailer({ apiKey: "re_x", from: "n@webhouse.dk", live: true, fetch: f });
     const r = await mailer.send({ to: "bad", subject: "s" });
-    expect(r).toEqual({ ok: false, error: "Invalid `to` field" });
+    const { integrity: i4, ...r4 } = r;
+    expect(r4).toEqual({ ok: false, error: "Invalid `to` field" });
+    expect(i4).toBeDefined(); // a provider failure carries it too — absence must never have two meanings
   });
 
   it("fetch throwing ⇒ {ok:false, error} (never throws)", async () => {
@@ -172,7 +182,9 @@ describe("createMailer.send", () => {
     }) as unknown as typeof fetch;
     const mailer = createMailer({ apiKey: "re_x", from: "n@webhouse.dk", live: true, fetch: f });
     const r = await mailer.send({ to: "u@example.com", subject: "s" });
-    expect(r).toEqual({ ok: false, error: "network down" });
+    const { integrity: i5, ...r5 } = r;
+    expect(r5).toEqual({ ok: false, error: "network down" });
+    expect(i5).toBeDefined();
   });
 
   it("missing from ⇒ {ok:false, error: no_from}", async () => {
@@ -303,5 +315,122 @@ describe("createMailerFromEnv", () => {
     const mailer = createMailerFromEnv({ fetch: f });
     expect((await mailer.send({ to: "stranger@example.com", subject: "s" })).skipped).toBe(true);
     expect((await mailer.send({ to: "team@webhouse.dk", subject: "s" })).id).toBe("env");
+  });
+});
+
+describe("F005.18 — the check runs where it is cheap, enforcement where it matters", () => {
+  /**
+   * FILED BY sanne (#27435) out of their own cutover. Before this, send() ran
+   * checkMailIntegrity BELOW both skip gates — so it never fired without an API
+   * key (dev, CI) or for a recipient off the allowlist (staging). Those are the
+   * three places a broken template is cheapest to find. Their test with no key
+   * got `{ ok: true, skipped: true }` for a BROKEN mail and proved nothing.
+   */
+
+  /** A mail with a relative href — a real finding, not a synthetic one. */
+  const broken = { to: "nobody@example.com", subject: "S", html: '<p><a href="/kontakt">k</a></p>' };
+
+  it("a mailer with NO key still reports the finding — the whole card", async () => {
+    const f = okFetch();
+    const r = await createMailer({ from: "n@webhouse.dk", fetch: f }).send(broken);
+
+    expect(r.skipped).toBe(true);
+    expect(f).not.toHaveBeenCalled();
+    // Before F005.18 this was undefined: the check never ran.
+    expect(r.integrity?.findings).toHaveLength(1);
+    expect(r.integrity?.findings[0]?.check).toBe("links");
+  });
+
+  it("…and so does one whose recipient is off the allowlist", async () => {
+    const f = okFetch();
+    const r = await createMailer({ apiKey: "re_x", from: "n@webhouse.dk", live: false, fetch: f }).send(broken);
+
+    expect(r.skipped).toBe(true);
+    expect(f).not.toHaveBeenCalled();
+    expect(r.integrity?.findings).toHaveLength(1);
+  });
+
+  it("A SKIP IS NEVER REFUSED, not even under enforcing", async () => {
+    // The rule that keeps this fix from being a worse outage than the bug: a dev
+    // machine that starts answering { ok: false } where it used to no-op would
+    // break every consumer at once, and the mail was never going out anyway.
+    for (const config of [
+      { from: "n@webhouse.dk" },                                  // no key
+      { apiKey: "re_x", from: "n@webhouse.dk", disabled: true },  // disabled
+      { apiKey: "re_x", from: "n@webhouse.dk", live: false },     // not live
+    ]) {
+      const r = await createMailer({ ...config, integrity: "enforcing", fetch: okFetch() }).send(broken);
+      expect(r.ok, JSON.stringify(config)).toBe(true);
+      expect(r.skipped, JSON.stringify(config)).toBe(true);
+      expect(r.error, JSON.stringify(config)).toBeUndefined();
+    }
+  });
+
+  it("…while a REAL delivery under enforcing is still refused", async () => {
+    // The negative control for the test above: if enforcement had been lost
+    // rather than scoped, that test would pass for the wrong reason.
+    const f = okFetch();
+    const r = await createMailer({
+      apiKey: "re_x", from: "n@webhouse.dk", live: true, integrity: "enforcing", fetch: f,
+    }).send(broken);
+
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain("integrity:");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("THREE CAUSES, THREE REASONS — each from the config that produces it", async () => {
+    const clean = { to: "cb@webhouse.dk", subject: "S", html: "<p>hej</p>" };
+    const cases: [string, Parameters<typeof createMailer>[0]][] = [
+      ["no-key", { from: "n@webhouse.dk" }],
+      ["disabled", { apiKey: "re_x", from: "n@webhouse.dk", disabled: true }],
+      ["not-live", { apiKey: "re_x", from: "n@webhouse.dk", live: false }],
+    ];
+    for (const [want, config] of cases) {
+      // not-live needs a recipient OFF the allowlist to reach that gate.
+      const to = want === "not-live" ? "stranger@example.com" : clean.to;
+      const r = await createMailer({ ...config, fetch: okFetch() }).send({ ...clean, to });
+      expect(r.reason, want).toBe(want);
+    }
+  });
+
+  it("THE DANGEROUS ONE is distinguishable from ship-dark at the call site", async () => {
+    // sanne's measured near-miss: a key IS set, so the caller believes mail is
+    // on, and every customer mail quietly stops at the allowlist. Booking
+    // confirmations, Stripe receipts and magic links, all answering ok:true.
+    const configured = await createMailer({
+      apiKey: "re_live_looking", from: "n@webhouse.dk", fetch: okFetch(),
+    }).send({ to: "customer@example.com", subject: "Din booking", html: "<p>hej</p>" });
+
+    const darkShip = await createMailer({ from: "n@webhouse.dk", fetch: okFetch() })
+      .send({ to: "customer@example.com", subject: "Din booking", html: "<p>hej</p>" });
+
+    expect(configured.reason).toBe("not-live");
+    expect(darkShip.reason).toBe("no-key");
+    expect(configured.reason).not.toBe(darkShip.reason); // the whole point
+  });
+
+  it("ADDITIVE ONLY: a consumer reading only the old fields cannot tell this shipped", async () => {
+    const clean = { to: "cb@webhouse.dk", subject: "S", html: "<p>hej</p>" };
+    const old = (r: Awaited<ReturnType<ReturnType<typeof createMailer>["send"]>>) =>
+      ({ ok: r.ok, id: r.id, error: r.error, skipped: r.skipped });
+
+    expect(old(await createMailer({ from: "n@webhouse.dk", fetch: okFetch() }).send(clean)))
+      .toEqual({ ok: true, id: undefined, error: undefined, skipped: true });
+    expect(old(await createMailer({ apiKey: "re_x", from: "n@webhouse.dk", disabled: true, fetch: okFetch() }).send(clean)))
+      .toEqual({ ok: true, id: undefined, error: undefined, skipped: true });
+    expect(old(await createMailer({ apiKey: "re_x", from: "n@webhouse.dk", live: false, fetch: okFetch() }).send({ ...clean, to: "stranger@example.com" })))
+      .toEqual({ ok: true, id: undefined, error: undefined, skipped: true });
+    expect(old(await createMailer({ apiKey: "re_x", from: "n@webhouse.dk", live: true, fetch: okFetch("msg_9") }).send(clean)))
+      .toEqual({ ok: true, id: "msg_9", error: undefined, skipped: undefined });
+  });
+
+  it("a DELIVERED mail carries the report too, so absence never has two meanings", async () => {
+    const r = await createMailer({
+      apiKey: "re_x", from: "n@webhouse.dk", live: true, fetch: okFetch(),
+    }).send({ to: "customer@example.com", subject: "S", html: "<p>hej</p>" });
+
+    expect(r.ok).toBe(true);
+    expect(r.integrity?.checked).toContain("links");
   });
 });

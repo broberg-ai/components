@@ -48,6 +48,35 @@ for (const [name, file] of Object.entries(FILES)) {
 
 const MUTATIONS = [
   {
+    // F005.18 — THE DEFECT, RESTORED: the check back below the skip gates, where
+    // it never runs without an API key (dev, CI) or off the allowlist (staging).
+    // Those are the three places a broken template is cheapest to find, and the
+    // three places it was silent. Filed by sanne out of a real cutover.
+    name: "the integrity check moves back BELOW the skip gates (dev and CI go blind)",
+    file: "index",
+    from: "      const integrityReport = checkMailIntegrity(message);\n\n      // Dev kill-switch / ship-dark: never crash a flow when mail is off.",
+    to: "      const integrityReport = { findings: [], checked: [], skipped: [] };\n\n      // Dev kill-switch / ship-dark: never crash a flow when mail is off.",
+    expect: ["a mailer with NO key still reports the finding"],
+  },
+  {
+    // The OTHER half, and it must redden a DIFFERENT test: one answer for three
+    // states is what let a silent outage read as success at ~25 call sites.
+    name: "the skip reason collapses to one value (three causes, one answer again)",
+    file: "index",
+    from: '        const reason: MailSkipReason = config.disabled ? "disabled" : "no-key";',
+    to: '        const reason: MailSkipReason = "no-key";',
+    expect: ["THREE CAUSES, THREE REASONS"],
+  },
+  {
+    // The rule that keeps the fix from being worse than the bug. A skip turning
+    // into { ok:false } would land in every consumer at once.
+    name: "a SKIP is refused under enforcing (a dev no-op becomes a hard error)",
+    file: "index",
+    from: '        return { ok: true, skipped: true, reason, integrity: integrityReport };',
+    to: '        return integrity === "enforcing" && integrityReport.findings.length > 0\n          ? { ok: false, error: "integrity", integrity: integrityReport }\n          : { ok: true, skipped: true, reason, integrity: integrityReport };',
+    expect: ["A SKIP IS NEVER REFUSED"],
+  },
+  {
     // F005.13 — the defect, restored: an event outside the vocabulary returns
     // undefined while the signature promises a MailVerdict.
     name: "the off-vocabulary fall-through is dropped (undefined for a new event)",
