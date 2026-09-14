@@ -54,8 +54,12 @@ for (const r of rows) {
   }
   // The marker must sit on the SAME LINE as the name. A reader who skims one
   // line must not be able to mistake a plan for a capability.
-  const shipped = (r.s || "planned") === "shipped";
-  const marker = shipped ? "NOT AN NPM PACKAGE" : "NOT BUILT YET";
+  // F038.18 — THREE markers, because there are three states. This check used to
+  // mirror the renderer's `r.s || "planned"`, so it did not merely miss the
+  // defect: it ENFORCED it. Trail is live, and the seal demanded the page call
+  // it NOT BUILT YET — a guard holding a false claim in place.
+  const marker =
+    r.s === "shipped" ? "NOT AN NPM PACKAGE" : r.s == null ? "STATUS NOT RECORDED" : "NOT BUILT YET";
   if (!line.includes(marker)) unmarked.push(`${r.nm} (expected "${marker}")`);
 }
 
@@ -66,7 +70,14 @@ for (const r of rows) {
 const htmlMissing = [];
 if (!base) {
   const html = readFileSync(join(ROOT, "docs", "onboarding.html"), "utf8");
-  for (const r of rows) if (!html.includes(r.nm)) htmlMissing.push(r.nm);
+  // Compare the ESCAPED name. The generator runs every name through esc(), so a
+  // row whose name holds & < > " is present on the page and absent from a raw
+  // search — the check then reports a rendering bug that does not exist, and
+  // sends the next reader hunting for it. Found by the first row to contain an
+  // "&" (voice-engine), which rendered correctly and was reported missing.
+  const esc = (t) =>
+    String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  for (const r of rows) if (!html.includes(esc(r.nm))) htmlMissing.push(r.nm);
 }
 
 if (missing.length || unmarked.length || htmlMissing.length) {
@@ -95,5 +106,6 @@ if (missing.length || unmarked.length || htmlMissing.length) {
 console.log(
   `✓ all ${rows.length} non-package rows are in llms.txt${base ? "" : " AND onboarding.html"}, each with its status marker ` +
     `(${rows.filter((r) => r.s === "shipped").length} shipped-not-npm, ` +
-    `${rows.filter((r) => (r.s || "planned") !== "shipped").length} not-built-yet).`,
+    `${rows.filter((r) => r.s == null).length} status-not-recorded, ` +
+    `${rows.filter((r) => r.s != null && r.s !== "shipped").length} not-built-yet).`,
 );

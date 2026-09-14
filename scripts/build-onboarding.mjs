@@ -53,14 +53,22 @@ const nonPkg = DATA.flatMap((L) =>
       id: r.f,
       name: r.nm,
       layer: L.n,
-      status: r.s || "planned",
+      // F038.18 — NOT `r.s || "planned"`. 16 of 17 non-package rows carry no
+      // status at all, so that default asserted "NOT BUILT YET — nothing to
+      // install, nothing to import" about Trail, which answers right now and
+      // whose own desc names the two MCP verbs you call it with. A missing
+      // value is a THIRD state and must stay one all the way to the page.
+      status: r.s ?? null,
       owner: r.own || "unassigned",
       oneLiner: oneLiner(r),
       desc: fullDesc(r),
     })),
 );
 const nonPkgShipped = nonPkg.filter((r) => r.status === "shipped");
-const nonPkgFuture = nonPkg.filter((r) => r.status !== "shipped");
+// A row nobody has given a status. It is NOT a plan and NOT a shipped thing —
+// it is a question we have not asked the owner yet, and it says so.
+const nonPkgUnknown = nonPkg.filter((r) => r.status === null);
+const nonPkgFuture = nonPkg.filter((r) => r.status !== null && r.status !== "shipped");
 
 const tips = INFRA.filter((p) => (p.tips || []).length).map((p) => ({
   platform: p.name || p.id,
@@ -130,27 +138,33 @@ const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const saysNothingNew = (r) =>
   norm(r.oneLiner).includes(norm(r.name)) && norm(r.oneLiner).length < norm(r.name).length + 18;
 
-const nonPkgCards = (rows, planned) =>
+const NONPKG_KIND = {
+  shipped: { badge: "not on npm", cls: "", tail: " — you call it, nothing to install" },
+  planned: { badge: "not built yet", cls: " plan", tail: " — ask them before building a second one" },
+  unknown: { badge: "status unknown", cls: " unk", tail: " — ASK THEM whether it is usable; we have not recorded one" },
+};
+const nonPkgCards = (rows, kind) =>
   rows
-    .map(
-      (r) => `<div class="pk">
-      <div class="pk-h"><code>${esc(r.name)}</code><span class="v${
-        planned ? " plan" : ""
-      }">${planned ? "not built yet" : "not on npm"}</span></div>
+    .map((r) => {
+      const k = NONPKG_KIND[kind];
+      return `<div class="pk">
+      <div class="pk-h"><code>${esc(r.name)}</code><span class="v${k.cls}">${k.badge}</span></div>
       ${saysNothingNew(r) ? "" : `<p>${esc(r.oneLiner)}</p>`}
-      <p class="own">${esc(r.layer)} · owner: ${esc(r.owner)}${
-        planned ? " — ask them before building a second one" : " — you call it, nothing to install"
-      }</p></div>`,
-    )
+      <p class="own">${esc(r.layer)} · owner: ${esc(r.owner)}${k.tail}</p></div>`;
+    })
     .join("");
 
 const nonPkgHtml = `
 <h2 class="sec" id="notnpm">Shipped, but not an npm package (${nonPkgShipped.length})</h2>
-<section class="layer"><div class="pk-grid">${nonPkgCards(nonPkgShipped, false)}</div></section>
+<section class="layer"><div class="pk-grid">${nonPkgCards(nonPkgShipped, "shipped")}</div></section>
+
+<h2 class="sec" id="unknown">Status not recorded (${nonPkgUnknown.length})</h2>
+<section class="layer"><div class="layer-h"><span class="t">We have not asked the owner</span><span class="d">this says nothing about whether it works — some of these are running today. Ask before you assume either way</span><span class="ct">${nonPkgUnknown.length}</span></div>
+<div class="pk-grid">${nonPkgCards(nonPkgUnknown, "unknown")}</div></section>
 
 <h2 class="sec" id="planned">Planned — not built yet (${nonPkgFuture.length})</h2>
 <section class="layer"><div class="layer-h"><span class="t">None of these exist</span><span class="d">listed so you do not conclude the fleet has nothing and quietly build a second one</span><span class="ct">${nonPkgFuture.length}</span></div>
-<div class="pk-grid">${nonPkgCards(nonPkgFuture, true)}</div></section>`;
+<div class="pk-grid">${nonPkgCards(nonPkgFuture, "planned")}</div></section>`;
 
 const html = `<!doctype html>
 <html lang="en" data-theme="dark">
@@ -199,6 +213,7 @@ h2.sec{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:upperc
 .pk-h code{font-size:13px;font-weight:600;color:var(--fg)}
 .pk .v{margin-left:auto;white-space:nowrap;flex-shrink:0;font:600 11px ui-monospace,monospace;color:var(--green);background:color-mix(in oklab,var(--green) 13%,transparent);padding:2px 7px;border-radius:20px}
 .pk .v.plan{color:var(--amber);background:color-mix(in oklab,var(--amber) 13%,transparent)}
+.pk .v.unk{color:var(--muted);background:color-mix(in oklab,var(--muted) 13%,transparent)}
 .pk p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.5}
 .plat{margin-top:22px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:6px 18px 14px}
 .plat h3{display:flex;align-items:center;font-size:15px;font-weight:650;margin:14px 0 4px}
@@ -370,6 +385,17 @@ const shippedNonPkgMd = (isFull) =>
 
 // The marker sits on the SAME LINE as the name, deliberately: a reader who skims
 // one line must not be able to mistake a plan for a capability.
+// NOT "nothing to install, nothing to import". We do not know that, and for four
+// of these we know the opposite. The line has to carry the uncertainty itself,
+// because a reader takes a missing caveat as an absent risk.
+const unknownNonPkgMd = (isFull) =>
+  nonPkgUnknown
+    .map(
+      (r) =>
+        `- **${r.name}** (${r.layer}) · STATUS NOT RECORDED — we have not asked ${r.owner} whether this is usable today, so this is NOT evidence either way · owner: ${r.owner} — ASK THEM before building a second one, and before assuming it is unavailable\n  ${isFull ? r.desc : r.oneLiner}`,
+    )
+    .join("\n");
+
 const futureNonPkgMd = (isFull) =>
   nonPkgFuture
     .map(
@@ -390,6 +416,16 @@ These are real and usable TODAY. There is no \`npm i\` — you call them or you 
 them — so a grep for a package name will never find them.
 
 ${shippedNonPkgMd(isFull)}
+
+## Status not recorded (${nonPkgUnknown.length})
+
+**This section is an admission, not a verdict.** Nobody has told us whether these
+are usable, so the honest answer is that we do not know — and at least four of
+them were running on the day this section was added. Do NOT read a row here as
+"unavailable": ask the owner. Reading it as absent is how a session rebuilds
+something the fleet already runs.
+
+${unknownNonPkgMd(isFull)}
 
 ## Planned — NOT BUILT YET (${nonPkgFuture.length})
 
