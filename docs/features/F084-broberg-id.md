@@ -42,6 +42,61 @@ Samme skel for logout: server-til-server virker, skjulte rammer gør ikke.
 Bygges den skjulte vej, virker alt i test på en Mac og fejler for hver bruger
 på iPhone — **den værste slags fejl, fordi den ser grøn ud hos os.**
 
+## Session-levetider — besluttet 16. sep.
+
+| | |
+|---|---|
+| app, standard | **7 dage**, rullende (fornyes ved brug) |
+| app med person-/helbredsdata (fd-sundhed) | **12 timer** + ny login efter 30 min uden aktivitet |
+| stille tjek mod BID | **1 time** |
+| BID's egen kontoflade | **1 time** |
+
+### Hvad andre gør — målt, ikke husket
+
+| | |
+|---|---|
+| Google Workspace | 14 dage · **admin-konsollen 1 time**, kan ikke ændres |
+| Microsoft Entra | adgang 60-90 min · fornyelse op til 90 dage |
+| Better Auth (vores) | 7 dage, rullende, fornyes efter 1 dags brug |
+| NIST niveau 1 | højst 30 dage, inaktivitet valgfri |
+| NIST niveau 2 | højst **12 timer** + 30 min inaktivitet ← helbredsdata |
+
+**7 frem for 14**, fordi 7 er værktøjets egen standard: vælger vi 14, skal
+nogen ændre noget og huske hvorfor. Gevinsten ved de syv ekstra dage er at
+brugeren logger ind halvt så sjældent — for lidt mod at have et tal ingen har
+rørt.
+
+**12 timer på fd-sundhed**, fordi den rører helbredsdata. Ét tal til alle apps
+ville enten være for løst dér eller for stramt i cardmem.
+
+### ⚠️ BID har TO sessioner, ikke én
+
+Ejeren: *"BID skal have sit eget login jo, så det er 1 time som Google admin."*
+Rigtigt — og Google har **to ure på samme konto**, ikke ét:
+
+| | holder | vores |
+|---|---|---|
+| **SSO-sessionen** | dig logget ind i ALLE apps. Det `prompt=none` spørger om | 7 dage |
+| **konto-sessionen** | din ret til at ÆNDRE kontoen: tilføje en nøgle, skifte primær mail, slette | 1 time |
+
+Kollapses de til én, får vi ét af to dårlige udfald:
+
+- **1 time på begge** → hele flåden kræver login hver time. Ubrugeligt.
+- **7 dage på begge** → fladen hvor man kan overtage alt står åben en uge på en
+  ulåst maskine.
+
+Så: at åbne kontosiden (F084.9) kræver en konto-session under 1 time gammel. Er
+den ældre, bekræfter brugeren sig igen — **uden at miste sin adgang til apps.**
+Det er trin-op-mekanismen fra F084.15, brugt på hele fladen frem for på en
+enkelt handling. **De to kort deler den kode; de bygger den ikke hver for sig.**
+
+### Hvorfor det stille tjek findes
+
+Med back-channel logout er udlogning øjeblikkelig. Timen er **nettet under
+den**: en app der var nede da beskeden gik ud, får den aldrig — og er så logget
+ud inden for en time i stedet for at hænge i syv dage. Uden det tal er "log ud
+overalt" et løfte der holder indtil én app har en dårlig dag.
+
 ## Multi-tenant på eget domæne
 
 Ejeren, 16. sep.: *"store kunder som FD Aalborg der snart har 3 systemer kan få
