@@ -32,6 +32,7 @@ export interface Discovery {
   authorization_endpoint: string;
   token_endpoint: string;
   jwks_uri: string;
+  userinfo_endpoint?: string;
   end_session_endpoint?: string;
 }
 
@@ -196,6 +197,51 @@ export function createSsoClient(
     return payload as SsoClaims;
   }
 
+  /**
+   * Fetch the profile claims and fold them in.
+   *
+   * NOT an optimisation — it is the only way to learn a user's name. MEASURED
+   * against the live Broberg ID on 16 Sep 2026:
+   *
+   *   ID token   iss · sub · aud · iat · exp · auth_time · acr · at_hash
+   *   userinfo   sub · name · given_name · family_name · email · email_verified
+   *
+   * That is correct OIDC for an authorization-code flow: profile claims belong
+   * to the userinfo endpoint, and an ID token proving WHO you are does not have
+   * to say what you are called. An app that only reads the ID token gets a
+   * signed identity and a blank name — which is exactly what the first run of
+   * the example app showed on screen.
+   *
+   * ── THE CHECK A NAIVE VERSION SKIPS ───────────────────────────────────────
+   *
+   * The `sub` from userinfo MUST equal the `sub` in the ID token (OIDC Core
+   * 5.3.2 says MUST). Without it, a userinfo response for a DIFFERENT user
+   * would be merged over a correctly verified identity — the app would show,
+   * and act as, somebody else, with a valid signature underneath. A mismatch is
+   * refused outright rather than reconciled.
+   */
+  async function withUserInfo(claims: SsoClaims, accessToken: string): Promise<SsoClaims> {
+    const doc = await discovery();
+    if (!doc.userinfo_endpoint) return claims;
+
+    const res = await fetchImpl(doc.userinfo_endpoint, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    // A failure here must NOT lose the sign-in: the identity is already proven
+    // by the ID token. The user ends up with a session and no display name,
+    // which is worse than having one and far better than being logged out.
+    if (!res.ok) return claims;
+
+    const info = (await res.json()) as Record<string, unknown>;
+    if (info.sub !== claims.sub) {
+      throw new SsoError(
+        `userinfo describes ${String(info.sub)} but the ID token is for ${claims.sub} — ` +
+          `refusing to merge another user's profile onto this session.`,
+      );
+    }
+    return { ...claims, ...info, sub: claims.sub };
+  }
+
   return {
     discovery,
     get jwks() {
@@ -275,8 +321,10 @@ export function createSsoClient(
         );
       }
 
+      const claims = await verifyIdToken(body.id_token, { nonce });
+
       return {
-        claims: await verifyIdToken(body.id_token, { nonce }),
+        claims: body.access_token ? await withUserInfo(claims, body.access_token) : claims,
         idToken: body.id_token,
         ...(body.access_token ? { accessToken: body.access_token } : {}),
         ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}),

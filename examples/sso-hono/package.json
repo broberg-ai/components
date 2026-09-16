@@ -1,0 +1,7 @@
+{
+  "name": "sso-hono-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "bun run server.ts" },
+  "dependencies": { "@broberg/sso": "workspace:*", "hono": "^4" }
+}

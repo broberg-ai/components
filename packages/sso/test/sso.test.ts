@@ -33,6 +33,13 @@ const ENV = {
 
 async function makeIdp() {
   let keyId = "key-1";
+  /** What userinfo claims the subject is. Changed to build the mismatch case. */
+  let userinfoSub = "user-1";
+  /** The nonce a REAL IdP echoes from the authorize request into the ID token.
+   *  The fake has to do it too — without it the nonce guard (correctly) refuses
+   *  every token, and the tests below would be measuring the guard instead of
+   *  the thing they name. */
+  let echoNonce: string | undefined;
   let pair = await generateKeyPair("RS256", { extractable: true });
   let jwksHits = 0;
 
@@ -40,7 +47,17 @@ async function makeIdp() {
     return { ...(await exportJWK(pair.publicKey)), kid: keyId, alg: "RS256", use: "sig" };
   }
 
+  async function mintFor() {
+    return new SignJWT(echoNonce ? { nonce: echoNonce } : {})
+      .setProtectedHeader({ alg: "RS256", kid: keyId })
+      .setIssuer(ISSUER).setAudience(CLIENT_ID).setSubject("user-1")
+      .setIssuedAt().setExpirationTime("1h").sign(pair.privateKey);
+  }
+
   return {
+    setUserinfoSub(v: string) { userinfoSub = v; },
+    /** Model the IdP echoing the nonce it was handed at /authorize. */
+    echo(nonce: string) { echoNonce = nonce; },
     get jwksHits() {
       return jwksHits;
     },
@@ -70,8 +87,19 @@ async function makeIdp() {
           authorization_endpoint: `${ISSUER}/oauth2/authorize`,
           token_endpoint: `${ISSUER}/oauth2/token`,
           jwks_uri: `${ISSUER}/jwks`,
+          userinfo_endpoint: `${ISSUER}/oauth2/userinfo`,
           end_session_endpoint: `${ISSUER}/oauth2/end-session`,
         });
+      }
+      if (url.endsWith("/oauth2/token")) {
+        return Response.json({
+          id_token: await mintFor(),
+          access_token: "at-1",
+          token_type: "Bearer",
+        });
+      }
+      if (url.endsWith("/oauth2/userinfo")) {
+        return Response.json({ sub: userinfoSub, name: "Christian Broberg", email: "cb@webhouse.dk" });
       }
       if (url.endsWith("/jwks")) {
         jwksHits++;
@@ -371,5 +399,108 @@ describe("the session cookie is unforgeable and expires", () => {
     expect(await verifyValue(token.slice(0, -2) + "xy", SECRET)).toBeNull();
     expect(await verifyValue("not-a-token", SECRET)).toBeNull();
     expect(await verifyValue(undefined, SECRET)).toBeNull();
+  });
+});
+
+/* ── userinfo — the profile claims are not in the ID token ───────────────── */
+
+describe("the profile comes from userinfo, and only for the right subject", () => {
+  /**
+   * MEASURED against the live Broberg ID, 16 Sep 2026 — not assumed:
+   *   ID token   iss · sub · aud · iat · exp · auth_time · acr · at_hash
+   *   userinfo   sub · name · given_name · family_name · email · email_verified
+   * An app reading only the ID token gets a proven identity and a blank name,
+   * which is exactly what the example app first showed on screen.
+   */
+  test("name and email are folded in from userinfo", async () => {
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl });
+    const start = await client.beginLogin();
+    idp.echo(start.nonce);
+    const result = await client.completeLogin({
+      params: new URLSearchParams({ code: "c", state: start.state }),
+      state: start.state,
+      codeVerifier: start.codeVerifier,
+      nonce: start.nonce,
+    });
+    expect(result.claims.sub).toBe("user-1");
+    expect(result.claims.name).toBe("Christian Broberg");
+    expect(result.claims.email).toBe("cb@webhouse.dk");
+  });
+
+  /**
+   * THE CHECK A NAIVE VERSION SKIPS (OIDC Core 5.3.2 says MUST).
+   *
+   * Without it a userinfo response for ANOTHER user is merged over a correctly
+   * verified identity: the app shows, and acts as, somebody else — with a valid
+   * signature underneath it. The green path and the catastrophe look identical.
+   */
+  test("a userinfo sub that disagrees with the ID token is REFUSED", async () => {
+    const idp = await makeIdp();
+    idp.setUserinfoSub("somebody-else");
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl });
+    const start = await client.beginLogin();
+    idp.echo(start.nonce);
+    await expect(
+      client.completeLogin({
+        params: new URLSearchParams({ code: "c", state: start.state }),
+        state: start.state,
+        codeVerifier: start.codeVerifier,
+        nonce: start.nonce,
+      }),
+    ).rejects.toThrow(/refusing to merge another user/);
+  });
+
+  test("a failing userinfo does NOT lose the sign-in", async () => {
+    // The identity is already proven by the ID token. A session with no display
+    // name is worse than one with it, and far better than being logged out.
+    const idp = await makeIdp();
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/oauth2/userinfo")) return new Response("nope", { status: 503 });
+      return idp.fetchImpl(input, init);
+    }) as unknown as typeof fetch;
+
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl });
+    const start = await client.beginLogin();
+    idp.echo(start.nonce);
+    const result = await client.completeLogin({
+      params: new URLSearchParams({ code: "c", state: start.state }),
+      state: start.state,
+      codeVerifier: start.codeVerifier,
+      nonce: start.nonce,
+    });
+    expect(result.claims.sub).toBe("user-1");
+    expect(result.claims.name).toBeUndefined();
+  });
+
+  test("a mismatched state is refused before any token is fetched", async () => {
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl });
+    const start = await client.beginLogin();
+    await expect(
+      client.completeLogin({
+        params: new URLSearchParams({ code: "c", state: "not-the-one" }),
+        state: start.state,
+        codeVerifier: start.codeVerifier,
+        nonce: start.nonce,
+      }),
+    ).rejects.toThrow(/state does not match/);
+  });
+
+  test("an error on the callback is reported as the refusal it is", async () => {
+    // prompt=none answers a refusal by redirecting back with ?error=, on the
+    // same address a success uses. Reading only for `code` would make the
+    // expected answer look like a malformed response.
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl });
+    const start = await client.beginLogin({ prompt: "none" });
+    await expect(
+      client.completeLogin({
+        params: new URLSearchParams({ error: "login_required", state: start.state }),
+        state: start.state,
+        codeVerifier: start.codeVerifier,
+        nonce: start.nonce,
+      }),
+    ).rejects.toThrow(/login_required/);
   });
 });
