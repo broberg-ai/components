@@ -1,7 +1,7 @@
 {
   "name": "@broberg/media",
-  "version": "0.2.1",
-  "description": "The fleet's provider-agnostic media-storage facade — one createMedia() API (upload · signedUrl · delete) over swappable storage providers, so a later move between providers never touches a call-site. Ships with a Cloudflare R2 provider (S3-compatible, SigV4 via aws4fetch — Node/Bun/edge), multi-tenant keyPrefix and EU-jurisdiction support. Start on R2, add S3/Supabase later without changing your code.",
+  "version": "0.3.0",
+  "description": "The fleet's provider-agnostic media-storage facade \u2014 one createMedia() API (upload \u00b7 get \u00b7 signedUrl \u00b7 delete \u00b7 publicUrl) over swappable storage providers, so a later move between providers never touches a call-site. Ships a Cloudflare R2 provider (S3-compatible, SigV4 via aws4fetch \u2014 Node/Bun/edge) and a VOLUME provider for an app that already has a durable disk (a Fly volume, a bind mount) and serves the bytes itself. Multi-tenant keyPrefix, EU-jurisdiction, path-traversal refusals. Start on a volume or R2; swap by changing one config object.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -43,7 +43,10 @@
     "s3",
     "upload",
     "signed-url",
-    "broberg"
+    "broberg",
+    "volume",
+    "filesystem",
+    "fly-volume"
   ],
   "repository": {
     "type": "git",
