@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-15T09:31:17.899Z",
- "repos_scanned": 59,
+ "scanned_at": "2026-09-16T09:22:15.141Z",
+ "repos_scanned": 60,
  "repos_failed": 0,
- "manifests_read": 214,
+ "manifests_read": 216,
  "manifests_unreadable": 0,
- "edges": 174,
+ "edges": 177,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -170,6 +170,27 @@
     ]
    }
   },
+  "broberg-ai/bid": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/auth": [
+     {
+      "range": "^0.6.2",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/logger": [
+     {
+      "range": "^0.1.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
+  },
   "broberg-ai/broberg-ai-site": {
    "branch": "main",
    "manifests": 1,
@@ -239,22 +260,22 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.24.0",
+      "range": "0.47.1",
       "field": "dependencies",
       "at": "apps/agent/package.json"
      },
      {
-      "range": "0.24.0",
+      "range": "0.47.1",
       "field": "dependencies",
       "at": "apps/lens-cloud/package.json"
      },
      {
-      "range": "0.24.0",
+      "range": "0.47.1",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "0.24.0",
+      "range": "0.47.1",
       "field": "dependencies",
       "at": "packages/mcp-tools/package.json"
      }
@@ -799,7 +820,7 @@
   },
   "broberg-ai/helpdesk": {
    "branch": "main",
-   "manifests": 7,
+   "manifests": 8,
    "unreadable": 0,
    "deps": {
     "@broberg/gravatar": [
@@ -811,7 +832,7 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "0.47.0",
+      "range": "0.47.1",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1375,6 +1396,13 @@
     "@broberg/mail": [
      {
       "range": "0.14.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/mcp": [
+     {
+      "range": "^0.5.0",
       "field": "dependencies",
       "at": "package.json"
      }
