@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="da" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broberg ID — kontoflader</title>
+<style>
+/* broberg.ai's EGNE tokens, leveret af cms-sessionen fra src/styles/brand.css.
+   To ting der ikke må forsimples:
+   1. flade-farve og tekst-farve er FORSKELLIGE tokens (kontrast)
+   2. tekst på den blå knap er MØRK, ikke hvid                        */
+:root{
+  --bg:#23282f; --bg2:#1c2027; --fg:#f0f4f8; --muted:rgba(240,244,248,.5);
+  --primary:#00b2ff; --primary-text:#00b2ff; --on-primary:#04222f;
+  --accent:#f3522c; --accent-text:#ff6a45;
+  --card:rgba(255,255,255,.04); --card-border:rgba(255,255,255,.08);
+  --field:rgba(255,255,255,.05); --hover:rgba(255,255,255,.06);
+  --r-btn:100px; --r-card:12px; --r-field:8px;
+  --fd:"Cormorant Garamond",Georgia,serif;
+  --fb:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f5f7fa; --bg2:#eef2f7; --fg:#161b22; --muted:rgba(22,29,40,.6);
+  --primary:#0072a8; --primary-text:#0a6d9e; --on-primary:#ffffff;
+  --accent:#ec4e27; --accent-text:#c93a16;
+  --card:#ffffff; --card-border:rgba(17,25,38,.11);
+  --field:#ffffff; --hover:rgba(17,25,38,.045);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--fb);
+  -webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+:focus-visible{outline:2px solid var(--accent-text);outline-offset:3px;border-radius:4px}
+
+/* ---------- IKONER ----------
+   Lucide-stier, bagt ind i filen. Ingen CDN.
+
+   Den gamle udgave brugte typografiske tegn som ikoner, og app-skifteren var
+   et BRAILLE-tegn. Et tegn ser ud som den skrifttype brugerens maskine
+   tilfældigvis falder tilbage på — så på en Windows-maskine uden den rette
+   skrift bliver en firkant til en tom kasse, og et braille-mønster til
+   ingenting. Vi opdager det aldrig selv, fordi vi ser på en Mac.
+
+   Tegnene selv står ikke skrevet her: en søgning efter dem skal kunne svare
+   «nul» på denne fil, og et citat i en kommentar gør et rent svar umuligt at
+   skelne fra et beskidt. */
+.ico{flex:none;display:block}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <g id="i-theme" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/></g>
+  <g id="i-help" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></g>
+  <g id="i-grid" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></g>
+  <g id="i-chev" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></g>
+  <g id="i-user" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></g>
+  <g id="i-shield" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></g>
+  <g id="i-monitor" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></g>
+  <g id="i-phone-dev" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></g>
+  <g id="i-lock" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></g>
+  <g id="i-pencil" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></g>
+  <g id="i-camera" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></g>
+  <g id="i-mail" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></g>
+  <g id="i-phone" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></g>
+  <g id="i-kebab" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></g>
+  <g id="i-plus" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></g>
+  <g id="i-download" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></g>
+  <g id="i-arrow" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></g>
+  <g id="i-fingerprint" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/>
+    <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/>
+    <path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/>
+    <path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></g>
+</defs></svg>
+
+<style>
+/* ---------- mockup-chrome (IKKE en del af produktet) ---------- */
+.chrome{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 90%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--card-border);padding:9px 16px}
+.chrome-in{max-width:1180px;margin:0 auto;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.chrome .lbl{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.ctab{appearance:none;border:1px solid var(--card-border);background:transparent;color:var(--muted);
+  font:500 12px/1 var(--fb);padding:7px 12px;border-radius:var(--r-btn);cursor:pointer;transition:.15s}
+.ctab:hover{color:var(--fg)}
+.ctab[aria-current="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tgl{appearance:none;border:1px solid var(--card-border);background:transparent;color:var(--fg);
+  width:34px;height:31px;border-radius:var(--r-field);cursor:pointer;margin-left:auto;
+  display:grid;place-items:center}
+.tgl:hover{background:var(--hover)}
+.tgl:active{transform:translateY(1px)}
+
+/* ---------- produkt-topbjælke ---------- */
+.top{border-bottom:1px solid var(--card-border);background:var(--bg2)}
+.top-in{max-width:1180px;margin:0 auto;padding:13px 20px;display:flex;align-items:center;gap:14px}
+.logo{font:600 21px/1 var(--fb);letter-spacing:-.03em;text-decoration:none;color:var(--fg)}
+.logo .ai{color:var(--accent-text)}
+.top .sep{width:1px;height:22px;background:var(--card-border)}
+.top .app{font-size:14.5px;color:var(--muted)}
+.top .sp{flex:1}
+.icbtn{appearance:none;border:0;background:transparent;color:var(--muted);cursor:pointer;
+  width:34px;height:34px;border-radius:var(--r-btn);display:grid;place-items:center}
+.icbtn:hover{background:var(--hover);color:var(--fg)}
+.icbtn:active{transform:translateY(1px)}
+.who{display:flex;align-items:center;gap:9px;background:transparent;border:0;cursor:pointer;
+  color:var(--fg);font:500 14px/1 var(--fb);padding:5px 9px 5px 5px;border-radius:var(--r-btn)}
+.who:hover{background:var(--hover)}
+.who .chev{color:var(--muted)}
+.av{border-radius:100px;display:grid;place-items:center;font-weight:600;flex:none;
+  background:linear-gradient(140deg,var(--primary),var(--accent));color:var(--on-primary)}
+.av.s{width:30px;height:30px;font-size:11.5px}
+.av.l{width:72px;height:72px;font-size:24px}
+
+/* ---------- layout ---------- */
+.shell{max-width:1180px;margin:0 auto;padding:30px 20px 80px}
+.h1{font-family:var(--fd);font-size:40px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px;line-height:1.1}
+.eyebrow{font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--primary-text);
+  font-weight:600;margin:0 0 8px}
+.lead{font-size:14.5px;color:var(--muted);margin:0 0 26px;max-width:62ch;line-height:1.6}
+.cols{display:grid;grid-template-columns:220px 1fr;gap:38px;align-items:start}
+.nav h4{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:600}
+.nav a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:var(--r-field);
+  text-decoration:none;color:var(--muted);font-size:14px;font-weight:500;transition:.14s;margin-bottom:2px}
+.nav a:hover{background:var(--hover);color:var(--fg)}
+.nav a[aria-current="page"]{color:var(--primary-text);background:color-mix(in srgb,var(--primary) 11%,transparent)}
+.nav a .i{width:18px;height:18px;display:grid;place-items:center;opacity:.9}
+
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--r-card);overflow:hidden}
+.blk{display:grid;grid-template-columns:minmax(0,270px) 1fr;gap:34px;padding:24px 26px;align-items:start}
+.blk + .blk{border-top:1px solid var(--card-border)}
+.blk h3{font-family:var(--fd);font-size:24px;font-weight:600;margin:0 0 7px;letter-spacing:-.005em}
+.blk .d{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0}
+.blk .d b{color:var(--fg);font-weight:600}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;
+  padding:9px 19px;border-radius:var(--r-btn);border:1px solid transparent;
+  font:600 14px/1.2 var(--fb);cursor:pointer;transition:.14s}
+.btn-primary{background:var(--primary);color:var(--on-primary)}
+.btn-primary:hover{filter:brightness(1.09)}
+.btn-primary:active{transform:translateY(1px)}
+.btn-ghost{background:transparent;border-color:var(--card-border);color:var(--fg);font-weight:500}
+.btn-ghost:hover{background:var(--hover)}
+.btn-ghost:active{transform:translateY(1px)}
+.btn-sm{min-height:34px;padding:7px 15px;font-size:13px}
+
+.item{display:flex;align-items:center;gap:11px;padding:12px 0;font-size:14px}
+.item + .item{border-top:1px solid var(--card-border)}
+.item .i{color:var(--muted);width:18px;height:18px;display:grid;place-items:center;flex:none}
+.item .t{flex:1;min-width:0}
+.item .m{font-size:12.5px;color:var(--muted);margin-top:2px}
+.tag{font:600 10px/1 var(--fb);letter-spacing:.06em;padding:4px 8px;border-radius:var(--r-btn);
+  color:var(--primary-text);background:color-mix(in srgb,var(--primary) 14%,transparent);white-space:nowrap}
+.kebab{appearance:none;border:0;background:transparent;color:var(--muted);cursor:pointer;
+  width:30px;height:30px;border-radius:100px;display:grid;place-items:center}
+.kebab:hover{background:var(--hover);color:var(--fg)}
+.kebab:active{transform:translateY(1px)}
+.add{margin-top:14px}
+
+.sw{width:44px;height:25px;border-radius:100px;background:var(--field);border:1px solid var(--card-border);
+  position:relative;cursor:pointer;appearance:none;flex:none;transition:.16s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:100px;
+  background:var(--muted);transition:.16s}
+.sw[aria-checked="true"]{background:var(--primary);border-color:transparent}
+.sw[aria-checked="true"]::after{left:21px;background:var(--on-primary)}
+
+.strength{display:flex;gap:16px;align-items:center;padding:20px 26px;
+  background:color-mix(in srgb,var(--primary) 8%,transparent);border-bottom:1px solid var(--card-border)}
+.strength .ic{color:var(--primary-text);flex:none}
+.strength .t{flex:1}
+.strength .h{font-weight:600;font-size:15px;margin-bottom:3px}
+.strength .p{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 9px}
+.strength a{color:var(--primary-text);text-decoration:none;font-weight:600;font-size:13.5px;
+  display:inline-flex;align-items:center;gap:6px}
+.strength a:hover{text-decoration:underline}
+.lvl{font-size:12px;color:var(--muted);white-space:nowrap;text-align:right}
+.bars{display:flex;gap:3px;margin-top:6px;justify-content:flex-end}
+.bars i{width:16px;height:4px;border-radius:99px;background:var(--card-border)}
+.bars i.on{background:var(--primary)}
+
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12.5px;font-weight:500;color:var(--muted);margin-bottom:6px}
+.field input,.field select{width:100%;min-height:42px;padding:10px 13px;border-radius:var(--r-field);
+  border:1px solid var(--card-border);background:var(--field);color:var(--fg);font:15px/1.4 var(--fb)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ---------- mine apps ---------- */
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:15px;margin-top:22px}
+.app-t{background:var(--card);border:1px solid var(--card-border);border-radius:var(--r-card);
+  padding:24px 16px 17px;text-align:center;cursor:pointer;transition:.16s;text-decoration:none;color:inherit;display:block}
+.app-t:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 48%,transparent);
+  background:var(--hover)}
+.app-t:active{transform:translateY(0)}
+.app-i{width:56px;height:56px;margin:0 auto 13px;border-radius:15px;display:grid;place-items:center;
+  font:700 20px/1 var(--fb);letter-spacing:-.02em}
+.app-n{font-size:14px;font-weight:600}
+.app-r{font-size:11.5px;color:var(--muted);margin-top:3px}
+
+/* ---------- centreret kort (kode/telefon) ---------- */
+.mid{max-width:470px;margin:34px auto 0}
+.mid .card{padding:32px}
+.mid h2{font-family:var(--fd);font-size:31px;font-weight:600;margin:0 0 10px;letter-spacing:-.01em;line-height:1.15}
+.mid p.x{font-size:14px;color:var(--muted);line-height:1.6;margin:0 0 22px}
+.mid p.x b{color:var(--fg)}
+.row2{display:flex;gap:10px;margin-top:6px}
+.row2 .btn{flex:1}
+.code{display:flex;gap:9px;justify-content:space-between}
+.code input{width:100%;aspect-ratio:1/1.15;text-align:center;font:600 22px/1 var(--fb);
+  border-radius:var(--r-field);border:1px solid var(--card-border);background:var(--field);color:var(--fg);padding:0}
+.phone{display:grid;grid-template-columns:96px 1fr;gap:10px}
+
+.note{max-width:1180px;margin:0 auto;padding:14px 20px 0;font-size:12.5px;color:var(--muted);line-height:1.55}
+.note b{color:var(--fg)}
+[hidden]{display:none!important}
+@media(max-width:860px){
+  .cols{grid-template-columns:1fr;gap:24px}
+  .blk{grid-template-columns:1fr;gap:16px;padding:20px}
+  .nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+  .nav h4{display:none}
+  .nav a{white-space:nowrap;margin:0}
+  .h1{font-size:32px}
+}
+</style>
+
+<div class="chrome"><div class="chrome-in">
+  <span class="lbl">Side</span>
+  <button class="ctab" data-go="apps" aria-current="true">Mine apps</button>
+  <button class="ctab" data-go="konto">Kontoindstillinger</button>
+  <button class="ctab" data-go="kode">Bekræftelseskode</button>
+  <button class="ctab" data-go="tlf">Tilføj telefon</button>
+  <button class="tgl" id="tgl" title="Skift lyst/mørkt" aria-label="Skift lyst/mørkt">
+    <svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-theme"/></svg>
+  </button>
+</div></div>
+<p class="note" id="note"></p>
+
+<div class="top"><div class="top-in">
+  <a class="logo" href="#">broberg<span class="ai">.ai</span></a>
+  <span class="sep"></span>
+  <span class="app" id="appname">Mine apps</span>
+  <span class="sp"></span>
+  <button class="icbtn" title="Hjælp" aria-label="Hjælp"><svg class="ico" width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"/></svg></button>
+  <button class="icbtn" title="Skift app" aria-label="Skift app"><svg class="ico" width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"/></svg></button>
+  <button class="who"><span class="av s">CB</span> Christian Broberg <svg class="ico chev" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chev"/></svg></button>
+</div></div>
+
+<!-- ============ MINE APPS ============ -->
+<div class="shell" data-p="apps">
+  <h1 class="h1">Godaften, Christian</h1>
+  <p class="lead">Alt du har adgang til med ét login.</p>
+  <div class="apps">
+    <a class="app-t" href="#"><div class="app-i" style="background:#00b2ff;color:#04222f">cm</div><div class="app-n">cardmem</div><div class="app-r">Projektstyring</div></a>
+    <a class="app-t" href="#"><div class="app-i" style="background:#f3522c;color:#fff">81</div><div class="app-n">X RT 81</div><div class="app-r">Klubplatform</div></a>
+    <a class="app-t" href="#"><div class="app-i" style="background:#7c5cff;color:#fff">HD</div><div class="app-n">HelpDesk</div><div class="app-r">Support</div></a>
+    <a class="app-t" href="#"><div class="app-i" style="background:#2ecc71;color:#04222f">Di</div><div class="app-n">Discovery</div><div class="app-r">Komponent-katalog</div></a>
+    <a class="app-t" href="#"><div class="app-i" style="background:#eece94;color:#23282f">Tr</div><div class="app-n">Trail</div><div class="app-r">Videnbase</div></a>
+    <a class="app-t" href="#"><div class="app-i" style="background:#40c8ff;color:#04222f">Up</div><div class="app-n">Upmetrics</div><div class="app-r">Fejl og drift</div></a>
+  </div>
+</div>
+
+<!-- ============ KONTOINDSTILLINGER ============ -->
+<div class="shell" data-p="konto" hidden>
+ <div class="cols">
+  <nav class="nav">
+    <h4>Kontoindstillinger</h4>
+    <a href="#" data-t="profil" aria-current="page"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-user"/></svg></span> Profil</a>
+    <a href="#" data-t="login"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg></span> Login og sikkerhed</a>
+    <a href="#" data-t="enheder"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-monitor"/></svg></span> Enheder og aktivitet</a>
+    <a href="#" data-t="data"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg></span> Privatliv og data</a>
+    <a href="#" data-t="apps"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grid"/></svg></span> Tilknyttede applikationer</a>
+  </nav>
+  <div>
+
+   <!-- PROFIL -->
+   <section data-t="profil">
+    <p class="eyebrow">Profil</p>
+    <h1 class="h1">Din profil</h1>
+    <p class="lead">Administrer din profil og dine kontaktoplysninger. Ændringer gælder for alle dine tilknyttede programmer.</p>
+    <div class="card">
+      <div class="blk" style="grid-template-columns:1fr;padding:26px">
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+          <span class="av l">CB</span>
+          <div style="flex:1;min-width:150px">
+            <div style="font-family:var(--fd);font-size:26px;font-weight:600;letter-spacing:-.01em">Christian Broberg</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:2px">Konto oprettet 2020</div>
+          </div>
+          <div style="display:flex;gap:9px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> Rediger navn</button>
+            <button class="btn btn-ghost btn-sm"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-camera"/></svg> Skift billede</button>
+          </div>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>E-mailadresser</h3><p class="d">Du logger ind med din <b>primære</b> e-mail. Yderligere adresser bruges kun til kontogendannelse, så du kan ikke logge ind med dem.</p></div>
+        <div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mail"/></svg></span><span class="t">cb@webhouse.dk</span><span class="tag">PRIMÆR</span><button class="kebab" aria-label="Flere valg"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kebab"/></svg></button></div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mail"/></svg></span><span class="t">christian@broberg.dk</span><button class="kebab" aria-label="Flere valg"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kebab"/></svg></button></div>
+          <button class="btn btn-ghost btn-sm add"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg> Tilføj e-mailadresse</button>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>Telefonnumre</h3><p class="d">Vi bruger dit <b>primære</b> nummer til at kontakte dig. Ethvert bekræftet nummer kan modtage tofaktorkoder, når du logger ind.</p></div>
+        <div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-phone"/></svg></span><span class="t">+45 22 68 08 80</span><span class="tag">PRIMÆR</span><button class="kebab" aria-label="Flere valg"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kebab"/></svg></button></div>
+          <button class="btn btn-ghost btn-sm add"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg> Tilføj telefonnummer</button>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>Sprog og land</h3><p class="d">Angiver dit brugerfladesprog samt tal- og tidsformater.</p></div>
+        <div class="grid2">
+          <div class="field"><label>Sprog</label><select><option>Dansk</option><option>English</option></select></div>
+          <div class="field"><label>Land</label><select><option>Danmark</option><option>Sverige</option></select></div>
+        </div>
+      </div>
+    </div>
+   </section>
+
+   <!-- LOGIN OG SIKKERHED -->
+   <section data-t="login" hidden>
+    <p class="eyebrow">Login og sikkerhed</p>
+    <h1 class="h1">Hold din konto sikker</h1>
+    <p class="lead">Administrer, hvordan du logger ind, og de ekstra trin, der bekræfter, at det er dig.</p>
+    <div class="card">
+      <div class="strength">
+        <svg class="ico ic" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg>
+        <div class="t">
+          <div class="h">Din sikkerhed er stærk</div>
+          <p class="p">Du har tilføjet en adgangsnøgle. Klar til at erstatte din adgangskode helt for maksimal sikkerhed?</p>
+          <a href="#">Slå adgangskodefri login til <svg class="ico" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </div>
+        <div class="lvl">Niveau 3 af 4<div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
+      </div>
+      <div class="blk">
+        <div><h3>Adgangsnøgler</h3><p class="d">Log hurtigt og sikkert ind med din enheds biometri eller en sikkerhedsnøgle. Adgangsnøgler erstatter både din adgangskode og totrinsbekræftelse.</p></div>
+        <div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-fingerprint"/></svg></span><span class="t">Mac · iCloud-nøglering<div class="m">Tilføjet 3. okt. 2025 · sidst brugt i dag</div></span><button class="kebab" aria-label="Flere valg"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kebab"/></svg></button></div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-fingerprint"/></svg></span><span class="t">iPhone<div class="m">Tilføjet 2. nov. 2025 · sidst brugt 4. sep. 2026</div></span><button class="kebab" aria-label="Flere valg"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kebab"/></svg></button></div>
+          <button class="btn btn-ghost btn-sm add"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg> Tilføj adgangsnøgle</button>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>National identitet</h3><p class="d">Brug dit nationale elektroniske ID (MitID) til at logge ind og til at få adgang igen, hvis du er låst ude.</p></div>
+        <div>
+          <div style="font-family:var(--fd);font-size:21px;font-weight:600;letter-spacing:.02em;margin-bottom:5px">MitID</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:13px">Ikke tilføjet endnu.</div>
+          <button class="btn btn-ghost btn-sm"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plus"/></svg> Tilføj national identitet</button>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>Adgangskode</h3><p class="d">Brug en stærk, unik adgangskode.</p></div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px"><div style="letter-spacing:.24em;font-size:17px">•••••••••</div><div class="m" style="font-size:12.5px;color:var(--muted);margin-top:3px">Senest ændret for 6 måneder siden</div></div>
+          <button class="btn btn-ghost btn-sm">Skift adgangskode</button>
+        </div>
+        <div style="grid-column:1/-1;border-top:1px solid var(--card-border);margin-top:4px;padding-top:18px;display:flex;gap:16px;align-items:flex-start">
+          <div style="flex:1"><div style="font-weight:600;font-size:14px;margin-bottom:3px">Adgangskodefri</div><div style="font-size:13px;color:var(--muted);line-height:1.55">Deaktiverer din adgangskode. Sørg for, at du har tilføjet en adgangsnøgle på alle dine enheder, før du slår dette til.</div></div>
+          <button class="sw" role="switch" aria-checked="false" aria-label="Adgangskodefri"></button>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>Tofaktorgodkendelse</h3><p class="d">Tilføj et ekstra trin ved login. Vi anbefaler at holde mindst to metoder aktive.</p></div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="flex:1"><div style="font-weight:600;font-size:14px;margin-bottom:3px">Kræv et ekstra trin ved login</div><div style="font-size:13px;color:var(--muted);line-height:1.55">Slå dette til for at kræve et ekstra trin, når du logger ind.</div></div>
+          <button class="sw" role="switch" aria-checked="true" aria-label="Tofaktor"></button>
+        </div>
+      </div>
+    </div>
+   </section>
+
+   <!-- ENHEDER -->
+   <section data-t="enheder" hidden>
+    <p class="eyebrow">Enheder og aktivitet</p>
+    <h1 class="h1">Overvåg kontoadgang</h1>
+    <p class="lead">Se de enheder, der er logget ind på din konto, og gennemgå den seneste loginaktivitet.</p>
+    <div class="card">
+      <div class="blk">
+        <div><h3>Aktive sessioner</h3><p class="d">Enheder, der er logget ind på din konto lige nu.</p></div>
+        <div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-monitor"/></svg></span><span class="t">Mac · Chrome<div class="m">Danmark · aktiv nu · 62.107.17.181</div></span><span class="tag">DENNE ENHED</span></div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-phone-dev"/></svg></span><span class="t">iPhone · Safari<div class="m">Danmark · for 2 timer siden · 85.203.216.213</div></span><button class="kebab" aria-label="Flere valg"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kebab"/></svg></button></div>
+          <button class="btn btn-ghost btn-sm add" style="color:var(--accent-text);border-color:color-mix(in srgb,var(--accent) 42%,transparent)">Log ud alle andre steder</button>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>Loginhistorik</h3><p class="d">Den seneste aktivitet for hver enhed, browser og placering.</p></div>
+        <div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-monitor"/></svg></span><span class="t">Mac · Chrome<div class="m">Danmark · 15. sep. 2026 · 21.54 · 62.107.17.181</div></span></div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-monitor"/></svg></span><span class="t">Mac · Chrome<div class="m">Danmark · 14. sep. 2026 · 11.27 · 85.203.216.213</div></span></div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-phone-dev"/></svg></span><span class="t">iPhone · Mobile Safari<div class="m">Danmark · 4. sep. 2026 · 08.15 · 85.203.227.30</div></span></div>
+          <div class="item"><span class="i"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-monitor"/></svg></span><span class="t">Windows · Chrome<div class="m">Danmark · 11. aug. 2026 · 13.36 · 212.112.151.55</div></span></div>
+        </div>
+      </div>
+    </div>
+   </section>
+
+   <!-- DATA -->
+   <section data-t="data" hidden>
+    <p class="eyebrow">Privatliv og data</p>
+    <h1 class="h1">Dine data, dine valg</h1>
+    <p class="lead">Administrer data og privatliv, der er knyttet til din konto.</p>
+    <div class="card">
+      <div class="blk">
+        <div><h3>Download dine data</h3><p class="d">Download en kopi af dine grundlæggende kontooplysninger, herunder profilinformation, kontaktoplysninger, loginaktivitet og tilknyttede apps.</p></div>
+        <div><button class="btn btn-ghost btn-sm"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg> Download data</button></div>
+      </div>
+      <div class="blk">
+        <div><h3>Slet din konto</h3><p class="d">Din konto fjernes fra Broberg ID, og hver tilknyttet app får besked om at slette dine data. <b>Det kan ikke fortrydes.</b></p></div>
+        <div><button class="btn btn-ghost btn-sm" style="color:var(--accent-text);border-color:color-mix(in srgb,var(--accent) 42%,transparent)">Slet konto</button></div>
+      </div>
+    </div>
+   </section>
+
+   <!-- TILKNYTTEDE APPS -->
+   <section data-t="apps" hidden>
+    <p class="eyebrow">Tilknyttede applikationer</p>
+    <h1 class="h1">Dine tilknyttede apps</h1>
+    <p class="lead">Apps tilknyttet din konto. Gennemgå og tilbagetræk datatilladelser du har givet, samt eventuelle vedvarende logins der lader apps bruge dine data, når du er væk.</p>
+    <div class="card">
+      <div class="blk">
+        <div><h3>broberg.ai-apps</h3><p class="d">Vores egne apps. De er betroede, så du bliver ikke spurgt om samtykke, når du logger ind.</p></div>
+        <div>
+          <div class="item"><span class="app-i" style="width:32px;height:32px;border-radius:9px;font-size:12px;margin:0;background:#00b2ff;color:#04222f">cm</span><span class="t">cardmem<div class="m">Tilknyttet 22. jun. 2026</div></span><span style="font-size:12.5px;color:var(--muted)">Betroet</span></div>
+          <div class="item"><span class="app-i" style="width:32px;height:32px;border-radius:9px;font-size:12px;margin:0;background:#f3522c;color:#fff">81</span><span class="t">X RT 81<div class="m">Tilknyttet 11. feb. 2026</div></span><span style="font-size:12.5px;color:var(--muted)">Betroet</span></div>
+        </div>
+      </div>
+      <div class="blk">
+        <div><h3>Andre apps</h3><p class="d">Apps uden for broberg.ai, som du har givet adgang. Du kan trække adgangen tilbage når som helst.</p></div>
+        <div>
+          <div class="item"><span class="app-i" style="width:32px;height:32px;border-radius:9px;font-size:12px;margin:0;background:#eece94;color:#23282f">FA</span><span class="t">Fysio Aalborg<div class="m">Navn, e-mail og profilbillede · siden 3. sep. 2026</div></span><button class="btn btn-ghost btn-sm">Fjern adgang</button></div>
+        </div>
+      </div>
+    </div>
+   </section>
+
+  </div>
+ </div>
+</div>
+
+<!-- ============ BEKRÆFTELSESKODE ============ -->
+<div class="shell" data-p="kode" hidden>
+  <div class="mid"><div class="card">
+    <h2>Indtast bekræftelseskode</h2>
+    <p class="x">Vi har sendt en 6-cifret kode til <b>christian@broberg.dk</b>. Koden udløber om 10 minutter.</p>
+    <div class="code">
+      <input inputmode="numeric" maxlength="1" value="4" aria-label="Ciffer 1">
+      <input inputmode="numeric" maxlength="1" value="9" aria-label="Ciffer 2">
+      <input inputmode="numeric" maxlength="1" value="2" aria-label="Ciffer 3">
+      <input inputmode="numeric" maxlength="1" aria-label="Ciffer 4">
+      <input inputmode="numeric" maxlength="1" aria-label="Ciffer 5">
+      <input inputmode="numeric" maxlength="1" aria-label="Ciffer 6">
+    </div>
+    <div class="row2" style="margin-top:20px">
+      <button class="btn btn-ghost">Tilbage</button>
+      <button class="btn btn-primary">Bekræft</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:18px 0 0;text-align:center">Fik du den ikke? <a href="#" style="color:var(--primary-text);text-decoration:none;font-weight:600">Send igen</a></p>
+  </div></div>
+</div>
+
+<!-- ============ TILFØJ TELEFON ============ -->
+<div class="shell" data-p="tlf" hidden>
+  <div class="mid"><div class="card">
+    <h2>Tilføj reservenummer</h2>
+    <p class="x">Tilføj et telefonnummer som reserve til din totrinsbekræftelse. Vi sender en kode på SMS til nummeret.</p>
+    <div class="phone">
+      <div class="field"><label>Landekode</label><select><option>+45</option><option>+46</option><option>+47</option></select></div>
+      <div class="field"><label>Telefonnummer</label><input type="tel" value="22 68 08 80"></div>
+    </div>
+    <div class="row2" style="margin-top:8px">
+      <button class="btn btn-ghost">Tilbage</button>
+      <button class="btn btn-primary">Næste</button>
+    </div>
+  </div></div>
+</div>
+
+<script>
+var NOTES={
+ apps:"<b>Mine apps</b> — landingssiden efter login. Ét fliseark over alt du har adgang til. Visma viser her én app; du har seks i dag.",
+ konto:"<b>Kontoindstillinger</b> — one-stop-profile-shop. Venstremenuen virker: klik rundt. Ændringer her gælder ALLE apps på én gang.",
+ kode:"<b>Bekræftelseskode</b> — seks felter frem for ét, fordi telefonen så kan autoudfylde koden fra SMS'en.",
+ tlf:"<b>Reservenummer</b> — landekode adskilt fra nummer, så et dansk nummer ikke kan gemmes som et svensk."
+};
+function go(p){
+  document.querySelectorAll('[data-p]').forEach(function(el){el.hidden=el.getAttribute('data-p')!==p});
+  document.querySelectorAll('.ctab').forEach(function(b){b.setAttribute('aria-current',b.getAttribute('data-go')===p?'true':'false')});
+  document.getElementById('note').innerHTML=NOTES[p];
+  document.getElementById('appname').textContent =
+    p==='apps'?'Mine apps':p==='konto'?'Kontoindstillinger':'Broberg ID';
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.ctab').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-go'))}});
+document.querySelectorAll('.nav a').forEach(function(a){
+  a.onclick=function(e){
+    e.preventDefault();
+    var t=a.getAttribute('data-t');
+    document.querySelectorAll('.nav a').forEach(function(x){x.removeAttribute('aria-current')});
+    a.setAttribute('aria-current','page');
+    document.querySelectorAll('section[data-t]').forEach(function(s){s.hidden=s.getAttribute('data-t')!==t});
+    window.scrollTo(0,0);
+  };
+});
+document.querySelectorAll('.sw').forEach(function(s){
+  s.onclick=function(){s.setAttribute('aria-checked',s.getAttribute('aria-checked')==='true'?'false':'true')};
+});
+document.getElementById('tgl').onclick=function(){
+  var r=document.documentElement;
+  r.setAttribute('data-theme',r.getAttribute('data-theme')==='dark'?'light':'dark');
+};
+go('apps');
+</script>
+</body>
+</html>
