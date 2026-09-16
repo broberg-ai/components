@@ -1,7 +1,14 @@
 // Cloudflare R2 provider. R2 speaks the S3 API, so this is a thin SigV4 layer
 // over aws4fetch (tiny, zero-dep, runs in Node/Bun/edge/Workers). No AWS SDK.
 import { AwsClient } from "aws4fetch";
-import type { MediaBody, MediaStore, R2Config, SignedUrlOptions, UploadOptions } from "../types";
+import type {
+  MediaBody,
+  MediaObject,
+  MediaStore,
+  R2Config,
+  SignedUrlOptions,
+  UploadOptions,
+} from "../types";
 
 // R2's S3 endpoint host. The EU jurisdiction pins data-residency and MUST match
 // how the bucket was created (jurisdiction is immutable at creation).
@@ -65,6 +72,20 @@ export function createR2Store(cfg: R2Config): MediaStore {
       if (!res.ok && res.status !== 404) {
         throw new Error(`media(r2): delete failed ${res.status}`);
       }
+    },
+
+    async get(key: string): Promise<MediaObject | null> {
+      const res = await aws.fetch(objectUrl(key), { method: "GET" });
+      // 404 is an answer ("not there"); anything else that is not ok is a
+      // failure to ASK, and must not be collapsed into the same null.
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        throw new Error(`media(r2): get failed ${res.status} ${await res.text().catch(() => "")}`.trim());
+      }
+      return {
+        bytes: new Uint8Array(await res.arrayBuffer()),
+        contentType: res.headers.get("content-type") ?? undefined,
+      };
     },
 
     publicUrl(key: string): string {

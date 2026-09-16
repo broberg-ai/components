@@ -3,15 +3,18 @@
 // later move between backends never touches a call-site. Ships with Cloudflare
 // R2; the config union grows as providers are added (s3, supabase, gcs …).
 import { createR2Store } from "./providers/r2";
+import { createVolumeStore } from "./providers/volume";
 import type { MediaConfig, MediaStore } from "./types";
 
 export type {
   MediaBody,
   MediaConfig,
+  MediaObject,
   MediaStore,
   R2Config,
   SignedUrlOptions,
   UploadOptions,
+  VolumeConfig,
 } from "./types";
 
 /**
@@ -31,6 +34,8 @@ export function createMedia(config: MediaConfig): MediaStore {
   switch (config.provider) {
     case "r2":
       return createR2Store(config);
+    case "volume":
+      return createVolumeStore(config);
     default:
       throw new Error(`media: unknown provider "${(config as { provider?: string }).provider}"`);
   }

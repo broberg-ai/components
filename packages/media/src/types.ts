@@ -17,6 +17,14 @@ export interface SignedUrlOptions {
   expiresIn?: number;
 }
 
+/** An object read back out of a store. */
+export interface MediaObject {
+  bytes: Uint8Array;
+  /** The content type recorded at upload. `undefined` when none was stored —
+   *  never guessed from the key, because a wrong type is worse than no type. */
+  contentType?: string;
+}
+
 /** The uniform surface every provider implements. */
 export interface MediaStore {
   /**
@@ -30,6 +38,15 @@ export interface MediaStore {
   signedUrl(key: string, opts?: SignedUrlOptions): Promise<string>;
   /** Delete the object at `key` (idempotent — a missing key is not an error). */
   delete(key: string): Promise<void>;
+  /**
+   * Read an object back. `null` means the key is not there — distinct from a
+   * throw, which means the store could not be asked.
+   *
+   * Needed because not every backend serves its own bytes: a bucket does, a
+   * mounted volume does not, so an app on the `volume` provider serves them
+   * from its own route and this is where it gets them.
+   */
+  get(key: string): Promise<MediaObject | null>;
   /**
    * A stable, **non-expiring** public URL for `key` — for assets that live in
    * already-published content (news richtext, sent emails) where a signed
@@ -62,5 +79,29 @@ export interface R2Config {
   publicBaseUrl?: string;
 }
 
+/**
+ * Local-volume provider config — objects on a mounted filesystem (a Fly volume,
+ * a bind mount, a dev machine's disk).
+ *
+ * The trade-off, stated rather than discovered: a volume is durable but bound to
+ * ONE machine, and it has no public endpoint of its own. Right for an app that
+ * already keeps its database there and serves the bytes itself; wrong the moment
+ * a second machine must read the same object. That is the day you change
+ * `provider` and nothing else.
+ */
+export interface VolumeConfig {
+  provider: "volume";
+  /** Absolute directory the store owns. Created on first write. */
+  root: string;
+  /** Optional key prefix, e.g. "tenants/acme/" — same meaning as on R2. */
+  keyPrefix?: string;
+  /**
+   * Base URL of the route YOUR app serves these objects from, e.g.
+   * "https://id.broberg.ai/media". `publicUrl()` (and `signedUrl()`, which has
+   * nothing to sign here) throw until it is set.
+   */
+  publicBaseUrl?: string;
+}
+
 /** The config union — grows as providers are added (s3, supabase, gcs …). */
-export type MediaConfig = R2Config;
+export type MediaConfig = R2Config | VolumeConfig;
