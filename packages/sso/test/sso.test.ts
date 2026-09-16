@@ -353,6 +353,29 @@ describe("the session cookie is unforgeable and expires", () => {
     });
   });
 
+  /**
+   * The picture travels as a URL (F084.2). It is a convenience copy, so the
+   * test that matters is BOTH directions: present it and it survives, omit it
+   * and the key is absent rather than `undefined` — an app rendering
+   * `<img src="undefined">` asks our own origin for a file that is not there.
+   */
+  test("a picture URL round-trips, and stays absent when there is none", async () => {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const withPicture = await signSession(
+      { sub: "user-1", exp, picture: "https://id.broberg.ai/media/avatars/u/a.png" },
+      SECRET,
+    );
+    expect(await verifySession(withPicture, SECRET)).toEqual({
+      sub: "user-1",
+      exp,
+      picture: "https://id.broberg.ai/media/avatars/u/a.png",
+    });
+
+    const without = await verifySession(await signSession({ sub: "user-1", exp }, SECRET), SECRET);
+    expect(without).not.toBeNull();
+    expect("picture" in (without as object)).toBe(false);
+  });
+
   test("a tampered payload is rejected", async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     const token = await signSession({ sub: "user-1", exp }, SECRET);

@@ -21,6 +21,10 @@ export interface SessionPayload {
   /** Optional convenience copies; never authorisation data. */
   email?: string;
   name?: string;
+  /** A URL, never bytes. The picture lives wherever BID put it; this is a
+   *  reference, so a changed picture propagates without every app storing a
+   *  copy that then goes stale. */
+  picture?: string;
 }
 
 const enc = new TextEncoder();

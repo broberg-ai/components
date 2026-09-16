@@ -47,6 +47,8 @@ const page = (body: string) => `<!doctype html>
   a.ghost{background:transparent;border:1px solid var(--border);color:var(--fg);font-weight:500}
   a.ghost:hover{background:rgba(255,255,255,.06)}
   code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)}
+  .pic{width:88px;height:88px;border-radius:100px;object-fit:cover;display:block;margin:0 auto 12px;
+       border:1px solid var(--border)}
 </style></head><body><main class="card">${body}</main></body></html>`;
 
 app.get("/", (c) => {
@@ -73,6 +75,9 @@ app.get("/", (c) => {
       <h1>Logget ind</h1>
       <p>Identiteten er et ID-token Broberg ID signerede. Navnet er hentet fra
          dens profil-endepunkt og bundet til samme bruger.</p>
+      ${session.picture
+        ? `<img class="pic" src="${escape(session.picture)}" alt="" data-testid="example-picture">`
+        : ""}
       <div class="who" data-testid="example-name">${escape(session.name ?? "(uden navn)")}</div>
       <div class="sub" data-testid="example-email">${escape(session.email ?? "")}</div>
       <p><code data-testid="example-sub">sub: ${escape(session.sub)}</code></p>

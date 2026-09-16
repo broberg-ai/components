@@ -111,6 +111,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       exp,
       ...(result.claims.email ? { email: result.claims.email } : {}),
       ...(result.claims.name ? { name: result.claims.name } : {}),
+      ...(result.claims.picture ? { picture: result.claims.picture } : {}),
     };
 
     c.header(
