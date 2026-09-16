@@ -10,6 +10,7 @@ name: publish
 #   • mail-v*         → packages/mail         → @broberg/mail
 #   • config-v*       → packages/config       → @broberg/config
 #   • media-v*        → packages/media        → @broberg/media
+#   • sso-v*          → packages/sso          → @broberg/sso
 #   • apikey-v*       → packages/apikey       → @broberg/apikey
 #   • webpush-v*      → packages/webpush      → @broberg/webpush
 #   • cron-v*         → packages/cron         → @broberg/cron
@@ -78,6 +79,7 @@ on:
       - "i18n-v*"
       - "soundkit-v*"
       - "ui-controls-core-v*"
+      - "sso-v*"
   workflow_dispatch:
 
 jobs:
