@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-16T09:22:15.141Z",
- "repos_scanned": 60,
+ "scanned_at": "2026-09-17T09:31:01.216Z",
+ "repos_scanned": 61,
  "repos_failed": 0,
- "manifests_read": 216,
+ "manifests_read": 218,
  "manifests_unreadable": 0,
- "edges": 177,
+ "edges": 181,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -185,6 +185,27 @@
     "@broberg/logger": [
      {
       "range": "^0.1.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "^0.14.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/media": [
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/sms": [
+     {
+      "range": "^0.12.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -429,7 +450,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 41,
+   "manifests": 43,
    "unreadable": 0,
    "deps": {
     "@broberg/logger": [
@@ -437,6 +458,13 @@
       "range": "^0.1.1",
       "field": "dependencies",
       "at": "apps/discovery/package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "workspace:*",
+      "field": "dependencies",
+      "at": "examples/sso-hono/package.json"
      }
     ],
     "@broberg/mail": [
@@ -580,6 +608,13 @@
    "branch": "main",
    "manifests": 1,
    "unreadable": 0,
+   "deps": {}
+  },
+  "broberg-ai/fd-ishoej": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
    "deps": {}
   },
   "broberg-ai/fd-sundhed": {
@@ -899,7 +934,7 @@
     ],
     "@broberg/mail": [
      {
-      "range": "^0.11.0",
+      "range": "^0.15.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1381,7 +1416,7 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.19.0",
+      "range": "0.47.1",
       "field": "dependencies",
       "at": "package.json"
      }
