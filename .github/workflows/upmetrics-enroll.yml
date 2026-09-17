@@ -111,7 +111,12 @@ jobs:
           fi
           curl -sSL https://fly.io/install.sh | sh
           export PATH="$HOME/.fly/bin:$PATH"
-          flyctl secrets set --app "$FLY_APP" --stage \
+          # --stage FJERNET — målt på broberg-id 17. sep. at stagede secrets
+          # stod som "Deployed" i flyctl secrets list og ALDRIG nåede maskinens
+          # env. 11 af 13 secrets var der; præcis de to satte med --stage var
+          # ikke. Hverken flyctl deploy eller flyctl secrets deploy flyttede
+          # dem ind. Uden --stage sættes de straks og maskinen genstarter.
+          flyctl secrets set --app "$FLY_APP" \
             UPMETRICS_DSN='${{ steps.enroll.outputs.dsn }}' \
             UPMETRICS_API_KEY='${{ steps.enroll.outputs.api_key }}'
           echo "Staged on $FLY_APP — they take effect on the next deploy."
