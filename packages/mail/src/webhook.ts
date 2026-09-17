@@ -213,3 +213,93 @@ export async function handleMailWebhook(
   await config.onEvent(event);
   return { status: 202, body: { ok: true } };
 }
+
+/**
+ * Read an `email.received` webhook body as INBOUND mail.
+ *
+ * `null` for anything that is not `email.received` — a delivery event is not an
+ * inbound mail, and reshaping one into the other is how a bounce would land in
+ * someone's support queue as a customer message.
+ *
+ * ═══ WHAT THIS GIVES YOU, AND WHAT IT CANNOT ═══
+ *
+ * **It gives you the ENVELOPE. It does not give you the LETTER.** Measured
+ * against the live API on 2026-09-17: the whole `data` object is
+ *
+ *     attachments · bcc · cc · created_at · email_id · from
+ *     message_id · received_for · subject · to
+ *
+ * There is no `text`, no `html` and no `headers` — and the provider's receiving
+ * documentation does not mention it. So this function is enough to ROUTE on
+ * (which tenant, which recipient, is this a duplicate) and never enough to
+ * STORE. For the body and the threading headers, take `emailId` to
+ * `getInboundEmail()`.
+ *
+ * That split is deliberate: this is free and synchronous, the lookup costs a
+ * network round trip and a key. A caller who only needs to route should not pay
+ * for a fetch.
+ *
+ * `to` and `receivedFor` are ALWAYS lists here, with no string fallback — see
+ * `InboundEmail` for the production failure that decided it.
+ */
+export function parseInboundMail(rawBody: string): InboundEnvelope | null {
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return null;
+  }
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  if (b.type !== "email.received") return null;
+  const d = (b.data ?? {}) as Record<string, unknown>;
+
+  const list = (v: unknown): string[] => {
+    if (typeof v === "string") return v.trim() ? [v] : [];
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && x.trim() !== "");
+    return [];
+  };
+  const one = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
+
+  const env: InboundEnvelope = {
+    emailId: one(d.email_id ?? d.emailId) ?? "",
+    to: list(d.to),
+    cc: list(d.cc),
+    bcc: list(d.bcc),
+    receivedFor: list(d.received_for ?? d.receivedFor),
+    raw: body,
+  };
+  const from = one(d.from);
+  if (from !== undefined) env.from = from;
+  const subject = one(d.subject);
+  if (subject !== undefined) env.subject = subject;
+  const messageId = one(d.message_id ?? d.messageId);
+  if (messageId !== undefined) env.messageId = messageId;
+  const at = one(b.created_at ?? d.created_at);
+  if (at !== undefined) env.at = at;
+  return env;
+}
+
+/**
+ * What an `email.received` webhook actually carries.
+ *
+ * Named ENVELOPE rather than mail because that is literally all it is. The
+ * absent fields are the informative ones: no body, no headers. See
+ * `parseInboundMail`.
+ */
+export interface InboundEnvelope {
+  /** The id to hand `getInboundEmail()` for the body + headers. */
+  emailId: string;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  receivedFor: string[];
+  from?: string;
+  subject?: string;
+  /** RFC Message-ID — the intake key. Re-delivery of the same mail is ordinary
+   *  operation, and without this key it becomes a second case. */
+  messageId?: string;
+  at?: string;
+  /** The parsed payload, untouched, for anything this shape does not model. */
+  raw: unknown;
+}

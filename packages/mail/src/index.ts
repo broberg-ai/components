@@ -650,3 +650,200 @@ export function createMailerFromEnv(overrides: Partial<MailerConfig> = {}): Mail
     ...overrides,
   });
 }
+
+// ---------------------------------------------------------------------------
+// INBOUND — the letter the webhook does NOT carry
+// ---------------------------------------------------------------------------
+
+const RESEND_INBOUND_ENDPOINT = "https://api.resend.com/emails/receiving";
+
+/**
+ * One inbound mail, as the provider holds it.
+ *
+ * EVERY ADDRESS FIELD IS A LIST, with no convenience string, and that is the
+ * one design decision worth defending. helpdesk measured the alternative in
+ * production on 2026-09-17: their code read the webhook's `to` as a string, a
+ * string-reader answers `""` for an array, and every single inbound mail was
+ * then rejected as "unknown recipient domain" — HTTP 202, with a correctly
+ * worded reason, on mail that was addressed perfectly. It failed GREEN, and it
+ * looked like a problem at the provider. A type that offers a string fallback
+ * invites that bug back.
+ *
+ * NAMES ARE TRANSLATED AT THE BOUNDARY. The provider writes `message_id` and
+ * `received_for`; this interface writes `messageId` and `receivedFor`, like the
+ * rest of the package. A field that is named ALMOST right is worse than one
+ * that is missing — it reads as `undefined` once and is never noticed.
+ */
+export interface InboundEmail {
+  id: string;
+  /** Always a list. Never a string — see the note above. */
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  replyTo: string[];
+  /** The address the mail was actually accepted FOR. Also always a list. */
+  receivedFor: string[];
+  from?: string;
+  subject?: string;
+  /** RFC Message-ID. The intake key for de-duplication — mail is delivered more
+   *  than once as ordinary operation, not as a fault. */
+  messageId?: string;
+  text?: string;
+  html?: string;
+  /** Lower-cased header names. `in-reply-to` and `references` live HERE and
+   *  nowhere else in the inbound story — threading depends on this field. */
+  headers: Record<string, string>;
+  /** Provider timestamp, ISO-8601, as sent. */
+  at?: string;
+}
+
+/**
+ * The answer to "give me that inbound mail".
+ *
+ * THREE OUTCOMES, AND THE SPLIT BETWEEN THE LAST TWO IS THE WHOLE POINT.
+ * `not_found` means the provider looked and has nothing; `could_not_ask` means
+ * WE never got an answer — a send-only key (401), no key at all, a network that
+ * did not reply. Collapsing them is how a repo tells a person their message was
+ * lost when the real problem is our own credential.
+ *
+ * Same shape of honesty as `getStatus`'s fourth state, in the form a lookup
+ * wants: a discriminated union rather than a nullable, so a caller cannot reach
+ * the mail without having decided what to do about the other two.
+ */
+export type InboundLookup =
+  | { ok: true; mail: InboundEmail }
+  | { ok: false; reason: "not_found"; detail: string }
+  | { ok: false; reason: "could_not_ask"; detail: string };
+
+const strList = (v: unknown): string[] => {
+  if (typeof v === "string") return v.trim() ? [v] : [];
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && x.trim() !== "");
+  return [];
+};
+
+const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
+
+/** Lower-cases header names so a caller never has to guess the provider's casing. */
+function headerBag(v: unknown): Record<string, string> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof val === "string") out[k.toLowerCase()] = val;
+  }
+  return out;
+}
+
+/** Shapes one provider response. Exported for tests and for replaying a body. */
+export function toInboundEmail(body: Record<string, unknown>): InboundEmail {
+  const mail: InboundEmail = {
+    id: str(body.id) ?? "",
+    to: strList(body.to),
+    cc: strList(body.cc),
+    bcc: strList(body.bcc),
+    replyTo: strList(body.reply_to ?? body.replyTo),
+    receivedFor: strList(body.received_for ?? body.receivedFor),
+    headers: headerBag(body.headers),
+  };
+  const from = str(body.from);
+  if (from !== undefined) mail.from = from;
+  const subject = str(body.subject);
+  if (subject !== undefined) mail.subject = subject;
+  const messageId = str(body.message_id ?? body.messageId);
+  if (messageId !== undefined) mail.messageId = messageId;
+  const text = str(body.text);
+  if (text !== undefined) mail.text = text;
+  const html = str(body.html);
+  if (html !== undefined) mail.html = html;
+  const at = str(body.created_at ?? body.createdAt);
+  if (at !== undefined) mail.at = at;
+  return mail;
+}
+
+/**
+ * Fetch one inbound mail by the `emailId` its `email.received` webhook carried.
+ *
+ * ═══ WHY THIS FUNCTION HAS TO EXIST ═══
+ *
+ * **The `email.received` webhook does not carry the letter.** Measured by
+ * helpdesk against the live API on 2026-09-17, on a real mail sent to their own
+ * support address. The entire `data` object:
+ *
+ *     attachments · bcc · cc · created_at · email_id · from
+ *     message_id · received_for · subject · to
+ *
+ * No `text`. No `html`. No `headers`. The provider's own receiving
+ * documentation does not say this. So a consumer that trusts the webhook alone
+ * creates one EMPTY case per incoming mail — it has a subject and a sender and
+ * says nothing — and threading is blind on top, because `in-reply-to` and
+ * `references` only appear in this lookup.
+ *
+ *     const r = await mailer.getInboundEmail(event.raw.data.email_id);
+ *     if (r.ok) store(r.mail.text, r.mail.headers["in-reply-to"]);
+ *     else if (r.reason === "could_not_ask") retryLater(r.detail);  // OUR fault
+ *     else dropIt(r.detail);                                        // provider has nothing
+ *
+ * ═══ A LOOKUP, NEVER A PARSE ═══
+ *
+ * Kept separate from `parseInboundMail` (in `@broberg/mail/webhook`) on purpose:
+ * parsing a webhook body is free and synchronous, this costs a network round
+ * trip and a key. One function doing both would force a lookup on a caller who
+ * only wanted to route on the recipient.
+ */
+export async function getInboundEmail(
+  emailId: string,
+  config: { apiKey?: string; fetch?: typeof fetch } = {},
+): Promise<InboundLookup> {
+  const doFetch = config.fetch ?? (typeof fetch === "function" ? fetch : undefined);
+  if (!config.apiKey) {
+    return { ok: false, reason: "could_not_ask", detail: "no API key, so the provider was never asked" };
+  }
+  if (!doFetch) {
+    return { ok: false, reason: "could_not_ask", detail: "no fetch available (pass config.fetch)" };
+  }
+  if (!emailId) {
+    return { ok: false, reason: "could_not_ask", detail: "no email id given" };
+  }
+
+  let res: Response;
+  try {
+    res = await doFetch(`${RESEND_INBOUND_ENDPOINT}/${encodeURIComponent(emailId)}`, {
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "could_not_ask",
+      detail: `could not reach the provider: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  // 404 is the ONLY "there is nothing". Everything else is us failing to ask —
+  // including 401, which a send-only key answers, and which reads exactly like
+  // a missing mail unless it is kept apart.
+  if (res.status === 404) {
+    return { ok: false, reason: "not_found", detail: "the provider has no inbound email with that id" };
+  }
+  if (res.status === 401 || res.status === 403) {
+    return {
+      ok: false,
+      reason: "could_not_ask",
+      detail:
+        "this API key is not authorised to read inbound mail (a send-only key answers 401) — " +
+        "this is NOT a missing message",
+    };
+  }
+  if (!res.ok) {
+    return { ok: false, reason: "could_not_ask", detail: `the provider answered HTTP ${res.status}` };
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    return { ok: false, reason: "could_not_ask", detail: "the provider's response was not JSON" };
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, reason: "could_not_ask", detail: "the provider's response was not an object" };
+  }
+  return { ok: true, mail: toInboundEmail(body as Record<string, unknown>) };
+}
