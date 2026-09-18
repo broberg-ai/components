@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-17T09:31:01.216Z",
+ "scanned_at": "2026-09-18T09:03:58.973Z",
  "repos_scanned": 61,
  "repos_failed": 0,
  "manifests_read": 218,
  "manifests_unreadable": 0,
- "edges": 181,
+ "edges": 185,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -182,6 +182,13 @@
       "at": "package.json"
      }
     ],
+    "@broberg/gravatar": [
+     {
+      "range": "^0.2.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
     "@broberg/logger": [
      {
       "range": "^0.1.1",
@@ -206,6 +213,27 @@
     "@broberg/sms": [
      {
       "range": "^0.12.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/theme": [
+     {
+      "range": "^0.7.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/ui-controls-core": [
+     {
+      "range": "^0.2.3",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "package.json"
      }
