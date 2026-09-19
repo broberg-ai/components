@@ -6,7 +6,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { dispatchTool, toToolListEntry, ToolNotFoundError } from "./tools";
+import { dispatchTool, mayCall, toToolListEntry, ToolNotFoundError } from "./tools";
 import type { AnyToolDef, ToolContext, ToolResult } from "./types";
 import type { AuditFn } from "./audit";
 
@@ -39,9 +39,22 @@ export function registerTools<Ctx = unknown>(
 ): void {
   const getContext = contextResolver(opts);
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: tools.map(toToolListEntry),
-  }));
+  /**
+   * The LIST answers "what may YOU call", not "what exists" (F007.13).
+   *
+   * It used to answer the second question, and the cost was not a wasted call:
+   * a model handed a tool it will be refused promises the user something it
+   * cannot deliver, so the failure lands on the person, not the machine.
+   *
+   * Filtered through {@link mayCall} — the SAME predicate `dispatchTool` uses
+   * — so the catalogue and the gate cannot disagree. The gate stays exactly as
+   * it was: the list is a courtesy, the gate is the control, and a client may
+   * still name a tool it never saw.
+   */
+  server.setRequestHandler(ListToolsRequestSchema, async (_req, extra) => {
+    const { principal } = await getContext(extra);
+    return { tools: tools.filter((t) => mayCall(t, principal)).map(toToolListEntry) };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
     const context = await getContext(extra);
@@ -68,6 +81,19 @@ export function registerTools<Ctx = unknown>(
  * internally (no `zod-to-json-schema` here). The same {@link dispatchTool}
  * applies the write-guard, scope-gate, uniform envelope, and audit — so both
  * backends behave identically from one definition.
+ *
+ * ONE MEASURED ASYMMETRY (F007.13): `tools/list` is NOT filtered per principal
+ * here, and cannot be without changing backends. The SDK builds the listing
+ * from what `server.tool()` registered once at startup, so there is no request
+ * `extra` — and therefore no principal — at the moment the list is decided.
+ * The low-level {@link registerTools} backend, which every HTTP and SSE
+ * transport uses, does filter.
+ *
+ * It costs nothing today because this backend is stdio's, where the principal
+ * is constant, env-injected and local-trust — and a principal that may call
+ * everything sees the same list either way. It would start costing the day a
+ * caller registers a RESTRICTED principal on this path; that is a different
+ * card, not a silent gap.
  */
 export function registerMcpServerTools<Ctx = unknown>(
   server: McpServer,

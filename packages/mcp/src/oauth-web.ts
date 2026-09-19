@@ -10,6 +10,36 @@
 // The /authorize step delegates to YOUR member login (the `authorize` callback),
 // so the issued token carries the MEMBER's id (`sub`) — it's the member's own
 // auth, not a shared key. Needs `jose` (peer); no express.
+//
+// ── THREE THINGS THAT ONLY BITE THE CONSUMER WHO FALLS IN THEM ──────────────
+// Filed by pitch-vault (F007.13) after getting all three right without being
+// able to say why so precisely. The package behaves correctly in every case
+// below; what was missing was the sentence that tells you so before you lose
+// an afternoon.
+//
+// 1. THE METADATA ADDRESS CARRIES THE RESOURCE'S PATH ON THE END (RFC 9728).
+//    `challenge()` emits `/.well-known/oauth-protected-resource<mcpPath>`, and
+//    `handle()` answers both the bare and the suffixed form. But if you mount
+//    the routes INDIVIDUALLY instead of routing through `handle()`, you must
+//    match `/.well-known/oauth-protected-resource/**` — not just the bare
+//    segment. Next's App Router is the trap: a static segment directory does
+//    NOT match a path tail, so the bare path 200s, the suffixed one 404s, and
+//    your 401 sends the client to an address that does not exist. The symptom
+//    is "the connector just will not connect" — nothing points at this.
+//
+// 2. `isRevoked`/`onRevoke` ARE YOURS, AND THIS PACKAGE KEEPS NO STATE.
+//    A database lookup on every call is the intended use, not a detour around
+//    a missing cache. It is the only way the answer can be right across
+//    replicas — an in-process set is correct until the second instance starts.
+//    (Same shape as `createInMemoryClientStore`, which is for tests and demos:
+//    persist your clients, or a deploy logs every connector out and it looks
+//    like "it worked yesterday".)
+//
+// 3. A `jti` AND A CONNECTION ARE TWO DIFFERENT REVOCATIONS.
+//    A jti on a denylist kills ONE token. A revoked connection must also cover
+//    the NEXT token the connector mints with its refresh. Cover only the first
+//    and your "Disconnect" button appears to work while access continues until
+//    the token expires on its own.
 
 import { createOAuthCore, type OAuthCoreConfig, type OAuthCore } from "./oauth-core";
 import type { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";

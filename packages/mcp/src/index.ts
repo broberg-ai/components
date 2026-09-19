@@ -24,11 +24,13 @@ export {
   defineTool,
   imageResult,
   dispatchTool,
+  mayCall,
+  toolDenial,
   toToolListEntry,
   ToolNotFoundError,
   EmptyInputSchemaError,
 } from "./tools";
-export type { DispatchOptions } from "./tools";
+export type { DispatchOptions, ToolDenial } from "./tools";
 
 export { validateBearerKey, hasScope, parseBearer } from "./auth";
 export type { ApiKeyConfig, AuthResult } from "./auth";

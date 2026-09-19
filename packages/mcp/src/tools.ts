@@ -99,6 +99,67 @@ export class ToolNotFoundError extends Error {
   }
 }
 
+/**
+ * WHY a principal may not call a tool — or `null` when it may.
+ *
+ * THIS IS THE ONLY PLACE THAT QUESTION IS ANSWERED, and that is the point of
+ * the function rather than a side effect of it. Two call sites read it:
+ *
+ *   dispatchTool          renders the denial into the error the caller sees
+ *   registerTools's list  drops the tool from tools/list entirely
+ *
+ * A second copy of the rules inside the list handler is the obvious
+ * implementation and the dangerous one: the day one copy changes, the listing
+ * advertises a tool the gate refuses — or, worse, hides one the gate allows,
+ * which looks like a missing feature and is really a lying catalogue.
+ *
+ * It returns the REASON rather than a boolean so the gate's error text and
+ * audit label cannot drift from the predicate that produced them.
+ */
+export type ToolDenial =
+  | { rule: "read-only"; message: string; audit: string }
+  | { rule: "missing-scope"; missing: string[]; message: string; audit: string };
+
+export function toolDenial<Ctx = unknown>(
+  tool: AnyToolDef<Ctx>,
+  principal: Principal,
+): ToolDenial | null {
+  // write-guard: a read-only principal cannot call a write tool
+  if ((tool.kind ?? "read") === "write" && principal.readOnly) {
+    return {
+      rule: "read-only",
+      message: `Tool '${tool.name}' requires write access, but this token is read-only.`,
+      audit: "read-only",
+    };
+  }
+
+  // scope-gate: AND across the tool's required scopes
+  if (tool.scopes && tool.scopes.length > 0) {
+    const held = principal.scopes ?? [];
+    const missing = tool.scopes.filter((s) => !held.includes(s));
+    if (missing.length > 0) {
+      return {
+        rule: "missing-scope",
+        missing,
+        message: `Tool '${tool.name}' requires scope(s): ${missing.join(", ")}.`,
+        audit: `missing-scope:${missing.join(",")}`,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * May this principal call this tool? The listing half of {@link toolDenial} —
+ * same rules, no message. `tools/list` filters on this so it answers "what may
+ * YOU call" instead of "what exists"; a model told about a tool it will be
+ * refused promises the user something it cannot deliver.
+ */
+export function mayCall<Ctx = unknown>(tool: AnyToolDef<Ctx>, principal: Principal): boolean {
+  return toolDenial(tool, principal) === null;
+}
+
 export interface DispatchOptions {
   audit?: AuditFn;
 }
@@ -125,22 +186,12 @@ export async function dispatchTool<Ctx = unknown>(
 
   const { principal } = context;
   const actor = actorOf(principal);
-  const kind = tool.kind ?? "read";
 
-  // write-guard: a read-only principal cannot call a write tool
-  if (kind === "write" && principal.readOnly) {
-    await safeAudit(opts.audit, { tool: name, actor, result: "error", error: "read-only" });
-    return errorResult(`Tool '${name}' requires write access, but this token is read-only.`);
-  }
-
-  // scope-gate: AND across the tool's required scopes
-  if (tool.scopes && tool.scopes.length > 0) {
-    const held = principal.scopes ?? [];
-    const missing = tool.scopes.filter((s) => !held.includes(s));
-    if (missing.length > 0) {
-      await safeAudit(opts.audit, { tool: name, actor, result: "error", error: `missing-scope:${missing.join(",")}` });
-      return errorResult(`Tool '${name}' requires scope(s): ${missing.join(", ")}.`);
-    }
+  // write-guard + scope-gate, via the ONE predicate tools/list also reads.
+  const denial = toolDenial(tool, principal);
+  if (denial) {
+    await safeAudit(opts.audit, { tool: name, actor, result: "error", error: denial.audit });
+    return errorResult(denial.message);
   }
 
   // validate args against the raw shape — a Zod miss is an isError, not a throw
