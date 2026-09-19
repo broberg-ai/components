@@ -14,7 +14,22 @@ export interface RegisterOptions<Ctx = unknown> {
   /**
    * Resolve the per-call principal + ctx from the transport's request `extra`.
    * For HTTP this reads the validated auth; for stdio (local trust) it returns
-   * a constant env-injected context. Defaults to an empty, all-allowed principal.
+   * a constant env-injected context.
+   *
+   * SINCE 0.6.0 IT IS ALSO CALLED FOR `tools/list`, not only for `tools/call`,
+   * because the listing is now filtered by the principal (F007.13). Two
+   * consequences worth knowing before you upgrade:
+   *
+   *  - It must not THROW on a list request. It is deliberately not wrapped in a
+   *    try/catch that falls back to the unfiltered list: falling back would
+   *    serve the whole catalogue to whoever caused the error, which is the leak
+   *    this change closes. Every transport in this package passes a constant
+   *    closure that ignores `extra`, so only a caller wiring `registerTools`
+   *    directly can be exposed.
+   *  - The default is an EMPTY principal, which is not the same as all-allowed:
+   *    it holds no scopes, so a scope-gated tool is absent from its listing —
+   *    exactly as the gate has always refused it. A host with scoped tools
+   *    should pass a real `getContext` rather than rely on the default.
    */
   getContext?: (extra: unknown) => ToolContext<Ctx> | Promise<ToolContext<Ctx>>;
   audit?: AuditFn;
