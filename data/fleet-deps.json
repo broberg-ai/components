@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-18T09:03:58.973Z",
+ "scanned_at": "2026-09-19T08:51:46.212Z",
  "repos_scanned": 61,
  "repos_failed": 0,
  "manifests_read": 218,
  "manifests_unreadable": 0,
- "edges": 185,
+ "edges": 186,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -889,6 +889,13 @@
     "@broberg/gravatar": [
      {
       "range": "^0.2.1",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     }
+    ],
+    "@broberg/i18n": [
+     {
+      "range": "0.1.0",
       "field": "dependencies",
       "at": "apps/console/package.json"
      }
