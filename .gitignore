@@ -158,3 +158,9 @@ packages/*/.npmrc
 # generated, changes every session, never a repo fact.
 .claude/rules.local.json
 .mutation-running
+
+# Backup-filer fra værktøjer der redigerer settings.json. De er øjebliksbilleder
+# af en maskines egen opsætning — aldrig repoets, og de kom kun ind fordi
+# `git add -A` fejer alt med.
+.claude/settings.json.bak-*
+*.bak-[0-9]*
