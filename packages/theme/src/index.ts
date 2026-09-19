@@ -91,11 +91,19 @@ function readStored(): ThemePreference | null {
   }
 }
 
+/**
+ * The ONE media query that decides "what does the OS want". Named because the
+ * pre-paint snippet must ask the same question as the module — see
+ * {@link prePaintScript}. A second copy of this string is a theme that flips
+ * between the first paint and the first render.
+ */
+const SYSTEM_LIGHT_QUERY = "(prefers-color-scheme: light)";
+
 function systemTheme(): ThemeKey {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return "dark";
   }
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  return window.matchMedia(SYSTEM_LIGHT_QUERY).matches ? "light" : "dark";
 }
 
 /** A preference resolves to the key that goes on <html>. */
@@ -261,3 +269,83 @@ export type Breakpoint = keyof typeof BREAKPOINTS;
 
 /** Minimum touch-target size in px (Apple/Google ≥44). Never ship a smaller tap target. */
 export const TOUCH_TARGET_MIN = 44;
+
+/* ── pre-paint ─────────────────────────────────────────────────────────────
+ * F084.24 — the snippet that runs BEFORE the bundle, from the same source as
+ * the module that runs after it.
+ */
+
+export interface PrePaintOptions {
+  /** localStorage key. Default `"broberg-theme"` — the same default initTheme uses. */
+  storageKey?: string;
+  /**
+   * Preference when nothing valid is stored. MUST match the `defaultPreference`
+   * you pass to {@link initTheme}, or the page resolves one theme before the
+   * bundle and a different one after it — which is the flash this exists to
+   * prevent. Default `"dark"`, matching initTheme's own default.
+   */
+  defaultPreference?: ThemePreference;
+}
+
+/**
+ * The `<head>` snippet that puts `data-theme` on `<html>` BEFORE the first
+ * paint — as a string, built from this package's own constants.
+ *
+ * ── WHY THIS IS IN THE PACKAGE (F084.24) ─────────────────────────────────
+ *
+ * A bundle cannot do this job. It loads after the first paint, so a page that
+ * waits for it flashes white — and it flashes at exactly the people who chose
+ * dark because light hurts. So every Stack-B app wrote its own seven lines of
+ * raw JavaScript in its Vite config: read localStorage, fall back, ask
+ * matchMedia, set the attribute.
+ *
+ * Seven lines is small enough to look harmless and is the whole problem. It is
+ * a SECOND implementation of "which theme", and the two had already drifted
+ * before anyone noticed: BID's copy defaulted to `"system"` while the module
+ * defaulted to `"dark"`, and the copy never told the module what it had
+ * decided. The menu then read a `preference` nobody had written and showed
+ * «Mørkt» ticked on a light page — disagreeing with the user's own stored
+ * choice, so pressing the ticked item WROTE a choice she never made.
+ *
+ * Reading the stored key, deciding what counts as valid, and asking the OS are
+ * now answered once, here, and handed to the page as text.
+ *
+ * ── STILL TWO EXECUTIONS, AND THAT CANNOT CHANGE ─────────────────────────
+ *
+ * This does not remove the second run — the snippet runs, then `initTheme()`
+ * runs. It removes the second AUTHORING. They agree because they are generated
+ * from the same constants, and `test/pre-paint.test.ts` runs both over every
+ * state and requires the same answer. Without that test "one source" would be
+ * a claim about where the code lives rather than about what it does.
+ *
+ * ── USE ──────────────────────────────────────────────────────────────────
+ *
+ * Vite (`transformIndexHtml`):
+ * ```ts
+ * { tag: "script", children: prePaintScript({ defaultPreference: "system" }), injectTo: "head" }
+ * ```
+ * Next (`app/layout.tsx`):
+ * ```tsx
+ * <script dangerouslySetInnerHTML={{ __html: prePaintScript({ defaultPreference: "system" }) }} />
+ * ```
+ * Pass the SAME options to `initTheme()`. It contains no interpolated
+ * caller input — only this package's own constants and the two options, both
+ * JSON-encoded — so there is nothing for a page to inject through.
+ */
+export function prePaintScript(options: PrePaintOptions = {}): string {
+  const key = JSON.stringify(options.storageKey ?? DEFAULT_STORAGE_KEY);
+  const fallback = JSON.stringify(options.defaultPreference ?? "dark");
+  const keys = JSON.stringify(THEME_KEYS);
+  const query = JSON.stringify(SYSTEM_LIGHT_QUERY);
+  // A private window throws on localStorage; the catch leaves the attribute
+  // unset, and the CSS default applies. Never let a theme kill the page.
+  return (
+    `try{` +
+    `var k=${key},d=${fallback},K=${keys};` +
+    `var p=localStorage.getItem(k);` +
+    `if(p!=="system"&&K.indexOf(p)<0)p=d;` +
+    `var t=p==="system"?(matchMedia(${query}).matches?"light":"dark"):p;` +
+    `document.documentElement.setAttribute("data-theme",t)` +
+    `}catch(e){}`
+  );
+}
