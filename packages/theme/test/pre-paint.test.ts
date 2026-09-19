@@ -58,19 +58,35 @@ describe("F084.24 — prePaintScript agrees with initTheme, state by state", () 
     document.documentElement.removeAttribute("data-theme");
   });
 
+  /**
+   * `undefined` IS A CASE, and it is the one that matters most.
+   *
+   * The first version of this matrix passed `defaultPreference` on every run,
+   * so each side's OWN default was never exercised — and a mutation that made
+   * the snippet default to "light" while the module still defaulted to "dark"
+   * survived all 66 cases. That is precisely the drift this card exists to
+   * close: BID's hand-written copy defaulted to "system" while the module
+   * defaulted to "dark", and nothing said so.
+   */
+  const DEFAULTS: (ThemePreference | undefined)[] = [undefined, "system", "dark", "light"];
+
   for (const osIsLight of [true, false]) {
-    for (const defaultPreference of ["system", "dark", "light"] as ThemePreference[]) {
+    for (const defaultPreference of DEFAULTS) {
       for (const stored of STORED) {
-        it(`os=${osIsLight ? "light" : "dark"} default=${defaultPreference} stored=${String(stored)}`, () => {
+        it(`os=${osIsLight ? "light" : "dark"} default=${String(defaultPreference)} stored=${String(stored)}`, () => {
           stubMatchMedia(osIsLight);
+          // Named on both sides: initTheme's storageKey is sticky (see below).
+          const opts = defaultPreference === undefined
+            ? { storageKey: "broberg-theme" }
+            : { defaultPreference, storageKey: "broberg-theme" };
 
           localStorage.clear();
           if (stored !== null) localStorage.setItem("broberg-theme", stored);
-          const fromSnippet = runSnippet(prePaintScript({ defaultPreference }));
+          const fromSnippet = runSnippet(prePaintScript(opts));
 
           localStorage.clear();
           if (stored !== null) localStorage.setItem("broberg-theme", stored);
-          const fromModule = runModule({ defaultPreference });
+          const fromModule = runModule(opts);
 
           // Strict equality, and both printed on failure — "contains" would pass
           // on "dark" vs "dark-cool", which are different palettes.
