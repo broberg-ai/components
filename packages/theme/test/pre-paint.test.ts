@@ -108,6 +108,38 @@ describe("F084.24 — prePaintScript agrees with initTheme, state by state", () 
     expect(fromModule).toBe("dark");
   });
 
+  /**
+   * A CONSUMER'S OWN KEY HOLDING "system" — cardmem's exact case.
+   *
+   * They store `light | dark | system` under `cardmem.theme-pref` because
+   * their installed 0.6.0 had no preference concept at all (measured: no
+   * setPreference, no ThemePreference, no defaultPreference). Reading that
+   * forward, they expected the snippet to choke on "system" here.
+   *
+   * It does not: "system" is checked BEFORE the THEME_KEYS validation, because
+   * it is not a palette. Sealed so the claim in prePaintScript's JSDoc cannot
+   * become false without a test going red.
+   */
+  it("a consumer's own key holding \"system\" resolves, in both halves", () => {
+    stubMatchMedia(true); // OS says light
+    const KONSUMENT_NOEGLE = "cardmem.theme-pref";
+    const opts = { storageKey: KONSUMENT_NOEGLE, defaultPreference: "system" } as const;
+
+    localStorage.clear();
+    localStorage.setItem(KONSUMENT_NOEGLE, "system");
+
+    expect(runSnippet(prePaintScript(opts))).toBe("light");
+    expect(runModule(opts)).toBe("light");
+    // And the PREFERENCE survives as "system" — not flattened to the resolved key.
+    expect(getPreference()).toBe("system");
+
+    // The negative control: flip the OS and the same stored value follows it.
+    stubMatchMedia(false);
+    expect(runSnippet(prePaintScript(opts))).toBe("dark");
+    expect(runModule(opts)).toBe("dark");
+    expect(getPreference()).toBe("system");
+  });
+
   it("the snippet reads the SAME key initTheme writes — not a key that merely looks alike", () => {
     stubMatchMedia(true);
     // Nothing under the default key; a lookalike must not be picked up.

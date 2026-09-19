@@ -331,6 +331,26 @@ export interface PrePaintOptions {
  * Pass the SAME options to `initTheme()`. It contains no interpolated
  * caller input — only this package's own constants and the two options, both
  * JSON-encoded — so there is nothing for a page to inject through.
+ *
+ * ── A STORED `"system"` IS UNDERSTOOD, AND WHICH VERSION MATTERS ─────────
+ *
+ * The snippet checks for `"system"` BEFORE it validates against THEME_KEYS,
+ * because "system" is not a palette — it is a way of choosing one. So a
+ * consumer who stores `light | dark | system` under their own key can point
+ * `storageKey` at it and both halves read it correctly.
+ *
+ * SAY THE VERSION OUT LOUD, because a consumer measuring their INSTALLED dist
+ * is how this goes wrong: the whole preference layer — `ThemePreference`,
+ * `setPreference`, `getPreference`, `defaultPreference` — arrived in **0.7.0**
+ * (F001.16). Before that the package had only ThemeKeys, `setTheme("system")`
+ * was a silent no-op, and a stored value won forever. That is correct for
+ * ≤0.6.0 and false from 0.7.0 on.
+ *
+ * Measured, not assumed: cardmem read their own 0.6.0 dist, found no
+ * preference concept, correctly built their own layer on top — and then read
+ * that measurement forward onto 0.8.0 and concluded the snippet could not
+ * handle their stored `"system"`. It can. They were one release behind the
+ * thing they needed, and nothing in the package told them so.
  */
 export function prePaintScript(options: PrePaintOptions = {}): string {
   const key = JSON.stringify(options.storageKey ?? DEFAULT_STORAGE_KEY);
