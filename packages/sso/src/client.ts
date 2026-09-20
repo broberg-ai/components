@@ -127,6 +127,31 @@ export interface CreateSsoClientOptions {
   minRefetchIntervalMs?: number;
 }
 
+/**
+ * `invalid_client` is returned for two OPPOSITE mistakes, and the issuer cannot
+ * tell you which — from outside they are the same three words.
+ *
+ *   we sent a secret, it was refused      → wrong secret, or we are registered
+ *                                           as PUBLIC and should send none
+ *   we sent none and it was demanded      → we are registered as CONFIDENTIAL
+ *                                           and SSO_CLIENT_SECRET is unset
+ *
+ * The expensive version of this is the plugin storing the secret HASHED
+ * (SHA-256 → base64url) and comparing hashes: write the plaintext through the
+ * adapter and the row is written, reads back clean, and every token call is
+ * refused forever. broberg-id paid for that one. We cannot see their storage
+ * from here — but we CAN say what WE sent, which halves the search instead of
+ * leaving a caller to guess which end to open.
+ *
+ * It states our SIDE, never the value. A secret must not reach a log line.
+ */
+function invalidClientHint(error: string | undefined, weSentASecret: boolean): string {
+  if (error !== "invalid_client") return "";
+  return weSentASecret
+    ? " — we DID send a client_secret, so either it is wrong or this client is registered as PUBLIC (in which case unset SSO_CLIENT_SECRET)."
+    : " — we sent NO client_secret, so this client is likely registered as CONFIDENTIAL (set SSO_CLIENT_SECRET to the value it was registered with).";
+}
+
 export function createSsoClient(
   config: SsoConfig,
   options: CreateSsoClientOptions = {},
@@ -303,7 +328,10 @@ export function createSsoClient(
           code,
           redirect_uri: config.redirectUri,
           client_id: config.clientId,
+          // ALWAYS sent, secret or not. See SsoConfig.clientSecret: the two
+          // prove different things, so a confidential client keeps PKCE.
           code_verifier: codeVerifier,
+          ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
         }),
       });
 
@@ -317,7 +345,8 @@ export function createSsoClient(
       if (!res.ok || !body.id_token) {
         throw new SsoError(
           `token exchange failed (${res.status}): ${body.error ?? "no id_token in response"}` +
-            (body.error_description ? ` — ${body.error_description}` : ""),
+            (body.error_description ? ` — ${body.error_description}` : "") +
+            invalidClientHint(body.error, config.clientSecret !== undefined),
         );
       }
 

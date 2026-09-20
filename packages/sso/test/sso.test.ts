@@ -792,3 +792,112 @@ describe("logout proves who is leaving, so the issuer need not ask", () => {
     expect(new URL(out.headers.get("location")!).searchParams.get("id_token_hint")).toBeNull();
   });
 });
+
+/* ── confidential client, and PKCE survives it — F084.50 ─────────────────── */
+
+describe("a client_secret is optional, and it never buys you out of PKCE", () => {
+  /** Run a full login and hand back the token request's parsed body. */
+  async function exchange(env: NodeJS.ProcessEnv) {
+    const idp = await makeIdp();
+    let tokenBody: URLSearchParams | undefined;
+
+    const spy = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/oauth2/token")) tokenBody = new URLSearchParams(String(init?.body));
+      return idp.fetchImpl(input as RequestInfo, init);
+    }) as unknown as typeof fetch;
+
+    const client = createSsoClient(loadSsoConfig(env), {
+      fetchImpl: spy,
+      minRefetchIntervalMs: 0,
+    });
+    const start = await client.beginLogin();
+    idp.echo(start.nonce);
+    await client.completeLogin({
+      params: new URLSearchParams({ code: "c", state: start.state }),
+      state: start.state,
+      codeVerifier: start.codeVerifier,
+      nonce: start.nonce,
+    });
+    return tokenBody!;
+  }
+
+  test("with a secret: the body carries BOTH client_secret AND code_verifier", async () => {
+    // The one assertion that proves the secret did not replace PKCE. Checking
+    // only for client_secret would pass on exactly the regression this card
+    // exists to prevent.
+    const body = await exchange({ ...ENV, SSO_CLIENT_SECRET: "s3cr3t-value" });
+    expect(body.get("client_secret")).toBe("s3cr3t-value");
+    expect(body.get("code_verifier")).toBeTruthy();
+  });
+
+  test("without a secret: code_verifier is there and the key is ABSENT, not empty", async () => {
+    const body = await exchange(ENV);
+    expect(body.get("code_verifier")).toBeTruthy();
+    // `has`, not `get() === ""`. An empty client_secret is a DIFFERENT request
+    // to an OAuth server than no client_secret at all.
+    expect(body.has("client_secret")).toBe(false);
+  });
+
+  test("a blank SSO_CLIENT_SECRET is treated as unset, not as an empty secret", async () => {
+    // The same blank-string trap config.ts already guards for the cookie secret:
+    // "   " is truthy as a value and worthless as a credential.
+    const body = await exchange({ ...ENV, SSO_CLIENT_SECRET: "   " });
+    expect(body.has("client_secret")).toBe(false);
+  });
+});
+
+describe("invalid_client says WHICH end is wrong, and never the secret itself", () => {
+  /** An IdP that refuses the exchange with invalid_client. */
+  async function refusingIdp() {
+    const idp = await makeIdp();
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/oauth2/token")) {
+        return Response.json({ error: "invalid_client" }, { status: 401 });
+      }
+      return idp.fetchImpl(input as RequestInfo, init);
+    }) as unknown as typeof fetch;
+  }
+
+  async function failWith(env: NodeJS.ProcessEnv) {
+    const client = createSsoClient(loadSsoConfig(env), {
+      fetchImpl: await refusingIdp(),
+      minRefetchIntervalMs: 0,
+    });
+    const start = await client.beginLogin();
+    return client
+      .completeLogin({
+        params: new URLSearchParams({ code: "c", state: start.state }),
+        state: start.state,
+        codeVerifier: start.codeVerifier,
+        nonce: start.nonce,
+      })
+      .then(() => "no error", (e: Error) => e.message);
+  }
+
+  test("we sent a secret → the message points at OUR secret or a public registration", async () => {
+    const msg = await failWith({ ...ENV, SSO_CLIENT_SECRET: "wrong-one" });
+    expect(msg).toMatch(/DID send a client_secret/);
+    expect(msg).toMatch(/registered as PUBLIC/);
+  });
+
+  test("we sent none → the message points at a CONFIDENTIAL registration", async () => {
+    const msg = await failWith(ENV);
+    expect(msg).toMatch(/sent NO client_secret/);
+    expect(msg).toMatch(/registered as CONFIDENTIAL/);
+  });
+
+  test("the two messages DIFFER — that is the whole point of the hint", async () => {
+    // Without this, both branches could return the same sentence and each test
+    // above would still pass.
+    const withSecret = await failWith({ ...ENV, SSO_CLIENT_SECRET: "wrong-one" });
+    const without = await failWith(ENV);
+    expect(withSecret).not.toBe(without);
+  });
+
+  test("THE SECRET IS NEVER IN THE MESSAGE", async () => {
+    const msg = await failWith({ ...ENV, SSO_CLIENT_SECRET: "canary-do-not-leak-7f3a" });
+    expect(msg).not.toContain("canary-do-not-leak-7f3a");
+  });
+});

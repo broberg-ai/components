@@ -39,6 +39,22 @@ export interface SsoConfig {
   sessionMaxAge: number;
   /** Where to send the browser after a logout completes. */
   postLogoutRedirectUri?: string;
+  /**
+   * Set ONLY by an app that can actually keep a secret — one whose callback
+   * runs on a server. Leave it unset for anything shipped to a browser; a
+   * secret in a static bundle is not a secret, and PKCE alone is the correct,
+   * fully standard design there.
+   *
+   * Setting it makes this a CONFIDENTIAL client: the secret is sent as
+   * `client_secret_post` (in the body), which is the method BID registers
+   * confidential clients with.
+   *
+   * IT DOES NOT RELAX PKCE. A secret proves which APP is asking; the PKCE
+   * verifier proves the request belongs to the browser that started the login.
+   * They defend against different attacks, so one is never an excuse to drop
+   * the other — and there is a test that fails if anyone makes it one.
+   */
+  clientSecret?: string;
 }
 
 /**
@@ -122,5 +138,6 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
     cookieName: env.SSO_COOKIE_NAME?.trim() || "bid_session",
     sessionMaxAge,
     postLogoutRedirectUri: env.SSO_POST_LOGOUT_REDIRECT_URI?.trim() || undefined,
+    clientSecret: env.SSO_CLIENT_SECRET?.trim() || undefined,
   };
 }
