@@ -67,25 +67,11 @@ jobs:
       # "the defences hold" and "I could not find the defences".
       - name: The forgery defences (must actually run)
         working-directory: packages/sso
-        run: |
-          out=$(npx vitest run -t "refused by OUR rule" 2>&1) || { echo "$out"; exit 1; }
-          n=$(printf '%s' "$out" | grep -oE 'Tests +[0-9]+ passed' | grep -oE '[0-9]+' | head -1)
-          echo "$out" | tail -5
-          if [ "${n:-0}" -lt 4 ]; then
-            echo "::error::expected at least 4 forgery tests, ran ${n:-0} — the filter no longer matches them"
-            exit 1
-          fi
+        run: node scripts/run-suite.mjs "refused by OUR rule" 5
 
       - name: returnTo cannot leave our own origin (must actually run)
         working-directory: packages/sso
-        run: |
-          out=$(npx vitest run -t "cannot leave our own origin" 2>&1) || { echo "$out"; exit 1; }
-          n=$(printf '%s' "$out" | grep -oE 'Tests +[0-9]+ passed' | grep -oE '[0-9]+' | head -1)
-          echo "$out" | tail -5
-          if [ "${n:-0}" -lt 11 ]; then
-            echo "::error::expected at least 11 redirect tests, ran ${n:-0} — the filter no longer matches them"
-            exit 1
-          fi
+        run: node scripts/run-suite.mjs "cannot leave our own origin" 11
 
       # The shipped artefact + a consumer's dependency tree. Every check inside
       # carries a positive control and refuses to pass on zero files read.
