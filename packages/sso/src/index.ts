@@ -27,7 +27,14 @@ export {
   type Discovery,
 } from "./client.js";
 
-export { createJwksCache, JwksError, type JwksCache, type JwksCacheOptions } from "./jwks.js";
+export {
+  createJwksCache,
+  JwksError,
+  JwksUnavailableError,
+  JwksUnknownKeyError,
+  type JwksCache,
+  type JwksCacheOptions,
+} from "./jwks.js";
 
 export {
   signSession,

@@ -16,7 +16,12 @@ import { describe, expect, test } from "vitest";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
 import { loadSsoConfig, SsoConfigError } from "../src/config.js";
 import { createSsoClient } from "../src/client.js";
-import { createJwksCache, JwksError } from "../src/jwks.js";
+import {
+  createJwksCache,
+  JwksError,
+  JwksUnavailableError,
+  JwksUnknownKeyError,
+} from "../src/jwks.js";
 import { signSession, verifySession, signValue, verifyValue } from "../src/session.js";
 
 const ISSUER = "https://id.broberg.ai";
@@ -525,5 +530,152 @@ describe("the profile comes from userinfo, and only for the right subject", () =
         nonce: start.nonce,
       }),
     ).rejects.toThrow(/login_required/);
+  });
+});
+
+/* ── two failures, not one — F084.50 ─────────────────────────────────────── */
+
+describe("getKey distinguishes 'could not look' from 'not signed by us'", () => {
+  const JWKS_URI = "https://id.broberg.ai/jwks";
+
+  /** A key set that is reachable and simply does not contain the kid asked for. */
+  const servingEmptySet = (async () => Response.json({ keys: [] })) as unknown as typeof fetch;
+
+  test("issuer unreachable → JwksUnavailableError (transient: retry, do not judge the token)", async () => {
+    const cache = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 0,
+      fetchImpl: (async () => {
+        throw new TypeError("fetch failed");
+      }) as unknown as typeof fetch,
+    });
+
+    await expect(cache.getKey("key-1", "RS256")).rejects.toThrow(JwksUnavailableError);
+    // And NOT the other one. Asserting only the positive class would pass even
+    // if both branches threw the same subclass.
+    await expect(cache.getKey("key-1", "RS256")).rejects.not.toThrow(JwksUnknownKeyError);
+  });
+
+  test("issuer answers 503 → JwksUnavailableError, not a verdict on the token", async () => {
+    const cache = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 0,
+      fetchImpl: (async () => new Response("down", { status: 503 })) as unknown as typeof fetch,
+    });
+    await expect(cache.getKey("key-1", "RS256")).rejects.toThrow(JwksUnavailableError);
+  });
+
+  test("issuer answers 200 without the kid → JwksUnknownKeyError (permanent: reject it)", async () => {
+    const cache = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 0,
+      fetchImpl: servingEmptySet,
+    });
+
+    await expect(cache.getKey("forged", "RS256")).rejects.toThrow(JwksUnknownKeyError);
+    await expect(cache.getKey("forged", "RS256")).rejects.not.toThrow(JwksUnavailableError);
+  });
+
+  test("an unknown kid inside the cooldown is UNAVAILABLE, not unknown — we did not look", async () => {
+    // The distinction is the whole point of the split: refusing to refetch is a
+    // statement about US, not about the token. Calling it "unknown key" would
+    // tell a caller to reject a token that may well be freshly rotated and
+    // perfectly valid.
+    const cache = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 60_000,
+      now: () => 1_000_000,
+      fetchImpl: servingEmptySet,
+    });
+
+    await cache.getKey("first", "RS256").catch(() => {}); // spends the one allowed look
+    await expect(cache.getKey("second", "RS256")).rejects.toThrow(JwksUnavailableError);
+  });
+
+  test("BOTH subclasses still satisfy `instanceof JwksError` — a 0.1.0 catch survives", async () => {
+    // The upgrade guarantee. Without this, splitting the error is a breaking
+    // change wearing a minor version number.
+    const unreachable = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 0,
+      fetchImpl: (async () => {
+        throw new TypeError("fetch failed");
+      }) as unknown as typeof fetch,
+    });
+    const unknown = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 0,
+      fetchImpl: servingEmptySet,
+    });
+
+    await expect(unreachable.getKey("k", "RS256")).rejects.toThrow(JwksError);
+    await expect(unknown.getKey("k", "RS256")).rejects.toThrow(JwksError);
+  });
+});
+
+describe("warm-up moves the cold window to boot", () => {
+  test("warmUp:true fetches BEFORE the first getKey", async () => {
+    let hits = 0;
+    const cache = createJwksCache({
+      jwksUri: "https://id.broberg.ai/jwks",
+      warmUp: true,
+      fetchImpl: (async () => {
+        hits++;
+        return Response.json({ keys: [] });
+      }) as unknown as typeof fetch,
+    });
+
+    // The warm-up is fire-and-forget, so yield once rather than asserting
+    // synchronously — the point is that it happens without a caller.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(hits).toBe(1);
+    expect(cache.fetchCount).toBe(1);
+  });
+
+  test("NEGATIVE CONTROL — a failed warm-up does not throw, and the next getKey still works", async () => {
+    // A package that stops an app from booting because someone else's service
+    // is down has made the outage worse. This is the test that says so.
+    let calls = 0;
+    const keyPair = await generateKeyPair("RS256");
+    const jwk = { ...(await exportJWK(keyPair.publicKey)), kid: "key-1", alg: "RS256" } as JWK;
+
+    const cache = createJwksCache({
+      jwksUri: "https://id.broberg.ai/jwks",
+      warmUp: true,
+      minRefetchIntervalMs: 0,
+      fetchImpl: (async () => {
+        calls++;
+        if (calls === 1) throw new TypeError("fetch failed");
+        return Response.json({ keys: [jwk] });
+      }) as unknown as typeof fetch,
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toBe(1); // it tried, and the rejection was swallowed
+    await expect(cache.getKey("key-1", "RS256")).resolves.toBeDefined();
+  });
+
+  test("warm-up does NOT make a revoked key survive a rotation", async () => {
+    // The cure for the cold start must not quietly become the cache that
+    // outlives a revocation — that is the failure form we chose against.
+    const a = await generateKeyPair("RS256");
+    const b = await generateKeyPair("RS256");
+    const jwkA = { ...(await exportJWK(a.publicKey)), kid: "key-old", alg: "RS256" } as JWK;
+    const jwkB = { ...(await exportJWK(b.publicKey)), kid: "key-new", alg: "RS256" } as JWK;
+
+    let served = [jwkA];
+    const cache = createJwksCache({
+      jwksUri: "https://id.broberg.ai/jwks",
+      warmUp: true,
+      minRefetchIntervalMs: 0,
+      fetchImpl: (async () => Response.json({ keys: served })) as unknown as typeof fetch,
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+    await expect(cache.getKey("key-old", "RS256")).resolves.toBeDefined();
+
+    served = [jwkB]; // BID rotates; key-old is revoked
+    await expect(cache.getKey("key-new", "RS256")).resolves.toBeDefined();
+    await expect(cache.getKey("key-old", "RS256")).rejects.toThrow(JwksUnknownKeyError);
   });
 });
