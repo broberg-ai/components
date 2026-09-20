@@ -1,7 +1,7 @@
 {
   "name": "@broberg/sso",
   "version": "0.2.1",
-  "description": "The thin client for Broberg ID — send a user to central login, verify the ID token against JWKS, keep a local session. Public client + PKCE only: no passwords, no passkeys, no client secret can live in an app.",
+  "description": "The thin client for Broberg ID \u2014 send a user to central login, verify the ID token against JWKS, keep a local session. Public client + PKCE only: no passwords, no passkeys, no client secret can live in an app.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -28,7 +28,8 @@
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "security-gate": "node scripts/security-gate.mjs"
   },
   "dependencies": {
     "jose": "^6"

@@ -1,0 +1,96 @@
+name: sso-security
+
+# THE STANDING SECURITY GATE FOR @broberg/sso.
+#
+# Why this file exists (F084.50, 2026-09-20): the first FULL security review of
+# the package — as opposed to a review of a diff — found an exploitable open
+# redirect and an algorithm defence that lived inside a dependency's internals
+# rather than in our code. NEITHER was in any diff, so no diff-scoped review
+# could ever have found them, and the owner asked for a standing one.
+#
+# ── WHAT THE TWO HALVES DO, AND WHY BOTH ─────────────────────────────────
+#
+# The ATTACK TESTS live in the normal suite (test.yml) and already block a
+# release: publish.yml's publish-sso has `needs: gate`, and gate calls test.yml.
+# They catch REGRESSIONS on holes we know about. That is their strength and
+# their whole limit — neither of today's findings was a regression.
+#
+# This workflow adds what a test cannot: it measures the SHIPPED ARTEFACT and a
+# CONSUMER'S dependency tree, and it runs on a SCHEDULE so it also fires in the
+# weeks nobody touches the code. A seal cannot be forgotten; a scheduled sweep
+# can find a class nobody thought to seal. Different jobs, both needed.
+#
+# ⚠️ IF THIS IS RED, THE WIRE IS BROKEN — NOT THE GATE. Do not delete a step to
+# get merged. scripts/security-gate.mjs runs identically on a laptop:
+#     cd packages/sso && node scripts/security-gate.mjs
+
+on:
+  push:
+    branches: [main]
+    paths: ["packages/sso/**", ".github/workflows/sso-security.yml"]
+  pull_request:
+    paths: ["packages/sso/**", ".github/workflows/sso-security.yml"]
+  # The standing half. A dependency becomes vulnerable on somebody else's
+  # timetable, not on ours — so this must fire when nothing has changed here.
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays 06:17 UTC
+  # So publish.yml can depend on it: a release must not ship past a red gate.
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: sso-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Named separately from the rest of the suite ON PURPOSE. When this is the
+      # red one, the run should say "the forgery defences failed" rather than
+      # burying it among seventy passing tests.
+      #
+      # ⚠️ AND THE COUNT IS ASSERTED, which is not decoration. Measured while
+      # writing this file: `vitest run -t "matches nothing at all"` exits 0 with
+      # 0 tests run. So a filter that stops matching — because somebody renamed
+      # a describe block, which is a perfectly innocent edit — would turn this
+      # step GREEN having verified nothing. The count is the difference between
+      # "the defences hold" and "I could not find the defences".
+      - name: The forgery defences (must actually run)
+        working-directory: packages/sso
+        run: |
+          out=$(npx vitest run -t "refused by OUR rule" 2>&1) || { echo "$out"; exit 1; }
+          n=$(printf '%s' "$out" | grep -oE 'Tests +[0-9]+ passed' | grep -oE '[0-9]+' | head -1)
+          echo "$out" | tail -5
+          if [ "${n:-0}" -lt 4 ]; then
+            echo "::error::expected at least 4 forgery tests, ran ${n:-0} — the filter no longer matches them"
+            exit 1
+          fi
+
+      - name: returnTo cannot leave our own origin (must actually run)
+        working-directory: packages/sso
+        run: |
+          out=$(npx vitest run -t "cannot leave our own origin" 2>&1) || { echo "$out"; exit 1; }
+          n=$(printf '%s' "$out" | grep -oE 'Tests +[0-9]+ passed' | grep -oE '[0-9]+' | head -1)
+          echo "$out" | tail -5
+          if [ "${n:-0}" -lt 11 ]; then
+            echo "::error::expected at least 11 redirect tests, ran ${n:-0} — the filter no longer matches them"
+            exit 1
+          fi
+
+      # The shipped artefact + a consumer's dependency tree. Every check inside
+      # carries a positive control and refuses to pass on zero files read.
+      - name: Security gate — shipped tarball and consumer tree
+        working-directory: packages/sso
+        run: |
+          pnpm build
+          node scripts/security-gate.mjs

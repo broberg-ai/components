@@ -441,8 +441,14 @@ jobs:
         working-directory: packages/greppable
         run: npm publish --access public --provenance
 
+  sso-security:
+    # A release must not ship past a red security gate. Separate from `gate` so
+    # a failure names the security suite rather than the workspace suite.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sso-v')
+    uses: ./.github/workflows/sso-security.yml
+
   publish-sso:
-    needs: gate
+    needs: [gate, sso-security]
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sso-v')
     runs-on: ubuntu-latest
     permissions:
