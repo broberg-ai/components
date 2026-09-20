@@ -44,6 +44,46 @@ app.get("/me", sso.require, (c) => c.json(getSession(c)));  // block + redirect
 
 That is the whole integration. No other code changes.
 
+## Using the core instead — and the one thing you then own
+
+The adapter above mints **its own** session cookie, keyed on Broberg ID's `sub`.
+That is right for a NEW app and wrong for an app that already has a user table
+and a session keyed on its own id — you would end up with two cookies and two
+opinions about who is logged in. **That is the common case in a migration, not
+the exception**, and the first real consumer (HelpDesk, BID's app #1) hit it on
+day one and chose the core.
+
+Take the core, and the package stays out of your storage entirely:
+
+```ts
+import { createSsoClient, loadSsoConfig } from "@broberg/sso";
+
+const client = createSsoClient(loadSsoConfig());
+const { claims, idToken } = await client.completeLogin({ … });
+// your session, your cookie, your secret, your lifetime — keyed on YOUR user id
+```
+
+**What you then own: storing the ID token.** Not an afterthought — without it
+the issuer MUST show the user a confirmation page on the way out, which is a
+foreign, unstyled page in the middle of your product:
+
+```ts
+// at callback: keep it wherever you keep your own session
+await myStore.put(userId, idToken);
+
+// at logout: hand it back, or the issuer asks the user to confirm
+const url = await client.logoutUrl({ idTokenHint: await myStore.get(userId) });
+```
+
+`idTokenHint` is optional and a missing one is safe — you simply get the old
+behaviour (the issuer asks) rather than an error. So this fails quietly, which
+is exactly why it is written here instead of left to be discovered.
+
+**Use `loadSsoConfig()` rather than building the config object yourself.** It is
+the only thing that throws `SsoConfigError` on a missing or blank value, naming
+the variable. Hand-build the object from your own env schema and a blank string
+is a valid, empty config that fails much later and somewhere else.
+
 ## What it will never do
 
 No passwords. No passkey registration. No social-provider keys. No email
