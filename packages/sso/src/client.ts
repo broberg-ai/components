@@ -28,6 +28,8 @@ import { createJwksCache, type JwksCache } from "./jwks.js";
 /* ── discovery ───────────────────────────────────────────────────────────── */
 
 export interface Discovery {
+  /** What the issuer says it signs with. Absent on some providers. */
+  id_token_signing_alg_values_supported?: string[];
   issuer: string;
   authorization_endpoint: string;
   token_endpoint: string;
@@ -176,7 +178,22 @@ function invalidClientHint(error: string | undefined, weSentASecret: boolean): s
  * A guard you cannot see is a guard you cannot keep. Now jwtVerify refuses
  * first, and there is a test that fails if this list is widened.
  */
-const ALLOWED_ALGS = ["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512"];
+const ALLOWED_ALGS = [
+  // FIRST, because it is what Broberg ID actually signs with. Measured on the
+  // live issuer 2026-09-20:
+  //   /jwks      kid=Iodh… kty=OKP alg=EdDSA crv=Ed25519
+  //   discovery  id_token_signing_alg_values_supported: ["EdDSA"]
+  //
+  // 0.2.1 SHIPPED THIS LIST WITHOUT IT and rejected every real token for an
+  // hour. The list was written from what an OIDC client usually allows rather
+  // than from what our issuer uses — and the whole suite missed it because the
+  // fake issuer in the tests signs RS256. A fake agrees with whoever wrote it.
+  // There is now a test that mints EdDSA, the algorithm production uses.
+  "EdDSA",
+  "RS256", "RS384", "RS512",
+  "PS256", "PS384", "PS512",
+  "ES256", "ES384", "ES512",
+];
 
 export function createSsoClient(
   config: SsoConfig,
@@ -198,6 +215,34 @@ export function createSsoClient(
       // BID during F084.1. If the document's issuer and our configured issuer
       // disagree, every token this app later verifies will be rejected for a
       // reason that reads as a signature problem. Refuse at boot instead.
+      // THE CHECK THAT WOULD HAVE TURNED 0.2.1'S OUTAGE INTO A SENTENCE.
+      //
+      // An allow-list that omits the algorithm the issuer actually uses does
+      // not fail loudly: every token is refused, one at a time, with a message
+      // about that token. The app looks broken, the issuer looks broken, and
+      // nothing names the real cause. That is what 0.2.1 did for an hour.
+      //
+      // The issuer already publishes the answer. If it advertises its signing
+      // algorithms and NONE of them are ones we accept, that is knowable here —
+      // once, at first use — instead of being rediscovered on every login.
+      //
+      // Deliberately narrow: it fires only on an EMPTY intersection. An issuer
+      // that supports one algorithm we allow and three we do not is perfectly
+      // workable, and refusing to start there would be a second outage dressed
+      // as caution.
+      const advertised = doc.id_token_signing_alg_values_supported;
+      if (Array.isArray(advertised) && advertised.length > 0) {
+        const usable = advertised.filter((a) => ALLOWED_ALGS.includes(a));
+        if (usable.length === 0) {
+          throw new SsoError(
+            `${config.issuer} signs ID tokens with ${advertised.join(", ")}, and this client ` +
+              `accepts none of those (it allows ${ALLOWED_ALGS.join(", ")}). Every token would be ` +
+              `rejected. This is a mismatch between the package and the issuer — report it rather ` +
+              `than working around it.`,
+          );
+        }
+      }
+
       if (doc.issuer !== config.issuer) {
         throw new SsoError(
           `BID_ISSUER is ${config.issuer} but ${url} says its issuer is ${doc.issuer}. ` +

@@ -925,6 +925,35 @@ describe("a forged ID token is refused by OUR rule, not by a dependency's intern
     };
   }
 
+  test("PRODUCTION'S OWN ALGORITHM — an EdDSA token is accepted", async () => {
+    // The test 0.2.1 did not have, and the reason it shipped broken. Broberg ID
+    // signs with Ed25519 and advertises EdDSA as the ONLY supported algorithm;
+    // the whole suite used an RS256 fake, so an allow-list that omitted EdDSA
+    // was green here and rejected every real token in production.
+    //
+    // It is first in this describe on purpose: the algorithm the issuer USES is
+    // a more important case than the algorithms an attacker might try.
+    const pair = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
+    const jwk = { ...(await exportJWK(pair.publicKey)), kid: "ed-1", alg: "EdDSA", use: "sig" } as JWK;
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/.well-known/openid-configuration"))
+        return Response.json({
+          issuer: ISSUER, authorization_endpoint: `${ISSUER}/a`, token_endpoint: `${ISSUER}/t`,
+          jwks_uri: `${ISSUER}/jwks`, userinfo_endpoint: `${ISSUER}/u`,
+        });
+      if (url.endsWith("/jwks")) return Response.json({ keys: [jwk] });
+      return new Response("nf", { status: 404 });
+    }) as unknown as typeof fetch;
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl, minRefetchIntervalMs: 0 });
+
+    const token = await new SignJWT({}).setProtectedHeader({ alg: "EdDSA", kid: "ed-1" })
+      .setIssuer(ISSUER).setAudience(CLIENT_ID).setSubject("real-user")
+      .setIssuedAt().setExpirationTime("1h").sign(pair.privateKey);
+
+    expect((await client.verifyIdToken(token)).sub).toBe("real-user");
+  });
+
   test("CONTROL — a genuine RS256 token is accepted (without this the attacks prove nothing)", async () => {
     const { pair, client } = await rig();
     const good = await new SignJWT({}).setProtectedHeader({ alg: "RS256", kid: "key-1" })
@@ -1055,5 +1084,51 @@ describe("the refusal tells a consumer what to DO, and carries the number that d
     const m = await messageFor(2);
     expect(m).toContain("reject it");
     expect(m).not.toMatch(/retry/i);
+  });
+});
+
+/* ── an unusable issuer says so ONCE, not per token — F084.50 ────────────── */
+
+describe("an issuer we cannot verify at all is named at first use", () => {
+  function issuerSigningWith(algs: string[] | undefined) {
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/.well-known/openid-configuration"))
+        return Response.json({
+          issuer: ISSUER, authorization_endpoint: `${ISSUER}/a`, token_endpoint: `${ISSUER}/t`,
+          jwks_uri: `${ISSUER}/jwks`, userinfo_endpoint: `${ISSUER}/u`,
+          ...(algs ? { id_token_signing_alg_values_supported: algs } : {}),
+        });
+      if (url.endsWith("/jwks")) return Response.json({ keys: [] });
+      return new Response("nf", { status: 404 });
+    }) as unknown as typeof fetch;
+    return createSsoClient(loadSsoConfig(ENV), { fetchImpl, minRefetchIntervalMs: 0 });
+  }
+
+  test("NONE of the issuer's algorithms are ones we accept → it says so, naming both", async () => {
+    // This is the sentence 0.2.1 did not have. Without it the same state shows
+    // up as every token being refused, one at a time, with a message about the
+    // token — so the app looks broken and nothing names the cause.
+    const err = await issuerSigningWith(["HS512"]).discovery().then(() => null, (e: Error) => e);
+    expect(err).toBeTruthy();
+    expect(err!.message).toContain("HS512");       // what the issuer uses
+    expect(err!.message).toContain("EdDSA");       // what we accept
+    expect(err!.message).toMatch(/Every token would be rejected/);
+  });
+
+  test("EdDSA-only — the real Broberg ID — is fine", async () => {
+    // The live issuer advertises exactly this. A guard that tripped here would
+    // be a second outage wearing caution's clothes.
+    await expect(issuerSigningWith(["EdDSA"]).discovery()).resolves.toBeTruthy();
+  });
+
+  test("a PARTIAL overlap is fine — one usable algorithm is enough", async () => {
+    await expect(issuerSigningWith(["HS512", "EdDSA", "none"]).discovery()).resolves.toBeTruthy();
+  });
+
+  test("an issuer that advertises NOTHING is not blocked", async () => {
+    // The field is optional in OIDC. Refusing to work with an issuer that keeps
+    // quiet would reject conforming providers for tidiness.
+    await expect(issuerSigningWith(undefined).discovery()).resolves.toBeTruthy();
   });
 });
