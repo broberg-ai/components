@@ -124,6 +124,34 @@ try {
 if (audit.high || audit.critical) problems.push(`consumer tree: ${audit.critical} critical, ${audit.high} high`);
 say(!audit.high && !audit.critical, "consumer dependency tree", `${audit.critical} critical, ${audit.high} high`);
 
+/* ── 4. WHO MUST BE TOLD ────────────────────────────────────────────────── */
+/*
+ * Not a check — a READ-ALOUD. Christian's standing order is that every release
+ * is announced to broberg-id and every known consumer, and the way that order
+ * gets broken is not defiance, it is a release where nobody happened to think
+ * of it. So the gate says the names out loud, every run, next to the numbers.
+ *
+ * It FAILS on an empty list, because an empty register and "nobody uses this"
+ * are the same shape — and the day this was written the register that should
+ * have answered (Discovery) held 131 rows and none for this package.
+ */
+let register;
+try {
+  register = JSON.parse(readFileSync(new URL("../consumers.json", import.meta.url), "utf8"));
+} catch (e) {
+  problems.push("consumers.json is missing or unparseable — the release cannot say who to notify");
+}
+if (register) {
+  const list = register.consumers ?? [];
+  if (list.length === 0) problems.push("consumers.json lists NOBODY — an empty register reads exactly like a package nobody uses");
+  say(list.length > 0, "consumer register", `${list.length} to notify on release`);
+  for (const c of list) {
+    const stale = c.version === "unmeasured" ? "  ⚠ version UNMEASURED" : "";
+    console.log(`         → ${c.session.padEnd(12)} ${String(c.version).padEnd(10)} (measured ${c.as_of})${stale}`);
+  }
+  for (const line of register.notify_beyond_this_file ?? []) console.log(`         · ${line}`);
+}
+
 /* ── verdict ────────────────────────────────────────────────────────────── */
 console.log();
 if (problems.length) {

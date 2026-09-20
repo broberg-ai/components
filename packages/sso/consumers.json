@@ -1,0 +1,63 @@
+{
+  "$comment": [
+    "WHO USES @broberg/sso \u2014 the list I notify on every release.",
+    "",
+    "Christian's standing order, 2026-09-20: every release of this package is",
+    "announced to broberg-id AND every known consumer, at PUBLISH time \u2014 not",
+    "when somebody is about to upgrade. The day it was given, 0.2.1 had spent",
+    "an hour on npm rejecting every token the real Broberg ID issues.",
+    "",
+    "WHY THIS FILE EXISTS RATHER THAN A LOOKUP. Discovery is the right place to",
+    "ask 'who uses X', and it was MEASURED EMPTY for this package the same day:",
+    "131 enrolment rows, 0 mentioning sso. A rule whose data source is empty is",
+    "not a rule, it is a reminder \u2014 so the list lives here, in the repo that",
+    "publishes the package, and the release gate reads it out loud.",
+    "",
+    "EVERY ENTRY CARRIES ITS EVIDENCE. `version` is what was MEASURED in their",
+    "tree, `as_of` is when, and `source` is how. An entry whose as_of is old is",
+    "visibly old rather than quietly wrong \u2014 that is the whole difference",
+    "between a register and a note.",
+    "",
+    "Adding one: measure first, then write the row. Never write what a session",
+    "says it is planning to run.",
+    "",
+    "A version here is what was MEASURED in their tree, never what they said they would run."
+  ],
+  "package": "@broberg/sso",
+  "consumers": [
+    {
+      "session": "broberg-id",
+      "repo": "broberg-ai/broberg-id",
+      "role": "issuer + consumer",
+      "uses": "examples/minimal-app only \u2014 BID ITSELF DOES NOT DEPEND ON sso (their measurement, 2026-09-20). They are the issuer, and they publish the public integration guide at id.broberg.ai/docs.md, which is what makes a wrong version number there expensive",
+      "version": "0.1.0",
+      "as_of": "2026-09-20",
+      "source": "their own measurement after rolling back from 0.2.1; enrolled in Discovery the same hour",
+      "notify": "always, first \u2014 a release that changes verification changes their own service's story"
+    },
+    {
+      "session": "helpdesk",
+      "repo": "broberg-ai/helpdesk",
+      "role": "consumer",
+      "uses": "core only (createSsoClient), NOT the Hono adapter \u2014 their session is keyed on their own userId, so the adapter's own cookie would be a second opinion about who is logged in",
+      "version": "^0.1.0",
+      "as_of": "2026-09-20",
+      "source": "their own measurement, quoted: apps/core/package.json and pnpm-lock.yaml version: 0.1.0(hono@4.13.7)",
+      "notify": "always \u2014 BID's app #1, and the package is the only door into their product"
+    }
+  ],
+  "notify_beyond_this_file": [
+    "MEASURED BY broberg-id 2026-09-20, the whole client table at BID:",
+    "  bid-selftest \u00b7 sso-hono-example \u00b7 helpdesk",
+    "One real consumer, and it IS a cc session \u2014 so today my list and theirs",
+    "are the same set, and 'tell broberg-id, they tell the rest' costs nothing.",
+    "",
+    "THAT ASSUMPTION DIES AT CUSTOMER TWO, and they said so rather than letting",
+    "it be discovered: FDAA gets its OWN tenant on its own domain, i.e. a",
+    "separate BID deployment with a client table neither they nor I can read",
+    "from here. There is no mechanism today for reaching a client that is not a",
+    "cc session, and none that spans tenants. Theirs to build; ours to stop",
+    "assuming. When a consumer appears that is not a session, this file cannot",
+    "answer the question it exists for."
+  ]
+}
