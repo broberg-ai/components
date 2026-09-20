@@ -49,10 +49,64 @@ function isSecure(c: Context): boolean {
  * own login into an open redirect that arrives wearing our domain — the
  * classic phishing lever, and it is one line to close.
  */
+/**
+ * An origin nothing can resolve to. Only used as a yardstick: if a candidate
+ * still sits on THIS origin after parsing, it is same-origin wherever the app
+ * actually lives.
+ */
+const YARDSTICK = "https://sso.invalid";
+
+/**
+ * Only same-origin, path-only return targets are honoured.
+ *
+ * ── WHY THIS ASKS A PARSER INSTEAD OF INSPECTING CHARACTERS ───────────────
+ *
+ * The first version of this function rejected a leading `//` and required a
+ * leading `/`. That is the obvious rule, it reads as correct, and it was
+ * EXPLOITABLE — found in the first full security review of this package
+ * (2026-09-20), not by any diff review, because this code never appeared in a
+ * diff:
+ *
+ *   returnTo=/\evil.dk   →  passed the guard
+ *                         →  resolves to https://evil.dk/ in a browser
+ *
+ * A backslash is not a path separator to RFC 3986 and IS one to the WHATWG URL
+ * spec, which is what browsers implement. So the string looked like a path to
+ * us and was an authority to the thing that acts on it.
+ *
+ * AND THE OBVIOUS FIX WAS ALSO LEAKY. Parsing once and comparing origins closes
+ * the backslash and still lets `/..//evil.dk` through: `..` NORMALISES the path
+ * to `//evil.dk`, which is protocol-relative when it is later used as a
+ * Location. So the result is re-checked — a fixpoint — rather than trusted
+ * because the input parsed cleanly.
+ *
+ * The rule is therefore: let the SAME parser the browser uses decide, twice.
+ * A list of dangerous characters is always one trick behind; the first version
+ * knew `//` and not `\`, and the second knew `\` and not `..`.
+ */
 function safeReturnTo(raw: string | undefined, fallback: string): string {
-  if (!raw) return fallback;
-  if (!raw.startsWith("/") || raw.startsWith("//")) return fallback;
-  return raw;
+  if (!raw || !raw.startsWith("/")) return fallback;
+
+  let once: URL;
+  try {
+    once = new URL(raw, YARDSTICK);
+  } catch {
+    return fallback;
+  }
+  if (once.origin !== YARDSTICK) return fallback;
+
+  const normalised = once.pathname + once.search + once.hash;
+  let twice: URL;
+  try {
+    twice = new URL(normalised, YARDSTICK);
+  } catch {
+    return fallback;
+  }
+  if (twice.origin !== YARDSTICK) return fallback;
+  // Belt and braces: a normalised path must still be a path.
+  if (!normalised.startsWith("/") || normalised.startsWith("//")) return fallback;
+
+  return normalised;
 }
 
 export function ssoRoutes(options: SsoRoutesOptions = {}) {

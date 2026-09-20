@@ -338,7 +338,7 @@ describe("key rotation is survived without a restart", () => {
 
     // Every later miss inside the window is refused WITHOUT a fetch.
     for (let i = 0; i < 5; i++) {
-      await expect(cache.getKey(`nope-${i}`, "RS256")).rejects.toThrow(/Refusing to refetch/);
+      await expect(cache.getKey(`nope-${i}`, "RS256")).rejects.toThrow(/do not ask the issuer again/);
     }
     expect(hits).toBe(1);
   });
@@ -899,5 +899,161 @@ describe("invalid_client says WHICH end is wrong, and never the secret itself", 
   test("THE SECRET IS NEVER IN THE MESSAGE", async () => {
     const msg = await failWith({ ...ENV, SSO_CLIENT_SECRET: "canary-do-not-leak-7f3a" });
     expect(msg).not.toContain("canary-do-not-leak-7f3a");
+  });
+});
+
+/* ── security review 2026-09-20 — F084.50 ────────────────────────────────── */
+
+describe("a forged ID token is refused by OUR rule, not by a dependency's internals", () => {
+  /** A fake issuer publishing exactly one RSA key. */
+  async function rig() {
+    const pair = await generateKeyPair("RS256", { extractable: true });
+    const pubJwk = { ...(await exportJWK(pair.publicKey)), kid: "key-1", alg: "RS256", use: "sig" } as JWK;
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/.well-known/openid-configuration"))
+        return Response.json({
+          issuer: ISSUER, authorization_endpoint: `${ISSUER}/a`, token_endpoint: `${ISSUER}/t`,
+          jwks_uri: `${ISSUER}/jwks`, userinfo_endpoint: `${ISSUER}/u`,
+        });
+      if (url.endsWith("/jwks")) return Response.json({ keys: [pubJwk] });
+      return new Response("nf", { status: 404 });
+    }) as unknown as typeof fetch;
+    return {
+      pair, pubJwk,
+      client: createSsoClient(loadSsoConfig(ENV), { fetchImpl, minRefetchIntervalMs: 0 }),
+    };
+  }
+
+  test("CONTROL — a genuine RS256 token is accepted (without this the attacks prove nothing)", async () => {
+    const { pair, client } = await rig();
+    const good = await new SignJWT({}).setProtectedHeader({ alg: "RS256", kid: "key-1" })
+      .setIssuer(ISSUER).setAudience(CLIENT_ID).setSubject("user-1")
+      .setIssuedAt().setExpirationTime("1h").sign(pair.privateKey);
+    expect((await client.verifyIdToken(good)).sub).toBe("user-1");
+  });
+
+  test("HS256 signed with the PUBLIC key as the HMAC secret is refused", async () => {
+    // The classic algorithm confusion: the verifying key is public, so if the
+    // algorithm may be chosen by the sender, the public key becomes a shared
+    // secret anyone can sign with.
+    const { pubJwk, client } = await rig();
+    const forged = await new SignJWT({}).setProtectedHeader({ alg: "HS256", kid: "key-1" })
+      .setIssuer(ISSUER).setAudience(CLIENT_ID).setSubject("ATTACKER")
+      .setIssuedAt().setExpirationTime("1h")
+      .sign(new TextEncoder().encode(JSON.stringify(pubJwk)));
+    await expect(client.verifyIdToken(forged)).rejects.toThrow();
+  });
+
+  test("alg:none is refused", async () => {
+    const { client } = await rig();
+    const h = Buffer.from(JSON.stringify({ alg: "none", kid: "key-1" })).toString("base64url");
+    const p = Buffer.from(JSON.stringify({
+      iss: ISSUER, aud: CLIENT_ID, sub: "ATTACKER", exp: Math.floor(Date.now() / 1000) + 3600,
+    })).toString("base64url");
+    await expect(client.verifyIdToken(`${h}.${p}.`)).rejects.toThrow();
+  });
+
+  test("the refusal is OURS — it names the allowed algorithms, not a JWK import failure", async () => {
+    // THIS is the test the other two cannot replace. Before the allow-list both
+    // attacks were already refused — by `JOSENotSupported: Invalid or
+    // unsupported JWK "alg"`, thrown inside jose's key import. That is a
+    // dependency's internals: it moves on an upgrade, and it would stop
+    // defending us the day an issuer publishes a symmetric key. Asserting on
+    // the MESSAGE is how we know the guard is in code we own.
+    const { pubJwk, client } = await rig();
+    const forged = await new SignJWT({}).setProtectedHeader({ alg: "HS256", kid: "key-1" })
+      .setIssuer(ISSUER).setAudience(CLIENT_ID).setSubject("ATTACKER")
+      .setIssuedAt().setExpirationTime("1h")
+      .sign(new TextEncoder().encode(JSON.stringify(pubJwk)));
+
+    const err = await client.verifyIdToken(forged).then(() => null, (e: Error) => e);
+    expect(err).toBeTruthy();
+    expect(err!.message).toMatch(/alg/i);
+    // and NOT the old, incidental defence
+    expect(err!.message).not.toMatch(/unsupported JWK/i);
+  });
+});
+
+describe("returnTo cannot leave our own origin", () => {
+  const APP = "https://my.app";
+  /** Drive the REAL route and read where it actually sends the browser. */
+  async function where(returnTo: string) {
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl, minRefetchIntervalMs: 0 });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+
+    const login = await app.request(`${APP}/login?returnTo=${encodeURIComponent(returnTo)}`);
+    const tx = login.headers.get("set-cookie")!.split(";")[0]!;
+    const authorize = new URL(login.headers.get("location")!);
+    idp.echo(authorize.searchParams.get("nonce")!);
+
+    const cb = await app.request(`${APP}/callback?` + new URLSearchParams({
+      code: "c", state: authorize.searchParams.get("state")!,
+    }), { headers: { cookie: tx } });
+
+    // Resolve it the way a browser would, rather than comparing strings.
+    return new URL(cb.headers.get("location")!, APP).href;
+  }
+
+  // Every one of these passed the old startsWith() guard except `//evil.dk`.
+  test.each([
+    ["//evil.dk"], ["/\\evil.dk"], ["/\\/evil.dk"], ["/\\\\evil.dk"],
+    ["//\\evil.dk"], ["/.\\/evil.dk"], ["/..//evil.dk"], ["/../..//evil.dk"],
+    ["/a/../..//evil.dk"], ["https://evil.dk"],
+  ])("%s never leaves the app's origin", async (hostile) => {
+    expect(await where(hostile)).toMatch(new RegExp(`^${APP}/`));
+  });
+
+  test("NEGATIVE CONTROL — an ordinary path still works", async () => {
+    // Without this, a guard that rejected EVERYTHING would pass every case
+    // above. That is a different outage, not a fix.
+    expect(await where("/konto")).toBe(`${APP}/konto`);
+    expect(await where("/konto?a=1#b")).toBe(`${APP}/konto?a=1#b`);
+  });
+});
+
+/* ── the message must describe the STATE, not the cache — F084.50 ────────── */
+
+describe("the refusal tells a consumer what to DO, and carries the number that decides", () => {
+  async function messageFor(ageMs: number) {
+    let clock = 1_000_000;
+    const cache = createJwksCache({
+      jwksUri: "https://id.broberg.ai/jwks",
+      minRefetchIntervalMs: 10_000,
+      now: () => clock,
+      fetchImpl: (async () => Response.json({ keys: [] })) as unknown as typeof fetch,
+    });
+    await cache.getKey("first", "RS256").catch(() => {}); // spends the one allowed fetch
+    clock += ageMs;                                       // the key set is now this old
+    const err = await cache.getKey("forged", "RS256").then(() => null, (e: Error) => e);
+    return err!.message;
+  }
+
+  test("it carries the key set's AGE — the exact number, not the word 'ms'", async () => {
+    // helpdesk's own measurement against the live issuer read "2ms ago", and
+    // that number is what tells a caller which state they are in.
+    expect(await messageFor(2)).toContain("fetched 2ms ago");
+    expect(await messageFor(7_431)).toContain("fetched 7431ms ago");
+  });
+
+  test("it says what the STATE is and what to do about it", async () => {
+    const m = await messageFor(2);
+    expect(m).toMatch(/not signed by\s+this issuer/);
+    expect(m).toMatch(/reject it/);
+  });
+
+  test("it never says 'retry shortly' — transient advice on a state that does not improve", async () => {
+    // The defect helpdesk found, asserted on the thrown error rather than by
+    // grepping the source: a grep cannot tell which branch ran.
+    expect(await messageFor(2)).not.toMatch(/retry shortly/i);
+    expect(await messageFor(9_999)).not.toMatch(/retry shortly/i);
+  });
+
+  test("HELPDESK'S SCENARIO — a freshly fetched set without the kid points at REJECT", async () => {
+    // The measurement that found the bug, kept so it can go red again.
+    const m = await messageFor(2);
+    expect(m).toContain("reject it");
+    expect(m).not.toMatch(/retry/i);
   });
 });

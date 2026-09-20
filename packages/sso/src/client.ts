@@ -152,6 +152,32 @@ function invalidClientHint(error: string | undefined, weSentASecret: boolean): s
     : " — we sent NO client_secret, so this client is likely registered as CONFIDENTIAL (set SSO_CLIENT_SECRET to the value it was registered with).";
 }
 
+/**
+ * The algorithms an ID token may be signed with. Asymmetric only, and stated
+ * HERE rather than inferred from the token.
+ *
+ * ── WHY THIS LIST EXISTS WHEN NOTHING WAS EXPLOITABLE WITHOUT IT ──────────
+ *
+ * `alg` is read from the token's own protected header — that is, from whoever
+ * sent it. Before this list, it was handed to importJWK and jwtVerify was
+ * called with no restriction at all. Both classic forgeries were built and run
+ * against this client in the security review of 2026-09-20:
+ *
+ *   HS256, signed with the PUBLIC key as the HMAC secret   → rejected
+ *   alg: none                                              → rejected
+ *   control: a genuine RS256 token                         → accepted
+ *
+ * So the package was NOT exploitable. But read the rejection: both failed with
+ * `JOSENotSupported: Invalid or unsupported JWK "alg"`, thrown inside jose's
+ * key import because an RSA JWK cannot be imported as an HMAC key. The defence
+ * was a dependency's internals, not ours — it would move on a minor upgrade, or
+ * the day an issuer publishes a symmetric key, and NOTHING here would go red.
+ *
+ * A guard you cannot see is a guard you cannot keep. Now jwtVerify refuses
+ * first, and there is a test that fails if this list is widened.
+ */
+const ALLOWED_ALGS = ["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512"];
+
 export function createSsoClient(
   config: SsoConfig,
   options: CreateSsoClientOptions = {},
@@ -208,7 +234,7 @@ export function createSsoClient(
     const { payload } = await jwtVerify(
       idToken,
       async () => cache.getKey(header.kid!, header.alg ?? "RS256"),
-      { issuer: config.issuer, audience: config.clientId },
+      { issuer: config.issuer, audience: config.clientId, algorithms: ALLOWED_ALGS },
     );
 
     if (opts.nonce !== undefined && payload.nonce !== opts.nonce) {

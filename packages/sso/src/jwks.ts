@@ -190,9 +190,25 @@ export function createJwksCache(options: JwksCacheOptions): JwksCache {
       if (!jwk) {
         const sinceLast = now() - lastFetchAt;
         if (sinceLast < minRefetchIntervalMs) {
+          // The wording matters as much as the class, and this sentence is
+          // helpdesk's, not mine. The old one said "Refusing to refetch — retry
+          // shortly": transient ADVICE on a state that does not improve by
+          // waiting, which literally instructs a consumer to do the thing the
+          // split exists to prevent. It described what the CACHE did; a caller
+          // needs to know what the STATE is.
+          //
+          // It carries the AGE because that is the number that decides. Their
+          // measurement against the live issuer showed a key set 2ms old — we
+          // had just looked, and the kid was not there. That is evidence of a
+          // forgery, not of ignorance. Only a rotation inside the floor can
+          // make this a false negative, and the age is what lets a caller see
+          // which case it is standing in.
           throw new JwksUnavailableError(
-            `no signing key with kid ${kid}, and the key set was refreshed ${sinceLast}ms ago ` +
-              `(floor is ${minRefetchIntervalMs}ms). Refusing to refetch — retry shortly.`,
+            `kid ${kid} is not in the key set we hold, fetched ${sinceLast}ms ago ` +
+              `(we do not ask the issuer again within ${minRefetchIntervalMs}ms). ` +
+              `A key set this fresh that lacks the kid means the token was not signed by ` +
+              `this issuer — reject it. Only a key rotation within the last ` +
+              `${minRefetchIntervalMs}ms could make that wrong.`,
           );
         }
         await refresh();
