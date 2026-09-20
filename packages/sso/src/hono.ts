@@ -61,6 +61,15 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
   const loginPath = options.loginPath ?? "/auth";
   const defaultReturnTo = options.defaultReturnTo ?? "/";
   const txCookie = `${config.cookieName}_tx`;
+  /**
+   * The ID token, kept ONLY so logout can prove who is leaving.
+   *
+   * Its own cookie rather than a field on SessionPayload, for three reasons:
+   * that type is public and deliberately small (session.ts says why), a JWT is
+   * ~1 kB that would otherwise ride along on every single request to the app,
+   * and the two are cleared at different moments.
+   */
+  const idTokenCookie = `${config.cookieName}_idt`;
 
   const app = new Hono();
 
@@ -121,6 +130,19 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
         secure: isSecure(c),
       }),
     );
+    // The logout hint. Without it the issuer MUST ask the user to confirm —
+    // that is RP-initiated logout per spec, and the plugin says so itself
+    // ("User confirmation is required to complete logout"). The result was an
+    // unstyled English confirmation page with a bare browser button in the
+    // middle of our own product.
+    c.header(
+      "Set-Cookie",
+      cookieHeader(idTokenCookie, await signValue(result.idToken, config.cookieSecret), {
+        maxAge: config.sessionMaxAge,
+        secure: isSecure(c),
+      }),
+      { append: true },
+    );
     // Clear the transaction cookie: it has done its job, and a replayed one is
     // only ever useful to someone who should not have it.
     c.header(
@@ -132,15 +154,30 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
   });
 
   app.get("/logout", async (c) => {
+    // Read the hint BEFORE clearing, obviously — but note what happens when it
+    // is absent: a session minted by 0.1.0 has no such cookie, and that session
+    // is still live in every app that upgrades. So a missing hint falls back to
+    // the old behaviour (the issuer asks) rather than throwing. The upgrade path
+    // is the one that fails in production; it gets its own test.
+    const idTokenHint = await verifyValue(
+      readCookie(c.req.header("cookie"), idTokenCookie),
+      config.cookieSecret,
+    );
+
     c.header(
       "Set-Cookie",
       cookieHeader(config.cookieName, "", { maxAge: 0, secure: isSecure(c) }),
     );
-    // Local cookie cleared FIRST, then central logout. If the redirect to BID
+    c.header(
+      "Set-Cookie",
+      cookieHeader(idTokenCookie, "", { maxAge: 0, secure: isSecure(c) }),
+      { append: true },
+    );
+    // Local cookies cleared FIRST, then central logout. If the redirect to BID
     // fails or the user closes the tab, the worst case is "signed out here but
     // not everywhere" — never the reverse, which would leave this app trusting
     // a session the user believes is gone.
-    return c.redirect(await client.logoutUrl(), 302);
+    return c.redirect(await client.logoutUrl(idTokenHint ? { idTokenHint } : {}), 302);
   });
 
   /** Reads the session and puts it on the context. Never blocks. */

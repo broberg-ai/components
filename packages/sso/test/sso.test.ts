@@ -23,6 +23,7 @@ import {
   JwksUnknownKeyError,
 } from "../src/jwks.js";
 import { signSession, verifySession, signValue, verifyValue } from "../src/session.js";
+import { ssoRoutes } from "../src/hono.js";
 
 const ISSUER = "https://id.broberg.ai";
 const CLIENT_ID = "test-app";
@@ -677,5 +678,117 @@ describe("warm-up moves the cold window to boot", () => {
     served = [jwkB]; // BID rotates; key-old is revoked
     await expect(cache.getKey("key-new", "RS256")).resolves.toBeDefined();
     await expect(cache.getKey("key-old", "RS256")).rejects.toThrow(JwksUnknownKeyError);
+  });
+});
+
+/* ── logout carries the hint — F084.50 ───────────────────────────────────── */
+
+/**
+ * These drive the Hono adapter in-process (`app.request`), which had no tests
+ * at all before this card. No browser is involved, so this is not the kind of
+ * verification Lens owns — it is a route returning headers.
+ */
+describe("logout proves who is leaving, so the issuer need not ask", () => {
+  /** Run login → callback and hand back the cookies the browser would now hold. */
+  async function signIn() {
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), {
+      fetchImpl: idp.fetchImpl,
+      minRefetchIntervalMs: 0,
+    });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+
+    const login = await app.request("https://app.example/login");
+    const txCookie = login.headers.get("set-cookie")!;
+    const authorize = new URL(login.headers.get("location")!);
+    idp.echo(authorize.searchParams.get("nonce")!);
+
+    const cb = await app.request("https://app.example/callback?" + new URLSearchParams({
+      code: "the-code",
+      state: authorize.searchParams.get("state")!,
+    }), { headers: { cookie: txCookie.split(";")[0]! } });
+
+    return { app, cookies: cb.headers.getSetCookie() };
+  }
+
+  const cookiePair = (raw: string) => raw.split(";")[0]!;
+  /** Throws rather than returning undefined: a helper that can hand back
+   *  `undefined` turns "the cookie was never set" into a silently skipped
+   *  assertion, which is the failure this whole card is about. */
+  const named = (cookies: string[], name: string): string => {
+    const hit = cookies.find((c) => c.startsWith(`${name}=`));
+    if (!hit) throw new Error(`no Set-Cookie named ${name} in: ${cookies.join(" | ")}`);
+    return hit;
+  };
+
+  test("the ID token is kept in its OWN HttpOnly cookie, read off the raw header", async () => {
+    const { cookies } = await signIn();
+    const idt = named(cookies, "bid_session_idt");
+
+    expect(idt).toContain("HttpOnly");
+    // And it is NOT empty — an absent value and a cleared cookie look alike.
+    expect(cookiePair(idt).split("=")[1]!.length).toBeGreaterThan(20);
+  });
+
+  test("GET /logout sends id_token_hint, STRICTLY equal to what was stored", async () => {
+    const { app, cookies } = await signIn();
+    const idt = named(cookies, "bid_session_idt");
+    // What the browser would send back.
+    const sent = cookiePair(idt);
+    const storedJwt = await verifyValue(sent.split("=")[1]!, ENV.SSO_COOKIE_SECRET!);
+
+    const out = await app.request("https://app.example/logout", { headers: { cookie: sent } });
+    const hint = new URL(out.headers.get("location")!).searchParams.get("id_token_hint");
+
+    // Strict equality on the parsed QUERY PARAMETER. `toContain` on the URL
+    // would pass on a truncated token, or on one with the old value still
+    // attached — "contains" is a weaker predicate than it reads, and it fails
+    // in the green direction.
+    expect(hint).toBe(storedJwt);
+  });
+
+  test("logout clears BOTH cookies, each asserted by name", async () => {
+    const { app, cookies } = await signIn();
+    const out = await app.request("https://app.example/logout", {
+      headers: { cookie: cookiePair(named(cookies, "bid_session_idt")) },
+    });
+    const cleared = out.headers.getSetCookie();
+
+    expect(named(cleared, "bid_session")).toContain("Max-Age=0");
+    expect(named(cleared, "bid_session_idt")).toContain("Max-Age=0");
+  });
+
+  test("UPGRADE PATH — a 0.1.0 session has no hint cookie and must still log out", async () => {
+    // This is the one that fails in production: every session minted before the
+    // upgrade is live and carries no such cookie. Throwing here would break
+    // logout for every existing user on the day we ship.
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), {
+      fetchImpl: idp.fetchImpl,
+      minRefetchIntervalMs: 0,
+    });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+
+    const out = await app.request("https://app.example/logout"); // no cookies at all
+    expect(out.status).toBe(302);
+    const url = new URL(out.headers.get("location")!);
+    expect(url.pathname).toBe("/oauth2/end-session");
+    expect(url.searchParams.get("id_token_hint")).toBeNull();
+  });
+
+  test("a FORGED hint cookie is dropped rather than forwarded", async () => {
+    // The cookie is signed; an unsigned or tampered one must not become a hint
+    // we hand to the issuer.
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), {
+      fetchImpl: idp.fetchImpl,
+      minRefetchIntervalMs: 0,
+    });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+
+    const out = await app.request("https://app.example/logout", {
+      headers: { cookie: "bid_session_idt=not-a-signed-value" },
+    });
+    expect(new URL(out.headers.get("location")!).searchParams.get("id_token_hint")).toBeNull();
   });
 });
