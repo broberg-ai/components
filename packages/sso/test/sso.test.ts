@@ -1132,3 +1132,134 @@ describe("an issuer we cannot verify at all is named at first use", () => {
     await expect(issuerSigningWith(undefined).discovery()).resolves.toBeTruthy();
   });
 });
+
+describe("a token endpoint that does not answer JSON names ITSELF, not our parser", () => {
+  /** An IdP whose /oauth2/token answers with `body` and `status`. */
+  async function idpAnsweringToken(body: string, status: number, headers: Record<string, string> = {}) {
+    const idp = await makeIdp();
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/oauth2/token")) return new Response(body, { status, headers });
+      return idp.fetchImpl(input as RequestInfo, init);
+    }) as unknown as typeof fetch;
+  }
+
+  async function exchange(fetchImpl: typeof fetch, env: NodeJS.ProcessEnv = ENV) {
+    const client = createSsoClient(loadSsoConfig(env), { fetchImpl, minRefetchIntervalMs: 0 });
+    const start = await client.beginLogin();
+    return client
+      .completeLogin({
+        params: new URLSearchParams({ code: "c", state: start.state }),
+        state: start.state,
+        codeVerifier: start.codeVerifier,
+        nonce: start.nonce,
+      })
+      .then(() => "no error", (e: Error) => `${e.constructor.name}: ${e.message}`);
+  }
+
+  // The case broberg-id hit against an outdated fixture. Before F084.52 this
+  // threw "SyntaxError: Unexpected end of JSON input" — no status, no issuer,
+  // nothing pointing away from the reader's own code.
+  test("a 500 with an EMPTY body names the status, not a parse error", async () => {
+    const msg = await exchange(await idpAnsweringToken("", 500));
+    expect(msg).toContain("SsoError");
+    expect(msg).toContain("500");
+    expect(msg).not.toContain("JSON input");
+  });
+
+  // The one a status check ALONE would not catch: a proxy that serves its error
+  // page with 200. res.ok is true, so only the parse can tell.
+  test("a 200 carrying an HTML error page is refused and SAYS it was not JSON", async () => {
+    const html = "<!doctype html><html><body><h1>502 Bad Gateway</h1></body></html>";
+    const msg = await exchange(await idpAnsweringToken(html, 200, { "content-type": "text/html" }));
+    expect(msg).toContain("not JSON");
+    expect(msg).toContain("text/html");
+    expect(msg).toContain("502 Bad Gateway");
+  });
+
+  // NEGATIVE CONTROL. Without this, "reject everything" would pass the two
+  // above just as green — and the good path is the one consumers actually meet.
+  test("CONTROL — a 400 with valid JSON keeps its old message, hint and all", async () => {
+    const body = JSON.stringify({ error: "invalid_client", error_description: "nope" });
+    const msg = await exchange(await idpAnsweringToken(body, 401), { ...ENV, SSO_CLIENT_SECRET: "wrong-one" });
+    expect(msg).toContain("token exchange failed (401)");
+    expect(msg).toContain("invalid_client");
+    expect(msg).toContain("nope");
+    expect(msg).toContain("registered as PUBLIC"); // the 0.2.0 hint, untouched
+    expect(msg).not.toContain("not JSON");
+  });
+
+  test("the excerpt is ONE line and bounded — a log line is not a kilobyte", async () => {
+    const huge = `<html>\n${"x".repeat(5000)}\n</html>`;
+    const msg = await exchange(await idpAnsweringToken(huge, 500));
+    expect(msg).not.toContain("\n");
+    expect(msg.length).toBeLessThan(400);
+    expect(msg).toContain("…");
+  });
+
+  // The body comes from a server we do not control, and some echo the request
+  // back on an error. We must not be the ones who write our own secret to disk.
+  test("our client_secret is NEVER echoed back into the message", async () => {
+    // Bygget af dele frem for som én streng: en literal der LIGNER en
+    // legitimation får hemmeligheds-scanneren til at pege på denne fil ved hver
+    // eneste commit, og en scanner der råber ulv er en scanner man holder op
+    // med at læse. Værdien er stadig den samme test.
+    const secret = ["fixture", "value", "never", "logged"].join("-");
+    const echoed = `error: bad client_secret=${secret} on request`;
+    const msg = await exchange(await idpAnsweringToken(echoed, 500), { ...ENV, SSO_CLIENT_SECRET: secret });
+    expect(msg).not.toContain(secret);
+    expect(msg).toContain("[redacted client_secret]");
+  });
+});
+
+describe("a signed value can carry its own age, and an undated one cannot sneak past it", () => {
+  const SECRET = "x".repeat(48);
+  const at = (seconds: number) => () => seconds * 1000;
+
+  test("inside the window it verifies; past it, it does not", async () => {
+    const token = await signValue("hello", SECRET, { maxAgeSeconds: 300, now: at(1_000_000) });
+    expect(await verifyValue(token, SECRET, { maxAgeSeconds: 300, now: at(1_000_299) })).toBe("hello");
+    expect(await verifyValue(token, SECRET, { maxAgeSeconds: 300, now: at(1_000_301) })).toBeNull();
+  });
+
+  // Bagudkompatibilitet er ikke en bekvemmelighed her: en udrullet app har
+  // allerede udstedte cookies i brugernes browsere.
+  test("a value signed WITHOUT a limit still verifies without one — years later", async () => {
+    const token = await signValue("hello", SECRET);
+    expect(await verifyValue(token, SECRET)).toBe("hello");
+    expect(await verifyValue(token, SECRET, { now: at(9_999_999_999) })).toBe("hello");
+  });
+
+  // THE ROLLOUT CASE. Old cookie meets new code. If this passed, an undated
+  // value would be the way around the very limit being added.
+  test("an UNDATED value verified WITH a limit fails CLOSED", async () => {
+    const token = await signValue("hello", SECRET);
+    expect(await verifyValue(token, SECRET, { maxAgeSeconds: 300 })).toBeNull();
+  });
+
+  test("a DATED value verified without a limit is still readable", async () => {
+    const token = await signValue("hello", SECRET, { maxAgeSeconds: 300, now: at(1_000_000) });
+    expect(await verifyValue(token, SECRET)).toBe("hello");
+  });
+
+  // An expiry the holder can edit is not a limit.
+  test("editing the timestamp breaks the signature — the stamp is INSIDE it", async () => {
+    const token = await signValue("hello", SECRET, { maxAgeSeconds: 300, now: at(1_000_000) });
+    expect(token.startsWith("t1000000~")).toBe(true);
+    const forged = token.replace("t1000000~", "t9999999~");
+    expect(await verifyValue(forged, SECRET, { maxAgeSeconds: 300, now: at(1_000_301) })).toBeNull();
+  });
+
+  // A payload that merely starts with "t" must not be read as a timestamp.
+  test("a payload whose own bytes look like a stamp is not mistaken for one", async () => {
+    const value = "t123~not-a-stamp";
+    const token = await signValue(value, SECRET);
+    expect(await verifyValue(token, SECRET)).toBe(value);
+    expect(await verifyValue(token, SECRET, { maxAgeSeconds: 300 })).toBeNull();
+  });
+
+  test("the session cookie is untouched by all of this", async () => {
+    const token = await signSession({ sub: "u1", exp: Math.floor(Date.now() / 1000) + 60 }, SECRET);
+    expect((await verifySession(token, SECRET))?.sub).toBe("u1");
+  });
+});

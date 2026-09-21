@@ -73,6 +73,24 @@ jobs:
         working-directory: packages/sso
         run: node scripts/run-suite.mjs "cannot leave our own origin" 11
 
+      # F084.52 — a token endpoint that answers with something other than JSON.
+      # Counted here because the failure it guards against is INVISIBLE: the old
+      # code threw a raw SyntaxError, which looks like a bug in the consumer's
+      # code rather than an outage at the issuer. And BID's own guide tells every
+      # consumer to swallow the throw and redirect, so this message is the only
+      # diagnosis anyone gets.
+      - name: A non-JSON token response blames the issuer, not our parser (must actually run)
+        working-directory: packages/sso
+        run: node scripts/run-suite.mjs "does not answer JSON" 5
+
+      # F084.53 — the login-transaction cookie's lifetime is now enforced by the
+      # SERVER, not only by the browser's Max-Age. The load-bearing case is the
+      # rollout one: an undated value (minted by an older build) verified with a
+      # limit must fail CLOSED, or an undated value is the way around the limit.
+      - name: A signed value carries its own age, and an undated one fails closed (must actually run)
+        working-directory: packages/sso
+        run: node scripts/run-suite.mjs "carry its own age" 7
+
       # The shipped artefact + a consumer's dependency tree. Every check inside
       # carries a positive control and refuses to pass on zero files read.
       - name: Security gate — shipped tarball and consumer tree

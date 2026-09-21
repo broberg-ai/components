@@ -60,16 +60,50 @@ async function hmacKey(secret: string) {
  * Two different lifetimes wanted two different envelopes, not one envelope with
  * a sentinel in it.
  */
-export async function signValue(value: string, secret: string): Promise<string> {
-  const body = b64url(enc.encode(value));
+export async function signValue(
+  value: string,
+  secret: string,
+  // `now` is injectable for the same reason verifySession's is: an age check
+  // tested by waiting is a slow test that fails on a loaded machine.
+  options: { maxAgeSeconds?: number; now?: () => number } = {},
+): Promise<string> {
+  const payload = b64url(enc.encode(value));
+  // The timestamp goes INSIDE the signed body, never beside it. An expiry the
+  // holder can edit is not a limit. `~` is outside the base64url alphabet, so
+  // `t<digits>~` cannot be confused with a payload that merely starts with "t".
+  const body =
+    options.maxAgeSeconds === undefined
+      ? payload
+      : `t${Math.floor((options.now ?? Date.now)() / 1000)}~${payload}`;
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", await hmacKey(secret), enc.encode(body)));
   return `${body}.${b64url(sig)}`;
 }
 
-/** Verify the SIGNATURE only, returning the original string. No expiry notion. */
+const STAMPED = /^t(\d+)~(.*)$/s;
+
+/**
+ * Verify the signature, and — only if you ask — the age (F084.53).
+ *
+ * WITHOUT `maxAgeSeconds` this is signature-only, exactly as before. That is
+ * not laziness: the login-transaction cookie has lived on its browser `Max-Age`
+ * since the package shipped, and making the check mandatory would invalidate
+ * every cookie already in a user's browser — an instant logout for everyone.
+ *
+ * WITH `maxAgeSeconds`, a value the SERVER can date is refused once it is too
+ * old. Reported by broberg-id: `Max-Age` is the client's claim about when a
+ * cookie stopped being valid, and a client may simply not make that claim, so
+ * the server used to accept a correctly-signed transaction value forever.
+ *
+ * THE MIXED CASE IS THE ONE THAT DECIDES WHETHER THIS IS WORTH ANYTHING: a
+ * value signed by the OLD code (no timestamp) verified by the NEW code (with a
+ * limit). That happens during every rollout, and it FAILS CLOSED — otherwise an
+ * undated value would be the way around the very limit being added, and the
+ * limit would only apply to those not trying to avoid it.
+ */
 export async function verifyValue(
   token: string | undefined | null,
   secret: string,
+  options: { maxAgeSeconds?: number; now?: () => number } = {},
 ): Promise<string | null> {
   if (!token) return null;
   const dot = token.lastIndexOf(".");
@@ -83,7 +117,14 @@ export async function verifyValue(
       enc.encode(body),
     );
     if (!ok) return null;
-    return new TextDecoder().decode(fromB64url(body));
+
+    const stamped = STAMPED.exec(body);
+    if (options.maxAgeSeconds !== undefined) {
+      if (!stamped) return null; // undated + a limit asked for → fail CLOSED
+      const issuedAt = Number(stamped[1]);
+      if ((options.now ?? Date.now)() / 1000 - issuedAt > options.maxAgeSeconds) return null;
+    }
+    return new TextDecoder().decode(fromB64url(stamped?.[2] ?? body));
   } catch {
     return null;
   }

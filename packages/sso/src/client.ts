@@ -147,6 +147,25 @@ export interface CreateSsoClientOptions {
  *
  * It states our SIDE, never the value. A secret must not reach a log line.
  */
+/**
+ * A fragment of a foreign response body, safe to put in a log line (F084.52).
+ *
+ * Three things it has to survive, and each one has bitten somebody:
+ *
+ *  · LENGTH — an HTML error page is kilobytes. A log line is not.
+ *  · NEWLINES — a multi-line excerpt breaks every log aggregator that treats a
+ *    line as a record, and the useful half is the part that scrolled away.
+ *  · OUR OWN SECRET — the body comes from a server we do not control, and some
+ *    servers echo the request back on an error. If our client_secret is in
+ *    there, we must not be the ones who write it to disk.
+ */
+function excerptForLog(raw: string, clientSecret: string | undefined): string {
+  let text = raw.replace(/\s+/g, " ").trim();
+  if (clientSecret) text = text.split(clientSecret).join("[redacted client_secret]");
+  if (text === "") return "(empty body)";
+  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+}
+
 function invalidClientHint(error: string | undefined, weSentASecret: boolean): string {
   if (error !== "invalid_client") return "";
   return weSentASecret
@@ -406,13 +425,48 @@ export function createSsoClient(
         }),
       });
 
-      const body = (await res.json()) as {
+      // STATUS FIRST, PARSE SECOND — and the order IS the fix (F084.52).
+      //
+      // This used to be `await res.json()`, which runs BEFORE the `if (!res.ok)`
+      // below. So when the issuer answered with something that is not JSON — an
+      // empty 500 body, an HTML error page from a proxy, a gateway timeout — the
+      // parse threw `SyntaxError: Unexpected end of JSON input` and the careful
+      // message underneath was never reached. In the one case it exists for.
+      //
+      // The cost is not cosmetic. BID's own public guide (id.broberg.ai/docs §4b)
+      // tells every consumer to wrap completeLogin in try/catch and redirect
+      // instead of returning 500, so this string is ALL a consumer has: the user
+      // sees a redirect, and the diagnosis lives only in what they logged. A line
+      // reading "Unexpected end of JSON input" sends that reader into their own
+      // code to look for a fault that is in the server.
+      //
+      // Reported by broberg-id, who measured production first: a real
+      // `POST /oauth2/token` with a bad code answers 400 + JSON, so the good path
+      // was never affected. This only fires against a broken or outdated issuer —
+      // which is exactly where somebody is already debugging.
+      //
+      // NOT a try/catch around res.json(): that catches the throw and still loses
+      // res.status, which is the one fact that says WHICH end is at fault.
+      const raw = await res.text();
+      let body: {
         id_token?: string;
         access_token?: string;
         refresh_token?: string;
         error?: string;
         error_description?: string;
       };
+      try {
+        body = raw.trim() === "" ? {} : (JSON.parse(raw) as typeof body);
+      } catch {
+        throw new SsoError(
+          `token exchange failed (${res.status}): the response body is not JSON` +
+            `${res.headers.get("content-type") ? ` (content-type: ${res.headers.get("content-type")})` : ""}` +
+            ` — ${excerptForLog(raw, config.clientSecret)}`,
+        );
+      }
+      // An EMPTY body parses to {} and falls through to the check below, which
+      // reports the status and "no id_token in response" — right for a 500 with
+      // no body, and right for a 200 that returned nothing.
       if (!res.ok || !body.id_token) {
         throw new SsoError(
           `token exchange failed (${res.status}): ${body.error ?? "no id_token in response"}` +

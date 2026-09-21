@@ -28,6 +28,53 @@ decided 12 hours plus a 30-minute inactivity cut for anything holding personal
 or health data. The default is a normal-app default, not a safe-for-everything
 one.
 
+## What the token exchange tells you when it fails (0.2.3)
+
+`completeLogin` throws `SsoError` with a message written to stand ALONE in a log
+line — because that is usually all you have. BID's own guide tells you to catch
+the throw and redirect rather than return a 500, so the user sees a redirect and
+the only diagnosis is what you logged.
+
+```
+token exchange failed (400): invalid_grant — invalid code
+token exchange failed (502): the response body is not JSON (content-type: text/html) — <!doctype html> …
+```
+
+The second form is new in 0.2.3. Before it, a non-JSON response threw a raw
+`SyntaxError: Unexpected end of JSON input` — no status, nothing naming the
+issuer — which sends the reader into their own code to look for a fault that is
+in the server. The excerpt is one line, capped at 200 characters, and your own
+`client_secret` is redacted out of it if the server echoes it back.
+
+## Cookie lifetimes: the server's opinion, not only the browser's (0.2.3)
+
+`signValue` / `verifyValue` take an optional `maxAgeSeconds`:
+
+```ts
+const cookie = await signValue(value, secret, { maxAgeSeconds: 300 });
+const back   = await verifyValue(cookie, secret, { maxAgeSeconds: 300 }); // null once too old
+```
+
+Without it, behaviour is unchanged: signature only, lifetime enforced solely by
+the cookie's `Max-Age`. That default is deliberate — making the check mandatory
+would invalidate every cookie already sitting in a user's browser.
+
+Three cases worth knowing:
+
+| signed | verified | result |
+|---|---|---|
+| without a limit | without a limit | valid, as before |
+| with a limit | with a limit | valid inside the window, `null` past it |
+| **without a limit** | **with a limit** | **`null` — fails closed** |
+
+The third is the rollout case, and it fails closed on purpose: otherwise a value
+minted by an older build would be the way around the limit you just added.
+
+The timestamp is inside the signed body, so it cannot be edited by whoever holds
+the cookie. The package's own Hono adapter now passes `maxAgeSeconds` on the
+login-transaction cookie, with the same constant that sets its `Max-Age`.
+
+
 ## Mount it (Hono)
 
 ```ts

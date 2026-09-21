@@ -140,7 +140,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     });
     c.header(
       "Set-Cookie",
-      cookieHeader(txCookie, await signValue(tx, config.cookieSecret), {
+      cookieHeader(txCookie, await signValue(tx, config.cookieSecret, { maxAgeSeconds: TRANSACTION_MAX_AGE }), {
         maxAge: TRANSACTION_MAX_AGE,
         secure: isSecure(c),
       }),
@@ -268,7 +268,10 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
  * used `exp: 0`, which the expiry check rejected every time.
  */
 async function parseTransaction(raw: string | undefined, secret: string) {
-  const body = await verifyValue(raw, secret);
+  // The SAME number the cookie was minted with (F084.53). Max-Age is the
+  // browser's promise about when it stopped sending this; the server now has
+  // its own opinion, and one constant defines both so they cannot drift.
+  const body = await verifyValue(raw, secret, { maxAgeSeconds: TRANSACTION_MAX_AGE });
   if (body === null) return null;
   try {
     const tx = JSON.parse(body) as {
