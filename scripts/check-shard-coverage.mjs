@@ -35,8 +35,17 @@ const SHARD_FILE = "scripts/test-shards.json";
 // a check that cries wolf is a check that gets deleted.
 const REACH_FLOOR = 10;
 
+// THE WRONG-CWD CASE IS THE ONE THIS GUARD EXISTS FOR, and it used to be the one
+// it could not report: readdirSync throws ENOENT with a raw Node stack, so the
+// reader got a trace instead of the sentence below that asks whether they are in
+// the repo root. Found by reviewing this file's own diff (F080.5), and it is the
+// same shape the file is about — a check whose message never reaches the person
+// it was written for. Absent and empty are BOTH reach failures, and they are
+// reported as such rather than one being an error and the other a finding.
+const entries = existsSync(PACKAGES_DIR) ? readdirSync(PACKAGES_DIR) : [];
+
 const withTests = [];
-for (const dir of readdirSync(PACKAGES_DIR)) {
+for (const dir of entries) {
   const manifest = join(PACKAGES_DIR, dir, "package.json");
   if (!existsSync(manifest)) continue;
   const pkg = JSON.parse(readFileSync(manifest, "utf8"));
@@ -46,10 +55,12 @@ for (const dir of readdirSync(PACKAGES_DIR)) {
 const problems = [];
 
 if (withTests.length < REACH_FLOOR) {
+  const why = existsSync(PACKAGES_DIR)
+    ? `found only ${withTests.length} packages with a test script under ${PACKAGES_DIR}/`
+    : `there is no ${PACKAGES_DIR}/ directory here at all`;
   problems.push(
-    `REACH CONTROL FAILED: found only ${withTests.length} packages with a test script under ${PACKAGES_DIR}/ ` +
-      `(floor is ${REACH_FLOOR}). Every other check below would pass on an empty list, so this run proves nothing. ` +
-      `Are you in the repo root?`,
+    `REACH CONTROL FAILED: ${why} (floor is ${REACH_FLOOR}). Every other check below would pass ` +
+      `on an empty list, so this run proves nothing. Are you in the repo root?`,
   );
 }
 
