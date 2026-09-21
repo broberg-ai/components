@@ -279,10 +279,3 @@ describe("F068.3 — the universe includes files that are not committed yet", ()
     expect(r.ok).toBe(true);
   });
 });
-
-// F080.5 AC#1 — MIDLERTIDIG, ruller tilbage straks efter beviset.
-// Formålet er at gøre ÉN pakkes test rød og se at udgivelsen bliver blokeret.
-import { it as itProof, expect as expectProof } from "vitest";
-itProof("F080.5 gate-proof: DELIBERATELY RED", () => {
-  expectProof(1).toBe(2);
-});
