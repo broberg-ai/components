@@ -6,14 +6,40 @@ name: test
 # Why this file exists (F080, 2026-08-28): it did not, and nothing replaced it.
 # publish.yml has 38 jobs and every one of them runs `pnpm test` with
 # `working-directory: packages/<the-one-being-released>`, so a release has never
-# run another package's tests. The root script — check-internal-pins ·
-# test-fly-deploy-workflow · turbo run test across 39 packages — was something
-# only a person ran by hand, when they remembered.
+# run another package's tests. The root script was something only a person ran
+# by hand, when they remembered.
 #
 # What that cost: @broberg/cron went red because cronjobs.webhouse.net improved
 # one sentence in its published API contract. Nothing in this repo had changed.
 # main was red, every publish in the workspace was blocked by it, and nothing
 # said so — it was found by running the root script by hand before a release.
+#
+# ── WHY THIS IS FOUR JOBS AND NOT ONE (F080.5, 2026-09-21) ───────────────
+#
+# It used to be one job, and it took 11 min 38 s of a ~15 min release. Measured
+# with `turbo run test --force --summarize`:
+#
+#     build   40 tasks   13.2 min CPU
+#     test    40 tasks    9.6 min CPU
+#                        ─────────────
+#                        22.8 min CPU
+#
+# 22.8 min of CPU work on a TWO-CORE runner has a floor of 11.4 min. Observed:
+# 11:38. So the gate was never waiting on anything — it had more work than
+# cores, and no amount of trimming a slow suite would have helped.
+#
+# ⚠️ THE SPLIT ONLY HELPS BECAUSE EACH SHARD GETS ITS OWN MACHINE. `strategy.
+# matrix` is what buys the extra cores. Splitting work INSIDE one runner would
+# be pure overhead — "we shard now" sounds like an optimisation regardless, so
+# it is written down here rather than assumed.
+#
+# It also only works because THIS repo's dependency graph is flat: exactly 1 of
+# 40 packages depends on a sibling (secret-scan → apikey), so a shard rebuilds
+# almost nothing another shard already built. In a repo with a deep graph the
+# same split multiplies the build cost by the number of shards, and the right
+# answer there is a shared cache FIRST. cardmem measured 7 of 12 in their repo —
+# the opposite shape. If this repo's graph ever deepens, re-read that sentence
+# before adding shards.
 #
 # ⚠️ A PR YOU DID NOT CAUSE CAN GO RED HERE, and the fix is not a revert.
 # @broberg/cron's test ends with:
@@ -40,6 +66,13 @@ on:
   # somebody fixes one of the two. A tag push does not match `branches` above, so
   # without this entry publish.yml had nothing to depend on — which is precisely
   # how @broberg/notifications 0.3.0 shipped through eleven consecutive red runs.
+  #
+  # ⚠️ AND THIS IS WHY SPLITTING INTO FOUR JOBS DID NOT WEAKEN THE GATE. A
+  # caller's `needs: gate` waits for the CALLED WORKFLOW, and a called workflow
+  # succeeds only if EVERY job inside it succeeded. So publish.yml needed no
+  # change: one red shard fails this workflow, which fails `gate`, which blocks
+  # all 38 publish jobs. That is asserted rather than assumed — see the card's
+  # AC#1, which reddens one package on a branch and shows publish not running.
   workflow_call:
 
 # A second push should not queue behind a run nobody wants any more.
@@ -48,60 +81,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  workspace:
+  # ── the 24 root scripts ────────────────────────────────────────────────
+  # Not package-specific, ~84 s, and independent of every package suite — so they
+  # run beside the shards instead of in front of them.
+  root-scripts:
     runs-on: ubuntu-latest
-    # contract-drift.mjs makes a network call; a hung connection must not hold a
-    # runner open for the default six hours.
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       # FULL HISTORY, ON PURPOSE (F081.5). The mutation-harness selector decides
       # what a push could have affected by diffing against a base commit, and the
       # default shallow clone has no `origin/main` and no previous tip to diff
       # against — so the selector would fail safe and run everything, i.e. the
-      # feature would silently do nothing. Costs seconds on a repo this size.
+      # feature would silently do nothing. This job is the one that runs the
+      # harnesses, so the depth belongs HERE and nowhere else.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Same toolchain as publish.yml — pnpm version from the root package.json
-      # "packageManager", node 22. A gate running a different toolchain than the
-      # release uses does not gate the release.
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       # F033.12 — BUN IS A TEST DEPENDENCY OF THIS REPO, not a convenience.
       # @broberg/deploy-core ships a Bun server as a string and deploys it to
-      # Fly; until now nothing ever RAN that string, which is exactly how the
-      # SPA-fallback gap survived. Its tests boot the real server, so the gate
-      # needs the runtime the artefact requires.
-      #
-      # Measured 2026-09-11: the gate went red with `spawn bun ENOENT` on a tree
-      # that was green locally — because bun is on the developer machine's PATH
-      # and was not on the runner's. A local green and a CI green were answers to
-      # two different questions, which is the distinction this repo spent the day
-      # on. publish.yml's roster job already sets bun up; the gate did not.
+      # Fly; its tests boot the real server, so the gate needs the runtime the
+      # artefact requires. Measured 2026-09-11: the gate went red with
+      # `spawn bun ENOENT` on a tree that was green locally, because bun is on
+      # the developer machine's PATH and was not on the runner's.
       - uses: oven-sh/setup-bun@v2
 
       - name: Install (workspace)
         run: pnpm install --frozen-lockfile
 
-      # Kept as two steps on purpose: a type error and a failing assertion are
-      # different problems, and one red X for both means opening the log to learn
-      # which one you have.
-      # A workflow file that does not parse registers NO triggers, so the job it
-      # describes simply never runs and nothing says so. Cheapest possible check,
-      # first, for a failure mode with no other signal.
-      - name: Workflows parse
-        run: node scripts/test-workflows-parse.mjs
-
-      - name: Typecheck (39 packages)
-        run: pnpm typecheck
-
-      # No separate build step — `turbo run test` already builds what a test needs
-      # through its task graph. A second build would double the work and blur
-      # which stage failed.
-      - name: Test (workspace)
+      - name: Root scripts (24) + shard coverage
         # `github.event.before` is in the EVENT PAYLOAD, not in the runner's
         # environment — GITHUB_EVENT_BEFORE is not a variable GitHub sets. Without
         # this line the selector never sees a real base. Measured: the first CI run
@@ -109,4 +121,71 @@ jobs:
         # while looking like the optimisation was live.
         env:
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
-        run: pnpm test
+        run: pnpm test:root
+
+  # ── typecheck ──────────────────────────────────────────────────────────
+  # Its own job, and its own red X. A type error and a failing assertion are
+  # different problems, and one red X for both means opening the log to learn
+  # which one you have (F080.1).
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck (all packages)
+        run: pnpm typecheck
+
+  # ── the shard list, read from DATA ─────────────────────────────────────
+  # The matrix comes from scripts/test-shards.json, so a new shard is added by
+  # editing data rather than this file. cardmem's form, and the reason is that a
+  # list in YAML is a list only CI can read; a list in JSON can be checked by a
+  # script that runs on every push (scripts/check-shard-coverage.mjs).
+  shards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      list: ${{ steps.read.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: echo "list=$(jq -c '[.shards[].name]' scripts/test-shards.json)" >> "$GITHUB_OUTPUT"
+
+  # ── the package suites, one machine per shard ──────────────────────────
+  packages:
+    needs: shards
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # fail-fast OFF: one red shard must not cancel the others, or a single
+      # failure hides every other failure in the same push and the next run
+      # finds a second one. The workflow still fails — see the note on
+      # workflow_call above.
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.shards.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: pnpm install --frozen-lockfile
+
+      # No separate build step — `turbo run test` already builds what a test
+      # needs through its task graph (turbo.json: test dependsOn build + ^build).
+      # A second build would double the work and blur which stage failed, and
+      # F080.4 is the record of what happens when that graph is bypassed.
+      #
+      # The runner does NOT trust turbo's exit code alone: it reads turbo's own
+      # run summary and asserts that the packages which actually ran a test task
+      # are exactly the ones this shard names. A shard that runs nothing exits 0
+      # otherwise, which is how @broberg/sso 0.2.1 shipped broken.
+      - name: Test (shard ${{ matrix.shard }})
+        run: node scripts/run-test-shard.mjs ${{ matrix.shard }}

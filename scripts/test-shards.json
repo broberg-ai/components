@@ -1,0 +1,99 @@
+{
+  "_comment": [
+    "THE SHARD LIST IS DATA, NOT YAML (F080.5). A new shard is added by editing this",
+    "file; .github/workflows/test.yml reads it and builds its matrix from it.",
+    "",
+    "WHY AN EXPLICIT LIST AND NOT AN AUTOMATIC SPLIT: an explicit list is checkable.",
+    "A new package belonging to no shard is INVISIBLE to an automatic split and would",
+    "simply never run. Here it is caught — scripts/check-shard-coverage.mjs fails when",
+    "any package with a test script is missing from this file, and it runs inside",
+    "`pnpm test`.",
+    "",
+    "WHY THE NAMES ARE NEUTRAL: the grouping is by MEASURED cost, not by theme. A",
+    "thematic name ('core', 'media') would become a lie the first time a package moves",
+    "to another bin for balance, and nobody would notice.",
+    "",
+    "weight_seconds is the measured build+test CPU time per bin (turbo run test",
+    "--force --summarize, 2026-09-21, local M1). It keeps the bins balanced and is",
+    "deliberately NOT asserted anywhere: a number that reddens the gate when a test",
+    "gets slower is a number somebody eventually deletes."
+  ],
+  "shards": [
+    {
+      "name": "bin-1",
+      "weight_seconds": 215.7,
+      "packages": [
+        "@broberg/greppable",
+        "@broberg/lens-client",
+        "@broberg/logger",
+        "@broberg/notify",
+        "@broberg/speech-dictionary",
+        "@broberg/sso"
+      ]
+    },
+    {
+      "name": "bin-2",
+      "weight_seconds": 233.4,
+      "packages": [
+        "@broberg/apikey",
+        "@broberg/event-log",
+        "@broberg/http",
+        "@broberg/lens-engine",
+        "@broberg/mail-identity",
+        "@broberg/seti-client",
+        "@broberg/theme"
+      ]
+    },
+    {
+      "name": "bin-3",
+      "weight_seconds": 233.8,
+      "packages": [
+        "@broberg/chat",
+        "@broberg/cron",
+        "@broberg/i18n",
+        "@broberg/lens",
+        "@broberg/mcp",
+        "@broberg/seti-server",
+        "@broberg/soundkit"
+      ]
+    },
+    {
+      "name": "bin-4",
+      "weight_seconds": 233.6,
+      "packages": [
+        "@broberg/auth",
+        "@broberg/config",
+        "@broberg/consent-cookie",
+        "@broberg/forms-turnstile",
+        "@broberg/gravatar",
+        "@broberg/media",
+        "@broberg/ui-controls-core"
+      ]
+    },
+    {
+      "name": "bin-5",
+      "weight_seconds": 234.6,
+      "packages": [
+        "@broberg/cmdk",
+        "@broberg/deploy-core",
+        "@broberg/mail",
+        "@broberg/media-transform",
+        "@broberg/notifications",
+        "@broberg/pwa",
+        "@broberg/sms"
+      ]
+    },
+    {
+      "name": "bin-6",
+      "weight_seconds": 215.9,
+      "packages": [
+        "@broberg/bodymap",
+        "@broberg/device-stats",
+        "@broberg/mail-core",
+        "@broberg/secret-scan",
+        "@broberg/stripe",
+        "@broberg/webpush"
+      ]
+    }
+  ]
+}
