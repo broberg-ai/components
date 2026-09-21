@@ -170,7 +170,27 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.shards.outputs.list) }}
     steps:
+      # FULL HISTORY HERE TOO, and this is a regression the first split
+      # introduced — measured on run 35588117620, the very first run of this
+      # file. Package test scripts end with
+      # `node ../../scripts/mutations-if-changed.mjs`, so the mutation selector
+      # runs on THIS job, not only on root-scripts. Without a base commit to
+      # diff against it fails safe and runs EVERY mutation:
+      #
+      #     @broberg/mail-identity  7 mutations   5 min 10 s
+      #     @broberg/theme         17 mutations   1 min 18 s
+      #
+      # One shard took 7 min 31 s while the other five finished in 32 s–2 min
+      # 25 s, and the whole gate was pinned to it. The old single-job workflow
+      # set this variable once and `pnpm test` inherited it for both halves;
+      # splitting the job split that inheritance, silently.
+      #
+      # The failure mode is the MIRROR of the one the old file warned about:
+      # there, a missing base made the selector run everything while looking
+      # like an optimisation. Same missing value, same silence, opposite cost.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -188,4 +208,6 @@ jobs:
       # are exactly the ones this shard names. A shard that runs nothing exits 0
       # otherwise, which is how @broberg/sso 0.2.1 shipped broken.
       - name: Test (shard ${{ matrix.shard }})
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
         run: node scripts/run-test-shard.mjs ${{ matrix.shard }}
