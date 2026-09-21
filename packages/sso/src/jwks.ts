@@ -20,7 +20,7 @@
  * that many milliseconds. Seconds of failure for one app beats a way to aim
  * traffic at BID from outside.
  *
- * ── TWO FAILURES, NOT ONE (F084.50) ───────────────────────────────────────
+ * ── TWO FAILURES, NOT ONE (components-F084.50) ───────────────────────────────────────
  *
  * Reported by helpdesk, measured in the published 0.1.0 dist: at process start
  * the key set is EMPTY, so the first verification fetches. If BID is down in

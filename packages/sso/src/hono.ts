@@ -268,7 +268,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
  * used `exp: 0`, which the expiry check rejected every time.
  */
 async function parseTransaction(raw: string | undefined, secret: string) {
-  // The SAME number the cookie was minted with (F084.53). Max-Age is the
+  // The SAME number the cookie was minted with (components-F084.53). Max-Age is the
   // browser's promise about when it stopped sending this; the server now has
   // its own opinion, and one constant defines both so they cannot drift.
   const body = await verifyValue(raw, secret, { maxAgeSeconds: TRANSACTION_MAX_AGE });

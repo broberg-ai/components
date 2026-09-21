@@ -82,7 +82,13 @@ export async function signValue(
 const STAMPED = /^t(\d+)~(.*)$/s;
 
 /**
- * Verify the signature, and — only if you ask — the age (F084.53).
+ * Verify the signature, and — only if you ask — the age (components-F084.53).
+ *
+ * THE PREFIX ON THAT NUMBER IS NOT DECORATION. F-numbers are per-project, and
+ * this comment ships in the .d.ts — so a consumer reading it in their editor
+ * resolves the number against whatever board THEY know. broberg-id found this
+ * by reading their own F084.53, which is "no limit on password guesses": a
+ * different feature, in a different repo, behind the same string.
  *
  * WITHOUT `maxAgeSeconds` this is signature-only, exactly as before. That is
  * not laziness: the login-transaction cookie has lived on its browser `Max-Age`

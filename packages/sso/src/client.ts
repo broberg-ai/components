@@ -93,7 +93,7 @@ export interface LoginResult {
 }
 
 /**
- * `prompt=none` asks BID to answer WITHOUT showing anything (F084.6).
+ * `prompt=none` asks BID to answer WITHOUT showing anything (components-F084.6).
  *
  * The delivery method decides whether it works, and this package only ever
  * produces a URL for a FULL TOP-LEVEL REDIRECT. It never returns anything an
@@ -148,7 +148,7 @@ export interface CreateSsoClientOptions {
  * It states our SIDE, never the value. A secret must not reach a log line.
  */
 /**
- * A fragment of a foreign response body, safe to put in a log line (F084.52).
+ * A fragment of a foreign response body, safe to put in a log line (components-F084.52).
  *
  * Three things it has to survive, and each one has bitten somebody:
  *
@@ -425,7 +425,7 @@ export function createSsoClient(
         }),
       });
 
-      // STATUS FIRST, PARSE SECOND — and the order IS the fix (F084.52).
+      // STATUS FIRST, PARSE SECOND — and the order IS the fix (components-F084.52).
       //
       // This used to be `await res.json()`, which runs BEFORE the `if (!res.ok)`
       // below. So when the issuer answered with something that is not JSON — an
