@@ -177,3 +177,5 @@ export function createLogger(options: LoggerOptions = {}): Logger {
   };
   return self;
 }
+
+// F080.5 måling: en commit der KUN rører én pakke, for at måle det normale tilfælde.
