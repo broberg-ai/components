@@ -59,16 +59,24 @@ Without it, behaviour is unchanged: signature only, lifetime enforced solely by
 the cookie's `Max-Age`. That default is deliberate — making the check mandatory
 would invalidate every cookie already sitting in a user's browser.
 
-Three cases worth knowing:
+Four cases worth knowing:
 
 | signed | verified | result |
 |---|---|---|
 | without a limit | without a limit | valid, as before |
 | with a limit | with a limit | valid inside the window, `null` past it |
 | **without a limit** | **with a limit** | **`null` — fails closed** |
+| **with a limit** | **without a limit** | **valid forever — the limit is never checked** |
 
 The third is the rollout case, and it fails closed on purpose: otherwise a value
 minted by an older build would be the way around the limit you just added.
+
+**The fourth is the one that will catch you, because it looks done.** The limit
+lives in `verifyValue`, not in `signValue` — a timestamp nobody reads back is
+just four extra bytes in the cookie. So passing `maxAgeSeconds` where you mint
+the value and forgetting it where you read it leaves you exactly where you
+started, with a stamped cookie, no error, and nothing to look at. **Pass it in
+both ends, from one constant.**
 
 The timestamp is inside the signed body, so it cannot be edited by whoever holds
 the cookie. The package's own Hono adapter now passes `maxAgeSeconds` on the
@@ -91,7 +99,7 @@ app.get("/me", sso.require, (c) => c.json(getSession(c)));  // block + redirect
 
 That is the whole integration. No other code changes.
 
-## Using the core instead — and the one thing you then own
+## Using the core instead — and the two things you then own
 
 The adapter above mints **its own** session cookie, keyed on Broberg ID's `sub`.
 That is right for a NEW app and wrong for an app that already has a user table
@@ -110,9 +118,11 @@ const { claims, idToken } = await client.completeLogin({ … });
 // your session, your cookie, your secret, your lifetime — keyed on YOUR user id
 ```
 
-**What you then own: storing the ID token.** Not an afterthought — without it
-the issuer MUST show the user a confirmation page on the way out, which is a
-foreign, unstyled page in the middle of your product:
+### 1. Storing the ID token
+
+Not an afterthought — without it the issuer MUST show the user a confirmation
+page on the way out, which is a foreign, unstyled page in the middle of your
+product:
 
 ```ts
 // at callback: keep it wherever you keep your own session
@@ -125,6 +135,34 @@ const url = await client.logoutUrl({ idTokenHint: await myStore.get(userId) });
 `idTokenHint` is optional and a missing one is safe — you simply get the old
 behaviour (the issuer asks) rather than an error. So this fails quietly, which
 is exactly why it is written here instead of left to be discovered.
+
+### 2. The login flow cookie's lifetime (0.2.5)
+
+`beginLogin()` hands you `state`, `codeVerifier` and `nonce` and then forgets
+them — where they live between the redirect and the callback is yours. Put them
+in a cookie signed with `signValue`, and **the cookie's `Max-Age` is the only
+thing limiting how long that flow stays usable. `Max-Age` is the browser's
+promise, and a client can simply decline to make it**: the server will accept a
+correctly-signed flow value forever.
+
+```ts
+const FLOW_MAX_AGE = 300;  // ONE constant — the cookie's Max-Age AND the check
+
+// at /login
+setCookie("my_flow", await signValue(tx, secret, { maxAgeSeconds: FLOW_MAX_AGE }),
+          { maxAge: FLOW_MAX_AGE, httpOnly: true, secure: true, sameSite: "Lax" });
+
+// at /callback
+const tx = await verifyValue(cookie, secret, { maxAgeSeconds: FLOW_MAX_AGE });
+if (tx === null) return tooOldOrNotOurs();
+```
+
+**Mount the Hono adapter and you get this for free** — it already passes
+`maxAgeSeconds` on its own transaction cookie, with the same constant that sets
+`Max-Age`. Take the core and nothing passes it on your behalf. Reported by
+broberg-id, who found their own framework-free example promising a lifetime the
+code did not enforce: the comment said a forgotten cookie could not be reused
+tomorrow, and for anyone holding the value itself, it could.
 
 **Use `loadSsoConfig()` rather than building the config object yourself.** It is
 the only thing that throws `SsoConfigError` on a missing or blank value, naming

@@ -262,10 +262,11 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
 /**
  * Reads the login transaction back out of its signed cookie.
  *
- * Signature only — the transaction's lifetime is the cookie's own Max-Age, not
- * a claim inside it. That is why it does NOT go through verifySession: an
- * envelope carrying an `exp` would need one, and the first version of this file
- * used `exp: 0`, which the expiry check rejected every time.
+ * Age-checked against TRANSACTION_MAX_AGE, not only against the cookie's own
+ * Max-Age (components-F084.53) — Max-Age is the browser's promise, and a client
+ * can decline to make it. It still does NOT go through verifySession: that
+ * envelope carries an `exp`, and the first version of this file used `exp: 0`,
+ * which the expiry check rejected every time.
  */
 async function parseTransaction(raw: string | undefined, secret: string) {
   // The SAME number the cookie was minted with (components-F084.53). Max-Age is the
