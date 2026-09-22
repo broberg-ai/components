@@ -184,12 +184,37 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       /**
        * THREE CAUSES, THREE ANSWERS (components-F084.54).
        *
-       * All three are distinguished to the caller on purpose. An attacker can
-       * produce every one of them himself — send no cookie, send a stale one,
-       * send a garbled one — so naming them tells him nothing he could not
-       * already learn, while the operator gets the one fact that is otherwise
-       * invisible: `bad_login_cookie` on a real user's browser is what a
-       * ROTATED SSO_COOKIE_SECRET looks like from the outside.
+       * THE ORDER IN `parseTransaction` IS LOAD-BEARING AND NOT OBVIOUS:
+       * `expired` is reached ONLY AFTER the signature has verified. So
+       * `login_expired` is a POSITIVE CONFIRMATION that the HMAC held against
+       * the CURRENT secret, and `bad_login_cookie` is the denial of that.
+       *
+       * WHICH MAKES THE PAIR A ONE-BIT ORACLE, and the justification that stood
+       * here was wrong. It said an attacker can produce all three himself, so
+       * naming them tells him nothing. That holds only for an attacker who
+       * CONSTRUCTED the input and therefore knows what he is holding. The
+       * interesting one has a value he FOUND — in a log, on a shared machine, in
+       * a referrer leak, in a backup — and he cannot mint a
+       * validly-signed-but-expired value himself. For him the answer separates
+       * two things he could not otherwise learn: whether a found value is still
+       * live, when the secret rotates (the same value changes code the second it
+       * does), and whether two environments share a secret.
+       *
+       * Reported by helpdesk, 2026-09-22, measured against the published 0.3.0
+       * dist rather than argued. It is NOT a hole: it does not help him forge
+       * anything — one bit per attempt against an HMAC-SHA256 key he never
+       * reaches. It is a property the server gives away for free.
+       *
+       * KEPT AS IS FOR NOW, deliberately and not by omission: the three answers
+       * solve a real problem for a consumer who owns only the browser end and
+       * must show "your login expired, try again" rather than "something went
+       * wrong". Splitting the two audiences — all three to the app and the log,
+       * one to the browser by default — is components-F084.55 and is the owner's
+       * call, not a thing to change twice in an hour under a peer's argument.
+       *
+       * The operator half stands unchanged and is the reason the codes exist at
+       * all: `bad_login_cookie` on a REAL user's browser is what a rotated
+       * SSO_COOKIE_SECRET looks like from the outside.
        */
       const failures = {
         absent: {
