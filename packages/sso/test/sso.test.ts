@@ -1237,9 +1237,14 @@ describe("a signed value can carry its own age, and an undated one cannot sneak 
     expect(await verifyValue(token, SECRET, { maxAgeSeconds: 300 })).toBeNull();
   });
 
-  test("a DATED value verified without a limit is still readable", async () => {
+  // THE ASYMMETRIC CASE, and it is the one a core consumer walks into: the limit
+  // lives in verifyValue. Stamping at mint time and forgetting it at read time
+  // is not a shorter window, it is NO window — and it looks done. README's
+  // fourth row says exactly this, so it is asserted here rather than promised.
+  test("a DATED value verified without a limit never expires — the limit is never checked", async () => {
     const token = await signValue("hello", SECRET, { maxAgeSeconds: 300, now: at(1_000_000) });
     expect(await verifyValue(token, SECRET)).toBe("hello");
+    expect(await verifyValue(token, SECRET, { now: at(9_999_999_999) })).toBe("hello");
   });
 
   // An expiry the holder can edit is not a limit.
