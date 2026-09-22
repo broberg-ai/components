@@ -52,11 +52,12 @@
       "session": "helpdesk",
       "repo": "broberg-ai/helpdesk",
       "role": "consumer",
-      "uses": "core only (createSsoClient), NOT the Hono adapter — their session is keyed on their own userId, so the adapter's own cookie would be a second opinion about who is logged in",
-      "version": "^0.1.0",
-      "as_of": "2026-09-20",
-      "source": "their own measurement, quoted: apps/core/package.json and pnpm-lock.yaml version: 0.1.0(hono@4.13.7)",
-      "notify": "always — BID's app #1, and the package is the only door into their product"
+      "uses": "core only (createSsoClient), NOT the Hono adapter — their session is keyed on their own userId, so the adapter's own cookie would be a second opinion about who is logged in. NO FEDERATED LOGOUT (their measurement, 2026-09-22): POST /auth/logout clears only their own session cookie and never redirects to BID's end-session, so there is no foreign confirmation page to get past and no id_token_hint to be missing. The consequence is real and theirs: logging out of HelpDesk leaves the BID session alive. It means README's \"store the ID token\" does not apply to every core consumer — not storing it is the OTHER valid shape",
+      "version": "0.2.2",
+      "as_of": "2026-09-22",
+      "source": "their own measurement, quoted: apps/core/package.json:22 says \"0.2.2\" (EXACT, no caret) and apps/core/node_modules/@broberg/sso/package.json says 0.2.2. The earlier \"^0.1.0\" row was wrong, not merely stale",
+      "notify": "always — BID's app #1, and the package is the only door into their product",
+      "pin_style": "EXACT on purpose — prod-auth dependency, per the fleet exact-pin rule. So the 0.x caret trap (^0.1.0 follows 0.1.x only) does NOT explain why they are behind; a deliberate pin does. Two very different reasons that look identical from the registry"
     }
   ],
   "notify_beyond_this_file": [
