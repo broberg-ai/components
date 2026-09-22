@@ -136,6 +136,15 @@ const url = await client.logoutUrl({ idTokenHint: await myStore.get(userId) });
 behaviour (the issuer asks) rather than an error. So this fails quietly, which
 is exactly why it is written here instead of left to be discovered.
 
+**Or decide not to log out of Broberg ID at all — that is the other valid
+shape, not a lesser one.** HelpDesk clears only its own session cookie and never
+redirects to the issuer's end-session endpoint. Then there is no foreign
+confirmation page to get past and no `idTokenHint` to be missing, and you need
+none of the code above. The consequence is real and worth choosing on purpose
+rather than discovering: **signing out of your app leaves the Broberg ID session
+alive**, so signing back in happens without a prompt. That is right for an app
+on a shared product surface and wrong for a kiosk.
+
 ### 2. The login flow cookie's lifetime (0.2.5)
 
 `beginLogin()` hands you `state`, `codeVerifier` and `nonce` and then forgets
@@ -146,23 +155,45 @@ promise, and a client can simply decline to make it**: the server will accept a
 correctly-signed flow value forever.
 
 ```ts
-const FLOW_MAX_AGE = 300;  // ONE constant — the cookie's Max-Age AND the check
+const FLOW_WINDOW  = 300;               // the SERVER's limit — the real one
+const COOKIE_LIFE  = FLOW_WINDOW * 3;   // the BROWSER's — deliberately longer
 
 // at /login
-setCookie("my_flow", await signValue(tx, secret, { maxAgeSeconds: FLOW_MAX_AGE }),
-          { maxAge: FLOW_MAX_AGE, httpOnly: true, secure: true, sameSite: "Lax" });
+setCookie("my_flow", await signValue(tx, secret, { maxAgeSeconds: FLOW_WINDOW }),
+          { maxAge: COOKIE_LIFE, httpOnly: true, secure: true, sameSite: "Lax" });
 
 // at /callback
-const tx = await verifyValue(cookie, secret, { maxAgeSeconds: FLOW_MAX_AGE });
-if (tx === null) return tooOldOrNotOurs();
+const tx = await verifyValue(cookie, secret, { maxAgeSeconds: FLOW_WINDOW });
+if (tx === null) return expiredOrNotOurs();   // and clear the cookie
 ```
 
-**Mount the Hono adapter and you get this for free** — it already passes
-`maxAgeSeconds` on its own transaction cookie, with the same constant that sets
-`Max-Age`. Take the core and nothing passes it on your behalf. Reported by
-broberg-id, who found their own framework-free example promising a lifetime the
-code did not enforce: the comment said a forgotten cookie could not be reused
-tomorrow, and for anyone holding the value itself, it could.
+### Two numbers, not one — and the second is the one people delete
+
+The obvious simplification is to use one constant for both. Do not: **a cookie
+the browser has already dropped NEVER ARRIVES.**
+
+| cookie `Max-Age` | what your server sees once the window has passed |
+|---|---|
+| = the window | **nothing.** The browser stopped sending it |
+| > the window | a too-old transaction, which you can name |
+
+With one number you cannot tell *"she took too long"* from *"she never started a
+login here"* — different things, different answers to the user, and one of them
+is a bug in your app while the other is not.
+
+**The extra browser time buys diagnosis, not lifetime.** The read end still
+refuses anything past `FLOW_WINDOW` and clears the cookie, so a verifier that
+cannot be exchanged is not a key. Measured counter-example from helpdesk, who
+run 3× in production; this package's own Hono adapter now does the same, after
+answering every failed callback with one message containing the word *"or"*.
+
+**Mount the Hono adapter and you get all of this for free** — the signed window,
+the longer cookie, and three distinct answers (`login_expired` ·
+`no_login_in_progress` · `bad_login_cookie`). Take the core and nothing is passed
+on your behalf. Reported by broberg-id, who found their own framework-free
+example promising a lifetime the code did not enforce: the comment said a
+forgotten cookie could not be reused tomorrow, and for anyone holding the value
+itself, it could.
 
 **Use `loadSsoConfig()` rather than building the config object yourself.** It is
 the only thing that throws `SsoConfigError` on a missing or blank value, naming

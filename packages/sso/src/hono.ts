@@ -22,9 +22,32 @@ import {
 /** Where the adapter parks the session on the request, for `getSession`. */
 const SESSION_KEY = "bidSession";
 
-/** Short-lived cookie holding the in-flight login. Five minutes is plenty for
- *  a person to type a password; longer just widens the window. */
+/**
+ * How long the SERVER will accept an in-flight login. Five minutes is plenty
+ * for a person to type a password; longer just widens the window. This is the
+ * real limit: it is enforced in `parseTransaction`, on a timestamp inside the
+ * signature, so no client can talk its way past it.
+ */
 const TRANSACTION_MAX_AGE = 300;
+
+/**
+ * How long the BROWSER keeps the cookie — deliberately LONGER than the window
+ * above, and the two numbers must never be collapsed back into one.
+ *
+ * A cookie the browser has already dropped NEVER ARRIVES. With one number for
+ * both, the moment the window passes there is simply nothing in the request,
+ * and the server cannot tell "she took too long" from "she never started a
+ * login here". Those are different things that deserve different answers, and
+ * collapsing them cost a diagnosis: this adapter used to answer every failed
+ * callback with one message containing the word "or".
+ *
+ * Reported by helpdesk (2026-09-22, components-F084.54), who run 3x in
+ * production for exactly this reason. The extra time is INERT — `parseTransaction`
+ * refuses anything past TRANSACTION_MAX_AGE and /callback clears the cookie, so
+ * a verifier that cannot be exchanged is not a key. It buys diagnosis, not
+ * lifetime.
+ */
+const TRANSACTION_COOKIE_MAX_AGE = TRANSACTION_MAX_AGE * 3;
 
 export interface SsoRoutesOptions {
   config?: SsoConfig;
@@ -140,8 +163,11 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     });
     c.header(
       "Set-Cookie",
+      // The signed stamp carries the SERVER's window; the cookie carries the
+      // longer browser one, so an expired transaction still reaches us and can
+      // be named instead of vanishing.
       cookieHeader(txCookie, await signValue(tx, config.cookieSecret, { maxAgeSeconds: TRANSACTION_MAX_AGE }), {
-        maxAge: TRANSACTION_MAX_AGE,
+        maxAge: TRANSACTION_COOKIE_MAX_AGE,
         secure: isSecure(c),
       }),
     );
@@ -154,18 +180,46 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       readCookie(c.req.header("cookie"), txCookie),
       config.cookieSecret,
     );
-    if (!parsed) {
-      return c.json(
-        { error: "no_login_in_progress", message: "This browser did not start a login here, or it expired." },
-        400,
-      );
+    if (!parsed.ok) {
+      /**
+       * THREE CAUSES, THREE ANSWERS (components-F084.54).
+       *
+       * All three are distinguished to the caller on purpose. An attacker can
+       * produce every one of them himself — send no cookie, send a stale one,
+       * send a garbled one — so naming them tells him nothing he could not
+       * already learn, while the operator gets the one fact that is otherwise
+       * invisible: `bad_login_cookie` on a real user's browser is what a
+       * ROTATED SSO_COOKIE_SECRET looks like from the outside.
+       */
+      const failures = {
+        absent: {
+          status: 400 as const,
+          error: "no_login_in_progress",
+          message: "This browser did not start a login here. Begin again from the login page.",
+        },
+        expired: {
+          status: 400 as const,
+          error: "login_expired",
+          message: `This login took longer than ${TRANSACTION_MAX_AGE} seconds. Begin again from the login page.`,
+        },
+        unreadable: {
+          status: 400 as const,
+          error: "bad_login_cookie",
+          message: "This browser's login cookie could not be read. Begin again from the login page.",
+        },
+      };
+      const { status, ...body } = failures[parsed.reason];
+      // Clear it either way: a transaction we refuse must not sit in the browser
+      // waiting to be refused again on every retry.
+      c.header("Set-Cookie", cookieHeader(txCookie, "", { maxAge: 0, secure: isSecure(c) }));
+      return c.json(body, status);
     }
 
     const result = await client.completeLogin({
       params: new URL(c.req.url).searchParams,
-      state: parsed.state,
-      codeVerifier: parsed.codeVerifier,
-      nonce: parsed.nonce,
+      state: parsed.tx.state,
+      codeVerifier: parsed.tx.codeVerifier,
+      nonce: parsed.tx.nonce,
     });
 
     const exp = Math.floor(Date.now() / 1000) + config.sessionMaxAge;
@@ -204,7 +258,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       cookieHeader(txCookie, "", { maxAge: 0, secure: isSecure(c) }),
       { append: true },
     );
-    return c.redirect(parsed.returnTo, 302);
+    return c.redirect(parsed.tx.returnTo, 302);
   });
 
   app.get("/logout", async (c) => {
@@ -259,32 +313,60 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
   return { app, attach, require, client, config };
 }
 
+/** Why a login transaction could not be read back. Three states, three answers. */
+export type TransactionFailure = "absent" | "expired" | "unreadable";
+
+type TransactionResult =
+  | { ok: true; tx: { state: string; codeVerifier: string; nonce: string; returnTo: string } }
+  | { ok: false; reason: TransactionFailure };
+
 /**
  * Reads the login transaction back out of its signed cookie.
+ *
+ * RETURNS A REASON, NOT `null` (components-F084.54). It used to collapse three
+ * causes into one empty answer, and /callback then told the user "you did not
+ * start a login here, OR it expired" — a sentence that admits in its own wording
+ * that it does not know. The word "or" was the bug.
  *
  * Age-checked against TRANSACTION_MAX_AGE, not only against the cookie's own
  * Max-Age (components-F084.53) — Max-Age is the browser's promise, and a client
  * can decline to make it. It still does NOT go through verifySession: that
  * envelope carries an `exp`, and the first version of this file used `exp: 0`,
  * which the expiry check rejected every time.
+ *
+ * NO FUTURE-STAMP GUARD, and that is a deliberate divergence from helpdesk's
+ * implementation, which rejects a negative age so a runaway clock cannot widen
+ * the window. Ours cannot be widened that way: the stamp is inside the HMAC, so
+ * only OUR OWN clock could produce a future one — and refusing it would mean a
+ * second app instance whose clock is a few seconds behind starts rejecting
+ * perfectly good logins. That trades a theoretical gain for a real outage.
  */
-async function parseTransaction(raw: string | undefined, secret: string) {
-  // The SAME number the cookie was minted with (components-F084.53). Max-Age is the
-  // browser's promise about when it stopped sending this; the server now has
-  // its own opinion, and one constant defines both so they cannot drift.
-  const body = await verifyValue(raw, secret, { maxAgeSeconds: TRANSACTION_MAX_AGE });
-  if (body === null) return null;
+async function parseTransaction(raw: string | undefined, secret: string): Promise<TransactionResult> {
+  if (raw === undefined) return { ok: false, reason: "absent" };
+
+  // Signature FIRST, without the age limit, so the two questions stay separate.
+  // Asking them together is what produced one answer for three causes: a single
+  // `verifyValue(..., { maxAgeSeconds })` returns null for a forged cookie and
+  // for an honest late one alike.
+  const signed = await verifyValue(raw, secret);
+  if (signed === null) return { ok: false, reason: "unreadable" };
+
+  const fresh = await verifyValue(raw, secret, { maxAgeSeconds: TRANSACTION_MAX_AGE });
+  if (fresh === null) return { ok: false, reason: "expired" };
+
   try {
-    const tx = JSON.parse(body) as {
+    const tx = JSON.parse(fresh) as {
       state: string;
       codeVerifier: string;
       nonce: string;
       returnTo: string;
     };
-    if (!tx.state || !tx.codeVerifier || !tx.nonce) return null;
-    return tx;
+    // A correctly signed cookie whose contents are not a transaction is not an
+    // expiry and not an absence — it is ours and it is wrong.
+    if (!tx.state || !tx.codeVerifier || !tx.nonce) return { ok: false, reason: "unreadable" };
+    return { ok: true, tx };
   } catch {
-    return null;
+    return { ok: false, reason: "unreadable" };
   }
 }
 

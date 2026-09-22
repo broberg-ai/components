@@ -1268,3 +1268,160 @@ describe("a signed value can carry its own age, and an undated one cannot sneak 
     expect((await verifySession(token, SECRET))?.sub).toBe("u1");
   });
 });
+
+/* ── three causes, three answers — F084.54 ───────────────────────────────── */
+
+/**
+ * The adapter used to answer every failed callback with ONE message containing
+ * the word "or" — "you did not start a login here, OR it expired". These prove
+ * the three states are now told apart, and the number that makes it possible:
+ * the browser keeps the cookie LONGER than the server accepts it, so an expired
+ * transaction still arrives instead of silently not being sent.
+ */
+describe("a failed callback says WHICH of the three things went wrong", () => {
+  const SECRET = ENV.SSO_COOKIE_SECRET!;
+  const at = (seconds: number) => () => seconds * 1000;
+  // The ROUTE uses the real clock, so the fixture must too — a fixed epoch
+  // here makes every minted cookie years old and every case reads 'expired'.
+  const NOW = Math.floor(Date.now() / 1000);
+
+  /** Mint the transaction cookie the way /login does, but at a chosen moment. */
+  async function txCookieAt(seconds: number, overrides: Record<string, unknown> = {}) {
+    const body = JSON.stringify({
+      state: "the-state",
+      codeVerifier: "the-verifier",
+      nonce: "the-nonce",
+      returnTo: "/",
+      ...overrides,
+    });
+    return `bid_session_tx=${await signValue(body, SECRET, { maxAgeSeconds: 300, now: at(seconds) })}`;
+  }
+
+  /**
+   * The stub throws a MARKER from completeLogin. Reaching it is the proof that
+   * the transaction was ACCEPTED — without it, "not expired" could be satisfied
+   * by any other failure, and the fresh half of the boundary test would pass
+   * for a reason that has nothing to do with the boundary.
+   */
+  const routes = (reached?: { hit: boolean }) =>
+    ssoRoutes({
+      config: loadSsoConfig(ENV),
+      client: {
+        beginLogin: async () => ({
+          url: "https://id.broberg.ai/authorize?x=1",
+          state: "the-state",
+          codeVerifier: "the-verifier",
+          nonce: "the-nonce",
+        }),
+        completeLogin: async () => {
+          if (reached) reached.hit = true;
+          // Hono turns a throw into a 500, so the FLAG is the observation, not
+          // the response — asserting on the status would pass for any 500.
+          throw new Error("stub");
+        },
+      } as never,
+    });
+
+  const callback = (cookie?: string) =>
+    routes().app.request("https://app.example/callback?code=c&state=the-state", {
+      headers: cookie ? { cookie } : {},
+    });
+
+  /** The error code, or null when the response is not one of our refusals. */
+  async function errorOf(res: Response): Promise<string | null> {
+    try {
+      return ((await res.json()) as { error?: string }).error ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * AC#1 — the two numbers, MEASURED THROUGH THE ROUTES rather than read off a
+   * constant. The browser lifetime comes from the Set-Cookie /login actually
+   * writes; the server window is found by bisecting what /callback still
+   * accepts. Collapse them back into one number and this goes red.
+   */
+  test("the browser keeps the cookie LONGER than the server will accept it", async () => {
+    // Read the browser lifetime off the header /login ACTUALLY writes. Throwing
+    // rather than defaulting: a fallback number would let this assert on a value
+    // the route never produced, which is the vacuous-green this card is about.
+    const login = await routes().app.request("https://app.example/login");
+    const header = login.headers.get("set-cookie");
+    if (!header) throw new Error("/login set no cookie — nothing to measure");
+    const browserMaxAge = Number(/Max-Age=(\d+)/.exec(header)?.[1]);
+    expect(Number.isFinite(browserMaxAge)).toBe(true);
+
+    // The server's window, measured either side of it. 250/350 rather than
+    // 299/301: the route reads the real clock, and a second spent building the
+    // request would tip a one-second margin over and make this flake.
+    const stale = await callback(await txCookieAt(NOW - 350));
+    expect(await errorOf(stale)).toBe("login_expired");
+
+    // And the fresh one is accepted — proven by REACHING completeLogin, not by
+    // merely failing differently. Without this the "not expired" half would be
+    // satisfied by any other failure and prove nothing about the boundary.
+    const reached = { hit: false };
+    await routes(reached).app.request("https://app.example/callback?code=c&state=the-state", {
+      headers: { cookie: await txCookieAt(NOW - 250) },
+    });
+    expect(reached.hit).toBe(true);
+
+    // The whole point: the browser still holds the cookie well past the moment
+    // the server stops accepting it, so the expired case ARRIVES.
+    expect(browserMaxAge).toBeGreaterThan(350);
+  });
+
+  /** AC#2 — the expired ticket ARRIVES and is named. */
+  test("too old, but still in the browser → login_expired, not a shrug", async () => {
+    const res = await callback(await txCookieAt(NOW - 350));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("login_expired");
+    expect(body.message).not.toMatch(/\bor\b/);
+  });
+
+  /** AC#3 — absence is a DIFFERENT answer, and the codes must not be equal. */
+  test("no cookie at all → no_login_in_progress, a different code from expired", async () => {
+    const absent = await (await callback(undefined)).json();
+    const expired = await (await callback(await txCookieAt(NOW - 350))).json();
+
+    expect(absent.error).toBe("no_login_in_progress");
+    expect(expired.error).toBe("login_expired");
+    // Asserted explicitly: a test that only checked "it failed" would stay green
+    // through exactly the collapse this card exists to undo.
+    expect(absent.error).not.toBe(expired.error);
+    expect(absent.message).not.toMatch(/\bor\b/);
+  });
+
+  /** AC#4 — a broken signature is a third outcome, not either of the others. */
+  test("a cookie we cannot read → bad_login_cookie, distinct from both", async () => {
+    const forged = (await txCookieAt(NOW - 10)).slice(0, -6) + "xxxxxx";
+    const body = await (await callback(forged)).json();
+    expect(body.error).toBe("bad_login_cookie");
+
+    // A correctly signed cookie that is NOT a transaction is also unreadable —
+    // it is ours, and it is wrong. Neither an expiry nor an absence.
+    const wrongShape = await txCookieAt(NOW - 10, { state: "" });
+    expect((await (await callback(wrongShape)).json()).error).toBe("bad_login_cookie");
+
+    const codes = new Set([
+      (await (await callback(undefined)).json()).error,
+      (await (await callback(await txCookieAt(NOW - 350))).json()).error,
+      body.error,
+    ]);
+    expect(codes.size).toBe(3);
+  });
+
+  /** AC#5 — the extra browser time is INERT: it buys diagnosis, not lifetime. */
+  test("an expired transaction cannot be exchanged, and the cookie is cleared", async () => {
+    const res = await callback(await txCookieAt(NOW - 350));
+
+    // No session was minted — the ONLY Set-Cookie is the clearing of the tx.
+    const set = res.headers.getSetCookie();
+    expect(set.some((c) => c.startsWith("bid_session="))).toBe(false);
+    const cleared = set.find((c) => c.startsWith("bid_session_tx="));
+    expect(cleared).toMatch(/Max-Age=0/);
+    expect(cleared).toMatch(/^bid_session_tx=;/);
+  });
+});
