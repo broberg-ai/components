@@ -91,7 +91,7 @@ createLensRoute({
 
 1. Build core + adapters + tests.
 2. Bootstrap-publish **v0.1.0** by hand (Christian's npm token, env-only via a temp gitignored `.npmrc`; npm has no pending-publisher for a brand-new package).
-3. Christian adds the Trusted Publisher → add a `publish-lens` job (tag `lens-v*`) to `.github/workflows/publish.yml` mirroring `publish-secret-scan` (⚠️ NO `version:` on `pnpm/action-setup` — it conflicts with root `packageManager`). v0.1.1+ release via `git tag lens-v<ver> && git push` → OIDC, token-free + provenance.
+3. Christian adds the Trusted Publisher → add a `publish-lens` job (tag `lens-v*`) to `.github/workflows/publish.yml` mirroring `publish-secret-scan` (⚠️ NO `version:` on `pnpm/action-setup` — it conflicts with root `packageManager`). v0.1.1+ release via `git tag -a lens-v<ver> -m "…" && git push origin lens-v<ver>` → OIDC, token-free + provenance. (A bare `git push` sends NO tag, and `--follow-tags` sends only ANNOTATED ones — either way the publish simply never fires, with a green push. ai-sdk hit exactly this, 22/9 2026.)
 4. Inventory: add the `@broberg/lens` spoke to `docs/INVENTORY.md` + the footer in `scripts/build-inventory.mjs` (regenerate `docs/inventory.html`) + re-save the cardmem mockup.
 5. **Done-gate:** a pilot fleet app mounts `@broberg/lens` and Lens captures its authed surface via the minted session. NOT Done until the pilot validates (same as secret-scan's trail gate).
 
