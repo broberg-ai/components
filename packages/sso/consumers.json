@@ -22,6 +22,7 @@
     "says it is planning to run.",
     "",
     "A ROW NAMES A REPO; A DEPENDENCY LIVES IN AN APP. broberg-id, 2026-09-22: our row said version 0.1.0 for repo broberg-ai/broberg-id, and BID ITSELF has zero occurrences of the package in its package.json — it is the ISSUER. So the number did not merely go stale, the row described something that does not exist. `installs` now carries one entry per app that actually depends on the package, because a repo-shaped row cannot hold two apps on two pins.",
+    "DO NOT ASK 'HOW MANY TIMES IS THE SYMBOL MENTIONED' — THAT COUNT ANSWERS BACKWARDS. Measured by helpdesk, 2026-09-22, against a grep I had handed them: 10 hits in their repo, every one of them a plan-doc ABOUT the breaking change plus a guard test that FORBIDS the symbol's use. Real call-sites: zero. The more carefully a repo has handled a breaking change, the more often it names the thing — so a repo with 10 hits and a repo with 0 can be the one that closed it completely and the one that never thought about it. Ask whether a CALL PATH reads it, never how many lines contain it.",
     "A version here is what was MEASURED in their tree, never what they said they would run."
   ],
   "package": "@broberg/sso",
@@ -32,18 +33,18 @@
       "role": "issuer — and NOT a consumer in its own service",
       "uses": "BID ITSELF DOES NOT DEPEND ON @broberg/sso — zero occurrences in its package.json (their measurement, re-confirmed 2026-09-22). It is the issuer. The dependency lives only in their two example apps, and they publish the public integration guide at id.broberg.ai/docs.md, which is what makes a wrong version number there expensive",
       "as_of": "2026-09-22",
-      "source": "their own measurement in node_modules (pin AND installed), reported in answer to the 0.3.0 release report. They take 0.3.0 when they next ship — a BID deploy is a short login stop for the whole fleet, so it does not get a rollout of its own",
+      "source": "their own measurement in node_modules (pin AND installed) after taking 0.3.0 on Christian's order. They proved the three codes against the REAL adapter rather than reading them in our report, including that the cookie is cleared in the same response — a claim that had been FALSE in their own guide for an hour that morning (their text promised the clearing; their code only did it when the login SUCCEEDED, fixed in 058ef04)",
       "notify": "always, first — a release that changes verification changes their own service's story",
       "installs": [
         {
           "app": "examples/minimal-app",
-          "pin": "0.2.5",
-          "installed": "0.2.5"
+          "pin": "0.3.0",
+          "installed": "0.3.0"
         },
         {
           "app": "examples/nextjs-app",
-          "pin": "0.2.5",
-          "installed": "0.2.5"
+          "pin": "0.3.0",
+          "installed": "0.3.0"
         }
       ],
       "guide_floor": "^0.2.3 in docs/BRUG-BID.md + llms.txt — deliberately the version where the two properties the text describes actually landed, not the newest. The examples sit above the floor; a reader following ^0.2.3 gets latest in practice"
@@ -53,11 +54,12 @@
       "repo": "broberg-ai/helpdesk",
       "role": "consumer",
       "uses": "core only (createSsoClient), NOT the Hono adapter — their session is keyed on their own userId, so the adapter's own cookie would be a second opinion about who is logged in. NO FEDERATED LOGOUT (their measurement, 2026-09-22): POST /auth/logout clears only their own session cookie and never redirects to BID's end-session, so there is no foreign confirmation page to get past and no id_token_hint to be missing. The consequence is real and theirs: logging out of HelpDesk leaves the BID session alive. It means README's \"store the ID token\" does not apply to every core consumer — not storing it is the OTHER valid shape",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "as_of": "2026-09-22",
-      "source": "their own measurement, quoted: apps/core/package.json:22 says \"0.2.2\" (EXACT, no caret) and apps/core/node_modules/@broberg/sso/package.json says 0.2.2. The earlier \"^0.1.0\" row was wrong, not merely stale",
+      "source": "their own measurement after taking 0.3.0 on Christian's order: apps/core/package.json pins \"0.3.0\" exact, CI green on 8f8c966, and all five core symbols unchanged in 0.3.0's .d.ts. Zero real uses of the three callback error codes, zero imports of the Hono adapter — counted AFTER excluding their own plan-doc and the guard test that forbids the use",
       "notify": "always — BID's app #1, and the package is the only door into their product",
-      "pin_style": "EXACT on purpose — prod-auth dependency, per the fleet exact-pin rule. So the 0.x caret trap (^0.1.0 follows 0.1.x only) does NOT explain why they are behind; a deliberate pin does. Two very different reasons that look identical from the registry"
+      "pin_style": "EXACT on purpose — prod-auth dependency, per the fleet exact-pin rule. So the 0.x caret trap (^0.1.0 follows 0.1.x only) does NOT explain why they are behind; a deliberate pin does. Two very different reasons that look identical from the registry",
+      "breaking_check": "0.3.0's split of /callback's error code is NOT breaking for them, measured rather than assumed — and they made the answer falsifiable instead of leaving it as a dated claim: sso-overflade.guard.test.ts scans apps/ + tests/ and goes red if any of the three codes is used or /hono is imported. Their trap, worth copying: a comment in bid.ts NAMES the adapter to explain why they do not use it, so without stripping comments first the guard reddens on the very file it protects — and gets switched off the same day"
     }
   ],
   "notify_beyond_this_file": [
