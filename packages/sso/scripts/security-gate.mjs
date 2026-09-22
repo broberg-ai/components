@@ -146,8 +146,21 @@ if (register) {
   if (list.length === 0) problems.push("consumers.json lists NOBODY — an empty register reads exactly like a package nobody uses");
   say(list.length > 0, "consumer register", `${list.length} to notify on release`);
   for (const c of list) {
+    // A ROW NAMES A REPO; A DEPENDENCY LIVES IN AN APP (broberg-id, 2026-09-22).
+    // A repo that is the ISSUER has no version of its own — the dependency sits
+    // in its example apps, possibly on different pins. So `version` is optional
+    // and `installs` carries the per-app truth. Printing String(undefined) here
+    // put the word "undefined" in a release read-out, which is a register
+    // failing to say it has nothing to say.
+    const versions = c.version !== undefined
+      ? [String(c.version)]
+      : (c.installs ?? []).map((i) => `${i.app}@${i.installed}`);
+    if (versions.length === 0) {
+      problems.push(`consumers.json: ${c.session} names neither a version nor an install — a row that cannot say what it runs is not a measurement`);
+    }
     const stale = c.version === "unmeasured" ? "  ⚠ version UNMEASURED" : "";
-    console.log(`         → ${c.session.padEnd(12)} ${String(c.version).padEnd(10)} (measured ${c.as_of})${stale}`);
+    console.log(`         → ${c.session.padEnd(12)} ${(versions[0] ?? "—").padEnd(28)} (measured ${c.as_of})${stale}`);
+    for (const extra of versions.slice(1)) console.log(`           ${"".padEnd(12)} ${extra}`);
   }
   for (const line of register.notify_beyond_this_file ?? []) console.log(`         · ${line}`);
 }

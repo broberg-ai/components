@@ -1,26 +1,27 @@
 {
   "$comment": [
-    "WHO USES @broberg/sso \u2014 the list I notify on every release.",
+    "WHO USES @broberg/sso — the list I notify on every release.",
     "",
     "Christian's standing order, 2026-09-20: every release of this package is",
-    "announced to broberg-id AND every known consumer, at PUBLISH time \u2014 not",
+    "announced to broberg-id AND every known consumer, at PUBLISH time — not",
     "when somebody is about to upgrade. The day it was given, 0.2.1 had spent",
     "an hour on npm rejecting every token the real Broberg ID issues.",
     "",
     "WHY THIS FILE EXISTS RATHER THAN A LOOKUP. Discovery is the right place to",
     "ask 'who uses X', and it was MEASURED EMPTY for this package the same day:",
     "131 enrolment rows, 0 mentioning sso. A rule whose data source is empty is",
-    "not a rule, it is a reminder \u2014 so the list lives here, in the repo that",
+    "not a rule, it is a reminder — so the list lives here, in the repo that",
     "publishes the package, and the release gate reads it out loud.",
     "",
     "EVERY ENTRY CARRIES ITS EVIDENCE. `version` is what was MEASURED in their",
     "tree, `as_of` is when, and `source` is how. An entry whose as_of is old is",
-    "visibly old rather than quietly wrong \u2014 that is the whole difference",
+    "visibly old rather than quietly wrong — that is the whole difference",
     "between a register and a note.",
     "",
     "Adding one: measure first, then write the row. Never write what a session",
     "says it is planning to run.",
     "",
+    "A ROW NAMES A REPO; A DEPENDENCY LIVES IN AN APP. broberg-id, 2026-09-22: our row said version 0.1.0 for repo broberg-ai/broberg-id, and BID ITSELF has zero occurrences of the package in its package.json — it is the ISSUER. So the number did not merely go stale, the row described something that does not exist. `installs` now carries one entry per app that actually depends on the package, because a repo-shaped row cannot hold two apps on two pins.",
     "A version here is what was MEASURED in their tree, never what they said they would run."
   ],
   "package": "@broberg/sso",
@@ -28,28 +29,40 @@
     {
       "session": "broberg-id",
       "repo": "broberg-ai/broberg-id",
-      "role": "issuer + consumer",
-      "uses": "examples/minimal-app only \u2014 BID ITSELF DOES NOT DEPEND ON sso (their measurement, 2026-09-20). They are the issuer, and they publish the public integration guide at id.broberg.ai/docs.md, which is what makes a wrong version number there expensive",
-      "version": "0.1.0",
-      "as_of": "2026-09-20",
-      "source": "their own measurement after rolling back from 0.2.1; enrolled in Discovery the same hour",
-      "notify": "always, first \u2014 a release that changes verification changes their own service's story"
+      "role": "issuer — and NOT a consumer in its own service",
+      "uses": "BID ITSELF DOES NOT DEPEND ON @broberg/sso — zero occurrences in its package.json (their measurement, re-confirmed 2026-09-22). It is the issuer. The dependency lives only in their two example apps, and they publish the public integration guide at id.broberg.ai/docs.md, which is what makes a wrong version number there expensive",
+      "as_of": "2026-09-22",
+      "source": "their own measurement in node_modules (pin AND installed, both read), reported in answer to the 0.2.5 release report",
+      "notify": "always, first — a release that changes verification changes their own service's story",
+      "installs": [
+        {
+          "app": "examples/minimal-app",
+          "pin": "0.2.4",
+          "installed": "0.2.4"
+        },
+        {
+          "app": "examples/nextjs-app",
+          "pin": "0.2.4",
+          "installed": "0.2.4"
+        }
+      ],
+      "guide_floor": "^0.2.3 in docs/BRUG-BID.md + llms.txt — deliberately the version where the two properties the text describes actually landed, not the newest. The examples sit above the floor; a reader following ^0.2.3 gets latest in practice"
     },
     {
       "session": "helpdesk",
       "repo": "broberg-ai/helpdesk",
       "role": "consumer",
-      "uses": "core only (createSsoClient), NOT the Hono adapter \u2014 their session is keyed on their own userId, so the adapter's own cookie would be a second opinion about who is logged in",
+      "uses": "core only (createSsoClient), NOT the Hono adapter — their session is keyed on their own userId, so the adapter's own cookie would be a second opinion about who is logged in",
       "version": "^0.1.0",
       "as_of": "2026-09-20",
       "source": "their own measurement, quoted: apps/core/package.json and pnpm-lock.yaml version: 0.1.0(hono@4.13.7)",
-      "notify": "always \u2014 BID's app #1, and the package is the only door into their product"
+      "notify": "always — BID's app #1, and the package is the only door into their product"
     }
   ],
   "notify_beyond_this_file": [
     "MEASURED BY broberg-id 2026-09-20, the whole client table at BID:",
-    "  bid-selftest \u00b7 sso-hono-example \u00b7 helpdesk",
-    "One real consumer, and it IS a cc session \u2014 so today my list and theirs",
+    "  bid-selftest · sso-hono-example · helpdesk",
+    "One real consumer, and it IS a cc session — so today my list and theirs",
     "are the same set, and 'tell broberg-id, they tell the rest' costs nothing.",
     "",
     "THAT ASSUMPTION DIES AT CUSTOMER TWO, and they said so rather than letting",
