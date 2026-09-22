@@ -8,6 +8,22 @@ does, and the list of what it deliberately cannot do is part of the design.
 pnpm add @broberg/sso
 ```
 
+**Version numbers below say WHICH HALF they apply to, because the two move at
+different speeds.** The core (`createSsoClient`, `signValue`/`verifyValue`) and
+the Hono adapter (`ssoRoutes`) gained the same capability in different releases
+more than once, and a single number per section quietly told adapter users they
+already had something they did not:
+
+| | core | Hono adapter |
+|---|---|---|
+| server-enforced cookie age | 0.2.3 | 0.2.3 |
+| two lifetimes, three distinct callback errors | *yours to write* | **0.3.0** |
+
+Reported by broberg-id, who found the same contradiction in their own guide:
+a floor of 0.2.3 beside "the adapter gives you this for free". **A floor that is
+too low is not merely out of date — next to a "you get it for free" it becomes
+advice not to check.**
+
 ## Configure it with environment variables only
 
 ```bash
@@ -145,7 +161,7 @@ rather than discovering: **signing out of your app leaves the Broberg ID session
 alive**, so signing back in happens without a prompt. That is right for an app
 on a shared product surface and wrong for a kiosk.
 
-### 2. The login flow cookie's lifetime (0.2.5)
+### 2. The login flow cookie's lifetime (core: 0.2.3 · adapter: 0.3.0)
 
 `beginLogin()` hands you `state`, `codeVerifier` and `nonce` and then forgets
 them — where they live between the redirect and the callback is yours. Put them
@@ -187,10 +203,12 @@ cannot be exchanged is not a key. Measured counter-example from helpdesk, who
 run 3× in production; this package's own Hono adapter now does the same, after
 answering every failed callback with one message containing the word *"or"*.
 
-**Mount the Hono adapter and you get all of this for free** — the signed window,
-the longer cookie, and three distinct answers (`login_expired` ·
-`no_login_in_progress` · `bad_login_cookie`). Take the core and nothing is passed
-on your behalf. Reported by broberg-id, who found their own framework-free
+**Mount the Hono adapter on 0.3.0 or later and you get all of this for free** —
+the signed window, the longer cookie, and three distinct answers
+(`login_expired` · `no_login_in_progress` · `bad_login_cookie`). **On 0.2.3–0.2.5
+the adapter had the signed window but still used ONE number for both**, so it
+answered every failed callback with a single message containing the word *"or"*.
+Take the core and nothing is passed on your behalf, on any version. Reported by broberg-id, who found their own framework-free
 example promising a lifetime the code did not enforce: the comment said a
 forgotten cookie could not be reused tomorrow, and for anyone holding the value
 itself, it could.

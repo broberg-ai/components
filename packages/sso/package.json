@@ -1,6 +1,6 @@
 {
   "name": "@broberg/sso",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "The thin client for Broberg ID \u2014 send a user to central login, verify the ID token against JWKS, keep a local session. Public client + PKCE only: no passwords, no passkeys, no client secret can live in an app.",
   "type": "module",
   "license": "MIT",
