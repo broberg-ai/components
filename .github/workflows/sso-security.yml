@@ -91,6 +91,15 @@ jobs:
         working-directory: packages/sso
         run: node scripts/run-suite.mjs "carry its own age" 7
 
+      # F084.54 — a failed callback names WHICH of three things went wrong. Counted
+      # because the failure it guards against reads as success: collapse the three
+      # answers back into one and every login still works, only the diagnosis dies.
+      # And the count is what catches the group silently not running at all —
+      # `vitest -t` exits 0 when it matches nothing.
+      - name: A failed callback tells the three causes apart (must actually run)
+        working-directory: packages/sso
+        run: node scripts/run-suite.mjs "WHICH of the three things went wrong" 5
+
       # The shipped artefact + a consumer's dependency tree. Every check inside
       # carries a positive control and refuses to pass on zero files read.
       - name: Security gate — shipped tarball and consumer tree

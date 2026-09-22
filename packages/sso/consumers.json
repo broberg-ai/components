@@ -32,18 +32,18 @@
       "role": "issuer — and NOT a consumer in its own service",
       "uses": "BID ITSELF DOES NOT DEPEND ON @broberg/sso — zero occurrences in its package.json (their measurement, re-confirmed 2026-09-22). It is the issuer. The dependency lives only in their two example apps, and they publish the public integration guide at id.broberg.ai/docs.md, which is what makes a wrong version number there expensive",
       "as_of": "2026-09-22",
-      "source": "their own measurement in node_modules (pin AND installed, both read), reported in answer to the 0.2.5 release report",
+      "source": "their own measurement in node_modules (pin AND installed), reported in answer to the 0.3.0 release report. They take 0.3.0 when they next ship — a BID deploy is a short login stop for the whole fleet, so it does not get a rollout of its own",
       "notify": "always, first — a release that changes verification changes their own service's story",
       "installs": [
         {
           "app": "examples/minimal-app",
-          "pin": "0.2.4",
-          "installed": "0.2.4"
+          "pin": "0.2.5",
+          "installed": "0.2.5"
         },
         {
           "app": "examples/nextjs-app",
-          "pin": "0.2.4",
-          "installed": "0.2.4"
+          "pin": "0.2.5",
+          "installed": "0.2.5"
         }
       ],
       "guide_floor": "^0.2.3 in docs/BRUG-BID.md + llms.txt — deliberately the version where the two properties the text describes actually landed, not the newest. The examples sit above the floor; a reader following ^0.2.3 gets latest in practice"
