@@ -26,6 +26,7 @@ import type {
   UploadOptions,
   VolumeConfig,
 } from "../types";
+import { assertSafeKey } from "../safe-key";
 
 /** Objects and their metadata live in two sibling trees, so a key can never
  *  collide with the file describing another key. */
@@ -44,19 +45,10 @@ const encodeKey = (key: string) => key.split("/").map(encodeURIComponent).join("
  * than sanitised, because a silently-rewritten key is a key that does not round
  * -trip through signedUrl/delete.
  */
-function safeSegments(key: string): string[] {
-  const normalized = key.replace(/^\/+/, "");
-  if (normalized === "") throw new Error("media(volume): key is empty");
-  if (normalized.includes("\0")) throw new Error("media(volume): key contains a NUL byte");
-  if (normalized.includes("\\")) throw new Error(`media(volume): key contains a backslash: ${key}`);
-  const segments = normalized.split("/");
-  for (const segment of segments) {
-    if (segment === "" || segment === "." || segment === "..") {
-      throw new Error(`media(volume): key escapes the root: ${key}`);
-    }
-  }
-  return segments;
-}
+// The rule itself now lives in ../safe-key.ts so r2 runs the SAME one. It used
+// to live here, r2 had nothing, and the two providers therefore disagreed about
+// the same key — invisibly, until a consumer switched provider (F086).
+const safeSegments = (key: string): string[] => assertSafeKey(key, "volume");
 
 export function createVolumeStore(cfg: VolumeConfig): MediaStore {
   const root = cfg.root.replace(/[\\/]+$/, "");

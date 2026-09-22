@@ -9,6 +9,7 @@ import type {
   SignedUrlOptions,
   UploadOptions,
 } from "../types";
+import { safeKey } from "../safe-key";
 
 // R2's S3 endpoint host. The EU jurisdiction pins data-residency and MUST match
 // how the bucket was created (jurisdiction is immutable at creation).
@@ -34,9 +35,18 @@ export function createR2Store(cfg: R2Config): MediaStore {
     retries: 2, // modest resilience against R2's transient 5xx/429 (aws4fetch defaults to 10)
   });
 
-  // Strip a leading slash so callers can pass "/logo.png" or "logo.png" alike.
-  const normalize = (key: string) => key.replace(/^\/+/, "");
-  const fullKey = (key: string) => prefix + normalize(key);
+  // Strip a leading slash so callers can pass "/logo.png" or "logo.png" alike,
+  // and REFUSE anything that would climb out of the bucket or the prefix.
+  //
+  // Stripping alone is not enough and used to be all this did. `encodeKey`
+  // below looks like it sanitises the key, but `encodeURIComponent("..")` is
+  // ".." — a dot is not encoded — so `..` reaches the URL intact and the URL
+  // parser collapses it. `volume` refused the same key; `r2` did not. See
+  // ../safe-key.ts for the measurement (F086).
+  const normalize = (key: string) => safeKey(key, "r2");
+  // The prefix is validated WITH the key, so a prefix cannot smuggle one in
+  // either — the same second pass volume has always done.
+  const fullKey = (key: string) => safeKey(prefix + normalize(key), "r2");
   const objectUrl = (key: string) => `${base}/${encodeKey(fullKey(key))}`;
 
   return {
