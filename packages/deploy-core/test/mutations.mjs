@@ -19,6 +19,9 @@ const PKG = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILES = {
   "fly-live": join(PKG, "src", "deploy", "fly-live.ts"),
   "fly-live-assets": join(PKG, "src", "deploy", "fly-live-assets.ts"),
+  // F033.13 — the Fly client. Each mutation below restores a defect measured in
+  // a consumer's own copy (cms, whop) or a trap measured in Fly's live API.
+  "fly-machines": join(PKG, "src", "deploy", "fly-machines.ts"),
 };
 const FILE = FILES["fly-live"]; // default for a mutation that names no file
 
@@ -136,6 +139,63 @@ const MUTATIONS = [
     from: "    (k) => typeof config?.[k] !== 'string' || config[k].trim() === '',",
     to: "    () => true,",
     expect: ["the guard must not reject valid input"],
+  },
+  {
+    // cms's wait loop: every non-ok answer retried. A wrong token becomes 30
+    // minutes of polling.
+    name: "the retry rule is too BROAD (a 401 is retried)",
+    file: "fly-machines",
+    from: "  return status === 408 || status === 429 || status >= 500;",
+    to: "  return true;",
+    expect: ["a 401 throws at once, after ONE request"],
+  },
+  {
+    // upmetrics' first version, per ai-sdk 23/9: only >= 500, so a 429 flood
+    // during a burst was thrown away.
+    name: "the retry rule is too NARROW (429 and 408 are not retried)",
+    file: "fly-machines",
+    from: "  return status === 408 || status === 429 || status >= 500;",
+    to: "  return status >= 500;",
+    expect: ["a 429 is retried and the next answer wins"],
+  },
+  {
+    name: "the token redactor is a pass-through",
+    file: "fly-machines",
+    from: '    return text.split(this.token).join("[redacted]").slice(0, MAX_BODY);',
+    to: "    return text.slice(0, MAX_BODY);",
+    expect: ["a Fly body that echoes the token is redacted"],
+  },
+  {
+    // cms counted a stop with no exit code as success.
+    name: "a missing exit code is reported as 0 (a guess dressed as a verdict)",
+    file: "fly-machines",
+    from: "        return { state: m.state, exitCode: exitCodeOf(m) };",
+    to: "        return { state: m.state, exitCode: exitCodeOf(m) ?? 0 };",
+    expect: ["a stop with NO exit code is reported as null"],
+  },
+  {
+    // The wait loop treats every failure as "not yet".
+    name: "waitForState waits out a 404 instead of throwing",
+    file: "fly-machines",
+    from: "        const transient = err instanceof FlyApiError ? isRetryableStatus(err.status) : !(err instanceof FlyTimeoutError);",
+    to: "        const transient = true;",
+    expect: ["a 404 throws at once instead of waiting out the clock"],
+  },
+  {
+    // whop deletes its rows for apps missing from the list.
+    name: "listAllApps accepts a list shorter than Fly's totalCount",
+    file: "fly-machines",
+    from: "    if (out.length !== total) {",
+    to: "    if (false) {",
+    expect: ["fewer apps than Fly's own totalCount throws"],
+  },
+  {
+    // Fly answers HTTP 200 for a bad token; the error is in the body.
+    name: "GraphQL errors inside a 200 are ignored",
+    file: "fly-machines",
+    from: "    if (first) {",
+    to: "    if (false) {",
+    expect: ["a bad token (200 + UNAUTHORIZED) throws a 401 FlyApiError"],
   },
 ];
 
