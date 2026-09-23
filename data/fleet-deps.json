@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-22T09:21:37.902Z",
- "repos_scanned": 61,
+ "scanned_at": "2026-09-23T09:23:08.144Z",
+ "repos_scanned": 63,
  "repos_failed": 0,
- "manifests_read": 222,
+ "manifests_read": 223,
  "manifests_unreadable": 0,
- "edges": 189,
+ "edges": 191,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -273,7 +273,7 @@
     ],
     "@broberg/media": [
      {
-      "range": "0.3.0",
+      "range": "0.3.1",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -744,7 +744,7 @@
     ],
     "@broberg/media": [
      {
-      "range": "0.2.1",
+      "range": "0.3.1",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -816,6 +816,27 @@
       "range": "workspace:*",
       "field": "dependencies",
       "at": "packages/fleet-client/package.json"
+     }
+    ]
+   }
+  },
+  "broberg-ai/forager": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/config": [
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/secret-scan": [
+     {
+      "range": "^0.9.3",
+      "field": "dependencies",
+      "at": "package.json"
      }
     ]
    }
@@ -1056,6 +1077,13 @@
    "no_manifests": true,
    "deps": {}
   },
+  "broberg-ai/mailworker": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
+  },
   "broberg-ai/notesmem": {
    "branch": "main",
    "manifests": 4,
@@ -1190,17 +1218,17 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "^0.38.0",
+      "range": "0.48.0",
       "field": "dependencies",
       "at": "apps/scout/package.json"
      },
      {
-      "range": "^0.38.0",
+      "range": "0.48.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "^0.38.0",
+      "range": "0.48.0",
       "field": "dependencies",
       "at": "packages/shared/package.json"
      }
