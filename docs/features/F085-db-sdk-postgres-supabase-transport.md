@@ -1,34 +1,19 @@
 # F085 — Flåden må ikke være Turso-only: en PostgreSQL/Supabase-transport til `@broberg/db-sdk`
 
-> **Status:** backlog. **Intet bygges før åbent spørgsmål 1 er besvaret** — se nedenfor.
+> **Status:** i gang. Åbent spørgsmål 1 er besvaret — se nedenfor.
 > **Ordren:** Christian, 22. september 2026: *«ja gør det og klargør at vi får bygget en postGreSQL adapter så vi ikke kun har turso.»*
 
 ---
 
-## Åbne spørgsmål — 2 til Christian
+## Åbne spørgsmål — 1 til Christian
 
-De står øverst med vilje, fordi svaret på nr. 1 afgør om der overhovedet kan skrives kode.
+### ~~1. HVOR skal adapteren bygges?~~ BESVARET 23/9 2026
 
-### 1. HVOR skal adapteren bygges? (blokerende)
+> Christian: *«Det skal fortsat placeres i det repo»* — altså **(a): `broberg-ai/db-sdk`**.
 
-`@broberg/db-sdk` ejes ikke af `components`. Målt 22/9 2026:
+Bygges i `broberg-ai/db-sdk`, af `components`-sessionen (klonet til `~/.buddy/repos/db-sdk`). Kortene bliver på `components`-boardet. Beslutningen er foreslået til Decision Register (`01a0cf03-1032-7401-aed3-69251f90d9db`), så næste session ikke genforeslår (b).
 
-| | |
-|---|---|
-| npm | én udgivelse, `v0.1.0`, 8. juni 2026 — ingen siden |
-| GitHub | `broberg-ai/db-sdk`, sidst rørt **8. juni 2026**, samme dag |
-| agent-session | **ingen** — der er ingen at sende opgaven til |
-| lokal klon | findes ikke på nogen af flådens maskiner |
-
-Tre veje, og det er en ejerbeslutning, ikke min:
-
-**(a) Genopliv `broberg-ai/db-sdk`** — start en session på repoet, byg adapteren dér. Pakken bliver hvor den er, ejerskabet er klart. Prisen: endnu et repo med endnu en udgivelsespipeline, og historikken siger at det repo ikke holdes varmt af sig selv.
-
-**(b) Fold pakken ind i `components` som `packages/db-sdk`.** Vi har allerede 39 pakker, en OIDC-publiceringspipeline på tags, en testport og en session der kører hver dag. `@broberg/ai-sdk` — som db-sdk's egen dokumentation udpeger som sin forbillede-model — bor i sit eget repo, så det er ikke et argument i sig selv. Prisen: navnet `@broberg/db-sdk` skal have en ny Trusted Publisher, og `src`/`own` i registret skal rettes.
-
-**(c) Lad den ligge, og lad Postgres-apps bruge drizzles egen Postgres-driver direkte.** Det ærlige alternativ: hvis den delte værdi kun er forbindelses-config plus en health-probe, er en SDK måske ikke prisen værd. Skrevet her frem for udeladt, fordi et «byg det» der aldrig blev holdt op mod «byg det ikke» er en beslutning ingen har truffet.
-
-**Min anbefaling: (b).** Begrundelsen er ikke smag, den er målt: et repo der ikke er rørt i 3½ måned og ikke har en session, er ikke et sted hvor en fælles kapacitet holdes i live. `components` har porten, pipelinen og den daglige session i forvejen. Men det er hans kald.
+Fravalgt, og hvorfor det stadig står her: **(b) fold ind i `components`** var min anbefaling (port, pipeline og daglig session findes her). **(c) byg den ikke** efterlader flåden Turso-only. Prisen ved (a), som vi nu betaler bevidst: repoet har ingen testport i CI i dag — `publish.yml` kører `bun test`, men kun ved et tag, og den eneste test springer over uden Turso-nøgler. Det lukkes i F085.2 (AC8).
 
 ### 2. Hvilken forbruger piloterer den?
 
@@ -90,6 +75,36 @@ interface DbClient {
 
 **Versionering:** det er et **major-bump**. Under `1.0.0` er npm's caret patch-only, så en brydende ændring udgivet som `0.1.1` ville blive trukket ind automatisk hos enhver `^0.1.0`-forbruger. Enten `0.2.0` (caret beskytter) eller `1.0.0` (ærligst, og pakken har alligevel brug for at kunne love noget). **Ikke en patch.**
 
+## Målt 23/9: hvad den eneste forbruger faktisk kalder
+
+Den eneste `0.1.0`-forbruger i flåden er **buddy** (`apps/server`, `"@broberg/db-sdk": "^0.1.0"`). GitHub-kodesøgning i `broberg-ai` gav nul træf, så tallet er fra de lokale kloner på `cb-2` — ikke en fuld optælling.
+
+Hvad buddy kalder på klienten, målt ved grep i `src/db/cloud.ts` og `src/corpus/mirror.ts`:
+
+| Kald | Bruges |
+|---|---|
+| `execute("sql")` | ja, mest (DDL, `PRAGMA`, `SELECT`) |
+| `execute({ sql, args })` | ja |
+| `batch(stmts, 'write')` | ja |
+| `res.rows[i]['kolonne']` | ja — navngiven kolonne-adgang |
+| `sync()` / `createReplica` | **nej** |
+| drizzle oven på db-sdk-klienten | **nej** — buddys drizzle kører på sin lokale SQLite |
+
+**To konsekvenser for designet:**
+
+1. **Flade-formen er givet af forbrugeren.** `DbClient` skal have `execute(string | {sql,args})` og `batch(stmts, mode?)`, og rækker med navngiven adgang. Så kan buddy opgradere uden at røre sine kaldesteder — kun `^0.1.0` → `^0.2.0`.
+2. **SQL-dialekten er IKKE portabel, og facaden må ikke lade som om.** buddys SQL er SQLite (`PRAGMA table_info`, `?`-pladsholdere). Postgres bruger `$1`. At oversætte `?` → `$n` i SDK'en er en fælde (et `?` i en streng-literal eller en JSON-operator bliver omskrevet). Facaden forener **forbindelse, udførelse, resultat-form og helbred** — ikke dialekten. Det skal stå i README'en med de ord, ellers genskaber vi præcis det løfte-ældre-end-koden F085 blev oprettet for.
+
+**Og en Supabase-fælde der skal forsegles fra start:** Supabases forbindelses-pooler i transaktions-tilstand (port `6543`) understøtter ikke prepared statements. `postgres.js` bruger dem som standard. Uden `prepare: false` virker alt mod en lokal Postgres og fejler mod Supabase-pooleren — i den grønne retning, indtil prod.
+
+## Opdeling i stories
+
+| Story | Hvad | Blokeret af |
+|---|---|---|
+| **F085.2** | `DbClient`-fladen, libSQL portet til den, Postgres-transport, én kontrakt-suite mod begge — kørt mod en **rigtig** Postgres (lokal container + CI-service), ikke en attrap. CI-testport på hver push. | intet |
+| **F085.3** | Samme kontrakt-suite mod en rigtig Supabase i `arn` via pooleren · udgivelse som `0.2.0` · migreringsnotat · registret opdateret | en Supabase-instans (Christian) |
+| **F085.4** | Pilot-app migreret; først derefter `shipped` for Postgres i registret | åbent spørgsmål 2 |
+
 ## Scope
 
 **I scope:** en Postgres/Supabase-transport bag den fælles flade · den fælles `DbClient`-type + nødudgang til den rå klient · `health()` pr. transport, der siger hvem der svarede · migreringsnotat til `0.1.0`-forbrugere · rettelse af pakkens egen beskrivelse og kodekommentar, så løftet matcher koden · en test der beviser at **begge** transporter opfylder den samme flade.
@@ -109,7 +124,9 @@ Discovery-tjek kørt 22/9 2026 før planen blev skrevet.
 
 ## Afhængigheder
 
-- **Blokeret af åbent spørgsmål 1** (hvor bygges den). Ingen kode før svaret.
+- ~~Blokeret af åbent spørgsmål 1~~ — besvaret 23/9: `broberg-ai/db-sdk`.
+- F085.3 (rigtig Supabase i `arn`) kræver en Supabase-instans. Om en af de fire eksisterende må bruges til en prøvetabel, eller der skal oprettes en ny, er infra og derfor Christians.
+- F085.4 (pilot) er blokeret af åbent spørgsmål 2.
 - Ingen afhængighed til `components`' egne pakker.
 - `broberg-id` (F084) er en *interesseret* part, ikke en afhængighed: de overvejer Turso til BID og fik 22/9 det ærlige svar at db-sdk's modenhed ikke bærer flådens login endnu.
 
