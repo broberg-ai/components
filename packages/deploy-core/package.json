@@ -1,7 +1,7 @@
 {
   "name": "@broberg/deploy-core",
-  "version": "0.3.2",
-  "description": "Fly Live HMAC incremental-sync, Cloudflare Pages, Fly Machines REST client, and deploy-event bus — the shared deploy execution layer for the broberg.ai fleet.",
+  "version": "0.4.0",
+  "description": "Fly Live HMAC incremental content-sync and a Fly.io client (Machines REST + the GraphQL the fleet uses) — the shared deploy execution layer for the broberg.ai fleet.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -37,7 +37,9 @@
     "hmac",
     "sync",
     "cloudflare",
-    "broberg"
+    "broberg",
+    "machines",
+    "flyio"
   ],
   "repository": {
     "type": "git",
