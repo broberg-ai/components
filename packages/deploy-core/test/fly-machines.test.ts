@@ -3,7 +3,7 @@
 // These tests pin OUR behaviour: which failures are retried, what a wait loop
 // does with Fly's 408, whether a list can be partial, whether the token can
 // leak. What Fly itself answers was measured against the live API (24/9 2026)
-// and is reproduced here as fixtures — the live check is test/fly-live-api.
+// and is reproduced here as fixtures — the live check is test/live/fly-api.live.ts.
 import { describe, expect, it } from "vitest";
 import { FlyApiError, FlyClient, FlyTimeoutError, exitCodeOf, isRetryableStatus } from "../src/index.js";
 
@@ -72,6 +72,40 @@ describe("retry rule — only what can succeed on a second try", () => {
     expect([401, 403, 404, 409, 422].map(isRetryableStatus)).toEqual([false, false, false, false, false]);
     expect([408, 429, 500, 503].map(isRetryableStatus)).toEqual([true, true, true, true]);
   });
+});
+
+describe("a hung connection is a failure, not a wait", () => {
+  // A fetch that never answers — it only settles when its signal aborts, which
+  // is exactly what a dead TCP connection looks like from here.
+  const hanging = () => {
+    let calls = 0;
+    const impl = ((_url: string, init?: RequestInit) => {
+      calls++;
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) return; // no signal: hang forever, as fetch would
+        signal.addEventListener("abort", () => reject(signal.reason ?? new Error("aborted")));
+      });
+    }) as unknown as typeof fetch;
+    return { impl, count: () => calls };
+  };
+
+  it("a request that never answers fails after requestTimeoutMs, retried like a network error", async () => {
+    const h = hanging();
+    const fly = new FlyClient({ token: TOKEN, fetch: h.impl, sleep: noSleep, requestTimeoutMs: 50, maxAttempts: 2 });
+    const t0 = Date.now();
+    const err = await fly.listMachines("app").catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(Date.now() - t0).toBeLessThan(2_000);
+    expect(h.count()).toBe(2);
+  }, 5_000);
+
+  it("waitForExit's deadline still fires when every poll hangs", async () => {
+    const h = hanging();
+    const fly = new FlyClient({ token: TOKEN, fetch: h.impl, sleep: noSleep, requestTimeoutMs: 50, maxAttempts: 1 });
+    const err = await fly.waitForExit("app", "m1", { pollMs: 0, maxMs: 0 }).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+  }, 5_000);
 });
 
 describe("the token never leaves in an error", () => {

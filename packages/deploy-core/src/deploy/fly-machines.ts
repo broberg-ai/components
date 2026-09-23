@@ -156,11 +156,20 @@ export interface FlyClientOptions {
   maxAttempts?: number;
   /** Injected for tests. Default: a real timer. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Give up on ONE request after this long. Default 30 s. Without it a
+   * connection that hangs — no error, no answer — never returns, and no wait
+   * loop above it ever reaches its own deadline. A timed-out request counts as
+   * a network failure, so it is retried like one.
+   */
+  requestTimeoutMs?: number;
 }
 
 interface RequestOptions {
   /** Retry transient failures. Off where the caller handles them itself. */
   retry?: boolean;
+  /** Override the per-request timeout (the /wait call needs longer). */
+  timeoutMs?: number;
   /** Return null on 404 instead of throwing. */
   nullOn404?: boolean;
 }
@@ -172,6 +181,7 @@ export class FlyClient {
   private readonly fetchImpl: typeof fetch;
   private readonly maxAttempts: number;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly requestTimeoutMs: number;
 
   constructor(opts: FlyClientOptions = {}) {
     const token = opts.token ?? process.env.FLY_API_TOKEN;
@@ -180,6 +190,7 @@ export class FlyClient {
     this.fetchImpl = opts.fetch ?? fetch;
     this.maxAttempts = Math.max(1, opts.maxAttempts ?? 3);
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.requestTimeoutMs = opts.requestTimeoutMs ?? 30_000;
   }
 
   // ── Apps ──
@@ -257,9 +268,12 @@ export class FlyClient {
     for (;;) {
       const left = Math.ceil((deadline - Date.now()) / 1000);
       if (left <= 0) throw new FlyTimeoutError(`${app}/${id} to be ${state}`, undefined);
-      const path = `${this.machinePath(app, id)}/wait?state=${state}&timeout=${Math.min(60, left)}`;
+      const serverTimeout = Math.min(60, left);
+      const path = `${this.machinePath(app, id)}/wait?state=${state}&timeout=${serverTimeout}`;
       try {
-        await this.rest("GET", path, undefined, { retry: false });
+        // Fly holds this request open for up to serverTimeout seconds on
+        // purpose, so our own limit must sit above it, not at the default.
+        await this.rest("GET", path, undefined, { retry: false, timeoutMs: (serverTimeout + 15) * 1000 });
         return;
       } catch (err) {
         // 408 is Fly's "not yet". A 5xx or a network blip is also worth
@@ -378,7 +392,14 @@ export class FlyClient {
   }
 
   /** One HTTP call with the retry rule applied. Returns the Response for a 2xx. */
-  private async send(method: string, url: string, path: string, body: unknown, retry: boolean): Promise<Response> {
+  private async send(
+    method: string,
+    url: string,
+    path: string,
+    body: unknown,
+    retry: boolean,
+    timeoutMs = this.requestTimeoutMs,
+  ): Promise<Response> {
     const attempts = retry ? this.maxAttempts : 1;
     let lastErr: unknown;
     for (let i = 0; i < attempts; i++) {
@@ -389,6 +410,7 @@ export class FlyClient {
           method,
           headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
           body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch (err) {
         // A network failure never reached Fly: always worth another try.
@@ -405,7 +427,7 @@ export class FlyClient {
 
   private async rest<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T | null> {
     try {
-      const res = await this.send(method, MACHINES_API + path, path, body, opts.retry ?? true);
+      const res = await this.send(method, MACHINES_API + path, path, body, opts.retry ?? true, opts.timeoutMs);
       const text = await res.text();
       return (text ? JSON.parse(text) : null) as T | null;
     } catch (err) {

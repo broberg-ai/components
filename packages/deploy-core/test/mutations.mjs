@@ -197,6 +197,15 @@ const MUTATIONS = [
     to: "    if (false) {",
     expect: ["a bad token (200 + UNAUTHORIZED) throws a 401 FlyApiError"],
   },
+  {
+    // The port dropped cms's AbortSignal.timeout: a hung connection never
+    // returns, and no wait loop above it reaches its deadline.
+    name: "requests have no timeout (a hung connection blocks forever)",
+    file: "fly-machines",
+    from: "          signal: AbortSignal.timeout(timeoutMs),\n",
+    to: "",
+    expect: ["a request that never answers fails after requestTimeoutMs"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "deploymut-"));
