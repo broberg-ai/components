@@ -95,14 +95,18 @@ Hvad buddy kalder på klienten, målt ved grep i `src/db/cloud.ts` og `src/corpu
 1. **Flade-formen er givet af forbrugeren.** `DbClient` skal have `execute(string | {sql,args})` og `batch(stmts, mode?)`, og rækker med navngiven adgang. Så kan buddy opgradere uden at røre sine kaldesteder — kun `^0.1.0` → `^0.2.0`.
 2. **SQL-dialekten er IKKE portabel, og facaden må ikke lade som om.** buddys SQL er SQLite (`PRAGMA table_info`, `?`-pladsholdere). Postgres bruger `$1`. At oversætte `?` → `$n` i SDK'en er en fælde (et `?` i en streng-literal eller en JSON-operator bliver omskrevet). Facaden forener **forbindelse, udførelse, resultat-form og helbred** — ikke dialekten. Det skal stå i README'en med de ord, ellers genskaber vi præcis det løfte-ældre-end-koden F085 blev oprettet for.
 
-**Og en Supabase-fælde der skal forsegles fra start:** Supabases forbindelses-pooler i transaktions-tilstand (port `6543`) understøtter ikke prepared statements. `postgres.js` bruger dem som standard. Uden `prepare: false` virker alt mod en lokal Postgres og fejler mod Supabase-pooleren — i den grønne retning, indtil prod.
+**Og en Supabase-fælde der skal forsegles fra start:** Supabases forbindelses-pooler i transaktions-tilstand (port `6543`) og prepared statements, som `postgres.js` bruger som standard.
+
+> **MÅLT 23/9 2026 (F085.3), og det var ikke den fejl planen forudsagde.** Mod et rigtigt Supabase-projekt (Gen2Code, eu-north-1), 40 samtidige forespørgsler med prepared statements SLÅET TIL: transaktions-pooleren **hang** efter 5–8 svar — ingen fejlbesked, 3 af 3 kørsler. Session-pooleren og den direkte forbindelse svarede 40/40. Én ad gangen bestod ALT, også med prepared statements til — så en sekventiel suite kan ikke se fælden, og en hængning uden tidsgrænse bliver aldrig rød. Forseglet med et samtidigheds-tilfælde (60 forespørgsler, 90 s frist) der kører gennem den rigtige pooler i CI; negativ kontrol: `prepare: true` → «HUNG: 60 concurrent queries did not finish in 90s».
+>
+> Testadgangen er en isoleret rolle, `db_sdk_contract`, der kun ejer sit eget skema og hverken kan læse eller skrive i projektets eksisterende tabeller (målt). Ingen eksisterende adgangskode er ændret. Adresserne ligger i vaulten under `components`.
 
 ## Opdeling i stories
 
 | Story | Hvad | Blokeret af |
 |---|---|---|
 | **F085.2** | `DbClient`-fladen, libSQL portet til den, Postgres-transport, én kontrakt-suite mod begge — kørt mod en **rigtig** Postgres (lokal container + CI-service), ikke en attrap. CI-testport på hver push. | intet |
-| **F085.3** | Samme kontrakt-suite mod en rigtig Supabase i `arn` via pooleren · udgivelse som `0.2.0` · migreringsnotat · registret opdateret | en Supabase-instans (Christian) |
+| **F085.3** | Samme kontrakt-suite mod en rigtig Supabase i `arn` via pooleren · udgivelse som `0.2.0` · migreringsnotat · registret opdateret | ~~en Supabase-instans~~ — Gen2Code, Christian 23/9 |
 | **F085.4** | Pilot-app migreret; først derefter `shipped` for Postgres i registret | åbent spørgsmål 2 |
 
 ## Scope
