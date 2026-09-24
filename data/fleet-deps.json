@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-23T09:23:08.144Z",
+ "scanned_at": "2026-09-24T09:22:42.202Z",
  "repos_scanned": 63,
  "repos_failed": 0,
- "manifests_read": 223,
+ "manifests_read": 224,
  "manifests_unreadable": 0,
- "edges": 191,
+ "edges": 194,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -649,7 +649,15 @@
    "branch": "main",
    "manifests": 1,
    "unreadable": 0,
-   "deps": {}
+   "deps": {
+    "@broberg/media": [
+     {
+      "range": "0.3.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
   },
   "broberg-ai/db-sdk": {
    "branch": "main",
@@ -1079,10 +1087,17 @@
   },
   "broberg-ai/mailworker": {
    "branch": "main",
-   "manifests": 0,
+   "manifests": 1,
    "unreadable": 0,
-   "no_manifests": true,
-   "deps": {}
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.49.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
   },
   "broberg-ai/notesmem": {
    "branch": "main",
@@ -1575,6 +1590,13 @@
     "@broberg/db-sdk": [
      {
       "range": "^0.1.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/deploy-core": [
+     {
+      "range": "0.4.1",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
