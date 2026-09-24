@@ -57,6 +57,7 @@ jobs:
     # A publish that FAILED must not gate-and-deploy off the back of it.
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     steps:
       # FULL HISTORY — apps/discovery's own test script ends in the mutation
       # selector, which decides what a push could have affected by diffing
@@ -206,6 +207,7 @@ jobs:
     needs: check
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     outputs:
       relevant: ${{ steps.f.outputs.relevant }}
     steps:
@@ -283,6 +285,7 @@ jobs:
     needs: [changes, deploy]
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

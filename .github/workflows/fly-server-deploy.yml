@@ -194,6 +194,17 @@ on:
         required: false
         type: string
         default: arn
+      timeout_minutes:
+        description: >-
+          Kill the deploy job after this many minutes (F033.15). Without it GitHub
+          waits 360 — and a caller with `concurrency` + `cancel-in-progress: false`
+          has every later deploy blocked behind a hung one, with nothing turning red.
+          A caller cannot set timeout-minutes on a `uses:` job itself, so it lives
+          here. Default 20 ≈ 5× broberg-id's measured max (~4 min); raise it for a
+          heavier build.
+        required: false
+        type: number
+        default: 20
     secrets:
       FLY_API_TOKEN:
         description: Fly deploy token. Absent = deploy skipped (ship-dark).
@@ -202,6 +213,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout_minutes }}
     defaults:
       run:
         working-directory: ${{ inputs.working_directory }}

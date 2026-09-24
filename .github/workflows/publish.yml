@@ -104,6 +104,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/theme-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -168,6 +169,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/secret-scan-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -253,6 +255,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/lens-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -317,6 +320,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/seti-client-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -381,6 +385,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/greppable-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -451,6 +456,7 @@ jobs:
     needs: [gate, sso-security]
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sso-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -515,6 +521,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/forms-turnstile-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -579,6 +586,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sms-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -643,6 +651,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/device-stats-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -707,6 +716,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/seti-server-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -771,6 +781,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mail-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -835,6 +846,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/config-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -899,6 +911,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/media-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -963,6 +976,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/apikey-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1027,6 +1041,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/webpush-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1098,6 +1113,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cron-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1162,6 +1178,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/media-transform-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1226,6 +1243,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/auth-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1302,6 +1320,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/deploy-core-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1380,6 +1399,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/gravatar-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1444,6 +1464,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mail-core-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1508,6 +1529,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/speech-dictionary-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1572,6 +1594,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/notify-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1636,6 +1659,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/lens-engine-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1711,6 +1735,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/lens-client-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1775,6 +1800,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/bodymap-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1839,6 +1865,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/stripe-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1903,6 +1930,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/pwa-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -1967,6 +1995,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/soundkit-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2031,6 +2060,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/consent-cookie-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2095,6 +2125,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/i18n-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2159,6 +2190,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cmdk-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2223,6 +2255,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/ui-controls-core-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2287,6 +2320,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/event-log-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2351,6 +2385,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/http-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2415,6 +2450,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/chat-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2479,6 +2515,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/logger-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2543,6 +2580,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mcp-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2606,6 +2644,7 @@ jobs:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/notifications-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
@@ -2704,6 +2743,7 @@ jobs:
     needs: gate
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: write # the one job here that writes back to the repo
     steps:

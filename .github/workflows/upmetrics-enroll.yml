@@ -27,6 +27,7 @@ on:
 jobs:
   enroll:
     runs-on: ubuntu-latest
+    timeout-minutes: 5 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
       contents: read
       id-token: write # lets GitHub mint the token that proves which repo this is
