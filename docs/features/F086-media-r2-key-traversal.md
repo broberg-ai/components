@@ -88,3 +88,15 @@ broberg-id meldte samtidig at r2-provideren hardkoder `${accountId}.r2.cloudflar
 - Om xrt81's og fd-sundheds nøgler er brugerstyrede. Ikke undersøgt — deres kode, deres svar.
 - Om R2's egen server afviser en `..`-sti før den rammer et objekt. Irrelevant for tenant-tilfældet (stien er lovlig efter normalisering), men uafklaret for bucket-tilfældet.
 - Om `publicUrl()` har samme egenskab som `objectUrl()`. Den bruger samme `encodeKey(fullKey(...))`, så den formodes ramt — men det skal måles, ikke antages.
+
+## Rettelse 24/9 — «xrt81 kører 0.1.0» var registrets tal, ikke en måling
+
+Linjen ovenfor om at xrt81 kører 0.1.0 i produktion var forkert. Den kom fra xrt81's Discovery-tilmelding, som sidst var opdateret 12/8. xrt81 målte selv 24/9 (#663):
+
+- Låsen siger **0.2.1**.
+- Der er **nul imports** af @broberg/media, så r2-provideren kører aldrig.
+- **Ingen nøgle kan påvirkes af en bruger**: alle nøgler er server-UUID'er eller kommer fra en fast liste.
+
+**xrt81 er ikke udsat.**
+
+Lektien: Discovery er selvrapporteret og kan være forældet. En advisering skal sige «ifølge jeres tilmelding fra <dato>», ikke «I kører». fd-sundheds «0.2.1» kommer fra samme kilde og er heller ikke målt af os.
