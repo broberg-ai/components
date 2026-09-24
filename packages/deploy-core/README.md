@@ -27,6 +27,9 @@ await fly.updateMachine("my-app", m.id, {       // resize: pass the WHOLE config
 });
 await fly.waitForState("my-app", m.id, "started", 120);
 const { state, exitCode } = await fly.waitForExit("my-app", jobId);
+
+await fly.listVolumes("my-app");                // destroyed ones included — filter on state
+await fly.promQuery("personal", 'sum(fly_instance_memory_mem_available{app="my-app"})');
 ```
 
 Also: `getApp`, `createApp`, `deleteApp`, `getMachine`, `createMachine`,
@@ -44,6 +47,13 @@ Each of these was measured — in a consumer's own copy or against the live API
   of polling.)
 - **`waitForExit` reports `exitCode: null` when Fly recorded none.** It does not
   call that a success; you decide.
+- **`waitForExit` throws a 404 for a machine it never saw** (since 0.5.0). Fly
+  answers 404 "machine not found" both for a wrong id and for a WRONG TOKEN, so
+  a 404 on the first poll is not "destroyed". Only a machine seen in an earlier
+  poll that then disappears (auto_destroy) is reported as `destroyed`.
+- **`promQuery` hides Fly's Prometheus auth trap** (since 0.5.0). Fly's
+  Prometheus answers 401 to `Bearer` and wants `FlyV1 <token>`; the Machines API
+  takes Bearer. HTTP 200 with `status: "error"` throws.
 - **`waitForState` reads Fly's 408 as "not yet".** Fly's `/wait` answers 408 when
   its own timeout runs out; the client keeps asking until your timeout is spent,
   then throws `FlyTimeoutError`.
@@ -57,7 +67,8 @@ Each of these was measured — in a consumer's own copy or against the live API
 ### Verified against the real Fly API
 
 `test/live/fly-api.live.ts` runs read-only against an existing app (compared
-with `flyctl machines list`) and runs the write path — create app, create
+with `flyctl machines list` / `flyctl volumes list`, plus `promQuery` and the
+never-seen-machine 404; `FLY_LIVE_READ_ONLY=1` stops there) and runs the write path — create app, create
 machine, resize and read back, stop, a process that exits 3, destroy, delete
 app — inside a throwaway app it always deletes. Run by hand; it is not part of
 `vitest run`.

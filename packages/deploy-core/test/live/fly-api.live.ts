@@ -4,12 +4,14 @@
 //   FLY_API_TOKEN=$(flyctl auth token) FLY_LIVE_ORG=personal \
 //     FLY_LIVE_READ_APP=<an existing app> bun test/live/fly-api.live.ts
 //
+// FLY_LIVE_READ_ONLY=1 stops after the READ half — nothing is created.
+//
 // READ half: read-only against an app that already exists, compared with
 // flyctl's own answer. WRITE half: only inside an app this script creates and
 // always deletes, even when a step fails. It never writes to an existing app.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { FlyClient, FlyTimeoutError, type FlyMachineConfig } from "../../src/index.js";
+import { FlyApiError, FlyClient, FlyTimeoutError, type FlyMachineConfig } from "../../src/index.js";
 
 const org = process.env.FLY_LIVE_ORG ?? "personal";
 const readApp = process.env.FLY_LIVE_READ_APP;
@@ -39,6 +41,30 @@ if (readApp) {
   check((await fly.getApp(readApp))?.name === readApp, `getApp(${readApp})`);
 }
 check((await fly.getApp(`no-such-app-${randomBytes(4).toString("hex")}`)) === null, "getApp on a missing app is null");
+
+// F033.14 — volumes, Prometheus, and a machine that was never seen.
+if (readApp) {
+  const vols = await fly.listVolumes(readApp);
+  const viaFlyctl = JSON.parse(execFileSync("flyctl", ["volumes", "list", "-a", readApp, "--json"]).toString()) as {
+    id: string;
+    size_gb: number;
+  }[];
+  const mine = vols.filter((v) => v.state !== "destroyed").map((v) => `${v.id}:${v.size_gb}`).sort().join(",");
+  const theirs = viaFlyctl.map((v) => `${v.id}:${v.size_gb}`).sort().join(",");
+  check(mine === theirs, `listVolumes(${readApp}) == flyctl volumes list`, `${mine}  vs  ${theirs}`);
+
+  const unseen = await fly.waitForExit(readApp, "0000000000dead", { pollMs: 0, maxMs: 10_000 }).catch((e) => e);
+  check(unseen instanceof FlyApiError && unseen.status === 404, "waitForExit on a machine never seen throws 404, not 'destroyed'", String(unseen));
+}
+const prom = await fly.promQuery(org, "count(fly_instance_up)");
+check(prom.resultType === "vector" && prom.result.length > 0, `promQuery(${org}) answers with FlyV1 auth`, JSON.stringify(prom).slice(0, 120));
+const badProm = await new FlyClient({ token: "wrong" }).promQuery(org, "up").catch((e) => e);
+check(badProm instanceof FlyApiError && badProm.status === 401, "promQuery with a wrong token throws 401", String(badProm));
+
+if (process.env.FLY_LIVE_READ_ONLY === "1") {
+  console.log(failed ? `\nFAIL — ${failed} check(s) failed` : "\nOK — read-only live checks passed (write half skipped)");
+  process.exit(failed ? 1 : 0);
+}
 
 console.log(`── WRITE (throwaway app in "${org}", deleted at the end)`);
 const app = `bdc-f03313-${randomBytes(3).toString("hex")}`;

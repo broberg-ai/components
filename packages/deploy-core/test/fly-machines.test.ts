@@ -159,6 +159,21 @@ describe("waitForExit — the end of a machine, not a guess about it", () => {
     expect(calls.length).toBe(1);
   });
 
+  it("a 404 on the FIRST poll throws — a machine never seen is not 'destroyed' (wrong id or wrong token)", async () => {
+    const { fly, calls } = client([{ status: 404, body: { error: "machine not found" } }]);
+    const err = await fly.waitForExit("app", "m1", { pollMs: 0, maxMs: 60_000 }).catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.status).toBe(404);
+    expect(err.message).toMatch(/wrong machine id/);
+    expect(err.message).toMatch(/wrong token/);
+    expect(calls.length).toBe(1);
+  });
+
+  it("a 404 AFTER the machine was seen is destroyed — the auto_destroy path", async () => {
+    const { fly } = client([machine("started"), { status: 404, body: { error: "machine not found" } }]);
+    expect(await fly.waitForExit("app", "m1", { pollMs: 0 })).toEqual({ state: "destroyed", exitCode: null });
+  });
+
   it("times out with the last state it saw", async () => {
     const { fly } = client(Array.from({ length: 50 }, () => machine("started")));
     const err = await fly.waitForExit("app", "m1", { pollMs: 0, maxMs: 0 }).catch((e) => e);
@@ -292,5 +307,68 @@ describe("exitCodeOf", () => {
     expect(exitCodeOf({ events: [{ type: "start" }, { type: "exit", request: { exit_event: { exit_code: 0 } } }] })).toBe(0);
     expect(exitCodeOf({ events: [{ type: "stop" }] })).toBeNull();
     expect(exitCodeOf({})).toBeNull();
+  });
+});
+
+describe("F033.14 — volumes and Prometheus", () => {
+  it("listVolumes GETs the app's volumes and returns Fly's array as-is", async () => {
+    const vols = [
+      { id: "vol_1", name: "data", state: "created", size_gb: 3, region: "arn" },
+      { id: "vol_2", name: "old", state: "destroyed", size_gb: 1, region: "arn" },
+    ];
+    const { fly, calls } = client([{ status: 200, body: vols }]);
+    expect(await fly.listVolumes("my app")).toEqual(vols);
+    expect(calls[0].url).toBe("https://api.machines.dev/v1/apps/my%20app/volumes");
+    expect(calls[0].auth).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("listVolumes: a 401 throws after ONE request", async () => {
+    const { fly, calls } = client([{ status: 401, body: { error: "Authenticate: token validation error" } }]);
+    const err = await fly.listVolumes("app").catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.status).toBe(401);
+    expect(calls.length).toBe(1);
+  });
+
+  const promOk = { status: 200, body: { status: "success", data: { resultType: "vector", result: [{ value: [1, "2"] }] } } };
+
+  it("promQuery sends FlyV1 auth — Fly's Prometheus 401s on Bearer", async () => {
+    const { fly, calls } = client([promOk]);
+    const d = await fly.promQuery("personal", 'sum(fly_instance_up{app="x"})');
+    expect(d).toEqual({ resultType: "vector", result: [{ value: [1, "2"] }] });
+    expect(calls[0].auth).toBe(`FlyV1 ${TOKEN}`);
+    expect(calls[0].method).toBe("GET");
+    const u = new URL(calls[0].url);
+    expect(u.origin + u.pathname).toBe("https://api.fly.io/prometheus/personal/api/v1/query");
+    expect(u.searchParams.get("query")).toBe('sum(fly_instance_up{app="x"})');
+  });
+
+  it("promQuery does not double the prefix on a token that already carries it", async () => {
+    const s = scripted([promOk]);
+    const fly = new FlyClient({ token: `FlyV1 ${TOKEN}`, fetch: s.impl, sleep: noSleep });
+    await fly.promQuery("personal", "up");
+    expect(s.calls[0].auth).toBe(`FlyV1 ${TOKEN}`);
+  });
+
+  it("promQuery passes time as unix seconds", async () => {
+    const { fly, calls } = client([promOk]);
+    await fly.promQuery("personal", "up", { time: new Date(1_700_000_000_000) });
+    expect(new URL(calls[0].url).searchParams.get("time")).toBe("1700000000");
+  });
+
+  it("promQuery: HTTP 200 with status 'error' throws — even when a data-shaped body came with it", async () => {
+    const { fly } = client([{ status: 200, body: { status: "error", errorType: "bad_data", error: "parse error", data: { resultType: "vector", result: [] } } }]);
+    const err = await fly.promQuery("personal", "up(").catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.message).toMatch(/parse error/);
+  });
+
+  it("promQuery: a 401 throws after ONE request and never carries the token", async () => {
+    const { fly, calls } = client([{ status: 401, body: `bad token ${TOKEN}` }]);
+    const err = await fly.promQuery("personal", "up").catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.status).toBe(401);
+    expect(calls.length).toBe(1);
+    expect(err.message).not.toContain(TOKEN);
   });
 });

@@ -24,6 +24,7 @@
 
 const MACHINES_API = "https://api.machines.dev/v1";
 const GRAPHQL_API = "https://api.fly.io/graphql";
+const PROMETHEUS_API = "https://api.fly.io/prometheus";
 
 // ── Types — the parts of Fly's answers the fleet reads ─────────────────────
 
@@ -89,6 +90,23 @@ export interface FlyAppNode {
   status: string;
   hostname: string | null;
   organization: { slug: string };
+}
+
+export interface FlyVolume {
+  id: string;
+  name: string;
+  /** e.g. "created", "destroyed" — Fly still lists destroyed volumes for a while. */
+  state: string;
+  size_gb: number;
+  region: string;
+  attached_machine_id?: string | null;
+  [key: string]: unknown;
+}
+
+/** The `data` of a Prometheus instant query. */
+export interface FlyPromResult {
+  resultType: "vector" | "matrix" | "scalar" | "string" | string;
+  result: unknown[];
 }
 
 export interface FlyExit {
@@ -253,6 +271,36 @@ export class FlyClient {
     await this.rest("DELETE", `${this.machinePath(app, id)}${opts.force ? "?force=true" : ""}`);
   }
 
+  // ── Volumes ──
+
+  /** Every volume Fly lists for the app, destroyed ones included — filter on `state` yourself. */
+  async listVolumes(app: string): Promise<FlyVolume[]> {
+    return (await this.rest<FlyVolume[]>("GET", `/apps/${encodeURIComponent(app)}/volumes`)) ?? [];
+  }
+
+  // ── Metrics ──
+
+  /**
+   * A Prometheus instant query against Fly's managed metrics for one org.
+   * Fly's Prometheus refuses `Bearer` (401) and wants `FlyV1 <token>` —
+   * measured 24/9 2026 — so the client sends that here and Bearer everywhere
+   * else. Prometheus can answer HTTP 200 with `status: "error"`; that throws.
+   */
+  async promQuery(org: string, query: string, opts: { time?: Date | number } = {}): Promise<FlyPromResult> {
+    const params = new URLSearchParams({ query });
+    if (opts.time !== undefined) {
+      params.set("time", String((opts.time instanceof Date ? opts.time.getTime() : opts.time) / 1000));
+    }
+    const path = `/${encodeURIComponent(org)}/api/v1/query?${params}`;
+    const auth = this.token.startsWith("FlyV1 ") ? this.token : `FlyV1 ${this.token}`;
+    const res = await this.send("GET", PROMETHEUS_API + path, `/prometheus${path}`, undefined, true, undefined, auth);
+    const json = (await res.json()) as { status?: string; data?: FlyPromResult; error?: string; errorType?: string };
+    if (json.status !== "success" || !json.data) {
+      throw new FlyApiError(res.status, "GET", `/prometheus${path}`, this.redact(json.error ?? `status ${json.status ?? "missing"}`), json.errorType);
+    }
+    return json.data;
+  }
+
   /**
    * Wait until the machine is in `state`. Fly's own `/wait` gives up after at
    * most 60 s and answers 408, so this keeps asking until `timeoutSec` is spent.
@@ -299,7 +347,20 @@ export class FlyClient {
     let last: string | undefined;
     for (;;) {
       const m = await this.getMachine(app, id);
-      if (!m) return { state: "destroyed", exitCode: null };
+      if (!m) {
+        // Fly answers 404 "machine not found" both for an id that never
+        // existed AND for a wrong token (measured 24/9 2026). Only a machine
+        // we have already seen can honestly be called destroyed.
+        if (last === undefined) {
+          throw new FlyApiError(
+            404,
+            "GET",
+            this.machinePath(app, id),
+            "machine not found on the first poll — wrong machine id, or a wrong token (Fly answers 404 for both)",
+          );
+        }
+        return { state: "destroyed", exitCode: null };
+      }
       last = m.state;
       if (m.state === "stopped" || m.state === "destroyed" || m.state === "failed") {
         return { state: m.state, exitCode: exitCodeOf(m) };
@@ -399,6 +460,7 @@ export class FlyClient {
     body: unknown,
     retry: boolean,
     timeoutMs = this.requestTimeoutMs,
+    authorization = `Bearer ${this.token}`,
   ): Promise<Response> {
     const attempts = retry ? this.maxAttempts : 1;
     let lastErr: unknown;
@@ -408,7 +470,7 @@ export class FlyClient {
       try {
         res = await this.fetchImpl(url, {
           method,
-          headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+          headers: { Authorization: authorization, "Content-Type": "application/json" },
           body: body === undefined ? undefined : JSON.stringify(body),
           signal: AbortSignal.timeout(timeoutMs),
         });

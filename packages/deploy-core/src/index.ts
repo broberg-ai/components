@@ -35,4 +35,6 @@ export type {
   FlyMachineEvent,
   FlyGuest,
   FlyExit,
+  FlyVolume,
+  FlyPromResult,
 } from "./deploy/fly-machines.js";
