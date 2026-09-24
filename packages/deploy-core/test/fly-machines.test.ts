@@ -179,8 +179,14 @@ describe("waitForState — Fly's 408 means 'not yet'", () => {
   });
 
   it("a 404 throws at once instead of waiting out the clock", async () => {
-    const { fly, calls } = client([{ status: 404, body: { error: "machine not found" } }]);
-    const err = await fly.waitForState("app", "m1", "started", 600).catch((e) => e);
+    // A real pause and a short deadline: if the 404 is ever mistaken for "not
+    // yet", this fails as a FlyTimeoutError after ~2 s instead of spinning
+    // (with no pause, a mistaken loop exhausted the test worker's memory and
+    // the failure could not be read — found by the mutation harness).
+    const s = scripted(Array.from({ length: 100 }, () => ({ status: 404, body: { error: "machine not found" } })));
+    const fly = new FlyClient({ token: TOKEN, fetch: s.impl, sleep: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 50))) });
+    const calls = s.calls;
+    const err = await fly.waitForState("app", "m1", "started", 2).catch((e) => e);
     expect(err).toBeInstanceOf(FlyApiError);
     expect(err.status).toBe(404);
     expect(calls.length).toBe(1);
