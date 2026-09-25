@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-24T09:22:42.202Z",
+ "scanned_at": "2026-09-25T09:40:22.901Z",
  "repos_scanned": 63,
  "repos_failed": 0,
  "manifests_read": 224,
  "manifests_unreadable": 0,
- "edges": 194,
+ "edges": 195,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1596,7 +1596,7 @@
     ],
     "@broberg/deploy-core": [
      {
-      "range": "0.4.1",
+      "range": "0.5.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
@@ -1683,6 +1683,13 @@
     "@broberg/cms-inline-edit": [
      {
       "range": ">=0.6.3 <1",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@broberg/deploy-core": [
+     {
+      "range": "0.5.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
