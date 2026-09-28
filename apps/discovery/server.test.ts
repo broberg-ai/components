@@ -14,6 +14,8 @@ describe("Discovery API", () => {
     for (const path of ["/", "/onboarding"]) {
       const html = await (await app.request(path)).text();
       expect(html).toContain('<broberg-consent policy-version="2026-09"');
+      // the token map is what makes the banner readable on Discovery's palette
+      expect(html).toContain("--card-foreground:var(--fg);--primary-foreground:var(--primary-fg)");
       expect(html).toContain('<script type="module" src="/consent/element.js"></script>');
     }
     const js = await app.request("/consent/element.js");

@@ -241,7 +241,12 @@ const CONSENT_DIST = new URL(
 const CONSENT_FILES = new Set(readdirSync(CONSENT_DIST).filter((f) => f.endsWith(".js")));
 const CONSENT_TAG =
   '<script type="module" src="/consent/element.js"></script>' +
-  '<broberg-consent policy-version="2026-09" lang="en" data-testid="consent-banner"></broberg-consent>';
+  // Discovery's palette uses its own names (--fg, --primary-fg, --muted), not
+  // @broberg/theme's. Without this map the banner took Discovery's surfaces and
+  // its own fallback text colours: light text on the light primary button,
+  // dark title on the dark card. Mapped on the element so the theme toggle follows.
+  '<broberg-consent policy-version="2026-09" lang="en" style="--card-foreground:var(--fg);' +
+  '--primary-foreground:var(--primary-fg);--muted-foreground:var(--muted);--secondary:var(--border)"></broberg-consent>';
 const withConsent = (html: string) => html.replace("</body>", `${CONSENT_TAG}</body>`);
 const LLMS = readDoc("../../docs/llms.txt", "# broberg.ai shared inventory\n\nllms.txt is unavailable — see https://discovery.broberg.ai/api");
 const LLMS_FULL = readDoc("../../docs/llms-full.txt", LLMS);
