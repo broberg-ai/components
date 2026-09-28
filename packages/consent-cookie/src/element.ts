@@ -165,8 +165,13 @@ const FOCUSABLE = 'button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"]
  * reopen-position → classes. bottom-left (default), bottom-right, top-left,
  * top-right; the 0.2.0 values left/right still mean the bottom corners.
  */
-const reopenCorner = (pos: string | null): string =>
-  ({ right: " right", "bottom-right": " right", "top-left": " top", "top-right": " top right" })[pos ?? ""] ?? "";
+const REOPEN_CORNERS = new Map([
+  ["right", " right"],
+  ["bottom-right", " right"],
+  ["top-left", " top"],
+  ["top-right", " top right"],
+]);
+const reopenCorner = (pos: string | null): string => REOPEN_CORNERS.get(pos ?? "") ?? "";
 
 /** Every open-trigger on the page ([data-broberg-consent-open]) reaches the last connected element. */
 let active: BrobergConsentElement | null = null;

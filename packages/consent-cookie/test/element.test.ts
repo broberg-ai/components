@@ -177,6 +177,12 @@ describe("the way back (AC#2)", () => {
     expect(corner("left")).toBe("bottom-left");
     expect(corner("right")).toBe("bottom-right");
     expect(corner("nonsense")).toBe("bottom-left");
+    // inherited object keys must not leak into the class list
+    for (const pos of ["constructor", "toString", "__proto__"]) {
+      const el = mount({ "reopen-position": pos });
+      $(el, "consent-reject-all")!.click();
+      expect($(el, "consent-reopen")!.className).toBe("reopen");
+    }
   });
 
   it("hide-reopen + a link on e.g. the privacy page: no handle, the link still reopens (F014.15)", () => {
