@@ -45,6 +45,7 @@ export interface ConsentTexts {
   alwaysOn: string;
   save: string;
   withdraw: string;
+  withdrawReload: string;
   reopen: string;
   noChoice: string;
   saved: string;
@@ -67,6 +68,7 @@ export const TEXTS: Record<"da" | "en", ConsentTexts> = {
     alwaysOn: "Altid til",
     save: "Gem valg",
     withdraw: "Træk samtykke tilbage",
+    withdrawReload: "Træk samtykke tilbage (siden genindlæses)",
     reopen: "Cookies",
     noChoice: "Intet valg endnu",
     saved: "Gemt",
@@ -91,6 +93,7 @@ export const TEXTS: Record<"da" | "en", ConsentTexts> = {
     alwaysOn: "Always on",
     save: "Save choice",
     withdraw: "Withdraw consent",
+    withdrawReload: "Withdraw consent (the page reloads)",
     reopen: "Cookies",
     noChoice: "No choice yet",
     saved: "Saved",
@@ -169,6 +172,68 @@ function listenForTriggers(): void {
   });
 }
 
+// ── F014.9: nothing marked runs before consent ─────────────────────────────
+//
+// OPT-IN BY MARKING, never a blanket blocker. Only elements the site itself
+// marks are held back:
+//   <script type="text/plain" data-consent="analytics" src="…"></script>
+//   <iframe data-consent="marketing" data-consent-src="https://youtube…"></iframe>
+// Everything unmarked (app code, login, payments, session cookies) runs exactly
+// as before. Intercepting every script would be the thing that breaks logins.
+
+const ACTIVATED = "data-consent-activated";
+
+/** Activate every marked script/iframe whose category is now granted. Returns how many ran. */
+export function activateGranted(has: (category: string) => boolean, root: ParentNode = document): number {
+  let n = 0;
+  root.querySelectorAll<HTMLScriptElement>(`script[type="text/plain"][data-consent]:not([${ACTIVATED}])`).forEach((old) => {
+    if (!has(old.dataset.consent!)) return;
+    const s = document.createElement("script");
+    for (const a of Array.from(old.attributes)) {
+      if (a.name === "type" || a.name === "data-consent") continue;
+      s.setAttribute(a.name, a.value);
+    }
+    // data-type restores a module/other type; default is a classic script.
+    const t = old.getAttribute("data-type");
+    if (t) s.setAttribute("type", t);
+    s.removeAttribute("data-type");
+    s.setAttribute("data-consent", old.dataset.consent!);
+    s.setAttribute(ACTIVATED, "");
+    // A script created from JS is async by default; keep document order unless the site asked for async.
+    if (!old.hasAttribute("async")) s.async = false;
+    s.text = old.text;
+    old.setAttribute(ACTIVATED, "");
+    old.replaceWith(s);
+    n++;
+  });
+  root.querySelectorAll<HTMLIFrameElement>(`iframe[data-consent][data-consent-src]:not([${ACTIVATED}])`).forEach((f) => {
+    if (!has(f.dataset.consent!)) return;
+    f.setAttribute("src", f.dataset.consentSrc!);
+    f.setAttribute(ACTIVATED, "");
+    n++;
+  });
+  return n;
+}
+
+type Gtag = (...args: unknown[]) => void;
+/** Google Consent Mode v2 — only when the site asks for it (consent-mode attribute). */
+function gtagOf(): Gtag {
+  const w = globalThis as unknown as { dataLayer?: unknown[]; gtag?: Gtag };
+  w.dataLayer = w.dataLayer || [];
+  // The official gtag stub pushes the ARGUMENTS object, not an array.
+  if (!w.gtag) w.gtag = function () { w.dataLayer!.push(arguments); };
+  return w.gtag;
+}
+export function consentModeState(has: (c: string) => boolean): Record<string, "granted" | "denied"> {
+  const g = (b: boolean) => (b ? "granted" : "denied");
+  return {
+    analytics_storage: g(has("analytics")),
+    ad_storage: g(has("marketing")),
+    ad_user_data: g(has("marketing")),
+    ad_personalization: g(has("marketing")),
+  };
+}
+
 const Base: typeof HTMLElement =
   typeof HTMLElement === "undefined" ? (class {} as unknown as typeof HTMLElement) : HTMLElement;
 
@@ -187,6 +252,8 @@ export class BrobergConsentElement extends Base {
   private draft: Record<string, boolean> = {};
   private lastFocus: HTMLElement | null = null;
   private unsubscribe: (() => void) | null = null;
+  /** Overridable for tests. Withdrawing cannot stop a script that already ran, so the page reloads. */
+  reload: () => void = () => location.reload();
 
   connectedCallback(): void {
     const policyVersion = this.getAttribute("policy-version");
@@ -200,9 +267,18 @@ export class BrobergConsentElement extends Base {
       });
     }
     if (!this.root) this.root = this.attachShadow({ mode: "open" });
+    const consentMode = this.hasAttribute("consent-mode");
+    if (consentMode) {
+      gtagOf()("consent", "default", { ...consentModeState(() => false), wait_for_update: 500 });
+      if (!this.manager.needsBanner()) gtagOf()("consent", "update", consentModeState((c) => this.manager.has(c)));
+    }
     this.unsubscribe = this.manager.subscribe((record) => {
+      if (consentMode) gtagOf()("consent", "update", consentModeState((c) => this.manager.has(c)));
+      if (record) activateGranted((c) => this.manager.has(c));
       this.dispatchEvent(new CustomEvent<ConsentRecord | null>("consent-change", { detail: record, bubbles: true, composed: true }));
     });
+    // A returning visitor with a stored, current choice: run what they allowed.
+    if (!this.manager.needsBanner()) activateGranted((c) => this.manager.has(c));
     active = this;
     (globalThis as { brobergConsent?: ConsentManager }).brobergConsent = this.manager;
     listenForTriggers();
@@ -312,7 +388,7 @@ export class BrobergConsentElement extends Base {
       <button class="btn main" data-act="accept" data-testid="consent-panel-accept-all">${esc(t.acceptAll)}</button>
     </div>
     <div class="meta">${version}${rec ? "" : ` · ${esc(t.noChoice)}`}${
-      rec ? ` · <button class="linkbtn" data-act="withdraw" data-testid="consent-withdraw">${esc(t.withdraw)}</button>` : ""
+      rec ? ` · <button class="linkbtn" data-act="withdraw" data-testid="consent-withdraw">${esc(document.querySelector(`[${ACTIVATED}]`) ? t.withdrawReload : t.withdraw)}</button>` : ""
     }</div>
   </div>
 </div>
@@ -326,7 +402,10 @@ export class BrobergConsentElement extends Base {
         if (act === "accept" || act === "reject" || act === "save") this.decide(act);
         else if (act === "open") this.open();
         else if (act === "withdraw") {
+          const ranSomething = document.querySelector(`[${ACTIVATED}]`) !== null;
           this.manager.withdraw();
+          // A tracker that already ran cannot be un-run; only a fresh page is clean.
+          if (ranSomething) { this.reload(); return; }
           this.view = "banner";
           this.render();
           // The banner region, not «Afvis alle»: a second activation must not
