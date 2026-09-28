@@ -16,7 +16,11 @@ const storage = {
   get length() { return mem.size; },
 };
 Object.defineProperty(globalThis, "localStorage", { value: storage, configurable: true });
-await import("../dist/element.js");
+// A non-literal specifier on purpose: CI typechecks BEFORE it builds, and a
+// literal "../dist/element.js" fails typecheck with TS2307 there (measured,
+// run 36461763429). The test itself runs after the build, against the dist.
+const builtElement = "../dist/element.js";
+await import(/* @vite-ignore */ builtElement);
 
 const KEY = "broberg-consent";
 
