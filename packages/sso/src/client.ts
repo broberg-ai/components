@@ -119,9 +119,19 @@ export interface SsoClient {
   }): Promise<LoginResult>;
   verifyIdToken(idToken: string, options?: { nonce?: string }): Promise<SsoClaims>;
   logoutUrl(options?: { idTokenHint?: string; postLogoutRedirectUri?: string }): Promise<string>;
+  /**
+   * Does this address belong to the signed-in user's BID account, and is it
+   * verified there? Asks BID's POST /api/app/address-ownership with the user's
+   * access token. Throws SsoError on anything that is not one of the three
+   * answers — see the implementation for why that must never become "unverified".
+   */
+  addressOwnership(accessToken: string, address: string): Promise<AddressOwnership>;
   /** Exposed for tests and for a health check; not needed in normal use. */
   readonly jwks: JwksCache;
 }
+
+export type AddressOwnership = "verified" | "unverified" | "not_on_account";
+const ADDRESS_OWNERSHIP = new Set<string>(["verified", "unverified", "not_on_account"]);
 
 export interface CreateSsoClientOptions {
   fetchImpl?: typeof fetch;
@@ -498,6 +508,29 @@ export function createSsoClient(
       if (post) params.set("post_logout_redirect_uri", post);
       params.set("client_id", config.clientId);
       return `${doc.end_session_endpoint}?${params}`;
+    },
+
+    async addressOwnership(accessToken, address) {
+      // An app-API route on BID's origin, not an OIDC endpoint, so it is not in
+      // discovery. Origin-relative: the issuer may carry a path.
+      const url = new URL("/api/app/address-ownership", config.issuer).toString();
+      const res = await fetchImpl(url, {
+        method: "POST",
+        headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (!res.ok) {
+        throw new SsoError(`${url} answered ${res.status} — address ownership is unknown, not "unverified".`);
+      }
+      // Anything but the three answers THROWS. Mapping a malformed or new status
+      // to "unverified" would quietly downgrade a real user's verified address,
+      // and nothing about that looks broken from the outside.
+      const body = (await res.json().catch(() => null)) as { status?: unknown } | null;
+      const status = body?.status;
+      if (typeof status !== "string" || !ADDRESS_OWNERSHIP.has(status)) {
+        throw new SsoError(`${url} returned status ${JSON.stringify(status)} — expected verified, unverified or not_on_account.`);
+      }
+      return status as AddressOwnership;
     },
   };
 }

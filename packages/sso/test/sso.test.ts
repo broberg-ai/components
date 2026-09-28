@@ -15,7 +15,7 @@
 import { describe, expect, test } from "vitest";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
 import { loadSsoConfig, SsoConfigError } from "../src/config.js";
-import { createSsoClient } from "../src/client.js";
+import { createSsoClient, SsoError } from "../src/client.js";
 import {
   createJwksCache,
   JwksError,
@@ -562,6 +562,25 @@ describe("getKey distinguishes 'could not look' from 'not signed by us'", () => 
       jwksUri: JWKS_URI,
       minRefetchIntervalMs: 0,
       fetchImpl: (async () => new Response("down", { status: 503 })) as unknown as typeof fetch,
+    });
+    await expect(cache.getKey("key-1", "RS256")).rejects.toThrow(JwksUnavailableError);
+  });
+
+  test("issuer answers 200 with a non-JSON body → JwksUnavailableError, not a raw SyntaxError", async () => {
+    const cache = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 0,
+      fetchImpl: (async () =>
+        new Response("<html>Bad gateway</html>", { status: 200, headers: { "content-type": "text/html" } })) as unknown as typeof fetch,
+    });
+    await expect(cache.getKey("key-1", "RS256")).rejects.toThrow(JwksUnavailableError);
+  });
+
+  test("issuer answers 200 with JSON null → JwksUnavailableError", async () => {
+    const cache = createJwksCache({
+      jwksUri: JWKS_URI,
+      minRefetchIntervalMs: 0,
+      fetchImpl: (async () => new Response("null", { status: 200 })) as unknown as typeof fetch,
     });
     await expect(cache.getKey("key-1", "RS256")).rejects.toThrow(JwksUnavailableError);
   });
@@ -1424,4 +1443,47 @@ describe("a failed callback says WHICH of the three things went wrong", () => {
     expect(cleared).toMatch(/Max-Age=0/);
     expect(cleared).toMatch(/^bid_session_tx=;/);
   });
+});
+
+describe("addressOwnership asks BID and throws on anything that is not one of the three answers (F084.56)", () => {
+  type Call = { url: string; init?: RequestInit };
+  const ownership = (respond: () => Response) => {
+    const calls: Call[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return respond();
+    }) as unknown as typeof fetch;
+    return { client: createSsoClient(loadSsoConfig(ENV), { fetchImpl }), calls };
+  };
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+  for (const status of ["verified", "unverified", "not_on_account"] as const) {
+    test(`BID answers ${status} → ${status}`, async () => {
+      const { client, calls } = ownership(() => json({ status }));
+      expect(await client.addressOwnership("at-123", "a@example.dk")).toBe(status);
+      expect(calls).toHaveLength(1);
+      const [call] = calls as [Call];
+      expect(call.url).toBe(new URL("/api/app/address-ownership", ISSUER).toString());
+      expect(call.init?.method).toBe("POST");
+      expect(new Headers(call.init?.headers).get("authorization")).toBe("Bearer at-123");
+      expect(JSON.parse(String(call.init?.body))).toEqual({ address: "a@example.dk" });
+    });
+  }
+
+  const bad: Array<[string, () => Response]> = [
+    ["a non-2xx (401)", () => json({ status: "verified" }, 401)],
+    ["a 500", () => new Response("boom", { status: 500 })],
+    ["an unknown status", () => json({ status: "pending" })],
+    ["no status", () => json({})],
+    ["a non-JSON 200", () => new Response("<html></html>", { status: 200 })],
+    ["JSON null", () => new Response("null", { status: 200 })],
+    ["an inherited key as status", () => json({ status: "constructor" })],
+  ];
+  for (const [name, respond] of bad) {
+    test(`${name} → throws SsoError, never "unverified"`, async () => {
+      const { client } = ownership(respond);
+      await expect(client.addressOwnership("at-123", "a@example.dk")).rejects.toThrow(SsoError);
+    });
+  }
 });

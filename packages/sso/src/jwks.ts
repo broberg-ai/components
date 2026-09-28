@@ -157,14 +157,22 @@ export function createJwksCache(options: JwksCacheOptions): JwksCache {
           `${jwksUri} answered ${res.status} — cannot verify any token right now`,
         );
       }
-      const body = (await res.json()) as { keys?: JWK[] };
-      if (!Array.isArray(body.keys)) {
+      let body: { keys?: JWK[] } | null;
+      try {
+        body = (await res.json()) as { keys?: JWK[] } | null;
+      } catch {
+        // A 200 that is not JSON (a proxy's HTML error page, a captive portal)
+        // is still "we could not look" — not a raw SyntaxError that slips past
+        // every consumer's `instanceof JwksError`.
+        throw new JwksUnavailableError(`${jwksUri} answered 200 with a body that is not JSON`);
+      }
+      if (!Array.isArray(body?.keys)) {
         // Reachable but not serving a key set: still "we could not look".
         throw new JwksUnavailableError(`${jwksUri} returned no "keys" array`);
       }
       // Replace rather than merge. Merging would keep a REVOKED key usable
       // forever, which is the one thing rotating a key is meant to stop.
-      keys = body.keys;
+      keys = body!.keys!;
       lastFetchAt = now();
       fetchCount++;
     })().finally(() => {

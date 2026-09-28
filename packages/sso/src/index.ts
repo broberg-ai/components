@@ -25,6 +25,7 @@ export {
   type BeginLoginOptions,
   type CreateSsoClientOptions,
   type Discovery,
+  type AddressOwnership,
 } from "./client.js";
 
 export {

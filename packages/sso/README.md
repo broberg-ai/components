@@ -248,3 +248,14 @@ match", which sends you looking at the OAuth flow instead of at a cookie flag.
 ## Licence
 
 MIT
+
+## Does this address belong to the user? (since 0.4.0)
+
+```ts
+const answer = await client.addressOwnership(accessToken, "a@example.dk");
+// "verified"        on the user's BID account and verified there
+// "unverified"      on the account, not verified
+// "not_on_account"  not on this user's account
+```
+
+Calls BID's `POST /api/app/address-ownership` with the user's access token. **It throws `SsoError` on anything else** — a non-2xx, a body that is not JSON, a missing or unknown status. Do not catch that into `"unverified"`: an error means *we do not know*, and treating it as "not verified" quietly downgrades a real user.
