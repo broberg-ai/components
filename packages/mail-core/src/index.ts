@@ -118,6 +118,35 @@ export function assertFontStack(field: string, value: string | undefined): void 
   );
 }
 
+/** F023.15 — the only stylesheet a shell may load is a Google Fonts CSS URL.
+ *
+ *  An ALLOWLIST, not escaping: the value lands in an attribute in <head>, the
+ *  same harm class as F023.9, and branding is read per tenant from data (xrt81,
+ *  cardmem's template store). Exact host — a suffix match admits
+ *  `fonts.googleapis.com.evil.com` — and no credentials in the authority, where
+ *  `https://fonts.googleapis.com@evil.com/` is a request to evil.com. */
+export function assertWebfontHref(field: string, value: string | undefined): void {
+  if (value === undefined) return;
+  let reason: string | null = null;
+  if (/[<>"`\s]/.test(value)) reason = "it contains a character that can break out of the attribute";
+  else {
+    let u: URL | null = null;
+    try { u = new URL(value); } catch { reason = "it is not an absolute URL"; }
+    if (u) {
+      if (u.protocol !== "https:") reason = "it is not https";
+      else if (u.username || u.password) reason = "it carries credentials in the authority";
+      else if (u.hostname !== "fonts.googleapis.com" || u.port) reason = "its host is not exactly fonts.googleapis.com";
+      else if (u.pathname !== "/css" && u.pathname !== "/css2") reason = "its path is not /css or /css2";
+    }
+  }
+  if (!reason) return;
+  throw new Error(
+    `@broberg/mail-core: ${field} is refused because ${reason} (received ${JSON.stringify(value)}). ` +
+      `Only a Google Fonts stylesheet is allowed, e.g. ` +
+      `"https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&display=swap".`,
+  );
+}
+
 // ── contrast ────────────────────────────────────────────────────────────────
 //
 // F023.13. One `accentColor` was doing two jobs — a SURFACE (the top bar, the
@@ -289,6 +318,13 @@ export interface ShellOpts extends BrandColors {
    *  non-square logos, and a forced square distorts them in exactly the client
    *  that honours attributes. */
   logoWidth?: number;
+  /** F023.15 — a Google Fonts stylesheet to LOAD the family your `fontSans` /
+   *  `fontSerif` stack names. Without it the family only renders where the
+   *  recipient happens to have it installed: DM Sans became Arial in Apple Mail.
+   *  Only `https://fonts.googleapis.com/css` or `/css2` is accepted (anything
+   *  else throws). Outlook and Gmail ignore or strip the <link>, so the stack's
+   *  fallbacks still matter. Omitted = byte-identical output. */
+  webfontHref?: string;
   /** The logo, expressed as EVERY form you have, in preference order (F023.7).
    *
    *  WHY BOTH RATHER THAN A CHOICE. cardmem cannot always attach when it sends
@@ -401,6 +437,10 @@ export function renderShell(opts: ShellOpts): string {
   const { accentColor, cardBg, textColor, backdropColor, fontSans } = resolveColors(opts);
   const lang = opts.lang ?? "en";
   const showFooter = opts.showFooter ?? true;
+  assertWebfontHref("webfontHref", opts.webfontHref);
+  const webfontLink = opts.webfontHref
+    ? `<link rel="stylesheet" href="${escapeAttr(opts.webfontHref)}">\n`
+    : "";
 
   const logoSrc = resolveLogoSrc(opts.logo, opts.logoUrl);
   const logoAlt = opts.logo?.alt ?? opts.logoAlt ?? "";
@@ -459,7 +499,7 @@ export function renderShell(opts: ShellOpts): string {
 <meta name="color-scheme" content="light only">
 <meta name="supported-color-schemes" content="light only">
 <title>${escapeHtml(opts.subject)}</title>
-<style>
+${webfontLink}<style>
   /* ⚠️ THE THREE FORCE-LIGHT LAYERS BELOW HAVE ZERO EFFECT IN OUTLOOK iOS.
      Not partial — zero. Measured by fd-sundhed on a real iPhone, 2026-08-19
      18:28: asked #141969 and got #484090; asked #fffffe and got #484848, with

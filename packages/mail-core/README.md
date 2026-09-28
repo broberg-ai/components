@@ -133,6 +133,24 @@ inside an otherwise genuine, correctly-branded transactional mail is the whole
 attack, and clients that strip script still render it. Validate at your own
 boundary too; this is the last line, not the only one.
 
+## Loading a webfont: `webfontHref` (since 0.9.0)
+
+`fontSans: "'DM Sans',Arial,sans-serif"` names a family. It does not load one. A recipient who does not have DM Sans installed sees the next font in the stack. In Apple Mail, a client that CAN load webfonts, that was Arial.
+
+```ts
+renderShell({
+  …,
+  fontSans: "'DM Sans',-apple-system,'Segoe UI',Arial,sans-serif",
+  webfontHref: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&display=swap",
+});
+```
+
+This puts one `<link rel="stylesheet">` in `<head>`, before the shell's `<style>`.
+
+- **Only a Google Fonts stylesheet is accepted.** It must be `https://fonts.googleapis.com/css` or `/css2` on exactly that host, with no port and no credentials. Anything else throws, naming the field. The value lands in an attribute and can come from per-tenant data, so the rule is an allowlist, not escaping (same reasoning as the brand colours above).
+- **Outlook ignores the `<link>`, and Gmail strips it.** Their recipients get your stack's fallbacks, so keep a real stack. Do not pass a single family name.
+- **Omitted = byte-identical to 0.8.1.** `SHELL_VERSION` stays 3.
+
 ## Sizing the logo — set `logoWidth`, and set it even when 180 is what you want
 
 ```ts

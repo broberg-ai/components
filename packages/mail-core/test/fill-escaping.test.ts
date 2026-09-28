@@ -128,6 +128,9 @@ describe("the opacity invariant COVERS every HTML-emitting export (F023.12 AC#3)
     // string; they emit no markup. Their OUTPUT reaches HTML through cta,
     // eyebrow and renderShell, which are covered above.
     "contrastRatio", "readableInk", "readableAccent",
+    // F023.15 — caught again on arrival. A validator: throws or returns void,
+    // emits nothing. The <link> it guards is rendered by renderShell.
+    "assertWebfontHref",
   ]);
 
   it("every HTML-emitting export is exercised by the opacity check", async () => {
