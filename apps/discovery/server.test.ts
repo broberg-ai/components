@@ -10,6 +10,19 @@ import { getEnrollStore } from "./enroll";
 import { DATA, SESSION_ALIASES } from "../../scripts/inventory-data.mjs";
 
 describe("Discovery API", () => {
+  it("F014.12: / and /onboarding carry the cookie banner, served from our own origin", async () => {
+    for (const path of ["/", "/onboarding"]) {
+      const html = await (await app.request(path)).text();
+      expect(html).toContain('<broberg-consent policy-version="2026-09"');
+      expect(html).toContain('<script type="module" src="/consent/element.js"></script>');
+    }
+    const js = await app.request("/consent/element.js");
+    expect(js.status).toBe(200);
+    expect(js.headers.get("content-type")).toContain("javascript");
+    expect(await js.text()).toContain("broberg-consent");
+    expect((await app.request("/consent/..%2Fpackage.json")).status).toBe(404);
+  });
+
   it("GET /health → ok", async () => {
     const res = await app.request("/health");
     expect(res.status).toBe(200);

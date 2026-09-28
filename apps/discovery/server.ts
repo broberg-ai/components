@@ -2,7 +2,8 @@
 // Read-only, stateless: the inventory is compiled in from the single source
 // (scripts/inventory-data.mjs — the same data the dashboard renders). Any repo
 // (human or cc-session) queries this BEFORE building, to reuse > re-roll.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -229,6 +230,19 @@ const ONBOARDING = readDoc(
   "../../docs/onboarding.html",
   "<!doctype html><title>onboarding</title><p>Onboarding page unavailable.</p>",
 );
+
+// F014.12 — every live broberg.ai site runs the cookie banner (Christian 28/9),
+// Discovery first. The element is served from our own origin (no third-party CDN
+// on a consent page), straight out of the installed package's dist.
+const CONSENT_DIST = new URL(
+  "./dist/",
+  `file://${createRequire(import.meta.url).resolve("@broberg/consent-cookie/package.json")}`,
+);
+const CONSENT_FILES = new Set(readdirSync(CONSENT_DIST).filter((f) => f.endsWith(".js")));
+const CONSENT_TAG =
+  '<script type="module" src="/consent/element.js"></script>' +
+  '<broberg-consent policy-version="2026-09" lang="en" data-testid="consent-banner"></broberg-consent>';
+const withConsent = (html: string) => html.replace("</body>", `${CONSENT_TAG}</body>`);
 const LLMS = readDoc("../../docs/llms.txt", "# broberg.ai shared inventory\n\nllms.txt is unavailable — see https://discovery.broberg.ai/api");
 const LLMS_FULL = readDoc("../../docs/llms-full.txt", LLMS);
 
@@ -296,13 +310,21 @@ app.use("/api/*", async (c, next) => {
 // (Accept: application/json) — so the literal front door opens up for both.
 app.get("/", (c) => {
   if ((c.req.header("accept") ?? "").includes("application/json")) return c.json(manifest());
-  return c.html(LANDING);
+  return c.html(withConsent(LANDING));
 });
 
 app.get("/health", (c) => c.json({ ok: true, service: "discovery", version: VERSION }));
 
 // Onboarding surface (F060) — discoverable without a query.
-app.get("/onboarding", (c) => c.html(ONBOARDING));
+app.get("/onboarding", (c) => c.html(withConsent(ONBOARDING)));
+app.get("/consent/:file", (c) => {
+  const file = c.req.param("file");
+  if (!CONSENT_FILES.has(file)) return c.notFound();
+  return c.body(readFileSync(new URL(file, CONSENT_DIST), "utf8"), 200, {
+    "content-type": "text/javascript; charset=utf-8",
+    "cache-control": "public, max-age=3600",
+  });
+});
 app.get("/llms.txt", (c) => c.text(LLMS));
 app.get("/llms-full.txt", (c) => c.text(LLMS_FULL));
 app.get("/ai", (c) => c.text(LLMS)); // webhouse-style entry-point alias → the llms.txt map
