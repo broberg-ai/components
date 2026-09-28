@@ -76,3 +76,41 @@ Graduate-candidate: no — stays in `components`.
 
 ## Risks
 GDPR/ePrivacy: codepromptmaker has no withdraw/review mechanism after dismissal — the package MUST expose a re-open entry point (legal requirement in most EU contexts). Policy-version mismatch needs the host to keep CONSENT_VERSION in sync (stale constant = users not re-asked). Authenticated persistence requires the host to wire onConsentChange to a server write; silent failure = banner gone but no audit record — mitigate with a mandatory onConsentChange-error prop + docs.
+---
+
+## REVISION 28/9 2026: ét modul som alle sites kan bruge, uanset stak (Christian)
+
+> Christian, 28/9: «Vi mangler sgu da et Cookie modul :) Et ALLE sites kan anvende uanset om de er på stak A eller B».
+
+**Juni-planen ovenfor er hermed afløst på ét punkt, og det er det bærende punkt.**
+Den valgte *copy-owned* med to adaptere: React/shadcn til Stack A og Preact til Stack B. Det betyder, at hvert site kopierer og vedligeholder sit eget banner. Det er det modsatte af ordren. Kernen (F014.1, `createConsentManager`, 0.1.0 på npm siden juni) er stadig rigtig og genbruges uændret.
+
+### Målt før revisionen (28/9)
+
+- `@broberg/consent-cookie` 0.1.0: kun den headless kerne. Ingen UI, ingen script-blokering, ingen bevis-log.
+- Forbrugere: ingen, blandt de 15 fleet-repoer der er klonet lokalt. Heller intet hånd-rullet banner i nogen af dem. Lokal måling, ikke hele flåden: sanne, fd-sundhed m.fl. er ikke klonet her.
+
+### Nyt design: én web component
+
+`<broberg-consent>` (custom element, eksporteret fra `@broberg/consent-cookie/element`).
+
+- **Én implementering til alle stakke.** Et custom element virker i Next (client), Vite+Preact og ren HTML/cms-statiske sites uden adapter. Det erstatter F014.2, .3, .4 og .6 (fire adaptere) med én.
+- **Styling via @broberg/theme-tokens.** Elementet bruger shadow DOM og læser `--primary`, `--radius`, `--background` osv. fra siden, så det automatisk får sitets brand. Hvert token har en fallback, så et site uden theme stadig ser rigtigt ud.
+- **Tekst**: dansk standard og engelsk indbygget, og al tekst kan overskrives, fordi politik-teksten ejes af sitet.
+- **Kerne-API'et bliver stående**: `window.brobergConsent` / `element.manager` er den eksisterende `ConsentManager`. Et site med egen UI kan stadig bruge kernen direkte.
+
+### Det lovpligtige, som juni-planen ikke dækkede
+
+1. **Afvis skal være lige så let som accepter.** Samme niveau og samme størrelse på første lag (Datatilsynets praksis). Ingen forhåndsafkrydsede kategorier.
+2. **Scripts må ikke køre før samtykke.** `<script type="text/plain" data-consent="analytics">` aktiveres først ved samtykke. Iframes (YouTube, kort) får en pladsholder. Sendes Google Consent Mode v2-signaler, sker det kun når sitet beder om det.
+3. **Tilbagekald skal være lige så let som at give samtykke.** Et fast «Cookie-indstillinger»-greb (knap eller link) genåbner panelet. Det var allerede et krav i juni-constraints'ene.
+4. **Samtykke skal kunne dokumenteres (GDPR art. 7(1)).** Valgfri `endpoint`: hver ændring POSTes som `{ consentId, policyVersion, choices, timestamp }`, uden IP-adresse. Sitet ejer lagringen.
+
+### Nye stories (F014.7–.12)
+
+Mockup først, så komponent, så gating, så bevis, så de tre stakke, så pilot. F014.2, .3, .4 og .6 arkiveres med henvisning hertil. F014.5 (policy-version) er allerede i kernen og testet, så den lukkes mod F014.1's tests.
+
+### Åbent for Christian
+
+- Hvilket site er pilot (F014.12)?
+- Skal broberg.ai have én fælles, hostet script-tag-version (fx `cdn.broberg.ai/consent.js`) til sites der ikke har et build? Det er ikke med i scope nu.
