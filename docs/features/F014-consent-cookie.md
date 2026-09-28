@@ -114,3 +114,7 @@ Mockup først, så komponent, så gating, så bevis, så de tre stakke, så pilo
 
 - Hvilket site er pilot (F014.12)?
 - Skal broberg.ai have én fælles, hostet script-tag-version (fx `cdn.broberg.ai/consent.js`) til sites der ikke har et build? Det er ikke med i scope nu.
+
+## Reuse
+
+Discovery-søgning 28/9 på «cookie» og «consent»: det eneste træf er @broberg/consent-cookie (F014) selv. Kernen `createConsentManager` genbruges uændret under elementet. Styling genbruger @broberg/theme's CSS-variabelnavne (`--primary`, `--radius`, …), men uden at importere pakken, så elementet også virker på et site uden theme. Der er ingen anden @broberg-pakke til script-gating eller consent-log, så de bygges her.
