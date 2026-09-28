@@ -18,8 +18,16 @@ One element works the same in Next, Vite+Preact and plain HTML. No site copies i
 | `storage-key` | Cookie name. Default `broberg-consent`. |
 | `cookie-domain` | e.g. `.broberg.ai` to share one choice across subdomains. |
 | `consent-mode` | Send Google Consent Mode v2 signals. |
-| `reopen-position` | `left` (default) or `right`. The floating «Cookies» handle WILL cover whatever you have in that corner. Move it, or… |
-| `hide-reopen` | …drop it when your footer already has a `[data-broberg-consent-open]` link. Some way back is required by law. |
+| `reopen-position` | `bottom-left` (default), `bottom-right`, `top-left` or `top-right` (`left`/`right` from 0.2.0 still mean the bottom corners). The floating «Cookies» handle WILL cover whatever you have in that corner. Move it, or… |
+| `hide-reopen` | …drop it entirely when it disrupts your design. Then the site MUST reopen the dialog another way: any element with `data-broberg-consent-open`, e.g. on the privacy page. Some way back is required by law. |
+
+**No floating handle — reopen from the privacy page instead (since 0.4.0 documented; works since 0.2.0):**
+
+```html
+<broberg-consent policy-version="2026-09" hide-reopen></broberg-consent>
+<!-- on /privatliv, or in the footer -->
+<button type="button" data-broberg-consent-open data-testid="privacy-cookie-settings">Skift cookie-indstillinger</button>
+```
 
 - **Read consent:** `el.manager.has("analytics")`, `window.brobergConsent.has(...)`, or listen for `consent-change` (bubbles, `detail` = the record or `null`).
 - **Texts:** `el.texts = { title: "…", categories: { analytics: { label, description } } }`.

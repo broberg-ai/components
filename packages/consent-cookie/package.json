@@ -1,6 +1,6 @@
 {
   "name": "@broberg/consent-cookie",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "GDPR cookie consent for any site: <broberg-consent>, a drop-in custom element (banner, settings panel, reopen handle) that works the same in Next, Vite+Preact and plain HTML and takes the site's @broberg/theme tokens, on top of a framework-free consent core (categories, policy-version re-surfacing, injectable storage, withdraw()).",
   "type": "module",
   "license": "MIT",

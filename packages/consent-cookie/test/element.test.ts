@@ -162,6 +162,36 @@ describe("the way back (AC#2)", () => {
     expect($(def, "consent-reopen")!.classList.contains("right")).toBe(false);
   });
 
+  it("reopen-position puts the handle in each of the four corners (F014.15)", () => {
+    const corner = (pos?: string) => {
+      const el = mount(pos ? { "reopen-position": pos } : {});
+      $(el, "consent-reject-all")!.click();
+      const c = $(el, "consent-reopen")!.classList;
+      return `${c.contains("top") ? "top" : "bottom"}-${c.contains("right") ? "right" : "left"}`;
+    };
+    expect(corner()).toBe("bottom-left");
+    expect(corner("bottom-left")).toBe("bottom-left");
+    expect(corner("bottom-right")).toBe("bottom-right");
+    expect(corner("top-left")).toBe("top-left");
+    expect(corner("top-right")).toBe("top-right");
+    expect(corner("left")).toBe("bottom-left");
+    expect(corner("right")).toBe("bottom-right");
+    expect(corner("nonsense")).toBe("bottom-left");
+  });
+
+  it("hide-reopen + a link on e.g. the privacy page: no handle, the link still reopens (F014.15)", () => {
+    const el = mount({ "hide-reopen": "" });
+    $(el, "consent-reject-all")!.click();
+    expect(visible(el, "consent-reopen")).toBe(false);
+    const a = document.createElement("a");
+    a.setAttribute("data-broberg-consent-open", "");
+    document.body.appendChild(a);
+    a.click();
+    expect(visible(el, "consent-panel")).toBe(true);
+    expect(visible(el, "consent-reopen")).toBe(false);
+    a.remove();
+  });
+
   it("hide-reopen hides the handle (for a site with its own footer link)", () => {
     const el = mount({ "hide-reopen": "" });
     $(el, "consent-reject-all")!.click();

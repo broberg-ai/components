@@ -12,7 +12,8 @@
  *
  * The round «Cookies» handle floats bottom-left and WILL cover whatever the site
  * has there (Lens measured it covering a footer link, 28/9). Move it with
- * reopen-position="right" and --broberg-consent-reopen-x / -y, or drop it with
+ * reopen-position="bottom-right" | "top-left" | "top-right" and
+ * --broberg-consent-reopen-x / -y, or drop it with
  * hide-reopen when the site already has a [data-broberg-consent-open] link.
  *
  * Styling reads the page's @broberg/theme tokens (--primary, --radius, …)
@@ -148,6 +149,7 @@ button{font:inherit}
 .reopen{position:fixed;z-index:2147483000;left:var(--broberg-consent-reopen-x,16px);bottom:var(--broberg-consent-reopen-y,16px);display:flex;align-items:center;gap:6px;background:var(--bc-bg);color:var(--bc-fg);
   border:1px solid var(--bc-border);border-radius:999px;padding:7px 12px 7px 10px;font-size:12.5px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .reopen.right{left:auto;right:var(--broberg-consent-reopen-x,16px)}
+.reopen.top{bottom:auto;top:var(--broberg-consent-reopen-y,16px)}
 .reopen svg{width:16px;height:16px}
 `;
 
@@ -158,6 +160,13 @@ const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 const FOCUSABLE = 'button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])';
+
+/**
+ * reopen-position → classes. bottom-left (default), bottom-right, top-left,
+ * top-right; the 0.2.0 values left/right still mean the bottom corners.
+ */
+const reopenCorner = (pos: string | null): string =>
+  ({ right: " right", "bottom-right": " right", "top-left": " top", "top-right": " top right" })[pos ?? ""] ?? "";
 
 /** Every open-trigger on the page ([data-broberg-consent-open]) reaches the last connected element. */
 let active: BrobergConsentElement | null = null;
@@ -397,7 +406,7 @@ export class BrobergConsentElement extends Base {
     }</div>
   </div>
 </div>
-<button class="reopen${this.getAttribute("reopen-position") === "right" ? " right" : ""}" data-act="open" data-testid="consent-reopen" aria-label="${esc(t.panelTitle)}" ${
+<button class="reopen${reopenCorner(this.getAttribute("reopen-position"))}" data-act="open" data-testid="consent-reopen" aria-label="${esc(t.panelTitle)}" ${
       this.view === "closed" && decided && !hideReopen ? "" : "hidden"
     }>${COOKIE_SVG}${esc(t.reopen)}</button>`;
 

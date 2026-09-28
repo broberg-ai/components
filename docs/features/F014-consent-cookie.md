@@ -118,3 +118,12 @@ Mockup først, så komponent, så gating, så bevis, så de tre stakke, så pilo
 ## Reuse
 
 Discovery-søgning 28/9 på «cookie» og «consent»: det eneste træf er @broberg/consent-cookie (F014) selv. Kernen `createConsentManager` genbruges uændret under elementet. Styling genbruger @broberg/theme's CSS-variabelnavne (`--primary`, `--radius`, …), men uden at importere pakken, så elementet også virker på et site uden theme. Der er ingen anden @broberg-pakke til script-gating eller consent-log, så de bygges her.
+
+## F014.15 — cookie-knappen kan stå i alle fire hjørner, eller være væk (28/9)
+
+> Christian, 28/9: broberg-ai har en fast «Rediger»-knap nederst til venstre, præcis hvor cookie-knappen står; den skal kunne placeres forskellige steder og være helt væk, fordi den kan ødelægge et design. «Så må sitet implementere en anden måde at force dialogen frem igen, eks. i Privacy siden.»
+
+- `reopen-position`: `bottom-left` (standard), `bottom-right`, `top-left`, `top-right`. `left`/`right` fra 0.2.0 betyder stadig de nederste hjørner, så intet eksisterende site flytter sig. Ukendt værdi = standard.
+- `hide-reopen` (fandtes allerede i 0.2.0): knappen er væk. Sitet ansvarer for en anden vej tilbage: ethvert element med `data-broberg-consent-open`, fx på privatlivssiden. Loven kræver en vej tilbage, men ikke at den er en flydende knap.
+- Udgivet som 0.4.0. Tests: fire hjørner + aliaser + ukendt værdi; skjult knap + link åbner panelet.
+- Ikke gjort: pakken advarer ikke, hvis et site skjuler knappen uden at have et link. Det er sitets ansvar ifølge ejeren.
