@@ -1,5 +1,33 @@
 # @broberg/consent-cookie
 
+## Drop-in banner: `<broberg-consent>` (since 0.2.0)
+
+One element works the same in Next, Vite+Preact and plain HTML. No site copies its own banner.
+
+```html
+<script type="module">import "@broberg/consent-cookie/element";</script>
+<broberg-consent policy-version="2026-09" privacy-href="/privatliv"></broberg-consent>
+<a href="#" data-broberg-consent-open>Cookie-indstillinger</a>
+```
+
+| Attribute | Meaning |
+|---|---|
+| `policy-version` | **Required.** Bump it when your cookie policy changes. The banner then comes back with «Vores cookie-politik er opdateret». |
+| `privacy-href` | The «Læs mere» link. |
+| `lang` | `da` (default) or `en`. Falls back to `<html lang>`. |
+| `storage-key` | localStorage key. Default `broberg-consent`. |
+| `reopen-position` | `left` (default) or `right`. The floating «Cookies» handle WILL cover whatever you have in that corner. Move it, or… |
+| `hide-reopen` | …drop it when your footer already has a `[data-broberg-consent-open]` link. Some way back is required by law. |
+
+- **Read consent:** `el.manager.has("analytics")`, `window.brobergConsent.has(...)`, or listen for `consent-change` (bubbles, `detail` = the record or `null`).
+- **Texts:** `el.texts = { title: "…", categories: { analytics: { label, description } } }`.
+- **Styling:** the element reads your @broberg/theme tokens (`--primary`, `--radius`, `--card`, `--border`, …) through the shadow boundary, each with a neutral fallback. Move the handle with `--broberg-consent-reopen-x` / `-y`.
+- **Built in, not configurable** (it is the law): «Afvis alle» and «Accepter alle» have the same style and size; no optional category starts on; withdrawing clears the record.
+- **Not yet:** blocking scripts until consent (F014.9) and a consent log (F014.10). A banner alone does not stop a tracker that loads unconditionally.
+
+The headless core below is unchanged and still exported from `.`.
+
+
 The **headless core** for a GDPR consent / cookie banner. The banner *UI* is
 copy-owned per brand (each product owns its policy text, categories and tokens),
 but the consent *logic* — what counts as valid consent, when to re-surface after
