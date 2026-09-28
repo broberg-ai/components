@@ -38,11 +38,15 @@ const visible = (el: HTMLElement, id: string) => {
   // hidden on the node itself, or on the scrim wrapping the panel
   return !n.hasAttribute("hidden") && !n.parentElement?.hasAttribute("hidden");
 };
-const stored = () => JSON.parse(localStorage.getItem(KEY) ?? "null");
+// F014.13: the choice lives in a first-party cookie now.
+const cookieRaw = (name = KEY) => document.cookie.split("; ").find((c) => c.startsWith(`${name}=`))?.slice(name.length + 1) ?? null;
+const stored = (name = KEY) => { const v = cookieRaw(name); return v ? JSON.parse(decodeURIComponent(v)) : null; };
+const clearCookies = () => { for (const c of document.cookie.split("; ")) { const n = c.split("=")[0]; if (n) document.cookie = `${n}=; Max-Age=0; Path=/`; } };
 
 beforeEach(() => {
   document.body.innerHTML = "";
   localStorage.clear();
+  clearCookies();
 });
 
 describe("first layer (AC#0)", () => {
@@ -146,7 +150,7 @@ describe("the way back (AC#2)", () => {
     $(el, "consent-accept-all")!.click();
     $(el, "consent-reopen")!.click();
     $(el, "consent-withdraw")!.click();
-    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(stored()).toBeNull();
     expect(visible(el, "consent-banner")).toBe(true);
   });
 
@@ -176,7 +180,7 @@ describe("keyboard (AC#3)", () => {
     key(el, "Escape");
     expect(visible(el, "consent-panel")).toBe(false);
     expect(visible(el, "consent-banner")).toBe(true);
-    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(stored()).toBeNull();
   });
 
   it("Tab wraps inside the panel (focus trap)", () => {
@@ -242,8 +246,8 @@ describe("configuration", () => {
   it("storage-key is honoured", () => {
     const el = mount({ "storage-key": "site-x" });
     $(el, "consent-reject-all")!.click();
-    expect(localStorage.getItem("site-x")).not.toBeNull();
-    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(stored("site-x")).not.toBeNull();
+    expect(stored()).toBeNull();
   });
 
   it("the manager is exposed on the element and on window", () => {

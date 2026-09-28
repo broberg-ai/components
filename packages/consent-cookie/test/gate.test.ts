@@ -49,8 +49,10 @@ function mount(attrs: Record<string, string> = {}) {
 }
 const click = (el: HTMLElement, id: string) => el.shadowRoot!.querySelector<HTMLElement>(`[data-testid="${id}"]`)!.click();
 
+const clearCookies = () => { for (const c of document.cookie.split("; ")) { const n = c.split("=")[0]; if (n) document.cookie = `${n}=; Max-Age=0; Path=/`; } };
 beforeEach(() => {
   mem.clear();
+  clearCookies();
   w.__ran = {};
   delete w.dataLayer;
   delete w.gtag;
@@ -151,7 +153,7 @@ describe("withdrawing after a script ran (AC#3)", () => {
     expect(el.shadowRoot!.querySelector('[data-testid="consent-withdraw"]')!.textContent).toBe("Træk samtykke tilbage (siden genindlæses)");
     click(el, "consent-withdraw");
     expect(reload).toHaveBeenCalledTimes(1);
-    expect(mem.get("broberg-consent")).toBeUndefined();
+    expect(document.cookie.includes("broberg-consent=")).toBe(false);
   });
 
   it("negative control: nothing ran → no reload, ordinary text", () => {

@@ -27,6 +27,7 @@
  */
 import {
   createConsentManager,
+  createCookieConsentStorage,
   type ConsentCategory,
   type ConsentManager,
   type ConsentRecord,
@@ -263,7 +264,11 @@ export class BrobergConsentElement extends Base {
     if (!this.manager) {
       this.manager = createConsentManager({
         policyVersion,
-        storageKey: this.getAttribute("storage-key") ?? undefined,
+        // F014.13: a first-party cookie the server can read, renewed yearly.
+        storage: createCookieConsentStorage({
+          name: this.getAttribute("storage-key") ?? undefined,
+          domain: this.getAttribute("cookie-domain") ?? undefined,
+        }),
       });
     }
     if (!this.root) this.root = this.attachShadow({ mode: "open" });

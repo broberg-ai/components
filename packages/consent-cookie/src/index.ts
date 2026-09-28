@@ -81,6 +81,51 @@ export function createLocalStorageConsentStorage(key: string): ConsentStorage {
   };
 }
 
+export interface CookieConsentStorageOptions {
+  /** Cookie name. Default `broberg-consent`. */
+  name?: string;
+  /** How long the browser keeps it. Default 365 days. */
+  maxAgeDays?: number;
+  /** e.g. ".broberg.ai" to share one choice across subdomains. Omit for host-only. */
+  domain?: string;
+}
+
+/**
+ * First-party cookie storage (F014.13). Unlike localStorage the server can read
+ * it, and with `domain` it covers subdomains. Storing the CHOICE needs no
+ * consent: it is strictly necessary. SSR-safe: without `document` it degrades
+ * to memory.
+ */
+export function createCookieConsentStorage(options: CookieConsentStorageOptions = {}): ConsentStorage {
+  const doc = (globalThis as unknown as { document?: Document }).document;
+  if (!doc || typeof doc.cookie !== "string") return createMemoryConsentStorage();
+  const name = options.name ?? DEFAULT_KEY;
+  const maxAge = Math.round((options.maxAgeDays ?? DEFAULT_MAX_AGE_DAYS) * 86400);
+  const secure = (globalThis as unknown as { location?: Location }).location?.protocol === "https:";
+  const attrs = (age: number) =>
+    `; Max-Age=${age}; Path=/; SameSite=Lax${options.domain ? `; Domain=${options.domain}` : ""}${secure ? "; Secure" : ""}`;
+  return {
+    get() {
+      const hit = doc.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
+      if (!hit) return null;
+      try {
+        return JSON.parse(decodeURIComponent(hit.slice(name.length + 1))) as ConsentRecord;
+      } catch {
+        return null;
+      }
+    },
+    set(record) {
+      doc.cookie = `${name}=${encodeURIComponent(JSON.stringify(record))}${attrs(maxAge)}`;
+    },
+    clear() {
+      // Max-Age=0 alone expires "now", which an implementation may still count
+      // as live within the same millisecond (measured: 1 in ~6 runs in
+      // happy-dom). A date in the past is unambiguous everywhere.
+      doc.cookie = `${name}=${attrs(0)}; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    },
+  };
+}
+
 /** In-memory storage (SSR, tests, or an ephemeral session). */
 export function createMemoryConsentStorage(): ConsentStorage {
   let record: ConsentRecord | null = null;
@@ -104,6 +149,13 @@ export interface ConsentManagerOptions {
   storage?: ConsentStorage;
   /** localStorage key when no explicit `storage` is given. Default `broberg-consent`. */
   storageKey?: string;
+  /**
+   * A choice older than this asks again (F014.13). Default 365 — Danish
+   * practice (Datatilsynet) is to renew consent at least every 12 months.
+   */
+  maxAgeDays?: number;
+  /** Injected for tests. Default: Date.now. */
+  now?: () => number;
 }
 
 export interface ConsentManager {
@@ -129,12 +181,19 @@ export interface ConsentManager {
 }
 
 const DEFAULT_KEY = "broberg-consent";
+const DEFAULT_MAX_AGE_DAYS = 365;
 
 export function createConsentManager(options: ConsentManagerOptions): ConsentManager {
   if (!options?.policyVersion) throw new Error("createConsentManager: `policyVersion` is required");
   const categories = options.categories ?? CONSENT_CATEGORIES;
   const storage = options.storage ?? createLocalStorageConsentStorage(options.storageKey ?? DEFAULT_KEY);
   const version = options.policyVersion;
+  const maxAgeMs = (options.maxAgeDays ?? DEFAULT_MAX_AGE_DAYS) * 86400_000;
+  const now = options.now ?? (() => Date.now());
+  const expired = (r: ConsentRecord) => {
+    const t = Date.parse(r.acceptedAt);
+    return !Number.isFinite(t) || now() - t > maxAgeMs;
+  };
   const listeners = new Set<(r: ConsentRecord | null) => void>();
 
   const isEssential = (key: string): boolean => categories.some((c) => c.key === key && c.essential);
@@ -146,7 +205,7 @@ export function createConsentManager(options: ConsentManagerOptions): ConsentMan
   }
 
   function nowIso(): string {
-    return new Date().toISOString();
+    return new Date(now()).toISOString();
   }
 
   function commit(categoriesRecord: Record<string, boolean>): ConsentRecord {
@@ -166,11 +225,12 @@ export function createConsentManager(options: ConsentManagerOptions): ConsentMan
     },
     needsBanner() {
       const r = storage.get();
-      return r == null || !r.policyVersion || r.policyVersion !== version;
+      return r == null || !r.policyVersion || r.policyVersion !== version || expired(r);
     },
     has(category: string) {
       if (isEssential(category)) return true;
-      return storage.get()?.categories[category] === true;
+      const r = storage.get();
+      return r != null && !expired(r) && r.policyVersion === version && r.categories[category] === true;
     },
     acceptAll() {
       const all: Record<string, boolean> = {};
