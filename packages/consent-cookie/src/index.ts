@@ -97,16 +97,17 @@ export interface CookieConsentStorageOptions {
  * to memory.
  */
 export function createCookieConsentStorage(options: CookieConsentStorageOptions = {}): ConsentStorage {
-  const doc = (globalThis as unknown as { document?: Document }).document;
+  // Structural, not DOM types: the core is also typechecked by packages without lib "DOM".
+  const doc = (globalThis as unknown as { document?: { cookie: string } }).document;
   if (!doc || typeof doc.cookie !== "string") return createMemoryConsentStorage();
   const name = options.name ?? DEFAULT_KEY;
   const maxAge = Math.round((options.maxAgeDays ?? DEFAULT_MAX_AGE_DAYS) * 86400);
-  const secure = (globalThis as unknown as { location?: Location }).location?.protocol === "https:";
+  const secure = (globalThis as unknown as { location?: { protocol?: string } }).location?.protocol === "https:";
   const attrs = (age: number) =>
     `; Max-Age=${age}; Path=/; SameSite=Lax${options.domain ? `; Domain=${options.domain}` : ""}${secure ? "; Secure" : ""}`;
   return {
     get() {
-      const hit = doc.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
+      const hit = doc.cookie.split("; ").find((c: string) => c.startsWith(`${name}=`));
       if (!hit) return null;
       try {
         return JSON.parse(decodeURIComponent(hit.slice(name.length + 1))) as ConsentRecord;
