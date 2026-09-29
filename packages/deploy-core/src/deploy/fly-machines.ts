@@ -25,6 +25,7 @@
 const MACHINES_API = "https://api.machines.dev/v1";
 const GRAPHQL_API = "https://api.fly.io/graphql";
 const PROMETHEUS_API = "https://api.fly.io/prometheus";
+const LOGS_API = "https://api.fly.io/api/v1";
 
 // ── Types — the parts of Fly's answers the fleet reads ─────────────────────
 
@@ -107,6 +108,22 @@ export interface FlyVolume {
 export interface FlyPromResult {
   resultType: "vector" | "matrix" | "scalar" | "string" | string;
   result: unknown[];
+}
+
+/** One log line from a machine. */
+export interface FlyLogEntry {
+  /** ISO timestamp as Fly reports it (nanosecond precision). */
+  timestamp: string;
+  message: string;
+  level?: string;
+  region?: string;
+  instance?: string;
+}
+
+export interface FlyLogPage {
+  entries: FlyLogEntry[];
+  /** Pass back as `nextToken` to get only newer lines; null when Fly gave none. */
+  nextToken: string | null;
 }
 
 export interface FlyExit {
@@ -299,6 +316,45 @@ export class FlyClient {
       throw new FlyApiError(res.status, "GET", `/prometheus${path}`, this.redact(json.error ?? `status ${json.status ?? "missing"}`), json.errorType);
     }
     return json.data;
+  }
+
+  // ── Logs ──
+
+  /**
+   * A machine's recent log lines. Poll with the returned `nextToken` to tail.
+   *
+   * THE OBVIOUS ADDRESS DOES NOT EXIST. `api.machines.dev/v1/apps/<app>/machines/<id>/logs`
+   * answers 404 "page not found" — measured 29/9 2026 — and a caller that
+   * swallows errors gets an empty log forever. The real one is Fly's logs API,
+   * filtered by instance, and like Prometheus it refuses Bearer (401) and wants
+   * `FlyV1 <token>`.
+   */
+  async getMachineLogs(app: string, machineId: string, opts: { nextToken?: string | null } = {}): Promise<FlyLogPage> {
+    const params = new URLSearchParams({ instance: machineId });
+    if (opts.nextToken) params.set("next_token", opts.nextToken);
+    const path = `/apps/${encodeURIComponent(app)}/logs?${params}`;
+    const auth = this.token.startsWith("FlyV1 ") ? this.token : `FlyV1 ${this.token}`;
+    const res = await this.send("GET", LOGS_API + path, `/logs${path}`, undefined, true, undefined, auth);
+    const json = (await res.json().catch(() => null)) as {
+      data?: { attributes?: { timestamp?: string; message?: string; level?: string; region?: string; instance?: string } }[];
+      meta?: { next_token?: string };
+    } | null;
+    if (!json || !Array.isArray(json.data)) {
+      throw new FlyApiError(res.status, "GET", `/logs${path}`, "no data array in the logs response");
+    }
+    const entries: FlyLogEntry[] = [];
+    for (const d of json.data) {
+      const a = d.attributes ?? {};
+      if (typeof a.timestamp !== "string" || typeof a.message !== "string") continue;
+      entries.push({
+        timestamp: a.timestamp,
+        message: a.message,
+        ...(a.level ? { level: a.level } : {}),
+        ...(a.region ? { region: a.region } : {}),
+        ...(a.instance ? { instance: a.instance } : {}),
+      });
+    }
+    return { entries, nextToken: json.meta?.next_token ?? null };
   }
 
   /**

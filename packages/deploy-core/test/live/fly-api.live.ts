@@ -53,6 +53,17 @@ if (readApp) {
   const theirs = viaFlyctl.map((v) => `${v.id}:${v.size_gb}`).sort().join(",");
   check(mine === theirs, `listVolumes(${readApp}) == flyctl volumes list`, `${mine}  vs  ${theirs}`);
 
+  // F033.16 — logs come from Fly's logs API; the machines.dev address 404s.
+  const [firstMachine] = await fly.listMachines(readApp);
+  if (firstMachine) {
+    const page = await fly.getMachineLogs(readApp, firstMachine.id);
+    check(
+      page.entries.length > 0 && typeof page.entries[0]!.timestamp === "string" && typeof page.nextToken === "string",
+      `getMachineLogs(${readApp}) returns lines and a nextToken`,
+      `${page.entries.length} lines`,
+    );
+  }
+
   const unseen = await fly.waitForExit(readApp, "0000000000dead", { pollMs: 0, maxMs: 10_000 }).catch((e) => e);
   check(unseen instanceof FlyApiError && unseen.status === 404, "waitForExit on a machine never seen throws 404, not 'destroyed'", String(unseen));
 }

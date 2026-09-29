@@ -28,6 +28,8 @@ await fly.updateMachine("my-app", m.id, {       // resize: pass the WHOLE config
 await fly.waitForState("my-app", m.id, "started", 120);
 const { state, exitCode } = await fly.waitForExit("my-app", jobId);
 
+const { entries, nextToken } = await fly.getMachineLogs("my-app", m.id);        // since 0.6.0
+await fly.getMachineLogs("my-app", m.id, { nextToken });                         // only newer lines — poll this to tail
 await fly.listVolumes("my-app");                // destroyed ones included — filter on state
 await fly.promQuery("personal", 'sum(fly_instance_memory_mem_available{app="my-app"})');
 ```
@@ -62,6 +64,11 @@ Each of these was measured — in a consumer's own copy or against the live API
 - **`listAllApps` is complete or it throws.** It walks every page and checks the
   count against Fly's own `totalCount`. A partial list never looks like a whole
   one — which matters when the caller deletes what is missing from it.
+- **`getMachineLogs` uses Fly's logs API, not the obvious address** (since 0.6.0).
+  `api.machines.dev/v1/apps/<app>/machines/<id>/logs` answers 404 — measured
+  29/9 2026 — so a hand-rolled poller that swallows errors shows an empty log
+  forever. The real endpoint is `api.fly.io/api/v1/apps/<app>/logs?instance=<id>`
+  and, like Prometheus, wants `FlyV1 <token>`. A 200 without a `data` array throws.
 - **The token never appears in an error** message or body.
 
 ### Verified against the real Fly API

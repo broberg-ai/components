@@ -343,6 +343,55 @@ describe("F033.14 — volumes and Prometheus", () => {
     expect(u.searchParams.get("query")).toBe('sum(fly_instance_up{app="x"})');
   });
 
+  const logsOk = {
+    status: 200,
+    body: {
+      data: [
+        { id: "1", type: "logs", attributes: { timestamp: "2026-09-29T19:51:12.773474023Z", message: "step 1", level: "info", region: "arn", instance: "m1" } },
+        { id: "2", type: "logs", attributes: { timestamp: "2026-09-29T19:51:13Z", message: "step 2" } },
+        { id: "3", type: "logs", attributes: { message: "no timestamp is dropped" } },
+      ],
+      meta: { next_token: "1790715208160112231" },
+    },
+  };
+
+  it("getMachineLogs uses Fly's logs API with FlyV1 — not the machines.dev address that 404s", async () => {
+    const { fly, calls } = client([logsOk]);
+    const page = await fly.getMachineLogs("my app", "m1", { nextToken: "abc" });
+    const u = new URL(calls[0].url);
+    expect(u.origin + u.pathname).toBe("https://api.fly.io/api/v1/apps/my%20app/logs");
+    expect(u.searchParams.get("instance")).toBe("m1");
+    expect(u.searchParams.get("next_token")).toBe("abc");
+    expect(calls[0].auth).toBe(`FlyV1 ${TOKEN}`);
+    expect(page).toEqual({
+      entries: [
+        { timestamp: "2026-09-29T19:51:12.773474023Z", message: "step 1", level: "info", region: "arn", instance: "m1" },
+        { timestamp: "2026-09-29T19:51:13Z", message: "step 2" },
+      ],
+      nextToken: "1790715208160112231",
+    });
+  });
+
+  it("getMachineLogs without nextToken sends none", async () => {
+    const { fly, calls } = client([logsOk]);
+    await fly.getMachineLogs("app", "m1");
+    expect(new URL(calls[0].url).searchParams.has("next_token")).toBe(false);
+  });
+
+  it("getMachineLogs: a 401 throws FlyApiError at once, token redacted", async () => {
+    const { fly, calls } = client([{ status: 401, body: { error: `bad ${TOKEN}` } }]);
+    const err = await fly.getMachineLogs("app", "m1").catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.status).toBe(401);
+    expect(String(err.message)).not.toContain(TOKEN);
+    expect(calls.length).toBe(1);
+  });
+
+  it("getMachineLogs: a 200 without a data array throws instead of returning an empty log", async () => {
+    const { fly } = client([{ status: 200, body: { nope: true } }]);
+    await expect(fly.getMachineLogs("app", "m1")).rejects.toBeInstanceOf(FlyApiError);
+  });
+
   it("promQuery does not double the prefix on a token that already carries it", async () => {
     const s = scripted([promOk]);
     const fly = new FlyClient({ token: `FlyV1 ${TOKEN}`, fetch: s.impl, sleep: noSleep });

@@ -37,4 +37,6 @@ export type {
   FlyExit,
   FlyVolume,
   FlyPromResult,
+  FlyLogEntry,
+  FlyLogPage,
 } from "./deploy/fly-machines.js";
