@@ -156,7 +156,7 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | helpdesk (helpdesk.broberg.ai) | (intercom) | ✅ live 29/9, 0.5.0 categories="", hide-reopen + links i konto-menu og fod, Lens 3b25a425, enrolleret. Christians ønske om synligt 🍪-ikon sendt som frivilligt |
 | xrt81 | (intercom) | ✅ live på xrt81.com 29/9 (0.4.1, Lens d7f2c8de). Discovery-enrollment blokeret: nøgle tabt, reset kræver Christian |
 | trail (trailmem.com + docs) | trail-F291 | ingen trackere; mangler privatlivsside → venter på Christian |
-| cardmem.com | idé, ikke dispatch'et | app bag login, ingen trackere → spørger Christian |
+| cardmem.com | cardmem F375.1 | ✅ live 29/9 på den ikke-loggede forside (appen efter login: intet banner), 0.5.1 categories="", Lens f13fa42d + c42a8a25, durable artefakter, enrolleret. Lys --primary gav hvid tekst på lys knap → mappet til mørk tone |
 | broberg-id | — | **UNDTAGET.** Christian 29/9, ordret: «intet cookie-banner på BID». Kun førsteparts login-cookies, ingen trackere (broberg-ids måling, intercom #872). |
 | upmetrics, whop, camera9, brain, forager | — | målt: intet offentligt site / ingen trackere |
 
