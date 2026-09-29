@@ -219,10 +219,12 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
         return c.json({ error: "invalid_request", error_description: msg }, 400);
       }
       try {
-        // A replay is answered 200 with no new effect: BID only needs to know it arrived.
-        if (await backchannel.store.useJti(verified.jti, verified.exp)) {
-          await backchannel.store.revokeSubBefore(verified.sub, verified.iat);
-        }
+        // Revoke FIRST, then record the jti. The other order loses a logout: if the
+        // revoke failed after the jti was recorded, the retry would be read as a
+        // replay and do nothing. Revoking twice is harmless (the store keeps the
+        // latest iat), so a replay only costs one idempotent write.
+        await backchannel.store.revokeSubBefore(verified.sub, verified.iat);
+        await backchannel.store.useJti(verified.jti, verified.exp);
       } catch {
         // Not stored = not done. 5xx so BID reports this app as failed to the user.
         return c.json({ error: "store_unavailable" }, 503);

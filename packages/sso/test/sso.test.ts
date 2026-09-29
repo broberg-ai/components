@@ -1702,9 +1702,11 @@ describe("«Log ud overalt» arrives over the back channel and ends the app's se
     const now = Math.floor(Date.now() / 1000);
     const token = await t.idp.logout({ jti: "same", iat: now - 100 });
     expect((await t.post(token)).status).toBe(200);
-    t.store.rows.delete("user-1");
+    const after = t.store.rows.get("user-1");
     expect((await t.post(token)).status).toBe(200);
-    expect(t.store.rows.has("user-1")).toBe(false);
+    // "No new effect": the replay leaves the stored moment exactly as it was.
+    expect(t.store.rows.get("user-1")).toBe(after);
+    expect(t.store.jtis.has("same")).toBe(true);
   });
 
   test("backchannel without a store throws at startup — there is no in-memory default", () => {
@@ -1729,6 +1731,17 @@ describe("«Log ud overalt» arrives over the back channel and ends the app's se
     const open = await setup(sharedStore(), "allow");
     open.store.fail = true;
     expect(await open.visit(cookie)).toBe(200);
+  });
+
+  test("a revoke that FAILED is not lost: the retry of the same token still revokes", async () => {
+    const t = await setup();
+    const token = await t.idp.logout({ jti: "retry-me" });
+    const real = t.store.revokeSubBefore.bind(t.store);
+    t.store.revokeSubBefore = async () => { throw new Error("db blip"); };
+    expect((await t.post(token)).status).toBe(503);
+    t.store.revokeSubBefore = real;
+    expect((await t.post(token)).status).toBe(200);
+    expect(t.store.rows.has("user-1")).toBe(true);
   });
 
   test("store down while receiving → 503, so BID reports this app as failed", async () => {
