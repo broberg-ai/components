@@ -127,3 +127,37 @@ Discovery-søgning 28/9 på «cookie» og «consent»: det eneste træf er @brob
 - `hide-reopen` (fandtes allerede i 0.2.0): knappen er væk. Sitet ansvarer for en anden vej tilbage: ethvert element med `data-broberg-consent-open`, fx på privatlivssiden. Loven kræver en vej tilbage, men ikke at den er en flydende knap.
 - Udgivet som 0.4.0. Tests: fire hjørner + aliaser + ukendt værdi; skjult knap + link åbner panelet.
 - Ikke gjort: pakken advarer ikke, hvis et site skjuler knappen uden at have et link. Det er sitets ansvar ifølge ejeren.
+
+## F014.12 — udrulningen, status 29/9 kl. ~10.20 (dansk tid)
+
+Christian 29/9: «rul det ud til alle live sites». Kilde for listen: `buddy list_sessions` (22 kørende sessioner) + cardmem-projektlisten (41 projekter). Ingen af dem registrerer «har et offentligt site med URL», så ordren er sendt bredt, og hver ejer MÅLER og svarer — listen nedenfor er deres svar, ikke vores gæt.
+
+Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en dispatch'et plan_build-kort på hvert sites eget board (holdbar, også for sessioner der ikke kører).
+
+| Projekt | Kort | Status |
+|---|---|---|
+| discovery.broberg.ai | components F014.12 | ✅ live 28/9, Lens-bevist |
+| fd-sundhed | fd-sundhed-F022 | dispatch'et |
+| broberg-ai | broberg-ai-F032 | dispatch'et (knap vs. «Rediger») |
+| cms + kundesites | cms-F204 | dispatch'et |
+| how | how-F007 | dispatch'et |
+| pitch | pitch-F054 | dispatch'et |
+| sanneandersen | sanneandersen-F142 | dispatch'et |
+| vn-leker | vn-leker-F002 | dispatch'et |
+| fd-ishoej | fd-ishoej-F006 | dispatch'et |
+| fysio-dk-aalborg | fysio-dk-aalborg-F004 | dispatch'et |
+| fysiodk-aalborg-sport | fysiodk-aalborg-sport-F030 | dispatch'et |
+| anna | anna-F002 | dispatch'et |
+| happy-little-place | happy-little-place-F042 | dispatch'et |
+| kai | kai-F002 | dispatch'et |
+| moovyy | moovyy-F037 | dispatch'et |
+| storeform | storeform-F003 | dispatch'et |
+| mailworker | mailworker-F011 | dispatch'et |
+| helpdesk | (intercom) | modtaget, svar kommer |
+| xrt81 | (intercom) | afventer svar |
+| trail (trailmem.com + docs) | trail-F291 | ingen trackere; mangler privatlivsside → venter på Christian |
+| cardmem.com | idé, ikke dispatch'et | app bag login, ingen trackere → spørger Christian |
+| broberg-id | — | kun nødvendige cookies + `bid_sidste_metode` (præference) → spørger Christian |
+| upmetrics, whop, camera9, brain, forager | — | målt: intet offentligt site / ingen trackere |
+
+**Mønster i svarene:** interne apps bag login uden trackere siger «ikke lovkrav». Det er juridisk rigtigt for rent nødvendige cookies; ordren siger «alle live sites». Afgørelsen for dem er Christians.
