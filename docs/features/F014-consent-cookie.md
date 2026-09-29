@@ -137,7 +137,7 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | Projekt | Kort | Status |
 |---|---|---|
 | discovery.broberg.ai | components F014.12 | ✅ live 28/9, Lens-bevist |
-| fd-sundhed | fd-sundhed-F022 | dispatch'et |
+| fd-sundhed (sundhed.fdaalborg.dk) | fd-sundhed-F006.502 (vores F022 arkiveret som dublet) | ✅ live 29/9, 0.5.0 categories="", Lens e935dd44 / 089a5c34 / 88aabb24 / 6a39388b, enrolleret. HSL-triplet-tokens mappet via aliaser; håndtaget løftet over mobil-bundmenu |
 | broberg-ai | broberg-ai-F032 | ✅ live 29/9, 0.5.0 categories="", hide-reopen + footer-link, Lens a2651539 + 932e4ff3, enrolleret. Banner dækkede «Rediger»-bjælken → F014.17 (0.5.1) |
 | cms (docs.webhouse.app, www.webhouse.dk, webhouse.app) | cms-F204 | ✅ live 29/9, 0.5.0 categories="", Lens mod prod 2fe321ce / e4abe9be / 50ecd68c, enrolleret. Ingen privatlivsside på nogen af dem |
 | how | how-F007 | dispatch'et |
@@ -153,7 +153,7 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | moovyy | moovyy-F037 | dispatch'et |
 | storeform | storeform-F003 | dispatch'et |
 | mailworker | mailworker-F011 | dispatch'et |
-| helpdesk | (intercom) | modtaget, svar kommer |
+| helpdesk (helpdesk.broberg.ai) | (intercom) | ✅ live 29/9, 0.5.0 categories="", hide-reopen + links i konto-menu og fod, Lens 3b25a425, enrolleret. Christians ønske om synligt 🍪-ikon sendt som frivilligt |
 | xrt81 | (intercom) | ✅ live på xrt81.com 29/9 (0.4.1, Lens d7f2c8de). Discovery-enrollment blokeret: nøgle tabt, reset kræver Christian |
 | trail (trailmem.com + docs) | trail-F291 | ingen trackere; mangler privatlivsside → venter på Christian |
 | cardmem.com | idé, ikke dispatch'et | app bag login, ingen trackere → spørger Christian |
