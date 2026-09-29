@@ -718,7 +718,7 @@ describe("warm-up moves the cold window to boot", () => {
  * at all before this card. No browser is involved, so this is not the kind of
  * verification Lens owns — it is a route returning headers.
  */
-describe("logout proves who is leaving, so the issuer need not ask", () => {
+describe("logout: \"central\" proves who is leaving, so the issuer need not ask", () => {
   /** Run login → callback and hand back the cookies the browser would now hold. */
   async function signIn() {
     const idp = await makeIdp();
@@ -726,7 +726,7 @@ describe("logout proves who is leaving, so the issuer need not ask", () => {
       fetchImpl: idp.fetchImpl,
       minRefetchIntervalMs: 0,
     });
-    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client, logout: "central" });
 
     const login = await app.request("https://app.example/login");
     const txCookie = login.headers.get("set-cookie")!;
@@ -797,7 +797,7 @@ describe("logout proves who is leaving, so the issuer need not ask", () => {
       fetchImpl: idp.fetchImpl,
       minRefetchIntervalMs: 0,
     });
-    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client, logout: "central" });
 
     const out = await app.request("https://app.example/logout"); // no cookies at all
     expect(out.status).toBe(302);
@@ -814,7 +814,7 @@ describe("logout proves who is leaving, so the issuer need not ask", () => {
       fetchImpl: idp.fetchImpl,
       minRefetchIntervalMs: 0,
     });
-    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client, logout: "central" });
 
     const out = await app.request("https://app.example/logout", {
       headers: { cookie: "bid_session_idt=not-a-signed-value" },
@@ -1756,5 +1756,78 @@ describe("«Log ud overalt» arrives over the back channel and ends the app's se
     const sso = ssoRoutes({ config, client: createSsoClient(config, { fetchImpl: idp.fetchImpl }) });
     const res = await sso.app.request("https://app.example/backchannel-logout", { method: "POST" });
     expect(res.status).toBe(404);
+  });
+});
+
+
+describe("«Log ud» in an app shows BID's login dialog — and does not log out of BID (F084.152)", () => {
+  async function routes(opts: { logout?: "app" | "central" } = {}) {
+    const idp = await makeIdp();
+    const config = loadSsoConfig(ENV);
+    const client = createSsoClient(config, { fetchImpl: idp.fetchImpl, minRefetchIntervalMs: 0 });
+    return { idp, ...ssoRoutes({ config, client, loginPath: "/auth", ...opts }) };
+  }
+
+  test("default /logout clears both cookies and goes to /auth/login?prompt=login — never to end-session", async () => {
+    const { app } = await routes();
+    const out = await app.request("https://app.example/logout");
+    expect(out.status).toBe(302);
+    expect(out.headers.get("location")).toBe("/auth/login?prompt=login");
+    const cleared = out.headers.getSetCookie();
+    expect(cleared.find((c) => c.startsWith("bid_session="))).toContain("Max-Age=0");
+    expect(cleared.find((c) => c.startsWith("bid_session_idt="))).toContain("Max-Age=0");
+  });
+
+  test("/login?prompt=login sends prompt=login to BID's authorize", async () => {
+    const { app } = await routes();
+    const out = await app.request("https://app.example/login?prompt=login");
+    expect(new URL(out.headers.get("location")!).searchParams.get("prompt")).toBe("login");
+  });
+
+  test("/login?prompt=none still works, and any other prompt is dropped", async () => {
+    const { app } = await routes();
+    const none = await app.request("https://app.example/login?prompt=none");
+    expect(new URL(none.headers.get("location")!).searchParams.get("prompt")).toBe("none");
+    for (const p of ["consent", "select_account", "evil"]) {
+      const out = await app.request(`https://app.example/login?prompt=${p}`);
+      expect(new URL(out.headers.get("location")!).searchParams.get("prompt")).toBeNull();
+    }
+  });
+
+  test('logout: "central" keeps the old end-session behaviour', async () => {
+    const { app } = await routes({ logout: "central" });
+    const out = await app.request("https://app.example/logout");
+    expect(new URL(out.headers.get("location")!).pathname).toBe("/oauth2/end-session");
+  });
+});
+
+describe("the session carries email_verified only when BID said it (F084.152)", () => {
+  async function sessionAfterLogin(emailVerified: boolean | undefined) {
+    const config = loadSsoConfig(ENV);
+    const client = {
+      beginLogin: async () => ({ url: "https://id.broberg.ai/authorize?x=1", state: "s", codeVerifier: "v", nonce: "n" }),
+      completeLogin: async () => ({
+        claims: { sub: "user-1", email: "cb@broberg.ai", ...(emailVerified === undefined ? {} : { email_verified: emailVerified }) },
+        idToken: "id.token.here",
+      }),
+    } as never;
+    const { app } = ssoRoutes({ config, client });
+    const login = await app.request("https://app.example/login");
+    const tx = login.headers.get("set-cookie")!.split(";")[0]!;
+    const cb = await app.request("https://app.example/callback?code=c&state=s", { headers: { cookie: tx } });
+    const cookie = cb.headers.getSetCookie().find((c) => c.startsWith("bid_session="))!.split(";")[0]!;
+    return verifySession(cookie.split("=")[1]!, config.cookieSecret);
+  }
+
+  test("true is carried", async () => {
+    expect((await sessionAfterLogin(true))?.email_verified).toBe(true);
+  });
+  test("false is carried as false", async () => {
+    expect((await sessionAfterLogin(false))?.email_verified).toBe(false);
+  });
+  test("absent stays absent — never turned into false or true", async () => {
+    const s = await sessionAfterLogin(undefined);
+    expect(s).not.toBeNull();
+    expect("email_verified" in (s as object)).toBe(false);
   });
 });

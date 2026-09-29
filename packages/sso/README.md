@@ -323,3 +323,19 @@ What happens: a verified token → `revokeSubBefore(sub, iat)` → from then on 
 **Nothing arrives until BID has registered your URL** — mounting it early is safe (ship dark). Tell broberg-id the exact URL once it is deployed.
 
 **The cost:** one store lookup per request that goes through `attach`/`require`.
+
+## «Log ud» in your app (changed in 0.7.0)
+
+**`GET /logout` now logs the user out of YOUR app only, and shows BID's login dialog.** It clears the app's session and sends the browser to `<mount>/login?prompt=login`; BID then shows its dialog even though the user is still signed in to BID. The user can pick another account or just sign in again. Their BID session, and every other app, are untouched: logging out of BID itself is BID's own «Log ud» (owner decision D-376ffa), and «Log ud overalt» is the button in BID for ending everything.
+
+Up to 0.6.x, `/logout` sent the user to BID's end-session endpoint, which also ended the BID session. Keep that behaviour with:
+
+```ts
+ssoRoutes({ logout: "central" });
+```
+
+`/login?prompt=login` and `/login?prompt=none` are passed on to BID; any other prompt is dropped.
+
+## email_verified on the session (since 0.7.0)
+
+`getSession(c).email_verified` is `true` or `false` when BID said so, and absent when it did not. **Bind access to an email address only when it is `true`** — e.g. `session.email === "cb@broberg.ai" && session.email_verified === true`. Sessions minted before 0.7.0 have no such field; treat absent as not verified.

@@ -31,6 +31,11 @@ export interface SessionPayload {
    *  reference, so a changed picture propagates without every app storing a
    *  copy that then goes stale. */
   picture?: string;
+  /**
+   * Whether BID has verified `email` (F084.152). Absent when BID did not say.
+   * Bind access to an address only when this is `true`.
+   */
+  email_verified?: boolean;
 }
 
 const enc = new TextEncoder();

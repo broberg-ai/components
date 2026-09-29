@@ -77,6 +77,15 @@ export interface BackchannelOptions {
 
 export interface SsoRoutesOptions {
   /**
+   * What «Log ud» in the app does (F084.152).
+   * "app" (default): end THIS app's session and send the user to BID's login
+   *   dialog (prompt=login). They stay signed in to BID — its own «Log ud» is
+   *   a separate action (decision D-376ffa) — and BID shows the dialog anyway.
+   * "central": the pre-0.7.0 behaviour — RP-initiated logout at BID's
+   *   end-session endpoint, which also ends the BID session.
+   */
+  logout?: "app" | "central";
+  /**
    * Receive «Log ud overalt» from BID at POST <mount>/backchannel-logout.
    * Nothing arrives until BID has registered that URL for this app (ship dark),
    * so mounting it early is safe.
@@ -235,8 +244,9 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
 
   app.get("/login", async (c) => {
     const prompt = c.req.query("prompt");
+    // Only the two prompts an app has a reason to ask for; anything else is dropped.
     const start = await client.beginLogin(
-      prompt === "none" ? { prompt: "none" } : {},
+      prompt === "none" || prompt === "login" ? { prompt } : {},
     );
     const tx = JSON.stringify({
       state: start.state,
@@ -338,6 +348,8 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       ...(result.claims.email ? { email: result.claims.email } : {}),
       ...(result.claims.name ? { name: result.claims.name } : {}),
       ...(result.claims.picture ? { picture: result.claims.picture } : {}),
+      // Only when BID actually said so — absent means "not stated", never false.
+      ...(typeof result.claims.email_verified === "boolean" ? { email_verified: result.claims.email_verified } : {}),
     };
 
     c.header(
@@ -390,6 +402,12 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       cookieHeader(idTokenCookie, "", { maxAge: 0, secure: isSecure(c) }),
       { append: true },
     );
+    // F084.152 — the default: this app is logged out, BID is not, and the user
+    // lands on BID's login dialog (prompt=login makes BID show it even with a
+    // live BID session). Through our own /login, so PKCE and state still apply.
+    if ((options.logout ?? "app") === "app") {
+      return c.redirect(`${loginPath}/login?prompt=login`, 302);
+    }
     // Local cookies cleared FIRST, then central logout. If the redirect to BID
     // fails or the user closes the tab, the worst case is "signed out here but
     // not everywhere" — never the reverse, which would leave this app trusting
