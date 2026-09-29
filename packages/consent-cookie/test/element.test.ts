@@ -298,3 +298,62 @@ describe("configuration", () => {
     expect(el.shadowRoot!.querySelector("img")).toBeNull();
   });
 });
+
+describe("the text only claims what the site uses (F014.16)", () => {
+  const body = (el: HTMLElement) => $(el, "consent-banner")!.querySelector("p")!.textContent!.replace(/\s*Læs mere$|\s*Read more$/, "");
+
+  it("without the attribute the body is exactly 0.4.1's", () => {
+    const el = mount();
+    expect(body(el)).toBe(
+      "Nødvendige cookies får siden til at virke. Med dit samtykke bruger vi også cookies til statistik og marketing. " +
+        "Du kan altid ændre dit valg under «Cookie-indstillinger».",
+    );
+  });
+
+  it('categories="analytics": statistics yes, marketing never — da and en', () => {
+    const da = mount({ categories: "analytics" });
+    expect(body(da)).toBe(
+      "Nødvendige cookies får siden til at virke. Med dit samtykke bruger vi også cookies til statistik. " +
+        "Du kan altid ændre dit valg under «Cookie-indstillinger».",
+    );
+    expect(body(da)).not.toMatch(/marketing/i);
+    da.remove();
+    const en = mount({ categories: "analytics", lang: "en" });
+    expect(body(en)).toBe(
+      "Necessary cookies make the site work. With your consent we also use cookies for statistics. " +
+        "You can change your choice at any time under “Cookie settings”.",
+    );
+  });
+
+  it('categories="analytics": the panel offers only Necessary + Statistics', () => {
+    const el = mount({ categories: "analytics" });
+    const text = (() => {
+      $(el, "consent-customize")!.click();
+      return $(el, "consent-panel")!.textContent!;
+    })();
+    expect(text).toContain("Statistik");
+    expect(text).not.toContain("Marketing");
+  });
+
+  it('categories="": only necessary cookies, no mention of statistics or marketing as used', () => {
+    const el = mount({ categories: "" });
+    expect(body(el)).toBe(
+      "Nødvendige cookies får siden til at virke. Vi bruger ikke cookies til statistik eller marketing. " +
+        "Du kan altid ændre dit valg under «Cookie-indstillinger».",
+    );
+  });
+
+  it("texts set AFTER mount re-renders, field by field", () => {
+    const el = mount() as HTMLElement & { texts: Record<string, unknown> };
+    el.texts = { title: "Cookies på xrt81" };
+    expect($(el, "consent-banner")!.textContent).toContain("Cookies på xrt81");
+    // untouched fields keep the built-in text
+    expect($(el, "consent-reject-all")!.textContent).toBe("Afvis alle");
+  });
+
+  it("an explicit texts.body wins over the composed one", () => {
+    const el = mount({ categories: "" }) as HTMLElement & { texts: Record<string, unknown> };
+    el.texts = { body: "Egen tekst." };
+    expect(body(el)).toBe("Egen tekst.");
+  });
+});

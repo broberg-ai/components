@@ -27,6 +27,7 @@
  *     after every decision, and withdrawing clears the record.
  */
 import {
+  CONSENT_CATEGORIES,
   createConsentManager,
   createCookieConsentStorage,
   type ConsentCategory,
@@ -104,6 +105,28 @@ export const TEXTS: Record<"da" | "en", ConsentTexts> = {
       analytics: { label: "Statistics", description: "Help us understand how the site is used so we can improve it." },
       marketing: { label: "Marketing", description: "Used to show relevant ads and measure campaigns, also on other sites." },
     },
+  },
+};
+
+/**
+ * F014.16: the body names only the optional categories the site actually uses
+ * (the `categories` attribute). Measured by xrt81 29/9: a fixed «statistik og
+ * marketing» is a false statement on every site without trackers.
+ */
+const BODY: Record<"da" | "en", { lead: string; with: (list: string) => string; only: string; tail: string; and: string }> = {
+  da: {
+    lead: "Nødvendige cookies får siden til at virke.",
+    with: (list) => `Med dit samtykke bruger vi også cookies til ${list}.`,
+    only: "Vi bruger ikke cookies til statistik eller marketing.",
+    tail: "Du kan altid ændre dit valg under «Cookie-indstillinger».",
+    and: "og",
+  },
+  en: {
+    lead: "Necessary cookies make the site work.",
+    with: (list) => `With your consent we also use cookies for ${list}.`,
+    only: "We do not use cookies for statistics or marketing.",
+    tail: "You can change your choice at any time under “Cookie settings”.",
+    and: "and",
   },
 };
 
@@ -259,8 +282,15 @@ export class BrobergConsentElement extends Base {
 
   /** The headless manager. Read consent with `el.manager.has("analytics")`. */
   manager!: ConsentManager;
-  /** Override any text; merged over the built-in language. */
-  texts: Partial<ConsentTexts> = {};
+  private _texts: Partial<ConsentTexts> = {};
+  /** Override any text, field by field; merged over the built-in language. Setting it re-renders. */
+  get texts(): Partial<ConsentTexts> {
+    return this._texts;
+  }
+  set texts(value: Partial<ConsentTexts>) {
+    this._texts = value ?? {};
+    if (this.root) this.render();
+  }
 
   private root!: ShadowRoot;
   private view: "banner" | "panel" | "closed" = "closed";
@@ -276,8 +306,13 @@ export class BrobergConsentElement extends Base {
       throw new Error('<broberg-consent>: the "policy-version" attribute is required (bump it when your cookie policy changes).');
     }
     if (!this.manager) {
+      // `categories`: the OPTIONAL categories this site really uses, space or
+      // comma separated. Absent = all of them (unchanged from 0.4.1); "" = none.
+      const used = this.getAttribute("categories");
+      const keep = used == null ? null : new Set(used.split(/[\s,]+/).filter(Boolean));
       this.manager = createConsentManager({
         policyVersion,
+        categories: keep ? CONSENT_CATEGORIES.filter((c) => c.essential || keep.has(c.key)) : undefined,
         // F014.13: a first-party cookie the server can read, renewed yearly.
         storage: createCookieConsentStorage({
           name: this.getAttribute("storage-key") ?? undefined,
@@ -346,7 +381,20 @@ export class BrobergConsentElement extends Base {
   private get t(): ConsentTexts {
     const lang = (this.getAttribute("lang") ?? document.documentElement.lang ?? "da").toLowerCase().startsWith("en") ? "en" : "da";
     const base = TEXTS[lang];
-    return { ...base, ...this.texts, categories: { ...base.categories, ...(this.texts.categories ?? {}) } };
+    const categories = { ...base.categories, ...(this._texts.categories ?? {}) };
+    return { ...base, ...this._texts, categories, body: this._texts.body ?? this.composeBody(lang, categories) };
+  }
+
+  /** Default body built from the categories in use; identical to 0.4.1 when all are. */
+  private composeBody(lang: "da" | "en", labels: ConsentTexts["categories"]): string {
+    const optional = (this.manager?.categories ?? CONSENT_CATEGORIES).filter((c) => !c.essential);
+    if (optional.length === CONSENT_CATEGORIES.filter((c) => !c.essential).length && !this._texts.categories) {
+      return TEXTS[lang].body;
+    }
+    const b = BODY[lang];
+    const names = optional.map((c) => (labels[c.key]?.label ?? c.label).toLowerCase());
+    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} ${b.and} ${names[names.length - 1]}` : names[0];
+    return `${b.lead} ${list ? b.with(list) : b.only} ${b.tail}`;
   }
 
   private q<T extends Element>(sel: string): T | null {

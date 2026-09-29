@@ -161,3 +161,11 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | upmetrics, whop, camera9, brain, forager | — | målt: intet offentligt site / ingen trackere |
 
 **Mønster i svarene:** interne apps bag login uden trackere siger «ikke lovkrav». Det er juridisk rigtigt for rent nødvendige cookies; ordren siger «alle live sites». Afgørelsen for dem er Christians.
+
+## F014.16 — teksten må kun love det sitet bruger (29/9)
+
+Målt af xrt81 (første site live): standardteksten sagde «cookies til statistik og marketing» på et site uden sporing — en usand påstand på hvert site uden trackere, og kategorierne kunne ikke fjernes. Og `el.texts = …` efter mount tegnede ikke igen.
+
+- Attribut `categories` = de valgfrie kategorier sitet faktisk bruger (`"analytics"`, `"analytics marketing"`, `""`). Panelet viser kun dem; brødteksten bygges af dem. Uden attributten: præcis 0.4.1's tekst (strict equality-test).
+- `texts` er en setter der tegner igen. Enkeltfelter kan overskrives; resten beholder standardteksten. Et eksplicit `texts.body` vinder.
+- 0.5.0. Negativ kontrol: de 6 nye tests mod 0.4.1-koden → 5 røde.
