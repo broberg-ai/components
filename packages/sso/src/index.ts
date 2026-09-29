@@ -32,6 +32,7 @@ export {
   type MigrationState,
   type MigrationStatus,
   MAX_INVITATIONS,
+  type LogoutToken,
 } from "./client.js";
 
 export {

@@ -282,3 +282,44 @@ const status = await client.migrationStatus(process.env.BID_APP_KEY!, ["sanne@ex
 **Both throw `SsoError`** on a non-2xx (a refused key says `invalid_app_key`), a body that is not JSON, a missing array, or an outcome/state this client does not know. **Never treat an error as `"ready"`**: switching off a user's old login because BID's answer was unclear is how someone gets locked out.
 
 **Timeout.** `addressOwnership`, `inviteUsers` and `migrationStatus` give up after `timeoutMs` (default 10 000) with `SsoError`, so a hanging BID cannot hang your app: `createSsoClient(config, { timeoutMs: 5_000 })`.
+
+## «Log ud overalt» — receiving it from BID (since 0.6.0)
+
+When a user presses **«Log ud overalt»** in Broberg ID, BID tells every app it has registered for that: an OIDC Back-Channel Logout token to `POST <mount>/backchannel-logout`. The ordinary «Log ud» in BID does **not** reach your app (owner decision D-376ffa), and the package refuses a token carrying `sid` to keep it that way.
+
+```ts
+const sso = ssoRoutes({
+  backchannel: {
+    store,                    // REQUIRED — shared by every instance of the app
+    onStoreError: "reject",   // default: if the store is down, treat the user as logged out
+  },
+});
+app.route("/auth", sso.app);  // → POST /auth/backchannel-logout; give BID that exact URL
+```
+
+**The store is yours, and it must be shared.** Your app runs on more than one machine; a list kept in memory would log the user out on one and not the other. There is no in-memory default — `ssoRoutes` throws at startup without a store. A table in the database you already have is enough:
+
+```ts
+// CREATE TABLE sso_logout (sub TEXT PRIMARY KEY, before INTEGER NOT NULL);
+// CREATE TABLE sso_logout_jti (jti TEXT PRIMARY KEY, until INTEGER NOT NULL);
+const store: BackchannelStore = {
+  async revokeSubBefore(sub, iat) {
+    await db.execute({ sql: `INSERT INTO sso_logout (sub, before) VALUES (?, ?)
+      ON CONFLICT(sub) DO UPDATE SET before = MAX(before, excluded.before)`, args: [sub, iat] });
+  },
+  async revokedBefore(sub) {
+    const r = await db.execute({ sql: "SELECT before FROM sso_logout WHERE sub = ?", args: [sub] });
+    return r.rows[0] ? Number(r.rows[0].before) : null;
+  },
+  async useJti(jti, until) {
+    const r = await db.execute({ sql: "INSERT OR IGNORE INTO sso_logout_jti (jti, until) VALUES (?, ?)", args: [jti, until] });
+    return r.rowsAffected === 1;   // false = a replay: answered 200, no new effect
+  },
+};
+```
+
+What happens: a verified token → `revokeSubBefore(sub, iat)` → from then on `attach`/`require` look up the user and refuse every session minted at or before that moment (sessions from before 0.6.0 carry no timestamp and count as older). A session started after the logout is untouched. Invalid tokens → 400; store down while receiving → 503, so BID can tell the user this app did not log out.
+
+**Nothing arrives until BID has registered your URL** — mounting it early is safe (ship dark). Tell broberg-id the exact URL once it is deployed.
+
+**The cost:** one store lookup per request that goes through `attach`/`require`.

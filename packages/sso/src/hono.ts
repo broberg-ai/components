@@ -8,7 +8,7 @@
  */
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { loadSsoConfig, type SsoConfig } from "./config.js";
-import { createSsoClient, type SsoClient } from "./client.js";
+import { createSsoClient, SsoError, type SsoClient } from "./client.js";
 import {
   cookieHeader,
   readCookie,
@@ -49,7 +49,39 @@ const TRANSACTION_MAX_AGE = 300;
  */
 const TRANSACTION_COOKIE_MAX_AGE = TRANSACTION_MAX_AGE * 3;
 
+/**
+ * Where «Log ud overalt» is remembered (F084.151). The APP provides it, backed by
+ * something every instance shares — apps run on two machines, so a per-process
+ * list would log the user out on one machine and not the other. There is
+ * deliberately no in-memory default.
+ */
+export interface BackchannelStore {
+  /** Every session for `sub` minted at or before `iat` is over. Keep the LATEST iat. */
+  revokeSubBefore(sub: string, iat: number): Promise<void>;
+  /** The iat recorded for `sub`, or null. */
+  revokedBefore(sub: string): Promise<number | null>;
+  /** Record a logout token id; true the FIRST time, false for a replay. Keep it until `until` (unix s). */
+  useJti(jti: string, until: number): Promise<boolean>;
+}
+
+export interface BackchannelOptions {
+  store: BackchannelStore;
+  /**
+   * When the store cannot answer: "reject" (default) treats the user as logged
+   * out; "allow" lets the session through unchecked. «reject» is the secure
+   * choice — a user who pressed «Log ud overalt» must not stay in because a
+   * database hiccupped — at the price of everyone being out while it lasts.
+   */
+  onStoreError?: "reject" | "allow";
+}
+
 export interface SsoRoutesOptions {
+  /**
+   * Receive «Log ud overalt» from BID at POST <mount>/backchannel-logout.
+   * Nothing arrives until BID has registered that URL for this app (ship dark),
+   * so mounting it early is safe.
+   */
+  backchannel?: BackchannelOptions;
   config?: SsoConfig;
   client?: SsoClient;
   /** Path prefix these routes are mounted under. Used to build the return URL. */
@@ -147,8 +179,57 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
    * and the two are cleared at different moments.
    */
   const idTokenCookie = `${config.cookieName}_idt`;
+  const backchannel = options.backchannel;
+  if (backchannel && !backchannel.store) {
+    throw new Error("ssoRoutes: backchannel needs a store shared by every instance of the app — there is no in-memory default.");
+  }
+  const onStoreError = backchannel?.onStoreError ?? "reject";
+
+  /** A verified session, or null — also null when «Log ud overalt» has ended it. */
+  async function liveSession(c: Context): Promise<SessionPayload | null> {
+    const session = await verifySession(readCookie(c.req.header("cookie"), config.cookieName), config.cookieSecret);
+    if (!session || !backchannel) return session;
+    try {
+      const before = await backchannel.store.revokedBefore(session.sub);
+      if (before !== null && (session.iat ?? 0) <= before) return null;
+      return session;
+    } catch {
+      return onStoreError === "allow" ? session : null;
+    }
+  }
 
   const app = new Hono();
+
+  if (backchannel) {
+    app.post("/backchannel-logout", async (c) => {
+      c.header("Cache-Control", "no-store");
+      let token: string | undefined;
+      try {
+        const form = await c.req.parseBody();
+        token = typeof form.logout_token === "string" ? form.logout_token : undefined;
+      } catch {
+        token = undefined;
+      }
+      if (!token) return c.json({ error: "invalid_request", error_description: "logout_token is missing" }, 400);
+      let verified;
+      try {
+        verified = await client.verifyLogoutToken(token);
+      } catch (e) {
+        const msg = e instanceof SsoError ? e.message : "logout_token could not be verified";
+        return c.json({ error: "invalid_request", error_description: msg }, 400);
+      }
+      try {
+        // A replay is answered 200 with no new effect: BID only needs to know it arrived.
+        if (await backchannel.store.useJti(verified.jti, verified.exp)) {
+          await backchannel.store.revokeSubBefore(verified.sub, verified.iat);
+        }
+      } catch {
+        // Not stored = not done. 5xx so BID reports this app as failed to the user.
+        return c.json({ error: "store_unavailable" }, 503);
+      }
+      return c.body(null, 200);
+    });
+  }
 
   app.get("/login", async (c) => {
     const prompt = c.req.query("prompt");
@@ -251,6 +332,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     const session: SessionPayload = {
       sub: result.claims.sub,
       exp,
+      iat: Math.floor(Date.now() / 1000),
       ...(result.claims.email ? { email: result.claims.email } : {}),
       ...(result.claims.name ? { name: result.claims.name } : {}),
       ...(result.claims.picture ? { picture: result.claims.picture } : {}),
@@ -315,15 +397,13 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
 
   /** Reads the session and puts it on the context. Never blocks. */
   const attach: MiddlewareHandler = async (c, next) => {
-    const cookie = readCookie(c.req.header("cookie"), config.cookieName);
-    c.set(SESSION_KEY, await verifySession(cookie, config.cookieSecret));
+    c.set(SESSION_KEY, await liveSession(c));
     await next();
   };
 
   /** Blocks and redirects to login, preserving where the user was going. */
   const require: MiddlewareHandler = async (c, next) => {
-    const cookie = readCookie(c.req.header("cookie"), config.cookieName);
-    const session = await verifySession(cookie, config.cookieSecret);
+    const session = await liveSession(c);
     if (!session) {
       const url = new URL(c.req.url);
       return c.redirect(

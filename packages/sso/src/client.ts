@@ -137,6 +137,11 @@ export interface SsoClient {
    * while they cannot get in.
    */
   migrationStatus(appKey: string, emails: string[]): Promise<MigrationStatus>;
+  /**
+   * Verify an OIDC Back-Channel Logout token from BID («Log ud overalt»).
+   * Throws SsoError on anything that is not a valid, sub-only logout token.
+   */
+  verifyLogoutToken(token: string): Promise<LogoutToken>;
   /** Exposed for tests and for a health check; not needed in normal use. */
   readonly jwks: JwksCache;
 }
@@ -176,6 +181,15 @@ export interface MigrationStatus {
   counts: Record<string, number>;
   complete: boolean;
 }
+
+/** A verified back-channel logout: every session for `sub` issued at or before `iat` is over. */
+export interface LogoutToken {
+  sub: string;
+  iat: number;
+  jti: string;
+  exp: number;
+}
+const BACKCHANNEL_EVENT = "http://schemas.openid.net/event/backchannel-logout";
 
 /** BID's own limit per invitation call. */
 export const MAX_INVITATIONS = 500;
@@ -386,6 +400,47 @@ export function createSsoClient(
       });
     }
     return jwksCache;
+  }
+
+  /**
+   * OIDC Back-Channel Logout 1.0 §2.6, plus one rule of our own: a token that
+   * carries `sid` is REFUSED. BID sends sub-only tokens, and only from «Log ud
+   * overalt» — the ordinary «Log ud» must not reach the apps (decision D-376ffa).
+   * better-auth fires sid-tokens on every session deletion; accepting one here
+   * would quietly turn BID's own logout into a fleet-wide one if that hook were
+   * ever wired up.
+   */
+  async function verifyLogoutToken(token: string): Promise<LogoutToken> {
+    const cache = await keys();
+    let header;
+    try {
+      header = decodeProtectedHeader(token);
+    } catch {
+      throw new SsoError("logout_token is not a JWS");
+    }
+    if (!header.kid) throw new SsoError("logout_token has no kid — cannot pick a signing key");
+    let payload: JWTPayload;
+    try {
+      ({ payload } = await jwtVerify(token, async () => cache.getKey(header.kid!, header.alg ?? "RS256"), {
+        issuer: config.issuer,
+        audience: config.clientId,
+        algorithms: ALLOWED_ALGS,
+        typ: "logout+jwt",
+        requiredClaims: ["iat", "exp", "jti"],
+      }));
+    } catch (e) {
+      throw new SsoError(`logout_token rejected: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const events = payload.events as Record<string, unknown> | undefined;
+    if (!events || typeof events !== "object" || !(BACKCHANNEL_EVENT in events)) {
+      throw new SsoError("logout_token has no back-channel logout event");
+    }
+    if ("nonce" in payload) throw new SsoError("logout_token carries a nonce — that is an ID token, not a logout token");
+    if ("sid" in payload) {
+      throw new SsoError("logout_token carries sid — only sub-wide «Log ud overalt» is accepted (D-376ffa)");
+    }
+    if (typeof payload.sub !== "string" || payload.sub === "") throw new SsoError("logout_token has no sub");
+    return { sub: payload.sub, iat: payload.iat!, jti: String(payload.jti), exp: payload.exp! };
   }
 
   async function verifyIdToken(idToken: string, opts: { nonce?: string } = {}) {
@@ -616,6 +671,8 @@ export function createSsoClient(
       }
       return status as AddressOwnership;
     },
+
+    verifyLogoutToken,
 
     async inviteUsers(appKey, input) {
       if (input.users.length > MAX_INVITATIONS) {

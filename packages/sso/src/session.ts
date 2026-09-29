@@ -18,6 +18,12 @@ export interface SessionPayload {
   sub: string;
   /** Unix seconds. Checked on every read. */
   exp: number;
+  /**
+   * Unix seconds, when this session was minted. What «Log ud overalt» compares
+   * against (F084.151). Absent on sessions minted before 0.6.0 — those count as
+   * older than any logout.
+   */
+  iat?: number;
   /** Optional convenience copies; never authorisation data. */
   email?: string;
   name?: string;

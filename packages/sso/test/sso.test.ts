@@ -23,7 +23,8 @@ import {
   JwksUnknownKeyError,
 } from "../src/jwks.js";
 import { signSession, verifySession, signValue, verifyValue } from "../src/session.js";
-import { ssoRoutes } from "../src/hono.js";
+import { ssoRoutes, type BackchannelStore } from "../src/hono.js";
+import { Hono } from "hono";
 
 const ISSUER = "https://id.broberg.ai";
 const CLIENT_ID = "test-app";
@@ -73,6 +74,16 @@ async function makeIdp() {
     async rotate() {
       keyId = `key-${Number(keyId.split("-")[1]) + 1}`;
       pair = await generateKeyPair("RS256", { extractable: true });
+    },
+    /** Mint a back-channel logout token (F084.151). Header and claims overridable. */
+    async logout(claims: Record<string, unknown> = {}, header: Record<string, unknown> = {}) {
+      const now = Math.floor(Date.now() / 1000);
+      return new SignJWT({
+        iss: ISSUER, aud: CLIENT_ID, iat: now, exp: now + 120, jti: `jti-${Math.random()}`,
+        events: { "http://schemas.openid.net/event/backchannel-logout": {} }, sub: "user-1", ...claims,
+      })
+        .setProtectedHeader({ alg: "RS256", kid: keyId, typ: "logout+jwt", ...header })
+        .sign(pair.privateKey);
     },
     /** Mint an ID token. `claims` can override anything, including aud/iss. */
     async mint(claims: Record<string, unknown> = {}) {
@@ -1569,5 +1580,168 @@ describe("inviteUsers + migrationStatus: the app's own key, and never a silent a
     await expect(c.addressOwnership("at", "a@b.dk")).rejects.toThrow(/did not answer within 50 ms/);
     await expect(c.inviteUsers("bidk_test", input)).rejects.toThrow(/did not answer within 50 ms/);
     await expect(c.migrationStatus("bidk_test", ["a@b.dk"])).rejects.toThrow(/did not answer within 50 ms/);
+  });
+});
+
+
+describe("«Log ud overalt» arrives over the back channel and ends the app's sessions (F084.151)", () => {
+  /** A store as an app would back it with a database: shared by every instance. */
+  function sharedStore(): BackchannelStore & { rows: Map<string, number>; jtis: Set<string>; fail: boolean } {
+    const rows = new Map<string, number>();
+    const jtis = new Set<string>();
+    const s = {
+      rows, jtis, fail: false,
+      async revokeSubBefore(sub: string, iat: number) {
+        if (s.fail) throw new Error("db down");
+        rows.set(sub, Math.max(rows.get(sub) ?? 0, iat));
+      },
+      async revokedBefore(sub: string) {
+        if (s.fail) throw new Error("db down");
+        return rows.get(sub) ?? null;
+      },
+      async useJti(jti: string) {
+        if (s.fail) throw new Error("db down");
+        if (jtis.has(jti)) return false;
+        jtis.add(jti);
+        return true;
+      },
+    };
+    return s;
+  }
+
+  async function setup(store = sharedStore(), onStoreError?: "reject" | "allow") {
+    const idp = await makeIdp();
+    const config = loadSsoConfig(ENV);
+    const client = createSsoClient(config, { fetchImpl: idp.fetchImpl });
+    const sso = ssoRoutes({ config, client, backchannel: { store, ...(onStoreError ? { onStoreError } : {}) } });
+    const app = new Hono();
+    app.route("/auth", sso.app);
+    app.get("/private", sso.require, (c) => c.text("inside"));
+    const post = (token?: string) =>
+      app.request("https://app.example/auth/backchannel-logout", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: token === undefined ? "" : `logout_token=${encodeURIComponent(token)}`,
+      });
+    const sessionCookie = async (iat?: number) =>
+      `${config.cookieName}=${await signSession(
+        { sub: "user-1", exp: Math.floor(Date.now() / 1000) + 3600, ...(iat !== undefined ? { iat } : {}) },
+        config.cookieSecret,
+      )}`;
+    const visit = async (cookie: string) => (await app.request("https://app.example/private", { headers: { cookie } })).status;
+    return { idp, app, store, post, sessionCookie, visit, config, client };
+  }
+
+  test("a valid sub-only token → 200, and the user's older session is refused on the next request", async () => {
+    const t = await setup();
+    const now = Math.floor(Date.now() / 1000);
+    const before = await t.sessionCookie(now - 60);
+    expect(await t.visit(before)).toBe(200);
+    expect((await t.post(await t.idp.logout())).status).toBe(200);
+    expect(await t.visit(before)).toBe(302);
+  });
+
+  test("a session minted AFTER the logout survives it", async () => {
+    const t = await setup();
+    const now = Math.floor(Date.now() / 1000);
+    await t.post(await t.idp.logout({ iat: now - 10 }));
+    expect(await t.visit(await t.sessionCookie(now))).toBe(200);
+  });
+
+  test("a pre-0.6.0 session (no iat) counts as older than any logout", async () => {
+    const t = await setup();
+    await t.post(await t.idp.logout());
+    expect(await t.visit(await t.sessionCookie())).toBe(302);
+  });
+
+  test("another user's session is untouched", async () => {
+    const t = await setup();
+    await t.post(await t.idp.logout({ sub: "someone-else" }));
+    expect(await t.visit(await t.sessionCookie(Math.floor(Date.now() / 1000) - 60))).toBe(200);
+  });
+
+  const bad: Array<[string, (idp: Awaited<ReturnType<typeof makeIdp>>) => Promise<string>]> = [
+    ["wrong typ header", (idp) => idp.logout({}, { typ: "JWT" })],
+    ["wrong issuer", (idp) => idp.logout({ iss: "https://evil.example" })],
+    ["wrong audience", (idp) => idp.logout({ aud: "another-app" })],
+    ["no back-channel event", (idp) => idp.logout({ events: {} })],
+    ["a nonce present", (idp) => idp.logout({ nonce: "n" })],
+    ["expired", (idp) => idp.logout({ iat: Math.floor(Date.now() / 1000) - 600, exp: Math.floor(Date.now() / 1000) - 300 })],
+    ["no jti", (idp) => idp.logout({ jti: undefined })],
+    ["sid present (D-376ffa: only «Log ud overalt»)", (idp) => idp.logout({ sid: "s-1" })],
+    ["no sub", (idp) => idp.logout({ sub: undefined })],
+  ];
+  for (const [name, mint] of bad) {
+    test(`${name} → 400, and nothing is revoked`, async () => {
+      const t = await setup();
+      const res = await t.post(await mint(t.idp));
+      expect(res.status).toBe(400);
+      expect(t.store.rows.size).toBe(0);
+    });
+  }
+
+  test("a token signed by a key BID does not publish → 400", async () => {
+    const t = await setup();
+    const other = await generateKeyPair("RS256");
+    const now = Math.floor(Date.now() / 1000);
+    const forged = await new SignJWT({
+      iss: ISSUER, aud: CLIENT_ID, iat: now, exp: now + 120, jti: "j",
+      events: { "http://schemas.openid.net/event/backchannel-logout": {} }, sub: "user-1",
+    }).setProtectedHeader({ alg: "RS256", kid: t.idp.kid, typ: "logout+jwt" }).sign(other.privateKey);
+    expect((await t.post(forged)).status).toBe(400);
+    expect(t.store.rows.size).toBe(0);
+  });
+
+  test("no logout_token in the body → 400", async () => {
+    const t = await setup();
+    expect((await t.post()).status).toBe(400);
+  });
+
+  test("a replayed jti → 200 with no new effect", async () => {
+    const t = await setup();
+    const now = Math.floor(Date.now() / 1000);
+    const token = await t.idp.logout({ jti: "same", iat: now - 100 });
+    expect((await t.post(token)).status).toBe(200);
+    t.store.rows.delete("user-1");
+    expect((await t.post(token)).status).toBe(200);
+    expect(t.store.rows.has("user-1")).toBe(false);
+  });
+
+  test("backchannel without a store throws at startup — there is no in-memory default", () => {
+    expect(() => ssoRoutes({ config: loadSsoConfig(ENV), backchannel: {} as never })).toThrow(/store/);
+  });
+
+  test("READ-BACK: a revocation written by one instance is seen by a second instance through the store", async () => {
+    const store = sharedStore();
+    const a = await setup(store);
+    const b = await setup(store);
+    const cookie = await a.sessionCookie(Math.floor(Date.now() / 1000) - 60);
+    expect(await b.visit(cookie)).toBe(200);
+    expect((await a.post(await a.idp.logout())).status).toBe(200);
+    expect(await b.visit(cookie)).toBe(302);
+  });
+
+  test("store down: require refuses by default (fail-closed); 'allow' lets the session through", async () => {
+    const closed = await setup();
+    const cookie = await closed.sessionCookie(Math.floor(Date.now() / 1000) - 60);
+    closed.store.fail = true;
+    expect(await closed.visit(cookie)).toBe(302);
+    const open = await setup(sharedStore(), "allow");
+    open.store.fail = true;
+    expect(await open.visit(cookie)).toBe(200);
+  });
+
+  test("store down while receiving → 503, so BID reports this app as failed", async () => {
+    const t = await setup();
+    t.store.fail = true;
+    expect((await t.post(await t.idp.logout())).status).toBe(503);
+  });
+
+  test("without backchannel the route does not exist and sessions are not looked up", async () => {
+    const idp = await makeIdp();
+    const config = loadSsoConfig(ENV);
+    const sso = ssoRoutes({ config, client: createSsoClient(config, { fetchImpl: idp.fetchImpl }) });
+    const res = await sso.app.request("https://app.example/backchannel-logout", { method: "POST" });
+    expect(res.status).toBe(404);
   });
 });
