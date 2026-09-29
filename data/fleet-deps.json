@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-28T10:59:41.848Z",
+ "scanned_at": "2026-09-29T10:46:00.452Z",
  "repos_scanned": 64,
  "repos_failed": 0,
  "manifests_read": 224,
  "manifests_unreadable": 0,
- "edges": 203,
+ "edges": 211,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -419,12 +419,12 @@
     ],
     "@broberg/mail-core": [
      {
-      "range": "0.6.0",
+      "range": "0.9.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "0.6.0",
+      "range": "0.9.0",
       "field": "devDependencies",
       "at": "packages/shared/package.json"
      }
@@ -507,6 +507,13 @@
    "manifests": 43,
    "unreadable": 0,
    "deps": {
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "apps/discovery/package.json"
+     }
+    ],
     "@broberg/logger": [
      {
       "range": "^0.1.1",
@@ -955,6 +962,25 @@
       "at": "apps/console/package.json"
      }
     ],
+    "@broberg/pwa": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     }
+    ],
+    "@broberg/webpush": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     },
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
     "@broberg/ai-sdk": [
      {
       "range": "0.47.1",
@@ -1031,7 +1057,14 @@
     ],
     "@broberg/mail-core": [
      {
-      "range": "^0.8.1",
+      "range": "^0.9.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/notifications": [
+     {
+      "range": "0.4.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1050,7 +1083,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.3.0",
+      "range": "0.4.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1141,7 +1174,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.3.2",
+      "range": "0.4.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -1474,6 +1507,13 @@
       "at": "apps/web/package.json"
      }
     ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
     "@broberg/gravatar": [
      {
       "range": "0.1.0",
@@ -1617,6 +1657,13 @@
     "@broberg/pwa": [
      {
       "range": "0.1.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.4.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -1771,6 +1818,13 @@
       "at": "packages/cms-admin/package.json"
      }
     ],
+    "@broberg/sso": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
     "@broberg/ui-controls-core": [
      {
       "range": "0.2.2",
@@ -1805,7 +1859,15 @@
    "branch": "main",
    "manifests": 1,
    "unreadable": 0,
-   "deps": {}
+   "deps": {
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.4.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
   },
   "webhousecode/cronjobs": {
    "branch": "main",
