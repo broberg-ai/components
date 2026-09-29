@@ -84,8 +84,13 @@ jobs:
   # ── the 24 root scripts ────────────────────────────────────────────────
   # Not package-specific, ~84 s, and independent of every package suite — so they
   # run beside the shards instead of in front of them.
+  # F087 — WHICH MACHINE. The repo variable CI_RUNNER picks our own runner, e.g.
+  # '["self-hosted","cb-ubuntu"]'. Empty = GitHub's machines, exactly as before:
+  # emptying it is the fallback when cb-ubuntu is down. A pull_request NEVER runs
+  # on our machine — this repo is public, and a stranger's PR would otherwise run
+  # its code on our hardware.
   root-scripts:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name != 'pull_request' && vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       # FULL HISTORY, ON PURPOSE (F081.5). The mutation-harness selector decides
@@ -128,7 +133,7 @@ jobs:
   # different problems, and one red X for both means opening the log to learn
   # which one you have (F080.1).
   typecheck:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name != 'pull_request' && vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -147,7 +152,7 @@ jobs:
   # list in YAML is a list only CI can read; a list in JSON can be checked by a
   # script that runs on every push (scripts/check-shard-coverage.mjs).
   shards:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name != 'pull_request' && vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       list: ${{ steps.read.outputs.list }}
@@ -159,7 +164,7 @@ jobs:
   # ── the package suites, one machine per shard ──────────────────────────
   packages:
     needs: shards
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name != 'pull_request' && vars.CI_RUNNER && fromJSON(vars.CI_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       # fail-fast OFF: one red shard must not cancel the others, or a single
