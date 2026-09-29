@@ -280,7 +280,8 @@ regexes — most-specific first so attribution is correct:
 - **Cloud / infra:** AWS (access key id `AKIA…`/`ASIA…`, **secret access key**,
   **session token** — see below), GitHub, GitLab, Slack, Stripe live, Resend,
   Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),
-  Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`).
+  Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`), UpCloud (`ucat_` + 26
+  Crockford base32, v0.10.0).
 - **Fleet:** upmetrics (`uk_`), cardmem (`pa_/pi_/pk_`, `piw_`), cms (`wh_`),
   HelpDesk (`hd_live_` + 64 hex — the shorter `hd_live_f4b4cf` PREVIEW is
   deliberately **not** matched, see below),

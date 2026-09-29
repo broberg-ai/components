@@ -363,6 +363,23 @@ const PATTERNS: SecretPattern[] = [
     regex: /\bhd_live_[0-9a-f]{64}(?![0-9a-fA-F])/g,
   },
   {
+    // UpCloud API token — `ucat_` + a ULID: exactly 26 Crockford base32 chars
+    // (no I, L, O, U). Measured in three independent places, not inferred from
+    // the masked example that filed it: UpCloud's API docs (create response
+    // `ucat_01DQE3AJDEBFEKECFM558TGH2F`), UpCloud's own Go client fixture
+    // (`ucat_01DEADBEEFDEADBEEFDEADBEEF`), and Kingfisher's rule
+    // `ucat_[0-9A-HJKMNP-TV-Z]{26}`. The token's `id` is a separate UUID and is
+    // not a secret.
+    //
+    // Case-insensitive like Kingfisher: Crockford decodes either case, and a
+    // lowercased token is still a live credential. The trailing lookahead keeps
+    // 27 chars from matching its first 26 — and leaves UpCloud's own
+    // `ucat_[REDACTED]` marker alone.
+    label: 'upcloud-api-token',
+    description: 'UpCloud API token (ucat_ + 26 Crockford base32)',
+    regex: /\bucat_[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-Za-z])/gi,
+  },
+  {
     // randomBytes(32).hex → wh_ + 64 lowercase hex (67 chars total).
     // NOTE: unlike cj_ and hd_live_ above, this one has no trailing lookahead, so
     // wh_ + 65 hex matches its first 64. Not a leak (the value is still redacted)
