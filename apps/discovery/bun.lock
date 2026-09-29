@@ -5,7 +5,7 @@
     "": {
       "name": "@broberg/discovery-app",
       "dependencies": {
-        "@broberg/consent-cookie": "0.3.0",
+        "@broberg/consent-cookie": "0.5.1",
         "@broberg/logger": "^0.1.1",
         "@libsql/client": "^0.17.3",
         "hono": "^4.6.14",
@@ -18,7 +18,7 @@
     },
   },
   "packages": {
-    "@broberg/consent-cookie": ["@broberg/consent-cookie@0.3.0", "", {}, "sha512-cg90mnf16tFmWDxamyJMbq8NA/BWpFllfhb0fVjZqcYEcN0ESezdrDdV4PJu+K39zX4H2I4N0r4Sr+vYsgxhFw=="],
+    "@broberg/consent-cookie": ["@broberg/consent-cookie@0.5.1", "", {}, "sha512-ns28osf+qFcdx+hjE9pEq8j7ADsNVLAX9cGS+h40ig6mZ9YW4UHWyoCQlDz9Zmg5BwtsDJA0WMgehVHICGXmqA=="],
 
     "@broberg/logger": ["@broberg/logger@0.1.1", "", { "dependencies": { "@broberg/secret-scan": "^0.1.8" }, "peerDependencies": { "hono": "^4" }, "optionalPeers": ["hono"] }, "sha512-6JsYGfPLuO4CdKuEda+21722+JjsLTJ+cz5mE82FPiRzpbkcL75MGKrePiNv3+dHIG+ORmgcfO7GLFMUSrX9Ig=="],
 

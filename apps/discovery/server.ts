@@ -245,7 +245,10 @@ const CONSENT_TAG =
   // @broberg/theme's. Without this map the banner took Discovery's surfaces and
   // its own fallback text colours: light text on the light primary button,
   // dark title on the dark card. Mapped on the element so the theme toggle follows.
-  '<broberg-consent policy-version="2026-09" lang="en" style="--card-foreground:var(--fg);' +
+  // categories="": Discovery runs no statistics or marketing, so the text must not
+  // claim it (F014.16). The round «Cookies» handle sits bottom-RIGHT: bottom-left
+  // it covered the inventory's filter row (Lens composition critic, 29/9).
+  '<broberg-consent policy-version="2026-09" lang="en" categories="" reopen-position="bottom-right" style="--card-foreground:var(--fg);' +
   '--primary-foreground:var(--primary-fg);--muted-foreground:var(--muted);--secondary:var(--border)"></broberg-consent>';
 const withConsent = (html: string) => html.replace("</body>", `${CONSENT_TAG}</body>`);
 const LLMS = readDoc("../../docs/llms.txt", "# broberg.ai shared inventory\n\nllms.txt is unavailable — see https://discovery.broberg.ai/api");

@@ -13,7 +13,7 @@ describe("Discovery API", () => {
   it("F014.12: / and /onboarding carry the cookie banner, served from our own origin", async () => {
     for (const path of ["/", "/onboarding"]) {
       const html = await (await app.request(path)).text();
-      expect(html).toContain('<broberg-consent policy-version="2026-09"');
+      expect(html).toContain('<broberg-consent policy-version="2026-09" lang="en" categories="" reopen-position="bottom-right"');
       // the token map is what makes the banner readable on Discovery's palette
       expect(html).toContain("--card-foreground:var(--fg);--primary-foreground:var(--primary-fg)");
       expect(html).toContain('<script type="module" src="/consent/element.js"></script>');
