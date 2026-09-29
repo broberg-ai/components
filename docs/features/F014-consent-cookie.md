@@ -138,8 +138,8 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 |---|---|---|
 | discovery.broberg.ai | components F014.12 | ✅ live 28/9, Lens-bevist |
 | fd-sundhed | fd-sundhed-F022 | dispatch'et |
-| broberg-ai | broberg-ai-F032 | dispatch'et (knap vs. «Rediger») |
-| cms + kundesites | cms-F204 | dispatch'et |
+| broberg-ai | broberg-ai-F032 | ✅ live 29/9, 0.5.0 categories="", hide-reopen + footer-link, Lens a2651539 + 932e4ff3, enrolleret. Banner dækkede «Rediger»-bjælken → F014.17 (0.5.1) |
+| cms (docs.webhouse.app, www.webhouse.dk, webhouse.app) | cms-F204 | ✅ live 29/9, 0.5.0 categories="", Lens mod prod 2fe321ce / e4abe9be / 50ecd68c, enrolleret. Ingen privatlivsside på nogen af dem |
 | how | how-F007 | dispatch'et |
 | pitch | pitch-F054 | dispatch'et |
 | sanneandersen | sanneandersen-F142 | dispatch'et |
