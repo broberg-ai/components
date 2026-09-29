@@ -126,6 +126,17 @@ export interface SsoClient {
    * answers — see the implementation for why that must never become "unverified".
    */
   addressOwnership(accessToken: string, address: string): Promise<AddressOwnership>;
+  /**
+   * Invite users to BID on behalf of this app (the app's OWN key, `bidk_…`).
+   * One result per email. Throws SsoError on anything BID did not clearly say.
+   */
+  inviteUsers(appKey: string, input: InviteUsersInput): Promise<InvitationResult[]>;
+  /**
+   * Where each user is in the move to BID. Throws SsoError on any state it does
+   * not know — never a silent "ready", which would switch off a user's old login
+   * while they cannot get in.
+   */
+  migrationStatus(appKey: string, emails: string[]): Promise<MigrationStatus>;
   /** Exposed for tests and for a health check; not needed in normal use. */
   readonly jwks: JwksCache;
 }
@@ -133,8 +144,49 @@ export interface SsoClient {
 export type AddressOwnership = "verified" | "unverified" | "not_on_account";
 const ADDRESS_OWNERSHIP = new Set<string>(["verified", "unverified", "not_on_account"]);
 
+export type InvitationOutcome =
+  | "invited"
+  | "already_invited"
+  | "existing"
+  | "invalid"
+  | "too_soon"
+  | "too_many_today"
+  | "send_failed";
+const INVITATION_OUTCOMES = new Set<string>([
+  "invited", "already_invited", "existing", "invalid", "too_soon", "too_many_today", "send_failed",
+]);
+export interface InviteUsersInput {
+  customerName: string;
+  appUrl: string;
+  appName?: string;
+  switchDate?: string;
+  users: Array<{ email: string; name: string }>;
+}
+export interface InvitationResult {
+  email: string;
+  outcome: InvitationOutcome;
+  mailId?: string;
+  problem?: string;
+}
+
+export type MigrationState = "ready" | "invited" | "expired" | "not_invited";
+const MIGRATION_STATES = new Set<string>(["ready", "invited", "expired", "not_invited"]);
+export interface MigrationStatus {
+  users: Array<{ email: string; state: MigrationState; expiresAt?: string }>;
+  counts: Record<string, number>;
+  complete: boolean;
+}
+
+/** BID's own limit per invitation call. */
+export const MAX_INVITATIONS = 500;
+
 export interface CreateSsoClientOptions {
   fetchImpl?: typeof fetch;
+  /**
+   * Ceiling for the app-API calls (addressOwnership, inviteUsers,
+   * migrationStatus). A hanging BID must not hang the app. Default 10 000 ms.
+   */
+  timeoutMs?: number;
   /** Passed through to the key cache; see jwks.ts for why there is a floor. */
   minRefetchIntervalMs?: number;
 }
@@ -229,6 +281,42 @@ export function createSsoClient(
   options: CreateSsoClientOptions = {},
 ): SsoClient {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 10_000;
+
+  /** POST to one of BID's app-API routes: bounded in time, JSON in and out, loud on failure. */
+  async function appPost(path: string, bearer: string, payload: unknown, what: string): Promise<unknown> {
+    const url = new URL(path, config.issuer).toString();
+    const ctrl = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        ctrl.abort();
+        reject(new SsoError(`${url} did not answer within ${timeoutMs} ms — ${what} is unknown.`));
+      }, timeoutMs);
+    });
+    try {
+      const res = await Promise.race([
+        fetchImpl(url, {
+          method: "POST",
+          headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        }),
+        timedOut,
+      ]);
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        const hint = detail.includes("invalid_app_key") ? " (invalid_app_key: this app's bidk_ key was refused)" : "";
+        throw new SsoError(`${url} answered ${res.status}${hint} — ${what} is unknown.`);
+      }
+      return await Promise.race([res.json().catch(() => null), timedOut]);
+    } catch (e) {
+      if (e instanceof SsoError) throw e;
+      throw new SsoError(`${url} could not be reached: ${e instanceof Error ? e.message : String(e)} — ${what} is unknown.`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   let discoveryPromise: Promise<Discovery> | null = null;
   let jwksCache: JwksCache | null = null;
 
@@ -513,24 +601,55 @@ export function createSsoClient(
     async addressOwnership(accessToken, address) {
       // An app-API route on BID's origin, not an OIDC endpoint, so it is not in
       // discovery. Origin-relative: the issuer may carry a path.
-      const url = new URL("/api/app/address-ownership", config.issuer).toString();
-      const res = await fetchImpl(url, {
-        method: "POST",
-        headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      if (!res.ok) {
-        throw new SsoError(`${url} answered ${res.status} — address ownership is unknown, not "unverified".`);
-      }
+      const body = (await appPost(
+        "/api/app/address-ownership",
+        accessToken,
+        { address },
+        'address ownership (not "unverified")',
+      )) as { status?: unknown } | null;
       // Anything but the three answers THROWS. Mapping a malformed or new status
       // to "unverified" would quietly downgrade a real user's verified address,
       // and nothing about that looks broken from the outside.
-      const body = (await res.json().catch(() => null)) as { status?: unknown } | null;
       const status = body?.status;
       if (typeof status !== "string" || !ADDRESS_OWNERSHIP.has(status)) {
-        throw new SsoError(`${url} returned status ${JSON.stringify(status)} — expected verified, unverified or not_on_account.`);
+        throw new SsoError(`address-ownership returned status ${JSON.stringify(status)} — expected verified, unverified or not_on_account.`);
       }
       return status as AddressOwnership;
+    },
+
+    async inviteUsers(appKey, input) {
+      if (input.users.length > MAX_INVITATIONS) {
+        throw new SsoError(`inviteUsers: ${input.users.length} users, BID accepts at most ${MAX_INVITATIONS} per call.`);
+      }
+      const body = (await appPost("/api/app/invitations", appKey, input, "the invitation outcome")) as {
+        results?: unknown;
+      } | null;
+      if (!Array.isArray(body?.results)) {
+        throw new SsoError(`invitations returned no "results" array — the invitation outcome is unknown.`);
+      }
+      for (const r of body.results as Array<{ email?: unknown; outcome?: unknown }>) {
+        if (typeof r?.outcome !== "string" || !INVITATION_OUTCOMES.has(r.outcome)) {
+          throw new SsoError(`invitations returned outcome ${JSON.stringify(r?.outcome)} for ${String(r?.email)} — not one this client knows.`);
+        }
+      }
+      return body.results as InvitationResult[];
+    },
+
+    async migrationStatus(appKey, emails) {
+      const body = (await appPost("/api/app/migration-status", appKey, { emails }, "the migration state")) as {
+        users?: unknown;
+        counts?: unknown;
+        complete?: unknown;
+      } | null;
+      if (!Array.isArray(body?.users) || typeof body.complete !== "boolean") {
+        throw new SsoError(`migration-status returned no "users" array or no "complete" flag — the migration state is unknown.`);
+      }
+      for (const u of body.users as Array<{ email?: unknown; state?: unknown }>) {
+        if (typeof u?.state !== "string" || !MIGRATION_STATES.has(u.state)) {
+          throw new SsoError(`migration-status returned state ${JSON.stringify(u?.state)} for ${String(u?.email)} — never read as "ready".`);
+        }
+      }
+      return body as MigrationStatus;
     },
   };
 }

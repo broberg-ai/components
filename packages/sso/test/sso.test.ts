@@ -1487,3 +1487,87 @@ describe("addressOwnership asks BID and throws on anything that is not one of th
     });
   }
 });
+
+describe("inviteUsers + migrationStatus: the app's own key, and never a silent answer (F084.150)", () => {
+  type Call = { url: string; init?: RequestInit };
+  const client = (respond: () => Response | Promise<Response>, timeoutMs?: number) => {
+    const calls: Call[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return respond();
+    }) as unknown as typeof fetch;
+    return { c: createSsoClient(loadSsoConfig(ENV), { fetchImpl, timeoutMs }), calls };
+  };
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const input = { customerName: "Sanne", appUrl: "https://app.example", users: [{ email: "a@b.dk", name: "A" }] };
+
+  for (const outcome of ["invited", "already_invited", "existing", "invalid", "too_soon", "too_many_today", "send_failed"]) {
+    test(`invitations outcome ${outcome} passes through`, async () => {
+      const { c, calls } = client(() => json({ results: [{ email: "a@b.dk", outcome }] }));
+      expect(await c.inviteUsers("bidk_test", input)).toEqual([{ email: "a@b.dk", outcome }]);
+      const [call] = calls as [Call];
+      expect(call.url).toBe(new URL("/api/app/invitations", ISSUER).toString());
+      expect(new Headers(call.init?.headers).get("authorization")).toBe("Bearer bidk_test");
+      expect(JSON.parse(String(call.init?.body))).toEqual(input);
+    });
+  }
+
+  for (const state of ["ready", "invited", "expired", "not_invited"]) {
+    test(`migration state ${state} passes through`, async () => {
+      const body = { users: [{ email: "a@b.dk", state }], counts: { [state]: 1 }, complete: state === "ready" };
+      const { c, calls } = client(() => json(body));
+      expect(await c.migrationStatus("bidk_test", ["a@b.dk"])).toEqual(body);
+      const [call] = calls as [Call];
+      expect(call.url).toBe(new URL("/api/app/migration-status", ISSUER).toString());
+      expect(JSON.parse(String(call.init?.body))).toEqual({ emails: ["a@b.dk"] });
+    });
+  }
+
+  test("401 invalid_app_key names the key, and throws SsoError", async () => {
+    const { c } = client(() => json({ error: "invalid_app_key" }, 401));
+    await expect(c.migrationStatus("bidk_wrong", ["a@b.dk"])).rejects.toThrow(/invalid_app_key/);
+    await expect(c.inviteUsers("bidk_wrong", input)).rejects.toThrow(SsoError);
+  });
+
+  const badInvite: Array<[string, () => Response]> = [
+    ["500", () => new Response("boom", { status: 500 })],
+    ["non-JSON 200", () => new Response("<html>", { status: 200 })],
+    ["no results array", () => json({})],
+    ["unknown outcome", () => json({ results: [{ email: "a@b.dk", outcome: "queued" }] })],
+    ["inherited key as outcome", () => json({ results: [{ email: "a@b.dk", outcome: "constructor" }] })],
+  ];
+  for (const [name, respond] of badInvite) {
+    test(`inviteUsers: ${name} → SsoError`, async () => {
+      await expect(client(respond).c.inviteUsers("bidk_test", input)).rejects.toThrow(SsoError);
+    });
+  }
+
+  const badStatus: Array<[string, () => Response]> = [
+    ["non-JSON 200", () => new Response("<html>", { status: 200 })],
+    ["no users array", () => json({ complete: true })],
+    ["no complete flag", () => json({ users: [] })],
+    ["unknown state", () => json({ users: [{ email: "a@b.dk", state: "migrating" }], counts: {}, complete: false })],
+    ["missing state", () => json({ users: [{ email: "a@b.dk" }], counts: {}, complete: false })],
+  ];
+  for (const [name, respond] of badStatus) {
+    test(`migrationStatus: ${name} → SsoError, never "ready"`, async () => {
+      await expect(client(respond).c.migrationStatus("bidk_test", ["a@b.dk"])).rejects.toThrow(SsoError);
+    });
+  }
+
+  test("more than 500 users is refused before any call", async () => {
+    const { c, calls } = client(() => json({ results: [] }));
+    const users = Array.from({ length: 501 }, (_, i) => ({ email: `u${i}@b.dk`, name: "U" }));
+    await expect(c.inviteUsers("bidk_test", { ...input, users })).rejects.toThrow(SsoError);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a BID that never answers times out with SsoError — all three app calls", async () => {
+    const never = () => new Promise<Response>(() => {});
+    const { c } = client(never, 50);
+    await expect(c.addressOwnership("at", "a@b.dk")).rejects.toThrow(/did not answer within 50 ms/);
+    await expect(c.inviteUsers("bidk_test", input)).rejects.toThrow(/did not answer within 50 ms/);
+    await expect(c.migrationStatus("bidk_test", ["a@b.dk"])).rejects.toThrow(/did not answer within 50 ms/);
+  });
+});

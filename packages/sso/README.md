@@ -259,3 +259,26 @@ const answer = await client.addressOwnership(accessToken, "a@example.dk");
 ```
 
 Calls BID's `POST /api/app/address-ownership` with the user's access token. **It throws `SsoError` on anything else** — a non-2xx, a body that is not JSON, a missing or unknown status. Do not catch that into `"unverified"`: an error means *we do not know*, and treating it as "not verified" quietly downgrades a real user.
+
+## Inviting users and tracking the move to BID (since 0.5.0)
+
+Two calls that authenticate with **your app's own key** (`bidk_…`, issued by Broberg ID) — not the client secret, not a user's token.
+
+```ts
+const results = await client.inviteUsers(process.env.BID_APP_KEY!, {
+  customerName: "Sanne Andersen",
+  appUrl: "https://sanneandersen.dk",
+  appName: "CMS",               // optional
+  switchDate: "2026-10-15",     // optional
+  users: [{ email: "sanne@example.dk", name: "Sanne" }],   // max 500 per call
+});
+// [{ email, outcome: "invited" | "already_invited" | "existing" | "invalid"
+//                   | "too_soon" | "too_many_today" | "send_failed", mailId?, problem? }]
+
+const status = await client.migrationStatus(process.env.BID_APP_KEY!, ["sanne@example.dk"]);
+// { users: [{ email, state: "ready" | "invited" | "expired" | "not_invited", expiresAt? }], counts, complete }
+```
+
+**Both throw `SsoError`** on a non-2xx (a refused key says `invalid_app_key`), a body that is not JSON, a missing array, or an outcome/state this client does not know. **Never treat an error as `"ready"`**: switching off a user's old login because BID's answer was unclear is how someone gets locked out.
+
+**Timeout.** `addressOwnership`, `inviteUsers` and `migrationStatus` give up after `timeoutMs` (default 10 000) with `SsoError`, so a hanging BID cannot hang your app: `createSsoClient(config, { timeoutMs: 5_000 })`.

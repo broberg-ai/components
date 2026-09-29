@@ -26,6 +26,12 @@ export {
   type CreateSsoClientOptions,
   type Discovery,
   type AddressOwnership,
+  type InvitationOutcome,
+  type InvitationResult,
+  type InviteUsersInput,
+  type MigrationState,
+  type MigrationStatus,
+  MAX_INVITATIONS,
 } from "./client.js";
 
 export {
