@@ -137,9 +137,9 @@ const STYLE = `
   --bc-secondary:var(--secondary,#f2f2f2);--bc-ring:var(--ring,#a3a3a3);--bc-radius:var(--radius,0.5rem)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-.banner{position:fixed;z-index:2147483000;left:24px;bottom:24px;width:440px;max-width:calc(100vw - 24px);background:var(--bc-bg);color:var(--bc-fg);
+.banner{position:fixed;z-index:2147483000;left:var(--broberg-consent-banner-left,24px);bottom:var(--broberg-consent-banner-bottom,24px);width:440px;max-width:calc(100vw - 24px);background:var(--bc-bg);color:var(--bc-fg);
   border:1px solid var(--bc-border);border-radius:calc(var(--bc-radius) + 4px);box-shadow:0 12px 32px rgba(0,0,0,.18);padding:20px}
-@media (max-width:520px){.banner{left:12px;right:12px;bottom:12px;width:auto;padding:16px}}
+@media (max-width:520px){.banner{left:var(--broberg-consent-banner-left,12px);right:12px;bottom:var(--broberg-consent-banner-bottom,12px);width:auto;padding:16px}}
 h2{margin:0 0 6px;font-size:16px;font-weight:600}
 .banner p{margin:0 0 16px;font-size:13px;color:var(--bc-muted)}
 a{color:var(--bc-fg)}

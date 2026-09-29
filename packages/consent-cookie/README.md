@@ -32,7 +32,7 @@ One element works the same in Next, Vite+Preact and plain HTML. No site copies i
 
 - **Read consent:** `el.manager.has("analytics")`, `window.brobergConsent.has(...)`, or listen for `consent-change` (bubbles, `detail` = the record or `null`).
 - **Texts, field by field:** `el.texts = { title: "…", categories: { analytics: { label, description } } }`. Any field you leave out keeps the built-in Danish/English. Since 0.5.0 you can set it after the element is on the page (a Preact/React ref works); it re-renders. An explicit `body` wins over the text built from `categories`.
-- **Styling:** the element reads your @broberg/theme tokens (`--primary`, `--radius`, `--card`, `--border`, …) through the shadow boundary, each with a neutral fallback. Move the handle with `--broberg-consent-reopen-x` / `-y`.
+- **Styling:** the element reads your @broberg/theme tokens (`--primary`, `--radius`, `--card`, `--border`, …) through the shadow boundary, each with a neutral fallback. Move the handle with `--broberg-consent-reopen-x` / `-y`. **Move the banner itself** with `--broberg-consent-banner-bottom` and `--broberg-consent-banner-left` (since 0.5.1; default 24px, 12px on screens under 520px), e.g. `broberg-consent { --broberg-consent-banner-bottom: 72px }` when a fixed bar of your own (cms inline-edit «Rediger · Log ud») sits in the bottom-left corner. It applies on desktop and mobile.
 - **Built in, not configurable** (it is the law): «Afvis alle» and «Accepter alle» have the same style and size; no optional category starts on; withdrawing clears the record.
 ## Nothing marked runs before consent (since 0.3.0)
 
