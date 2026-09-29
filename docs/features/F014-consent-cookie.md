@@ -154,10 +154,10 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | storeform | storeform-F003 | dispatch'et |
 | mailworker | mailworker-F011 | dispatch'et |
 | helpdesk | (intercom) | modtaget, svar kommer |
-| xrt81 | (intercom) | afventer svar |
+| xrt81 | (intercom) | ✅ live på xrt81.com 29/9 (0.4.1, Lens d7f2c8de). Discovery-enrollment blokeret: nøgle tabt, reset kræver Christian |
 | trail (trailmem.com + docs) | trail-F291 | ingen trackere; mangler privatlivsside → venter på Christian |
 | cardmem.com | idé, ikke dispatch'et | app bag login, ingen trackere → spørger Christian |
-| broberg-id | — | kun nødvendige cookies + `bid_sidste_metode` (præference) → spørger Christian |
+| broberg-id | — | **UNDTAGET.** Christian 29/9, ordret: «intet cookie-banner på BID». Kun førsteparts login-cookies, ingen trackere (broberg-ids måling, intercom #872). |
 | upmetrics, whop, camera9, brain, forager | — | målt: intet offentligt site / ingen trackere |
 
 **Mønster i svarene:** interne apps bag login uden trackere siger «ikke lovkrav». Det er juridisk rigtigt for rent nødvendige cookies; ordren siger «alle live sites». Afgørelsen for dem er Christians.
