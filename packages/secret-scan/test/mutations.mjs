@@ -216,23 +216,7 @@ const MUTATIONS = [
     from: "regex: /\\bhd_live_[0-9a-f]{64}(?![0-9a-fA-F])/g,",
     to: "regex: /\\bhd_live_[0-9a-f]{64}/g,",
   },
-];
-
-function redSet() {
-  const out = join(HERE, 'node_modules/.mutation-report.json');
-  rmSync(out, { force: true });
-  let code = 0;
-  try {
-    execFileSync('npx', ['vitest', 'run', '--reporter=json', '--outputFile', out], {
-      cwd: HERE,
-      stdio: 'pipe',
-    });
-  } catch (err) {
-    code = typeof err?.status === 'number' ? err.status : 1;
-  }
-  if (!existsSync(out)) return [`<the suite wrote no report at all — exit ${code}>`];
-  const report = JSON.parse(readFileSync(out, 'utf8'));
-  const failed = [  // ---- F035.19 — announced: 'code' -------------------------------------
+  // ---- F035.19 — announced: 'code' -------------------------------------
   {
     // The whole point: unquoted values (calls, env refs) become candidates.
     name: "code rule accepts an unquoted value (apiKey: nanoid(32) is flagged again)",
@@ -280,6 +264,22 @@ function redSet() {
     to: "      return true;",
   },
 ];
+
+function redSet() {
+  const out = join(HERE, 'node_modules/.mutation-report.json');
+  rmSync(out, { force: true });
+  let code = 0;
+  try {
+    execFileSync('npx', ['vitest', 'run', '--reporter=json', '--outputFile', out], {
+      cwd: HERE,
+      stdio: 'pipe',
+    });
+  } catch (err) {
+    code = typeof err?.status === 'number' ? err.status : 1;
+  }
+  if (!existsSync(out)) return [`<the suite wrote no report at all — exit ${code}>`];
+  const report = JSON.parse(readFileSync(out, 'utf8'));
+  const failed = [];
   for (const suite of report.testResults ?? []) {
     for (const t of suite.assertionResults ?? []) if (t.status === 'failed') failed.push(t.fullName);
   }
