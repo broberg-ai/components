@@ -220,8 +220,13 @@ const MUTATIONS = [
   {
     // The whole point: unquoted values (calls, env refs) become candidates.
     name: "code rule accepts an unquoted value (apiKey: nanoid(32) is flagged again)",
-    from: "    '([\"\\'`])([^\"\\'`\\\\s]*)\\\\4(?!\\\\s*[|&])',",
+    from: "    '([\"\\'`])((?:(?!\\\\4)\\\\S)*)\\\\4(?!\\\\s*[|&])',",
     to: "    '([\"\\'`]?)([^\"\\'`\\\\s,;]*)\\\\4(?!\\\\s*[|&])',",
+  },
+  {
+    name: "code rule excludes every quote kind from the value again (0.12.0: \"ab'cd99\" leaks)",
+    from: "    '([\"\\'`])((?:(?!\\\\4)\\\\S)*)\\\\4(?!\\\\s*[|&])',",
+    to: "    '([\"\\'`])([^\"\\'`\\\\s]*)\\\\4(?!\\\\s*[|&])',",
   },
   {
     name: "code rule forgets the 4-char floor (currentPassword: 'a' is flagged)",

@@ -970,7 +970,9 @@ const CREDENTIAL_WORD = '(?:password|passwd|pwd|secret|api_?key|adgangskode|kode
 const CODE_ANNOUNCED_SECRET = new RegExp(
   '(?<![\\w$])(?<!\\?\\s{0,3}["\'`]?)(?<!\\btype\\s{1,3})' +
     '((["\'`]?)(?=([\\w$]+))\\3\\2\\s*[:=]\\s*)' +
-    '(["\'`])([^"\'`\\s]*)\\4(?!\\s*[|&])',
+    // Any non-space up to the SAME quote that opened it: `"ab'cd99"` is one
+    // literal. 0.12.0 excluded every quote kind here and passed it unredacted.
+    '(["\'`])((?:(?!\\4)\\S)*)\\4(?!\\s*[|&])',
   'g',
 );
 const CODE_DESCRIPTOR_SUFFIX =

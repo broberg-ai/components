@@ -30,6 +30,9 @@ describe("announced: 'code' catches what GitGuardian caught (pitch d18b93e)", ()
     ['apiKey: `k3y-value`', 'apiKey: `' + M + '`'],
     [`KODEORD = "fikstur-99"`, `KODEORD = "${M}"`],
     [`api_key='abcdefgh'`, `api_key='${M}'`],
+    // 0.12.0 excluded every quote kind from the value, so these leaked whole.
+    [`password: "ab'cd99"`, `password: "${M}"`],
+    [`pwd: 'x"yz12'`, `pwd: '${M}'`],
   ];
   it.each(positives)('%s', (input, expected) => {
     expect(code(input).redacted).toBe(expected);
