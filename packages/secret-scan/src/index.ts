@@ -382,6 +382,99 @@ const PATTERNS: SecretPattern[] = [
     description: 'UpCloud API token (ucat_ + 26 Crockford base32)',
     regex: /\bucat_[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-Za-z])/gi,
   },
+  // ── F035.17 — the vault survey of 30 Sep 2026. Every shape below was MEASURED
+  // on values already stored in cardmem's vault (the script read them server-side
+  // and printed only prefix, length and charset), then checked against a source:
+  // Kingfisher's public rule set for vendor tokens, our own minters for fleet keys.
+  // No example value appears in these comments: the bundle keeps comments, and a
+  // literal here would make the scanner flag its own dist/ (see upcloud above).
+  {
+    // Cloudflare's prefixed user API token. 3 in the vault, all 48 after the
+    // prefix; Kingfisher allows 41-64. Runs before the context-only
+    // cloudflare-api-token below so a prefixed one is named by its prefix.
+    label: 'cloudflare-user-api-token',
+    description: 'Cloudflare user API token (cfut_ + 41-64 base64url)',
+    regex: /\bcfut_[A-Za-z0-9_-]{41,64}(?![A-Za-z0-9_-])/g,
+  },
+  {
+    // Runpod: rpa_ + 40 uppercase/digit + a 6-char mixed-case checksum tail
+    // (Kingfisher runpod.1). 2 in the vault, both 46.
+    label: 'runpod-api-key',
+    description: 'Runpod API key (rpa_ + 46)',
+    regex: /\brpa_[A-Z0-9]{40}[A-Za-z0-9]{6}(?![A-Za-z0-9])/g,
+  },
+  {
+    // Hugging Face user (hf_) and org (api_org_) tokens: 34 letters/digits.
+    label: 'huggingface-token',
+    description: 'Hugging Face token (hf_ / api_org_ + 34)',
+    regex: /\b(?:hf|api_org)_[A-Za-z0-9]{34}(?![A-Za-z0-9])/g,
+  },
+  {
+    // Tailscale: tskey-<kind>-<id>-<secret>. The body carries its own dash, so
+    // the class includes it. Measured 50-51 after the kind; Kingfisher's {20,36}
+    // would stop short of those, so the ceiling is ours.
+    label: 'tailscale-key',
+    description: 'Tailscale key (tskey-<kind>-…)',
+    regex: /\btskey-[a-z]{3,10}-[A-Za-z0-9_-]{20,64}(?![A-Za-z0-9_-])/g,
+  },
+  {
+    // Tigris secret access key: tsec_ + exactly 70 (Kingfisher tigris.2).
+    label: 'tigris-secret-key',
+    description: 'Tigris secret access key (tsec_ + 70)',
+    regex: /\btsec_[A-Za-z0-9_+-]{70}(?![A-Za-z0-9_+-])/g,
+  },
+  {
+    // Slack APP-level token. slack-token above only knows xox*, so an xapp-
+    // token went through untouched. Same label on purpose: the vault already
+    // stores it as slack-token, and a second name for one provider helps nobody.
+    label: 'slack-token',
+    description: 'Slack app-level token (xapp-…)',
+    regex: /\bxapp-\d{1,3}-[A-Za-z0-9]{8,15}-\d{8,15}-[A-Za-z0-9]{20,70}(?![A-Za-z0-9])/g,
+  },
+  {
+    // Aiven service password — the credential UpCloud's managed PostgreSQL hands
+    // out. AVNS_ + 19. One in the vault; [Likely] fixed length, and a password
+    // that silently stops matching is caught by the survey re-run, not by luck.
+    label: 'aiven-service-password',
+    description: 'Aiven service password (AVNS_ + 19) — UpCloud managed databases',
+    regex: /\bAVNS_[A-Za-z0-9_-]{19}(?![A-Za-z0-9_-])/g,
+  },
+  {
+    // BID app key. OURS: broberg-id mints `bidk_${randomBytes(32).base64url}`,
+    // so exactly 43 base64url — a fact about our minter, not a guess.
+    label: 'bid-app-key',
+    description: 'Broberg ID app key (bidk_ + 43 base64url)',
+    regex: /\bbidk_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
+  },
+  {
+    // Fleet hex keys measured in the vault. Hex length is fixed by construction
+    // (randomBytes(n).hex), so the survey's lengths are the minter's lengths.
+    label: 'beacon-token',
+    description: 'Beacon token (bcn_ + 64 hex)',
+    regex: /\bbcn_[0-9a-f]{64}(?![0-9a-fA-F])/g,
+  },
+  {
+    label: 'mailworker-admin-key',
+    description: 'mailworker admin key (mw_ + 64 hex)',
+    regex: /\bmw_[0-9a-f]{64}(?![0-9a-fA-F])/g,
+  },
+  {
+    label: 'upmetrics-remediation-token',
+    description: 'Upmetrics remediation token (umrt_ + 48 hex)',
+    regex: /\bumrt_[0-9a-f]{48}(?![0-9a-fA-F])/g,
+  },
+  {
+    // A database URL with a password in it. Matches ONLY the password (the
+    // lookbehind pins scheme://user: before it, the lookahead pins @ after), so
+    // a redacted URL still says which database it points at.
+    //
+    // The password must contain a digit or be 12+ characters — so the
+    // `user:password@` and `user:pass@` placeholders every README carries stay
+    // readable. A real generated DB password clears that bar trivially.
+    label: 'connection-string',
+    description: 'Password inside a database connection URL',
+    regex: /(?<=\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?):\/\/[^\s:@/]+:)(?=[^\s@/]*\d|[^\s@/]{12})[^\s@/]+(?=@)/gi,
+  },
   {
     // randomBytes(32).hex → wh_ + 64 lowercase hex (67 chars total).
     // NOTE: unlike cj_ and hd_live_ above, this one has no trailing lookahead, so

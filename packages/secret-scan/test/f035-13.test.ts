@@ -177,7 +177,16 @@ describe("an AWS_* variable name does not mean an AWS key — measured, not assu
   });
 
   it("but the field name is still required — a bare 75-char string is not a secret", () => {
-    expect(redactSecrets(TIGRIS_SECRET).redacted).toBe(TIGRIS_SECRET);
+    // Prefix-less on purpose. This used TIGRIS_SECRET until 0.11.0, when
+    // `tsec_` became a named type (F035.17) — a bare tsec_ value IS a Tigris
+    // secret now. What this test guards is the AWS rule's field-name
+    // requirement, so its fixture must carry no prefix of its own.
+    const bare = "b".repeat(75);
+    expect(redactSecrets(bare).redacted).toBe(bare);
+  });
+
+  it("a bare tsec_ value is named by its own prefix (F035.17), not by the AWS rule", () => {
+    expect(classify(TIGRIS_SECRET)?.label).toBe("tigris-secret-key");
   });
 });
 

@@ -281,11 +281,19 @@ regexes — most-specific first so attribution is correct:
   **session token** — see below), GitHub, GitLab, Slack, Stripe live, Resend,
   Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),
   Supabase (`sbp_` / `sb_secret_`), npm (`npm_…`), UpCloud (`ucat_` + 26
-  Crockford base32, v0.10.1).
+  Crockford base32, v0.10.1), Cloudflare user token (`cfut_`), Runpod (`rpa_`),
+  Hugging Face (`hf_`/`api_org_`), Tailscale (`tskey-`), Tigris (`tsec_`), Slack
+  app tokens (`xapp-`), Aiven/UpCloud managed-DB passwords (`AVNS_`) — v0.11.0.
+- **Connection strings (v0.11.0):** the PASSWORD inside a `postgres://`, `mysql://`,
+  `mongodb(+srv)://`, `redis(s)://` or `amqp(s)://` URL. Only the password is
+  redacted, so the URL still says which database it is. A password needs a digit
+  or 12+ characters, so README placeholders (`user:password@`) are left alone.
 - **Fleet:** upmetrics (`uk_`), cardmem (`pa_/pi_/pk_`, `piw_`), cms (`wh_`),
   HelpDesk (`hd_live_` + 64 hex — the shorter `hd_live_f4b4cf` PREVIEW is
   deliberately **not** matched, see below),
-  trail (`trail_`), cronjobs (`cj_` + 43 base64url).
+  trail (`trail_`), cronjobs (`cj_` + 43 base64url), and — from the vault survey
+  of 30 Sep 2026 (v0.11.0) — BID app keys (`bidk_`), beacon (`bcn_`), mailworker
+  (`mw_`) and upmetrics remediation (`umrt_`) tokens.
 - **Generic:** JWT (`eyJ…` — also Turso + Supabase service_role tokens), PEM
   private-key blocks, Discord bot/MFA tokens, and `labeled-hex-secret` (a 40+ hex
   value assigned to a `secret`/`token`/`password`/`api-key`-named field).
