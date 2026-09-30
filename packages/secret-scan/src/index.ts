@@ -365,11 +365,14 @@ const PATTERNS: SecretPattern[] = [
   {
     // UpCloud API token — `ucat_` + a ULID: exactly 26 Crockford base32 chars
     // (no I, L, O, U). Measured in three independent places, not inferred from
-    // the masked example that filed it: UpCloud's API docs (create response
-    // `ucat_01DQE3AJDEBFEKECFM558TGH2F`), UpCloud's own Go client fixture
-    // (`ucat_01DEADBEEFDEADBEEFDEADBEEF`), and Kingfisher's rule
-    // `ucat_[0-9A-HJKMNP-TV-Z]{26}`. The token's `id` is a separate UUID and is
-    // not a secret.
+    // the masked example that filed it: UpCloud's API docs (create response),
+    // UpCloud's own Go client fixture, and Kingfisher's rule — all three are in
+    // test/f035-16.test.ts. The token's `id` is a separate UUID and is not a
+    // secret.
+    //
+    // NO EXAMPLE VALUE IN THIS COMMENT, on purpose: the bundle keeps comments,
+    // so a literal token here ships in dist/ and the scanner flags ITSELF — the
+    // pre-commit gate's test caught exactly that on the first 0.10.0 tag.
     //
     // Case-insensitive like Kingfisher: Crockford decodes either case, and a
     // lowercased token is still a live credential. The trailing lookahead keeps

@@ -5,6 +5,8 @@
 // comes from UpCloud itself, not from the mask: their API docs and their own Go
 // client's test fixture, both `ucat_` + exactly 26 Crockford base32 (a ULID).
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { redactSecrets, classify } from "../src/index";
 
 /** UpCloud API docs, create-token response (developers.upcloud.com/1.3/24-api-tokens). */
@@ -33,6 +35,17 @@ describe("the tokens UpCloud actually issues", () => {
     expect(redacted).not.toContain(DOCS);
     expect(redacted.startsWith('curl -H "Authorization: Bearer ')).toBe(true);
     expect(redacted.endsWith('" https://api.upcloud.com/1.3/account')).toBe(true);
+  });
+});
+
+describe("the scanner does not flag ITSELF", () => {
+  // The bundle keeps comments. The first 0.10.0 tag had these two specimens in
+  // the pattern's comment, so dist/ carried them and the pre-commit gate's test
+  // (which stages dist/index.js in a fixture repo) was refused by its own
+  // scanner. Asserting on src is enough: nothing reaches dist that is not here.
+  it("src/index.ts contains no credential its own patterns would find", () => {
+    const src = readFileSync(fileURLToPath(new URL("../src/index.ts", import.meta.url)), "utf8");
+    expect(redactSecrets(src).findings.map((f) => f.label)).toEqual([]);
   });
 });
 
