@@ -69,6 +69,24 @@
       "version": "0.7.0",
       "as_of": "2026-09-29",
       "source": "cms's own intercom #998 (2026-09-29): «cms på @broberg/sso 0.7.0 (5d8ea713)», Lens-proven on prod (ba729e8d, #1004). NOT measured by components in their node_modules."
+    },
+    {
+      "session": "camera9",
+      "repo": "broberg-ai/camera9",
+      "role": "consumer",
+      "uses": "Hono adapter (ssoRoutes), access binds on sub only (their words 2026-09-30).",
+      "version": "0.7.0",
+      "as_of": "2026-09-30",
+      "source": "camera9's own intercom 2026-09-30 (#1291). NOT measured by components in their node_modules."
+    },
+    {
+      "session": "trail",
+      "repo": "broberg-ai/trail",
+      "role": "consumer",
+      "uses": "apps/admin-server. Known users bind on sub; first login for a new sub links via claims.email + email_verified === true (bid-link.ts:64-66), fallback BID address-ownership lookup (their words 2026-09-30).",
+      "version": "0.6.1",
+      "as_of": "2026-09-30",
+      "source": "trail's own intercom 2026-09-30 (#1293). NOT measured by components in their node_modules."
     }
   ],
   "notify_beyond_this_file": [
