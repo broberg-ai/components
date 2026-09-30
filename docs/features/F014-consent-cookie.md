@@ -141,7 +141,7 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | broberg-ai | broberg-ai-F032 | ✅ live 29/9, 0.5.0 categories="", hide-reopen + footer-link, Lens a2651539 + 932e4ff3, enrolleret. Banner dækkede «Rediger»-bjælken → F014.17 (0.5.1) |
 | cms (docs.webhouse.app, www.webhouse.dk, webhouse.app) | cms-F204 | ✅ live 29/9, 0.5.0 categories="", Lens mod prod 2fe321ce / e4abe9be / 50ecd68c, enrolleret. Ingen privatlivsside på nogen af dem |
 | how | how-F007 | dispatch'et |
-| pitch | pitch-F054 | dispatch'et |
+| pitch (pitch.broberg.ai + /privacy) | pitch-F054 | ✅ live 30/9, 0.5.0 categories="", hide-reopen + footer-link + /privacy, Lens ad09a8cf (15/15), enrolleret. Farver mappet på de interne --bc-*-navne (skrøbeligt, se note) |
 | sanneandersen | sanneandersen-F142 | dispatch'et |
 | vn-leker | vn-leker-F002 | dispatch'et |
 | fd-ishoej | fd-ishoej-F006 | dispatch'et |

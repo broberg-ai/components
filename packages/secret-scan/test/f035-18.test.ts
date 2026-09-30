@@ -33,6 +33,17 @@ describe("long input without whitespace does not hang", () => {
     expect(out).toBe(v); // and nothing in it is a secret
   });
 
+  it("THE ORDER ITSELF: the cheap guards come before the id search behind", () => {
+    // The timing tests above are real but not a reliable seal on shared CI
+    // runners: twice on 30/9 the old order passed them in GitHub Actions while
+    // measuring 15 s (Node 22) and 4 s (Node 25) on a local machine. This one
+    // is deterministic — it asserts the fix itself, so the reorder mutation is
+    // caught on every machine, and the timing tests stay as a second guard.
+    const p = SECRET_PATTERNS.find((x) => x.label === "aws-secret-access-key-paired")!;
+    expect(p.regex.source.startsWith("(?<![A-Za-z0-9/+])(?=[A-Za-z0-9/+=]{40}")).toBe(true);
+    expect(p.regex.source.indexOf("(?<![A-Za-z0-9/+])")).toBeLessThan(p.regex.source.indexOf("(?<=(?:AKIA|ASIA)"));
+  });
+
   it("the pair is still found — same answer, only cheaper", () => {
     // A synthetic id + a 40-char value 1 space apart: the CSV shape.
     const id = "AKIA" + "Q".repeat(16);
