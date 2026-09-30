@@ -253,11 +253,7 @@ const MUTATIONS = [
     from: "  '(?<![\\\\w$])(?<!\\\\?\\\\s{0,3}[\"\\'`]?)(?<!\\\\btype\\\\s{1,3})' +",
     to: "  '(?<![\\\\w$])(?<!\\\\btype\\\\s{1,3})' +",
   },
-  {
-    name: "code rule accepts == as a separator (a comparison is flagged)",
-    from: "(?:\\\\s*:|\\\\s*=(?![=>]))",
-    to: "(?:\\\\s*:|\\\\s*=)",
-  },
+
   {
     name: "code-mode hasAnnouncedSecret stops using the shared predicate",
     from: "      if (codeCandidateOk(m[3] ?? '', m[5] ?? '')) return true;",

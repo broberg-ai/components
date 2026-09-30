@@ -942,8 +942,8 @@ function plausibleSecretValue(candidate: string): boolean {
  * So code gets its own rule, and QUOTED is the whole of it: an unquoted value
  * is a call, a variable or an env reference, never a hardcoded secret. The
  * label may be any identifier CONTAINING a credential word (`DB_PASSWORD`,
- * `clientSecret`), optionally quoted as an object key. `=` must not be `==`,
- * `===` or `=>`.
+ * `clientSecret`), optionally quoted as an object key. `==`, `===` and `=>`
+ * need no rule of their own: what follows the first `=` is not a quote.
  *
  * MEASURED 1/10 2026 over 2,848 tracked TS/JS files in 13 fleet repos: 315
  * hits, 280 in test/spec/fixture files — `apiKey: "re_x"`, `password:
@@ -969,7 +969,7 @@ const CREDENTIAL_WORD = '(?:password|passwd|pwd|secret|api_?key|adgangskode|kode
 // reason: an unbounded `\s*` inside a lookbehind rescans every whitespace run.
 const CODE_ANNOUNCED_SECRET = new RegExp(
   '(?<![\\w$])(?<!\\?\\s{0,3}["\'`]?)(?<!\\btype\\s{1,3})' +
-    '((["\'`]?)(?=([\\w$]+))\\3\\2(?:\\s*:|\\s*=(?![=>]))\\s*)' +
+    '((["\'`]?)(?=([\\w$]+))\\3\\2\\s*[:=]\\s*)' +
     '(["\'`])([^"\'`\\s]*)\\4(?!\\s*[|&])',
   'g',
 );

@@ -51,6 +51,9 @@ describe("announced: 'code' leaves expressions and measured noise alone", () => 
     'apiKey: process.env.RESEND_API_KEY',
     'password: someVar',
     'const secret = await vault.get("x y")',
+    // a literal under a label that names no credential
+    `const name = 'abcdefgh'`,
+    `title: "hunter22"`,
     // comparisons are not assignments
     `if (password === 'hunter22') {}`,
     `const f = (password) => 'abcdefgh'`,
