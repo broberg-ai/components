@@ -30,7 +30,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -55,6 +55,12 @@ console.log(`shard ${shard.name}: ${expected.length} packages, ~${shard.weight_s
 
 // A stale summary from an earlier run would be picked up as this run's evidence.
 rmSync(RUNS_DIR, { recursive: true, force: true });
+// A report left by an earlier run would vouch for a run that tested nothing.
+// On a turbo cache hit the report is restored as a declared output (turbo.json),
+// so deleting it here never loses a real one.
+for (const p of expected) {
+  rmSync(join("packages", p.replace(/^@broberg\//, ""), ".vitest-report"), { recursive: true, force: true });
+}
 
 const filters = expected.flatMap((p) => ["--filter", p]);
 let runFailed = false;
@@ -89,9 +95,51 @@ if (missing.length || extra.length) {
   process.exit(1);
 }
 
+// F080.6 — a package that RAN is not a package that TESTED. Measured 30/9: a
+// package whose tests are all skipped, or whose script carries a -t filter that
+// matches nothing, exits 0 having executed ZERO tests — turbo records it as run
+// and green, and the set equality above is satisfied by a package that tested
+// nothing. (A config matching no FILE is different: vitest exits 1 on its own.)
+// The count comes from vitest's JSON reporter (every package's test script
+// writes .vitest-report/*.json), never from the human-readable line: CI colours
+// that line, and a regex over it read escape codes as "0 tests" on 2026-09-20.
+//
+// The floor is a ZERO-DETECTOR, set far below the measured count on purpose. A
+// floor pinned at today's number reddens the day someone legitimately deletes a
+// test, and a gate that cries wolf is a gate somebody deletes.
+const floors = shard.min_tests ?? {};
+const short = [];
+for (const p of expected) {
+  const dir = join("packages", p.replace(/^@broberg\//, ""), ".vitest-report");
+  let executed = 0;
+  let reports = 0;
+  try {
+    for (const f of readdirSync(dir).filter((f) => f.endsWith(".json"))) {
+      const r = JSON.parse(readFileSync(join(dir, f), "utf8"));
+      executed += r.numPassedTests + r.numFailedTests;
+      reports++;
+    }
+  } catch {
+    // no report directory: reported below as 0 executed, 0 reports
+  }
+  const floor = floors[p];
+  if (floor === undefined) short.push(`${p}: no min_tests floor in ${SHARD_FILE}`);
+  else if (reports === 0) short.push(`${p}: wrote NO vitest JSON report — cannot prove it tested anything`);
+  else if (executed < floor) short.push(`${p}: executed ${executed} tests, floor is ${floor}`);
+}
+
+// Checked BEFORE the failure exit on purpose: when vitest finds no test file it
+// exits 1, and "tests FAILED" alone would not say which package stopped testing.
+if (short.length) {
+  console.error(`\nABORT: ${short.length} package(s) ran but did not TEST enough to count as tested:`);
+  for (const s of short) console.error(`  ${s}`);
+  console.error(`  Measured: every test skipped, or a -t filter that matches nothing, exits 0 with 0 executed.`);
+  process.exit(1);
+}
+
 if (runFailed) {
   console.error(`\nshard ${shard.name}: tests FAILED (all ${ran.length} packages did run).`);
   process.exit(1);
 }
 
-console.log(`\nshard ${shard.name}: ${ran.length} of ${expected.length} packages ran and passed.`);
+console.log(`\nshard ${shard.name}: ${ran.length} of ${expected.length} packages ran, passed, and each executed at least its floor.`);

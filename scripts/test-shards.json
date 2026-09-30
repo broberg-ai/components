@@ -5,7 +5,7 @@
     "",
     "WHY AN EXPLICIT LIST AND NOT AN AUTOMATIC SPLIT: an explicit list is checkable.",
     "A new package belonging to no shard is INVISIBLE to an automatic split and would",
-    "simply never run. Here it is caught — scripts/check-shard-coverage.mjs fails when",
+    "simply never run. Here it is caught \u2014 scripts/check-shard-coverage.mjs fails when",
     "any package with a test script is missing from this file, and it runs inside",
     "`pnpm test`.",
     "",
@@ -16,7 +16,12 @@
     "weight_seconds is the measured build+test CPU time per bin (turbo run test",
     "--force --summarize, 2026-09-21, local M1). It keeps the bins balanced and is",
     "deliberately NOT asserted anywhere: a number that reddens the gate when a test",
-    "gets slower is a number somebody eventually deletes."
+    "gets slower is a number somebody eventually deletes.",
+    "",
+    "min_tests (F080.6) is a ZERO-DETECTOR per package, set to half the count measured on",
+    "2026-09-30 (floor 1). It catches a package that ran and executed nothing \u2014 every test skipped,",
+    "or a -t filter matching none, both of which exit 0. It is deliberately far below the measured",
+    "number: a floor that reddens when someone deletes one test is a floor somebody deletes."
   ],
   "shards": [
     {
@@ -29,7 +34,15 @@
         "@broberg/notify",
         "@broberg/speech-dictionary",
         "@broberg/sso"
-      ]
+      ],
+      "min_tests": {
+        "@broberg/greppable": 8,
+        "@broberg/lens-client": 7,
+        "@broberg/logger": 16,
+        "@broberg/notify": 4,
+        "@broberg/speech-dictionary": 7,
+        "@broberg/sso": 78
+      }
     },
     {
       "name": "bin-2",
@@ -42,7 +55,16 @@
         "@broberg/mail-identity",
         "@broberg/seti-client",
         "@broberg/theme"
-      ]
+      ],
+      "min_tests": {
+        "@broberg/apikey": 40,
+        "@broberg/event-log": 6,
+        "@broberg/http": 2,
+        "@broberg/lens-engine": 147,
+        "@broberg/mail-identity": 35,
+        "@broberg/seti-client": 18,
+        "@broberg/theme": 83
+      }
     },
     {
       "name": "bin-3",
@@ -55,7 +77,16 @@
         "@broberg/mcp",
         "@broberg/seti-server",
         "@broberg/soundkit"
-      ]
+      ],
+      "min_tests": {
+        "@broberg/chat": 99,
+        "@broberg/cron": 12,
+        "@broberg/i18n": 8,
+        "@broberg/lens": 21,
+        "@broberg/mcp": 49,
+        "@broberg/seti-server": 9,
+        "@broberg/soundkit": 7
+      }
     },
     {
       "name": "bin-4",
@@ -68,7 +99,16 @@
         "@broberg/gravatar",
         "@broberg/media",
         "@broberg/ui-controls-core"
-      ]
+      ],
+      "min_tests": {
+        "@broberg/auth": 73,
+        "@broberg/config": 8,
+        "@broberg/consent-cookie": 33,
+        "@broberg/forms-turnstile": 26,
+        "@broberg/gravatar": 35,
+        "@broberg/media": 19,
+        "@broberg/ui-controls-core": 20
+      }
     },
     {
       "name": "bin-5",
@@ -81,7 +121,16 @@
         "@broberg/notifications",
         "@broberg/pwa",
         "@broberg/sms"
-      ]
+      ],
+      "min_tests": {
+        "@broberg/cmdk": 8,
+        "@broberg/deploy-core": 42,
+        "@broberg/mail": 129,
+        "@broberg/media-transform": 5,
+        "@broberg/notifications": 37,
+        "@broberg/pwa": 33,
+        "@broberg/sms": 242
+      }
     },
     {
       "name": "bin-6",
@@ -93,7 +142,15 @@
         "@broberg/secret-scan",
         "@broberg/stripe",
         "@broberg/webpush"
-      ]
+      ],
+      "min_tests": {
+        "@broberg/bodymap": 67,
+        "@broberg/device-stats": 55,
+        "@broberg/mail-core": 70,
+        "@broberg/secret-scan": 140,
+        "@broberg/stripe": 38,
+        "@broberg/webpush": 38
+      }
     }
   ]
 }

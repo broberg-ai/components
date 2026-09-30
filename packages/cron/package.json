@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run && (node scripts/contract-drift.mjs || [ $? -eq 2 ])",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json && (node scripts/contract-drift.mjs || [ $? -eq 2 ])",
     "typecheck": "tsc --noEmit",
     "gen": "openapi-typescript https://cronjobs.webhouse.net/api/openapi.json -o src/schema.ts",
     "check:drift": "node scripts/contract-drift.mjs"

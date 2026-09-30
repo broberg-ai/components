@@ -52,7 +52,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
     "typecheck": "tsc --noEmit",
     "verify:clean-install": "node verify-clean-install.mjs"
   },

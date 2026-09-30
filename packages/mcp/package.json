@@ -36,7 +36,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run && vitest run -c vitest.zod4.config.ts",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json && vitest run -c vitest.zod4.config.ts --reporter=default --reporter=json --outputFile.json=.vitest-report/results-zod4.json",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {

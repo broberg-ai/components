@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
     "typecheck": "tsc --noEmit",
     "bench": "node bench/redaction.mjs"
   },

@@ -164,3 +164,6 @@ packages/*/.npmrc
 # `git add -A` fejer alt med.
 .claude/settings.json.bak-*
 *.bak-[0-9]*
+
+# F080.6 — per-package vitest JSON report, read by scripts/run-test-shard.mjs
+.vitest-report/

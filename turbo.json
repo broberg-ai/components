@@ -10,6 +10,9 @@
       "dependsOn": [
         "build",
         "^build"
+      ],
+      "outputs": [
+        ".vitest-report/**"
       ]
     },
     "typecheck": {

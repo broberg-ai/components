@@ -42,7 +42,7 @@
   },
   "scripts": {
     "build": "tsup && node add-use-client.mjs",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {

@@ -98,6 +98,40 @@ if (duplicated.length) {
   );
 }
 
+// F080.6 — every covered package needs a test-count floor next to its name, and
+// its test script must write the vitest JSON report the floor is checked
+// against. Without the floor a new package is uncovered by the very check meant
+// to cover it; without the report, the shard runner can prove nothing.
+const REPORT_FLAG = "--outputFile.json=.vitest-report/";
+const noFloor = [];
+for (const s of shards) {
+  for (const p of s.packages) {
+    const f = s.min_tests?.[p];
+    if (!Number.isInteger(f) || f < 1) noFloor.push(`${p} (${s.name})`);
+  }
+}
+if (noFloor.length) {
+  problems.push(
+    `${noFloor.length} package(s) have no min_tests floor (a positive integer) in their shard:\n` +
+      noFloor.map((p) => `    ${p}`).join("\n") +
+      `\n  Add it under that shard's "min_tests" — about half the package's measured test count.`,
+  );
+}
+const noReport = [];
+for (const dir of entries) {
+  const manifest = join(PACKAGES_DIR, dir, "package.json");
+  if (!existsSync(manifest)) continue;
+  const pkg = JSON.parse(readFileSync(manifest, "utf8"));
+  if (pkg.scripts?.test && !pkg.scripts.test.includes(REPORT_FLAG)) noReport.push(pkg.name);
+}
+if (noReport.length) {
+  problems.push(
+    `${noReport.length} package(s) have a test script that writes no vitest JSON report:\n` +
+      noReport.map((p) => `    ${p}`).join("\n") +
+      `\n  Start the script with: vitest run --reporter=default --reporter=json ${REPORT_FLAG}results.json`,
+  );
+}
+
 if (problems.length) {
   console.error("shard coverage FAILED:\n");
   for (const p of problems) console.error(`  • ${p}\n`);
@@ -106,5 +140,5 @@ if (problems.length) {
 
 console.log(
   `shard coverage ok: ${withTests.length} packages with a test script, all covered by ` +
-    `${shards.length} shards, no overlaps.`,
+    `${shards.length} shards, no overlaps, every one with a test-count floor and a JSON report.`,
 );
