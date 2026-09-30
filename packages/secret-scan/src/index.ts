@@ -198,7 +198,17 @@ const PATTERNS: SecretPattern[] = [
     // value class: base64 padding never STARTS a value, and excluding it there
     // blocked every `KEY=value` form — measured, `blob=<secret>` went
     // unredacted while the same pair in CSV and Terraform was caught.
-    regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\s\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,
+    //
+    // THE CHEAP LOOKBEHIND GOES FIRST (0.11.1). Both are zero-width at the same
+    // position, so the order does not change what matches — only what it costs.
+    // With the 100-char id search first, EVERY character of a long run paid it:
+    // 50,000 × 'A' took 3.7 s in this one pattern and a 400 KB blob 30+ s in
+    // redactSecrets. `(?<![A-Za-z0-9/+])` rejects every position inside a run
+    // in one step, and the lookahead then demands a whole 40-char value AHEAD
+    // before anything looks behind — so after a space or a colon (where the
+    // first guard passes) it fails in a character or two. The expensive id
+    // search only runs where a complete candidate already stands.
+    regex: /(?<![A-Za-z0-9/+])(?=[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\s\S]{0,80})[A-Za-z0-9/+=]{40}/g,
   },
   {
     // A SEPARATE LABEL FROM AKIA, and the reason is operational rather than

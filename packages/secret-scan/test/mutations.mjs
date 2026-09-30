@@ -155,8 +155,16 @@ const MUTATIONS = [
     // becomes a secret, so git hashes and integrity digests start being
     // redacted, and a scanner that cries wolf gets switched off.
     name: 'the paired rule loses its id anchor (every base64 string becomes a secret)',
-    from: "    regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\\s\\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,",
-    to: "    regex: /(?<=[\\s\\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,",
+    from: "    regex: /(?<![A-Za-z0-9/+])(?=[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\\s\\S]{0,80})[A-Za-z0-9/+=]{40}/g,",
+    to: "    regex: /(?<![A-Za-z0-9/+])(?=[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))(?<=[\\s\\S]{0,80})[A-Za-z0-9/+=]{40}/g,",
+  },
+  {
+    // F035.18 — the 0.11.0 ordering restored: the 100-char id search runs at
+    // every position before the cheap guards. Same matches, and 400 KB of text
+    // without whitespace takes 30+ seconds again. Only the timing test sees it.
+    name: 'the paired rule runs its expensive lookbehind first again (long input hangs)',
+    from: "    regex: /(?<![A-Za-z0-9/+])(?=[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\\s\\S]{0,80})[A-Za-z0-9/+=]{40}/g,",
+    to: "    regex: /(?<=(?:AKIA|ASIA)[0-9A-Z]{16}[\\s\\S]{0,80})(?<![A-Za-z0-9/+])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/g,",
   },
   {
     // ASIA taken back out: an assumed-role dump reads as clean again.
