@@ -60,6 +60,15 @@
       "notify": "always — BID's app #1, and the package is the only door into their product",
       "pin_style": "EXACT on purpose — prod-auth dependency, per the fleet exact-pin rule. So the 0.x caret trap (^0.1.0 follows 0.1.x only) does NOT explain why they are behind; a deliberate pin does. Two very different reasons that look identical from the registry",
       "breaking_check": "0.3.0's split of /callback's error code is NOT breaking for them, measured rather than assumed — and they made the answer falsifiable instead of leaving it as a dated claim: sso-overflade.guard.test.ts scans apps/ + tests/ and goes red if any of the three codes is used or /hono is imported. Their trap, worth copying: a comment in bid.ts NAMES the adapter to explain why they do not use it, so without stripping comments first the guard reddens on the very file it protects — and gets switched off the same day"
+    },
+    {
+      "session": "cms",
+      "repo": "broberg-ai/cms",
+      "role": "consumer",
+      "uses": "BID login for the CMS admin (webhouse.app). Does NOT use ssoRoutes — builds its own /api/auth/logout and /api/auth/bid/login on the core client; binds on email only when email_verified === true (their words, 2026-09-29).",
+      "version": "0.7.0",
+      "as_of": "2026-09-29",
+      "source": "cms's own intercom #998 (2026-09-29): «cms på @broberg/sso 0.7.0 (5d8ea713)», Lens-proven on prod (ba729e8d, #1004). NOT measured by components in their node_modules."
     }
   ],
   "notify_beyond_this_file": [

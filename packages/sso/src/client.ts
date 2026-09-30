@@ -87,6 +87,18 @@ export interface SsoClaims extends JWTPayload {
 
 export interface LoginResult {
   claims: SsoClaims;
+  /**
+   * The claims in `claims` that came from the UNSIGNED userinfo response and
+   * not from the signed ID token (components-F084.51, since 0.8.0). Sorted; an
+   * empty list means everything in `claims` was signed (or userinfo was not
+   * reached). When both sources carry a claim, the signed token's value wins
+   * and the claim is not listed.
+   *
+   * On BID today this always contains "email" and "email_verified": the ID
+   * token does not carry them (measured by broberg-id, 20 Sep 2026). A decision
+   * that must rest on a signed identity binds on `claims.sub`, never on email.
+   */
+  unverifiedClaims: string[];
   idToken: string;
   accessToken?: string;
   refreshToken?: string;
@@ -488,9 +500,12 @@ export function createSsoClient(
    * and act as, somebody else, with a valid signature underneath. A mismatch is
    * refused outright rather than reconciled.
    */
-  async function withUserInfo(claims: SsoClaims, accessToken: string): Promise<SsoClaims> {
+  async function withUserInfo(
+    claims: SsoClaims,
+    accessToken: string,
+  ): Promise<{ claims: SsoClaims; unverifiedClaims: string[] }> {
     const doc = await discovery();
-    if (!doc.userinfo_endpoint) return claims;
+    if (!doc.userinfo_endpoint) return { claims, unverifiedClaims: [] };
 
     const res = await fetchImpl(doc.userinfo_endpoint, {
       headers: { authorization: `Bearer ${accessToken}` },
@@ -498,7 +513,7 @@ export function createSsoClient(
     // A failure here must NOT lose the sign-in: the identity is already proven
     // by the ID token. The user ends up with a session and no display name,
     // which is worse than having one and far better than being logged out.
-    if (!res.ok) return claims;
+    if (!res.ok) return { claims, unverifiedClaims: [] };
 
     const info = (await res.json()) as Record<string, unknown>;
     if (info.sub !== claims.sub) {
@@ -507,7 +522,16 @@ export function createSsoClient(
           `refusing to merge another user's profile onto this session.`,
       );
     }
-    return { ...claims, ...info, sub: claims.sub };
+    // components-F084.51 — THE SIGNED TOKEN WINS, and what it did not carry is
+    // NAMED. Userinfo is an unsigned HTTP response: it may FILL a hole the token
+    // left, never overwrite a claim the token signed. Every key it filled is
+    // listed in `unverifiedClaims`, so a consumer gating on email_verified can
+    // see the value was never signed — which on BID it never is today (measured
+    // by broberg-id, 20 Sep 2026: email + email_verified exist only in userinfo).
+    const unverifiedClaims = Object.keys(info)
+      .filter((k) => k !== "sub" && info[k] !== undefined && !(k in claims))
+      .sort();
+    return { claims: { ...info, ...claims, sub: claims.sub }, unverifiedClaims };
   }
 
   return {
@@ -630,8 +654,12 @@ export function createSsoClient(
 
       const claims = await verifyIdToken(body.id_token, { nonce });
 
+      const merged = body.access_token
+        ? await withUserInfo(claims, body.access_token)
+        : { claims, unverifiedClaims: [] };
       return {
-        claims: body.access_token ? await withUserInfo(claims, body.access_token) : claims,
+        claims: merged.claims,
+        unverifiedClaims: merged.unverifiedClaims,
         idToken: body.id_token,
         ...(body.access_token ? { accessToken: body.access_token } : {}),
         ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}),

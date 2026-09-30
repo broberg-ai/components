@@ -100,6 +100,13 @@ jobs:
         working-directory: packages/sso
         run: node scripts/run-suite.mjs "WHICH of the three things went wrong" 5
 
+      # components-F084.51 — a consumer can see which claims were signed, and the
+      # signed token wins over userinfo. Counted because a describe block that
+      # stops matching would otherwise turn this step green having checked nothing.
+      - name: Which claims were signed, and the signed token wins (must actually run)
+        working-directory: packages/sso
+        run: node scripts/run-suite.mjs "which claims were signed" 6
+
       # The shipped artefact + a consumer's dependency tree. Every check inside
       # carries a positive control and refuses to pass on zero files read.
       - name: Security gate — shipped tarball and consumer tree

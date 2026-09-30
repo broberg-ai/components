@@ -338,4 +338,14 @@ ssoRoutes({ logout: "central" });
 
 ## email_verified on the session (since 0.7.0)
 
-`getSession(c).email_verified` is `true` or `false` when BID said so, and absent when it did not. **Bind access to an email address only when it is `true`** — e.g. `session.email === "cb@broberg.ai" && session.email_verified === true`. Sessions minted before 0.7.0 have no such field; treat absent as not verified.
+`getSession(c).email_verified` is `true` or `false` when BID said so, and absent when it did not. Sessions minted before 0.7.0 have no such field; treat absent as not verified.
+
+> **On BID today, `email` and `email_verified` are NOT signed.** BID's ID token does not carry them — measured by broberg-id on 20 Sep 2026 against the real service: the token holds `acr · at_hash · aud · auth_time · exp · iat · iss · nonce · sid · sub`, and email + email_verified exist only in the `/oauth2/userinfo` response, which is plain HTTP with no signature. `email_verified === true` is still the right thing to require before linking on an address, but it is BID's word over TLS, not a signed claim.
+>
+> **If a decision must rest on a signed identity, bind on `sub`** (`session.sub`) — the ID token signs it, and the package refuses a userinfo answer whose `sub` differs. helpdesk moved its account linking from email to `sub` for exactly this reason.
+
+## Which claims were signed — `unverifiedClaims` (since 0.8.0)
+
+`completeLogin()` returns `unverifiedClaims: string[]` beside `claims`: the claims that came from the unsigned userinfo response and not from the signed ID token, sorted. Against BID today it is `["email", "email_verified", "name", …]`. An empty list means everything in `claims` was signed, or userinfo was not reached.
+
+When both sources carry a claim, **the signed token's value wins** and the claim is not listed. Before 0.8.0 userinfo was spread over the token, so an issuer whose userinfo disagreed with its own token had the unsigned value win. Against BID this changes nothing today — the two never overlap on email — so for BID it is a hardening, not a fix.
