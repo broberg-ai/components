@@ -117,6 +117,35 @@ on the same corpus, and refining it only reached **202**. A template/env-guard
 (`${FOO}`, `<your-key>`) was written and then dropped — it changed the count by
 **exactly 0**, because the noise here is identifiers, not templates.
 
+### Scanning source code? `{ announced: 'code' }` (v0.12.0)
+
+The rule above reads **prose**, and in source code it is wrong both ways (filed
+by pitch, whose GitGuardian scan flagged a line this package passed):
+
+```ts
+const line = "JSON.stringify({ currentPassword: 'a', newPassword: 'abcdefgh' })";
+redactSecrets(line, { announced: true }).findings;    // []  ← compound identifier, digit-free value
+redactSecrets(line, { announced: 'code' }).redacted;
+// "JSON.stringify({ currentPassword: 'a', newPassword: '[REDACTED:announced-secret]' })"
+
+redactSecrets("apiKey: nanoid(32)", { announced: true }).findings.length;   // 1  ← an expression
+redactSecrets("apiKey: nanoid(32)", { announced: 'code' }).findings;        // []
+hasAnnouncedSecret(line, 'code');                                           // true
+```
+
+`'code'` flags a **quoted string literal** (4+ chars, no whitespace, no `${`)
+assigned with `:` or `=` to an identifier that **contains** a credential word
+(`newPassword`, `DB_PASSWORD`, `clientSecret`, `apiKey`, `KODEORD`). Unquoted
+values are calls, variables or env references, so they are never flagged.
+
+Measured 1/10 2026 over 2,848 TS/JS files in 13 fleet repos: most hits are test
+fixtures (`apiKey: "re_x"`), which is exactly GitGuardian's class. The noise
+shapes are refused by name: `password: "Adgangskode"` (an i18n label),
+`PASSWORD_TOO_SHORT: "password_too_short"`, `secretPath: "…"`, a ternary
+branch, a `type X = '…' | '…'` union. **Not caught:** `.env` files (their values
+are unquoted; use `announced: true` there), comparisons (`password === 'x'`).
+It costs about as much as the format pass: ~2 s per MB, linear.
+
 ### `hasAnnouncedSecret` — for when the right answer is to refuse
 
 ```ts

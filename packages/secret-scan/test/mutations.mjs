@@ -232,7 +232,54 @@ function redSet() {
   }
   if (!existsSync(out)) return [`<the suite wrote no report at all — exit ${code}>`];
   const report = JSON.parse(readFileSync(out, 'utf8'));
-  const failed = [];
+  const failed = [  // ---- F035.19 — announced: 'code' -------------------------------------
+  {
+    // The whole point: unquoted values (calls, env refs) become candidates.
+    name: "code rule accepts an unquoted value (apiKey: nanoid(32) is flagged again)",
+    from: "    '([\"\\'`])([^\"\\'`\\\\s]*)\\\\4(?!\\\\s*[|&])',",
+    to: "    '([\"\\'`]?)([^\"\\'`\\\\s,;]*)\\\\4(?!\\\\s*[|&])',",
+  },
+  {
+    name: "code rule forgets the 4-char floor (currentPassword: 'a' is flagged)",
+    from: "  if (value.length < 4 || value.includes('${') || value.includes(MARKER_PREFIX)) return false;",
+    to: "  if (value.length < 1 || value.includes('${') || value.includes(MARKER_PREFIX)) return false;",
+  },
+  {
+    name: "code rule no longer requires a credential word in the label",
+    from: "  if (end < 0) return false;",
+    to: "  if (end < 0) end = label.length;",
+  },
+  {
+    name: "code rule drops the descriptor guard (secretPath is flagged)",
+    from: "  if (CODE_DESCRIPTOR_SUFFIX.test(label.slice(end))) return false;",
+    to: "  if (false) return false;",
+  },
+  {
+    name: "code rule drops the i18n-word guard (password: \"Adgangskode\" is flagged)",
+    from: "  if (CREDENTIAL_WORD_ONLY.test(value.replace(/[\\s_-]/g, ''))) return false;",
+    to: "  if (false) return false;",
+  },
+  {
+    name: "code rule drops the label==value guard (PASSWORD_TOO_SHORT is flagged)",
+    from: "  if (squash(value) === squash(label)) return false;",
+    to: "  if (false) return false;",
+  },
+  {
+    name: "code rule drops the ternary lookbehind",
+    from: "  '(?<![\\\\w$])(?<!\\\\?\\\\s{0,3}[\"\\'`]?)(?<!\\\\btype\\\\s{1,3})' +",
+    to: "  '(?<![\\\\w$])(?<!\\\\btype\\\\s{1,3})' +",
+  },
+  {
+    name: "code rule accepts == as a separator (a comparison is flagged)",
+    from: "(?:\\\\s*:|\\\\s*=(?![=>]))",
+    to: "(?:\\\\s*:|\\\\s*=)",
+  },
+  {
+    name: "code-mode hasAnnouncedSecret stops using the shared predicate",
+    from: "      if (codeCandidateOk(m[3] ?? '', m[5] ?? '')) return true;",
+    to: "      return true;",
+  },
+];
   for (const suite of report.testResults ?? []) {
     for (const t of suite.assertionResults ?? []) if (t.status === 'failed') failed.push(t.fullName);
   }

@@ -772,8 +772,13 @@ export interface RedactOptions {
    * Also detect ANNOUNCED secrets — `Adgangskode: hunter2` — where the label is
    * the only evidence. **Off by default, and it must stay that way.** See
    * ANNOUNCED_LABEL for the measurement that decided it.
+   *
+   * `true` reads PROSE: `Adgangskode: hunter2`. `'code'` reads SOURCE CODE,
+   * where the only hardcoded secret is a quoted literal assigned to a
+   * credential-named identifier: `newPassword: 'abcdefgh'`. See
+   * CODE_ANNOUNCED_SECRET for why the two cannot share one rule (F035.19).
    */
-  announced?: boolean;
+  announced?: boolean | 'code';
 
   /**
    * Also apply the VALUE-ONLY axis — shapes identified from the value alone,
@@ -921,6 +926,73 @@ function plausibleSecretValue(candidate: string): boolean {
   return /\d/.test(candidate) || candidate.length >= 16;
 }
 
+/**
+ * The announced axis for SOURCE CODE — `{ announced: 'code' }` (F035.19).
+ *
+ * Filed by pitch: GitGuardian flagged «Generic Password» on
+ * `JSON.stringify({ currentPassword: 'a', newPassword: 'abcdefgh' })`, and the
+ * prose rule above returned `findings: []` on that exact line — while flagging
+ * `apiKey: nanoid(32)` and `apiKey: process.env.RESEND_API_KEY`. Both halves are
+ * the prose rule being right about prose:
+ *
+ *   · `\bpassword` needs a word boundary, and `newPassword` has none;
+ *   · a digit-free value under 16 chars is a WORD in prose (buddy: 35 of 35);
+ *   · in prose, `\S+` after the label is the value. In code it is an expression.
+ *
+ * So code gets its own rule, and QUOTED is the whole of it: an unquoted value
+ * is a call, a variable or an env reference, never a hardcoded secret. The
+ * label may be any identifier CONTAINING a credential word (`DB_PASSWORD`,
+ * `clientSecret`), optionally quoted as an object key. `=` must not be `==`,
+ * `===` or `=>`.
+ *
+ * MEASURED 1/10 2026 over 2,848 tracked TS/JS files in 13 fleet repos: 315
+ * hits, 280 in test/spec/fixture files — `apiKey: "re_x"`, `password:
+ * "hunter2"`, precisely GitGuardian's class, and correct for a pre-push gate.
+ * The noise outside tests had five shapes, each refused by name in
+ * codeCandidateOk or by the lookarounds here: a ternary branch
+ * (`? "wrong_password" : "enable_failed"`), a type union (`type X = 'a' | 'b'`),
+ * a descriptor-named label (`secretPath: ".lens/x"`), an i18n label whose value
+ * is the WORD (`password: "Adgangskode"`), an error code equal to its key
+ * (`PASSWORD_TOO_SHORT: "password_too_short"`).
+ *
+ * NOT CAUGHT, deliberately: `.env` files (their literals are unquoted — use the
+ * prose rule there), comparisons (`password === 'x'`), and values under 4
+ * characters (`currentPassword: 'a'`, pitch's own threshold).
+ */
+const CREDENTIAL_WORD = '(?:password|passwd|pwd|secret|api_?key|adgangskode|kodeord)';
+//
+// LINEAR BY CONSTRUCTION, and the first draft was not: `[\w$]*password[\w$]*`
+// backtracks quadratically inside one long identifier — 'password' × 50,000
+// did not finish in two minutes. So the identifier is taken WHOLE, as an atomic
+// group (`(?=(x+))\3` — JS has no possessive quantifier), and the credential
+// word is checked in codeCandidateOk. The lookbehinds are bounded for the same
+// reason: an unbounded `\s*` inside a lookbehind rescans every whitespace run.
+const CODE_ANNOUNCED_SECRET = new RegExp(
+  '(?<![\\w$])(?<!\\?\\s{0,3}["\'`]?)(?<!\\btype\\s{1,3})' +
+    '((["\'`]?)(?=([\\w$]+))\\3\\2(?:\\s*:|\\s*=(?![=>]))\\s*)' +
+    '(["\'`])([^"\'`\\s]*)\\4(?!\\s*[|&])',
+  'g',
+);
+const CODE_DESCRIPTOR_SUFFIX =
+  /^[_$-]*(?:path|name|id|file|url|uri|label|field|header|env|var|ref|type|hint|placeholder|policy|pattern|length|len|min|max|count|mode|provider|prompt|text|title|message|error|status)s?$/i;
+const CREDENTIAL_WORD_ONLY = new RegExp('^' + CREDENTIAL_WORD + '$', 'i');
+const CREDENTIAL_WORD_ANY = new RegExp(CREDENTIAL_WORD, 'gi');
+const squash = (s: string): string => s.toLowerCase().replace(/[-_\s]/g, '');
+
+function codeCandidateOk(label: string, value: string): boolean {
+  if (value.length < 4 || value.includes('${') || value.includes(MARKER_PREFIX)) return false;
+  // The LAST credential word decides what the identifier names: `secretPath`
+  // is a path, `pathSecret` is a secret. matchAll, not a `(?!.*word)`
+  // lookahead — that rescans the rest of the label from every position.
+  let end = -1;
+  for (const m of label.matchAll(CREDENTIAL_WORD_ANY)) end = m.index + m[0].length;
+  if (end < 0) return false;
+  if (CODE_DESCRIPTOR_SUFFIX.test(label.slice(end))) return false;
+  if (CREDENTIAL_WORD_ONLY.test(value.replace(/[\s_-]/g, ''))) return false;
+  if (squash(value) === squash(label)) return false;
+  return true;
+}
+
 
 /** Replacement marker for a redacted secret. */
 export const redactionMarker = (label: string): string => `[REDACTED:${label}]`;
@@ -998,7 +1070,18 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
   // The announcing label itself is KEPT in the output; only the value goes, so
   // the redacted text still reads `Adgangskode: [REDACTED:announced-secret]` and
   // a human or model reading it can still tell what was removed.
-  if (opts?.announced) {
+  if (opts?.announced === 'code') {
+    let count = 0;
+    redacted = redacted.replace(
+      CODE_ANNOUNCED_SECRET,
+      (match: string, prefix: string, _q: string, label: string, quote: string, value: string) => {
+        if (!codeCandidateOk(label, value)) return match;
+        count++;
+        return prefix + quote + redactionMarker(ANNOUNCED_LABEL) + quote;
+      },
+    );
+    if (count > 0) findings.push({ label: ANNOUNCED_LABEL, count, confidence: 'announced' });
+  } else if (opts?.announced) {
     let count = 0;
     const redactedAnnounced = redacted.replace(
       ANNOUNCED_SECRET,
@@ -1050,8 +1133,15 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
  * slightly worse classification, a false negative costs a leak. That use needs a
  * boolean, not a redactor. (buddy's reasoning, F035.8.)
  */
-export function hasAnnouncedSecret(text: string): boolean {
+export function hasAnnouncedSecret(text: string, mode: 'prose' | 'code' = 'prose'): boolean {
   if (!text) return false;
+  if (mode === 'code') {
+    // Same predicate as the redactor (F035.19), for the invariant below.
+    for (const m of text.matchAll(CODE_ANNOUNCED_SECRET)) {
+      if (codeCandidateOk(m[3] ?? '', m[5] ?? '')) return true;
+    }
+    return false;
+  }
   // ROUTED THROUGH THE SAME PREDICATE as redactSecrets on purpose. A bare
   // `.test()` here would answer "yes" for a string redactSecrets leaves
   // untouched, and the two would disagree about the same input — which is worse
@@ -1101,7 +1191,9 @@ export function hasAnnouncedSecret(text: string): boolean {
  * `false` must be able to believe it.
  */
 export function hasSecret(text: string, opts?: RedactOptions): boolean {
-  if (opts?.announced && hasAnnouncedSecret(text)) return true;
+  if (opts?.announced && hasAnnouncedSecret(text, opts.announced === 'code' ? 'code' : 'prose')) {
+    return true;
+  }
   return patternsFor(opts).some((p) => {
     p.regex.lastIndex = 0;
     return p.regex.test(text);
