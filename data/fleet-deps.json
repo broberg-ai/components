@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-29T10:46:00.452Z",
+ "scanned_at": "2026-09-30T10:33:35.287Z",
  "repos_scanned": 64,
  "repos_failed": 0,
  "manifests_read": 224,
  "manifests_unreadable": 0,
- "edges": 211,
+ "edges": 223,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -196,6 +196,13 @@
       "at": "package.json"
      }
     ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
     "@broberg/forms-turnstile": [
      {
       "range": "^0.1.0",
@@ -326,7 +333,15 @@
    "branch": "main",
    "manifests": 1,
    "unreadable": 0,
-   "deps": {}
+   "deps": {
+    "@broberg/sso": [
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ]
+   }
   },
   "broberg-ai/cardmem": {
    "branch": "main",
@@ -438,12 +453,12 @@
     ],
     "@broberg/secret-scan": [
      {
-      "range": "0.7.2",
+      "range": "0.11.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "0.7.2",
+      "range": "0.11.0",
       "field": "dependencies",
       "at": "packages/mcp-tools/package.json"
      }
@@ -467,6 +482,13 @@
       "at": "apps/web/package.json"
      }
     ],
+    "@broberg/sso": [
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
     "@broberg/webpush": [
      {
       "range": "0.2.1",
@@ -475,6 +497,13 @@
      },
      {
       "range": "0.2.1",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.1",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -509,7 +538,7 @@
    "deps": {
     "@broberg/consent-cookie": [
      {
-      "range": "0.3.0",
+      "range": "0.5.1",
       "field": "dependencies",
       "at": "apps/discovery/package.json"
      }
@@ -725,6 +754,13 @@
     "@broberg/complimenta-sdk": [
      {
       "range": "0.3.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -948,6 +984,13 @@
    "manifests": 8,
    "unreadable": 0,
    "deps": {
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     }
+    ],
     "@broberg/gravatar": [
      {
       "range": "^0.2.1",
@@ -1083,7 +1126,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.4.0",
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1291,6 +1334,13 @@
       "at": "apps/admin-server/package.json"
      }
     ],
+    "@broberg/sso": [
+     {
+      "range": "0.6.1",
+      "field": "dependencies",
+      "at": "apps/admin-server/package.json"
+     }
+    ],
     "@upmetrics/sdk": [
      {
       "range": "^0.5.0",
@@ -1325,6 +1375,18 @@
       "range": "^0.5.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.1",
+      "field": "dependencies",
+      "at": "apps/docs/package.json"
+     },
+     {
+      "range": "0.5.1",
+      "field": "dependencies",
+      "at": "apps/landing/package.json"
      }
     ],
     "@broberg/ai-sdk": [
@@ -1389,6 +1451,13 @@
     "@broberg/mail": [
      {
       "range": "0.7.1",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
@@ -1797,9 +1866,16 @@
       "at": "packages/cms-admin/package.json"
      }
     ],
-    "@broberg/deploy-core": [
+    "@broberg/consent-cookie": [
      {
       "range": "0.5.0",
+      "field": "dependencies",
+      "at": "packages/cms-admin/package.json"
+     }
+    ],
+    "@broberg/deploy-core": [
+     {
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
@@ -1820,7 +1896,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.4.0",
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
@@ -1862,7 +1938,7 @@
    "deps": {
     "@broberg/consent-cookie": [
      {
-      "range": "0.4.1",
+      "range": "0.5.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -2022,6 +2098,13 @@
       "at": "site/package.json"
      }
     ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "site/package.json"
+     }
+    ],
     "@broberg/lens": [
      {
       "range": "0.1.1",
@@ -2094,6 +2177,13 @@
     "@broberg/cms-inline-edit": [
      {
       "range": "0.5.5",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.0",
       "field": "dependencies",
       "at": "package.json"
      }
