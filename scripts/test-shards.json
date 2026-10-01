@@ -5,7 +5,7 @@
     "",
     "WHY AN EXPLICIT LIST AND NOT AN AUTOMATIC SPLIT: an explicit list is checkable.",
     "A new package belonging to no shard is INVISIBLE to an automatic split and would",
-    "simply never run. Here it is caught \u2014 scripts/check-shard-coverage.mjs fails when",
+    "simply never run. Here it is caught — scripts/check-shard-coverage.mjs fails when",
     "any package with a test script is missing from this file, and it runs inside",
     "`pnpm test`.",
     "",
@@ -19,7 +19,7 @@
     "gets slower is a number somebody eventually deletes.",
     "",
     "min_tests (F080.6) is a ZERO-DETECTOR per package, set to half the count measured on",
-    "2026-09-30 (floor 1). It catches a package that ran and executed nothing \u2014 every test skipped,",
+    "2026-09-30 (floor 1). It catches a package that ran and executed nothing — every test skipped,",
     "or a -t filter matching none, both of which exit 0. It is deliberately far below the measured",
     "number: a floor that reddens when someone deletes one test is a floor somebody deletes."
   ],
@@ -28,6 +28,7 @@
       "name": "bin-1",
       "weight_seconds": 215.7,
       "packages": [
+        "@broberg/feature-stats",
         "@broberg/greppable",
         "@broberg/lens-client",
         "@broberg/logger",
@@ -36,6 +37,7 @@
         "@broberg/sso"
       ],
       "min_tests": {
+        "@broberg/feature-stats": 17,
         "@broberg/greppable": 8,
         "@broberg/lens-client": 7,
         "@broberg/logger": 16,
