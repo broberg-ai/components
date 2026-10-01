@@ -262,9 +262,16 @@ await new Promise((resolve) => {
   const child = spawn("node", HARNESS_ARGV, { cwd: HARNESS_PKG, stdio: "ignore" });
   seen.pid = child.pid;
   const poll = setInterval(() => {
-    if (!seen.existed && existsSync(MARKER_PATH)) {
+    // F081.7 — keep reading for as long as the marker exists and keep the
+    // fullest read. writeMarker() is mkdir THEN write (and the write is not
+    // atomic), so a poll landing between them sees an empty or partial entry;
+    // reading once on first sighting recorded "" and failed main on a race.
+    if (existsSync(MARKER_PATH)) {
       seen.existed = true;
-      try { seen.body = readMarker().join("\n"); } catch { /* raced the rewrite */ }
+      try {
+        const body = readMarker().join("\n");
+        if (body.length > seen.body.length) seen.body = body;
+      } catch { /* raced the rewrite */ }
     }
   }, 50);
   child.on("exit", (code) => { clearInterval(poll); seen.exit = code; resolve(); });
