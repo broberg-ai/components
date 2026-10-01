@@ -81,6 +81,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── F090: the fleet secret gate, on our own history ────────────────────
+  # The same reusable workflow every other repo calls, pointed at THIS commit's
+  # config so a change to the shared rules is tested here before it is tagged.
+  # It sits inside this workflow, so publish.yml's `needs: gate` waits for it
+  # too: a finding blocks every release.
+  secret-gate:
+    uses: ./.github/workflows/secret-gate.yml
+    with:
+      gate-ref: ${{ github.sha }}
+
   # ── the 24 root scripts ────────────────────────────────────────────────
   # Not package-specific, ~84 s, and independent of every package suite — so they
   # run beside the shards instead of in front of them.

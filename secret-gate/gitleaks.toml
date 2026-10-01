@@ -1,0 +1,27 @@
+# The fleet's ONE gitleaks config (F090). Every repo's secret gate reads this
+# file — via .github/workflows/secret-gate.yml — so a rule added here reaches
+# all of them, and no repo carries its own copy to drift.
+#
+# [extend] useDefault = true IS LOAD-BEARING. A gitleaks config WITHOUT it
+# REPLACES the built-in rules instead of adding to them. That is exactly how a
+# Discord webhook sat in a public cms doc for six months (cms F201.16): their
+# config held only an allowlist, so every scan ran with ZERO rules and said
+# "no leaks". selftest.sh fails the gate if this line is ever lost.
+
+[extend]
+  useDefault = true
+
+# Not in gitleaks' defaults. A Discord webhook URL IS the credential: anyone
+# holding it can post as the bot, and Discord deletes it when a scanner reports
+# it — which is how cronjobs' alerts went silent. Rule from cms (419cb1fb).
+[[rules]]
+  id = "discord-webhook-url"
+  description = "Discord webhook URL (id + token)"
+  regex = '''https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/[0-9]{17,20}/[A-Za-z0-9_-]{60,70}'''
+  keywords = ["discord"]
+
+# NO allowlist of test files, deliberately. A real key pasted into a test file
+# is still a leak, and "it's only a test" is where fixtures and real keys mix.
+# A known false positive is accepted per repo by its fingerprint in that repo's
+# own .gitleaksignore — gitleaks reads it automatically, and it shows up in
+# review as a line someone chose to add.

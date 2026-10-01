@@ -1,0 +1,17 @@
+# F090 — findings the secret gate reported in components' history, each READ and
+# judged a deliberate test fixture on 1/10 2026 (the secret-scan suite exists to
+# hold fake keys). One line per finding: commit:file:rule:line. A NEW finding is
+# not covered by any line here and fails the gate until someone reads it.
+26ae5df10d455316d3f77208dd2328cbffc84e6f:packages/auth/test/secret-guard.test.ts:generic-api-key:16
+7f0dedf29e7ac903563d2f0ce7c303ed5fbd01bf:packages/lens/test/lens.test.ts:generic-api-key:11
+86a9d1c7112ec28cb9ffe00eb37398064745932a:packages/mail/test/webhook.test.ts:generic-api-key:71
+a623e9a01df549d5e36cd31254614f37004bd9d9:packages/secret-scan/test/f035-13.test.ts:generic-api-key:19
+076319e152f211202f61e0ec063d7c0cb3539d33:packages/secret-scan/test/hue-key.test.ts:generic-api-key:88
+076319e152f211202f61e0ec063d7c0cb3539d33:packages/secret-scan/test/hue-key.test.ts:generic-api-key:89
+316e151e723b57153c22b9d965c4836e3b9bc590:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:19
+316e151e723b57153c22b9d965c4836e3b9bc590:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:21
+316e151e723b57153c22b9d965c4836e3b9bc590:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:23
+316e151e723b57153c22b9d965c4836e3b9bc590:packages/secret-scan/test/secret-scan.test.ts:jwt:50
+58676d5c20bbf2408013a0c6340ddacfdec3a87d:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:246
+f736035f199338c2274e40963891846eb4d3ab7a:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:278
+03c7f349c3d1ac3493b320ba5977c9327ea80d47:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:278
