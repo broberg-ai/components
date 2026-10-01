@@ -216,6 +216,78 @@
   --sidebar-accent-foreground: oklch(0.90 0.012 75);
 }
 
+/* === BROBERG.AI — the house palette (F001.17) ===
+ * Values are broberg-id/ui/src/app.css «HUSETS TOKENS — samme værdier som
+ * brand.ts» (1/10 2026), mapped onto this preset's vocabulary. ONE source for
+ * BID, broberg.ai and Trail; test/broberg-palette.test.ts holds them to BID's.
+ *
+ * The `dark-`/`light-` prefix is load-bearing: `@custom-variant dark` above
+ * matches [data-theme^="dark"], so `broberg-dark` would render dark colours
+ * with light-mode utilities.
+ *
+ * The brand ORANGE is --brand-accent (a fill) and --brand-accent-text (the
+ * readable text variant) — NOT --accent, which in this vocabulary is the
+ * HOVER surface of menu rows. Mapping BID's --accent onto it would paint every
+ * hovered row orange. --card is BID's 4% white overlay on --background made
+ * opaque, so a card reads the same whatever it sits on. */
+[data-theme="dark-broberg"] {
+  --background:            #23282f;
+  --foreground:            #f0f4f8;
+  --card:                  #2c3137;
+  --card-foreground:       #f0f4f8;
+  --popover:               #1c2027;
+  --popover-foreground:    #f0f4f8;
+  --primary:               #00b2ff;
+  --primary-foreground:    #04222f;
+  --secondary:             #30353c;
+  --secondary-foreground:  #f0f4f8;
+  --muted:                 #1c2027;
+  --muted-foreground:      #98a2ae;
+  --accent:                #30353c;
+  --accent-foreground:     #f0f4f8;
+  --destructive:           oklch(0.65 0.22 25);
+  --border:                rgba(255, 255, 255, 0.09);
+  --input:                 rgba(255, 255, 255, 0.09);
+  --ring:                  #00b2ff;
+  --radius:                0.75rem;
+  --sidebar:               #1c2027;
+  --sidebar-foreground:    #f0f4f8;
+  --sidebar-border:        rgba(255, 255, 255, 0.09);
+  --sidebar-accent:        #30353c;
+  --sidebar-accent-foreground: #f0f4f8;
+  --brand-accent:          #f3522c;
+  --brand-accent-text:     #ff6a45;
+}
+
+[data-theme="light-broberg"] {
+  --background:            #f5f7fa;
+  --foreground:            #161b22;
+  --card:                  #ffffff;
+  --card-foreground:       #161b22;
+  --popover:               #ffffff;
+  --popover-foreground:    #161b22;
+  --primary:               #0072a8;
+  --primary-foreground:    #ffffff;
+  --secondary:             #eef2f7;
+  --secondary-foreground:  #161b22;
+  --muted:                 #eef2f7;
+  --muted-foreground:      #5a6572;
+  --accent:                rgba(17, 25, 38, 0.045);
+  --accent-foreground:     #161b22;
+  --destructive:           oklch(0.577 0.245 27);
+  --border:                rgba(17, 25, 38, 0.13);
+  --input:                 rgba(17, 25, 38, 0.13);
+  --ring:                  #0072a8;
+  --radius:                0.75rem;
+  --sidebar:               #eef2f7;
+  --sidebar-foreground:    #161b22;
+  --sidebar-border:        rgba(17, 25, 38, 0.13);
+  --sidebar-accent:        rgba(17, 25, 38, 0.045);
+  --sidebar-accent-foreground: #161b22;
+  --brand-accent:          #ec4e27;
+  --brand-accent-text:     #c93a16;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

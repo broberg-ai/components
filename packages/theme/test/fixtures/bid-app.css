@@ -1,0 +1,119 @@
+/**
+ * HUSETS SKRIFTTYPER — SELVHOSTEDE, hentet fra vores egen maskine.
+ *
+ * ── HVAD DER VAR GALT ─────────────────────────────────────────────────────
+ *
+ * `--font-sans` og `--font-display` har stået her siden fladen blev bygget,
+ * og fontene blev ALDRIG hentet. Målt på den levende tjeneste 19. sep.:
+ *
+ *   @font-face i den udrullede CSS      0
+ *   link til fonts.googleapis.com       findes ikke
+ *
+ * Så hver browser faldt igennem til det næste navn i rækken. På en Mac er
+ * det -apple-system, altså SF Pro; på Windows noget andet. Sitet brugte
+ * altså ikke husets egne skrifttyper nogen steder, og så forskelligt fra
+ * maskine til maskine. Ejeren opdagede det ved at et ordmærke bygget i den
+ * ERKLÆREDE font ikke lignede det han så på skærmen.
+ *
+ * ── HVORFOR SELVHOSTET OG IKKE GOOGLE FONTS ───────────────────────────────
+ *
+ * Et <link> til fonts.googleapis.com sender hver eneste besøgendes IP-adresse
+ * til Google, før de har logget ind. På en IDENTITETSTJENESTE er det den
+ * forkerte afvejning — og i EU er netop den konstruktion underkendt ved en
+ * tysk domstol. Filerne ligger derfor hos os: ingen tredjepart, intet ekstra
+ * opslag, og de virker uden net.
+ *
+ * ── HVORFOR ÉN FIL TIL FIRE VÆGTE ─────────────────────────────────────────
+ *
+ * DM Sans er en VARIABEL font. `opsz` er pinnet til 14 (brødtekst-optik),
+ * mens `wght` bevares som akse — så 400, 500, 600 og 700 kommer alle fra den
+ * samme 43 KB. Fire statiske snit ville være fire hentninger.
+ *
+ * Skåret til latin + latin-1 + latin ext-A samt de typografiske tegn
+ * teksterne faktisk bruger (« » · — … →). Uden dem ville et citationstegn
+ * midt i en dansk sætning falde tilbage til en ANDEN font.
+ */
+@font-face {
+  font-family: "DM Sans";
+  src: url("./fonts/dmsans.woff2") format("woff2-variations");
+  font-weight: 100 1000;
+  font-style: normal;
+  /* Teksten vises straks i reservefonten og skifter når vores er hentet.
+     `block` ville give et usynligt login-felt i op til tre sekunder. */
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DM Serif Display";
+  src: url("./fonts/dmserif.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@import "tailwindcss";
+
+/**
+ * HUSETS TOKENS — SAMME VÆRDIER SOM brand.ts, ikke en ny palet.
+ *
+ * Farverne er leveret af cms fra broberg.ai's egen brand.css. To ting der ikke
+ * må forsimples, og som begge har kostet en fejl i dag:
+ *
+ *  · FLADE-farve og TEKST-farve er FORSKELLIGE tokens. --accent fylder en
+ *    flade; --accent-text er samme identitet justeret så den kan LÆSES.
+ *    «ID» i «Secured by Broberg ID» er tekst og bruger derfor den anden.
+ *
+ *  · --card er rgba(255,255,255,.04) — en overflade der ligger PÅ noget og
+ *    henter sin uigennemsigtighed derfra. Et element der SVÆVER (en dropdown,
+ *    en menu) har ingenting bag sig og skal bruge --surface-float. Den fejl
+ *    gjorde landelisten gennemsigtig på ejerens telefon i dag.
+ */
+@theme {
+  --color-bg: #23282f;
+  --color-bg2: #1c2027;
+  --color-fg: #f0f4f8;
+  --color-muted: #98a2ae;
+  --color-primary: #00b2ff;
+  --color-on-primary: #04222f;
+  --color-accent: #f3522c;
+  --color-accent-text: #ff6a45;
+  --color-card: rgba(255, 255, 255, 0.04);
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-field: rgba(255, 255, 255, 0.05);
+  --color-hover: rgba(255, 255, 255, 0.06);
+  /* Den SOLIDE flade til alt der svæver. Se kommentaren ovenfor. */
+  --color-surface-float: #1c2027;
+
+  --radius-btn: 100px;
+  --radius-card: 12px;
+  --radius-field: 8px;
+
+  --font-display: "DM Serif Display", Georgia, serif;
+  --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #f5f7fa;
+  --color-bg2: #eef2f7;
+  --color-fg: #161b22;
+  --color-muted: #5a6572;
+  --color-primary: #0072a8;
+  --color-on-primary: #ffffff;
+  --color-accent: #ec4e27;
+  --color-accent-text: #c93a16;
+  --color-card: #ffffff;
+  --color-border: rgba(17, 25, 38, 0.13);
+  --color-field: #ffffff;
+  --color-hover: rgba(17, 25, 38, 0.045);
+  --color-surface-float: #ffffff;
+}
+
+/* INTET må kunne trækkes sidelæns. Spærren står på roden frem for på den
+   enkelte flade, så den også gælder det næste element nogen tilføjer —
+   «wiggle» er forbudt her i huset. */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}

@@ -13,6 +13,30 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
+## 0.9.0 — the broberg.ai palette (F001.17)
+
+Two new themes, `dark-broberg` and `light-broberg`: the house palette that
+broberg.ai and BID use, now in ONE place instead of copied per app. Values are
+BID's house tokens (`broberg-id/ui/src/app.css`), held to them value-by-value
+by `test/broberg-palette.test.ts`.
+
+```ts
+setTheme("dark-broberg");   // or "light-broberg"
+```
+
+**The brand orange is `--brand-accent` (a fill) and `--brand-accent-text`
+(readable text) — not `--accent`.** In this vocabulary `--accent` is the HOVER
+surface of menu rows; mapping the orange there would paint every hovered row
+orange. Both are set only in the two broberg themes.
+
+Fonts are not included: DM Sans / DM Serif Display are self-hosted per app (no
+Google Fonts request, so no visitor IP leaves for Google). Copy the two new
+blocks from `css/neutral-preset.css` into your app's CSS like the rest of the
+preset.
+
+**`ThemeKey` grew by two.** Reading it is unaffected; an exhaustive `switch`
+over `ThemeKey` stops compiling until it handles the new keys.
+
 ## 0.7.0 — "system" is a preference, not a theme (F001.16)
 
 Before this, `followSystem` was in force **only until the first click**: a stored
@@ -139,7 +163,7 @@ setTheme("dark-warm");
 | `setTheme(key)` | Apply + persist + notify. No-op on invalid keys. |
 | `toggleTheme()` | Cycle light ⇄ dark (variants collapse to their base mode). |
 | `onThemeChange(fn)` | Subscribe; returns an unsubscribe. |
-| `THEME_KEYS` | All six `ThemeKey`s. |
+| `THEME_KEYS` | All eight `ThemeKey`s (six neutral + `light-broberg`, `dark-broberg`). |
 | `BREAKPOINTS` | `{ sm:640, md:768, lg:1024, xl:1280 }` — responsive breakpoints (px) for `matchMedia`. |
 | `TOUCH_TARGET_MIN` | `44` — minimum touch-target size (px). |
 

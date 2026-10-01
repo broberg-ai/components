@@ -16,7 +16,9 @@ export type ThemeKey =
   | "light-cool"
   | "light-warm"
   | "dark-cool"
-  | "dark-warm";
+  | "dark-warm"
+  | "light-broberg"
+  | "dark-broberg";
 
 /**
  * What the user CHOSE. Distinct from the ThemeKey that ends up on <html>:
@@ -54,6 +56,8 @@ export const THEME_KEYS: readonly ThemeKey[] = [
   "light-warm",
   "dark-cool",
   "dark-warm",
+  "light-broberg",
+  "dark-broberg",
 ];
 
 let storageKey = DEFAULT_STORAGE_KEY;

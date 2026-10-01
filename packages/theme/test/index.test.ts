@@ -79,9 +79,11 @@ describe("@broberg/theme core", () => {
     expect(t).toBe("light");
   });
 
-  it("exposes all six theme keys", () => {
-    expect(THEME_KEYS).toHaveLength(6);
-    expect([...THEME_KEYS]).toContain("dark-warm");
+  it("exposes all eight theme keys", () => {
+    expect([...THEME_KEYS]).toEqual([
+      "light", "dark", "light-cool", "light-warm", "dark-cool", "dark-warm",
+      "light-broberg", "dark-broberg",
+    ]);
   });
 
   it("exposes breakpoint + touch-target tokens (single source, matching the preset)", () => {
