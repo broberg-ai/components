@@ -67,7 +67,7 @@ trackFeature("export.pdf", { endpoint: "/api/feature-stats" });
 ```
 
 The handler answers `204` when it counted and `400` (nothing counted) for bad
-JSON, an undeclared key or a body over 1 KB. `trackFeature` uses
+JSON, an undeclared key or a body over 1,024 characters. `trackFeature` uses
 `navigator.sendBeacon`, falls back to `fetch` with `keepalive`, and never throws.
 
 **The endpoint is unauthenticated by design.** Anyone who can reach it can add

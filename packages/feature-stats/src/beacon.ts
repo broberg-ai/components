@@ -6,11 +6,11 @@
  */
 import type { FeatureStats } from './index.js';
 
-/** A beacon is a few dozen bytes; anything larger is not one. */
-export const MAX_BEACON_BYTES = 1024;
+/** A beacon is a few dozen characters; anything over this (counted in UTF-16 units, not bytes) is not one. */
+export const MAX_BEACON_CHARS = 1024;
 
 export async function handleBeacon(stats: FeatureStats<string>, bodyText: string): Promise<number> {
-  if (bodyText.length > MAX_BEACON_BYTES) return 400;
+  if (bodyText.length > MAX_BEACON_CHARS) return 400;
   let body: unknown;
   try {
     body = JSON.parse(bodyText);
