@@ -144,7 +144,7 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | pitch (pitch.broberg.ai + /privacy) | pitch-F054 | ✅ live 30/9, 0.5.0 categories="", hide-reopen + footer-link + /privacy, Lens ad09a8cf (15/15), enrolleret. Farver mappet på de interne --bc-*-navne (skrøbeligt, se note) |
 | sanneandersen | sanneandersen-F142 | dispatch'et |
 | vn-leker | vn-leker-F002 | dispatch'et |
-| fd-ishoej | fd-ishoej-F006 | dispatch'et |
+| fd-ishoej | fd-ishoej-F006 | ⛔ ikke relevant: intet offentligt site (fd-ishoej, 1/10). Repoet rummer kun docs, mailskabeloner og scaffold; ingen app, ingen deploy og intet domæne. Den eneste app i sagen er en ekstern parts på hans egen GitHub/Lovable. fd-ishoej-F006 er arkiveret. Bruger 0.5.0, hvis der senere kommer en offentlig side |
 | fysio-dk-aalborg | fysio-dk-aalborg-F004 | dispatch'et |
 | fysiodk-aalborg-sport | fysiodk-aalborg-sport-F030 | dispatch'et |
 | anna | anna-F002 | dispatch'et |
