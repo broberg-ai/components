@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-09-30T10:33:35.287Z",
- "repos_scanned": 64,
+ "scanned_at": "2026-10-01T11:01:14.816Z",
+ "repos_scanned": 65,
  "repos_failed": 0,
- "manifests_read": 224,
+ "manifests_read": 225,
  "manifests_unreadable": 0,
- "edges": 223,
+ "edges": 226,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -453,12 +453,12 @@
     ],
     "@broberg/secret-scan": [
      {
-      "range": "0.11.0",
+      "range": "0.11.1",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "0.11.0",
+      "range": "0.11.1",
       "field": "dependencies",
       "at": "packages/mcp-tools/package.json"
      }
@@ -533,7 +533,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 43,
+   "manifests": 44,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -581,6 +581,13 @@
       "range": ">=0.3.0 <1",
       "field": "devDependencies",
       "at": "packages/chat/package.json"
+     }
+    ],
+    "@broberg/db-sdk": [
+     {
+      "range": "0.2.0",
+      "field": "devDependencies",
+      "at": "packages/feature-stats/package.json"
      }
     ],
     "@broberg/ai-sdk": [
@@ -1126,7 +1133,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.7.0",
+      "range": "0.8.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1296,6 +1303,13 @@
     ]
    }
   },
+  "broberg-ai/telion": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
+  },
   "broberg-ai/trail": {
    "branch": "main",
    "manifests": 22,
@@ -1336,7 +1350,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.6.1",
+      "range": "0.8.0",
       "field": "dependencies",
       "at": "apps/admin-server/package.json"
      }
@@ -1702,6 +1716,13 @@
       "at": "package.json"
      }
     ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
     "@broberg/lens": [
      {
       "range": "0.1.2",
@@ -1732,8 +1753,15 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.4.0",
+      "range": "0.6.0",
       "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/secret-scan": [
+     {
+      "range": "0.12.1",
+      "field": "devDependencies",
       "at": "package.json"
      }
     ]
