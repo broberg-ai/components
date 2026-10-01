@@ -8,6 +8,21 @@ as one small, framework- and bundler-agnostic package instead of a fifth copy.
 npm i @broberg/pwa
 ```
 
+## 0.4.1 — «Update now» now always updates (F054.9)
+
+**Take 0.4.1 if you show an update button.** In 0.4.0 a press could do nothing,
+forever: on a page opened WITHOUT an active service worker (a shift-reload, or
+the first page after registration) while a new worker was waiting, the guard
+that stops a first install from reloading a new visitor also swallowed the
+takeover the press caused. No reload, and every later press went to a worker
+that was already active. Reported by the owner after 30 presses in helpdesk.
+
+Now: after `applyUpdate()` the next takeover always reloads; a press whose
+worker already activated reloads directly; and an SW without `clientsClaim`
+reloads when the worker reaches `activated`. One reload, never two.
+`reloadOnControllerChange: false` still means you reload yourself. No API
+change; a first install still never reloads on its own.
+
 ## 0.4.0 — READ, don't remember (F054.8)
 
 **Take 0.4.0.** Before it, `updateReady` could only ever go **up**, and only from

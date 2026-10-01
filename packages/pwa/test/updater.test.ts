@@ -134,6 +134,75 @@ describe("createPwaUpdater", () => {
     updater.destroy();
   });
 
+  // ---- F054.9 — «Opdatér nu» did nothing (owner pressed it 30 times) -----
+  it("F054.9: an uncontrolled page with a waiting worker RELOADS after applyUpdate", async () => {
+    container.controller = null; // shift-reload, or the first page after registration
+    const worker = new FakeWorker("installed");
+    container.registration.waiting = worker;
+    const updater = createPwaUpdater();
+    await flush();
+    expect(updater.getState().updateReady).toBe(true); // the banner was shown
+    updater.applyUpdate();
+    container.dispatchEvent(new Event("controllerchange")); // the takeover the press caused
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("F054.9: the first-install guard still holds when nobody pressed anything", async () => {
+    container.controller = null;
+    container.registration.waiting = new FakeWorker("installed");
+    createPwaUpdater();
+    await flush();
+    container.dispatchEvent(new Event("controllerchange"));
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("F054.9: a press after the worker already activated reloads instead of posting into the void", async () => {
+    container.controller = null;
+    const worker = new FakeWorker("installed");
+    container.registration.waiting = worker;
+    const updater = createPwaUpdater();
+    await flush();
+    // the earlier press's reload was lost; the worker is now active, not waiting
+    container.registration.waiting = null;
+    container.registration.active = worker;
+    updater.applyUpdate();
+    expect(worker.postMessage).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("F054.9: with nothing ever offered, applyUpdate stays a no-op", async () => {
+    const updater = createPwaUpdater();
+    await flush();
+    updater.applyUpdate();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("F054.9: without clientsClaim (no controllerchange) the worker's activation reloads — once", async () => {
+    container.controller = null;
+    const worker = new FakeWorker("installed");
+    container.registration.waiting = worker;
+    const updater = createPwaUpdater();
+    await flush();
+    updater.applyUpdate();
+    worker.setState("activated");
+    container.dispatchEvent(new Event("controllerchange")); // if it does arrive too
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("F054.9: reloadOnControllerChange:false is honoured by every new path", async () => {
+    container.controller = null;
+    const worker = new FakeWorker("installed");
+    container.registration.waiting = worker;
+    const updater = createPwaUpdater({ reloadOnControllerChange: false });
+    await flush();
+    updater.applyUpdate();
+    worker.setState("activated");
+    container.dispatchEvent(new Event("controllerchange"));
+    container.registration.waiting = null;
+    updater.applyUpdate();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it("does not reload when reloadOnControllerChange is false", async () => {
     createPwaUpdater({ reloadOnControllerChange: false });
     await flush();

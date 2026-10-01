@@ -129,6 +129,17 @@ const MUTATIONS = [
     from: `      .map(([k, v]) => [k, identify(v)]),`,
     to: `      .map(([k, v]) => [k, v]),`,
   },
+  // F054.9 — the first-install guard swallows the reload the user asked for.
+  {
+    name: "the applied flag no longer bypasses the first-install guard («Opdatér nu» does nothing again)",
+    from: "    if (!hadController && !applied) {",
+    to: "    if (!hadController) {",
+  },
+  {
+    name: "applyUpdate posts to a stale reference again instead of re-reading registration.waiting",
+    from: "      if (updateReady) reloadOnce();",
+    to: "",
+  },
 ];
 
 function redSet() {

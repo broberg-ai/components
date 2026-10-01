@@ -57,7 +57,11 @@ export interface PwaUpdater {
   /** Subscribe to state changes. Returns an unsubscribe fn. */
   subscribe(listener: (state: PwaUpdaterState) => void): () => void;
   getState(): PwaUpdaterState;
-  /** Tell the waiting worker to activate (posts SKIP_WAITING). No-op if none waits. */
+  /**
+   * Tell the waiting worker to activate (posts SKIP_WAITING); the page reloads
+   * when it takes over. If an update was offered but nothing waits any more
+   * (it already activated), reloads directly. No-op when nothing was offered.
+   */
   applyUpdate(): void;
   /**
    * "Later". Holds the offer down for `snoozeMs`, then it comes back on the
@@ -97,7 +101,6 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
 
   const listeners = new Set<(state: PwaUpdaterState) => void>();
   let updateReady = false;
-  let waitingWorker: ServiceWorker | null = null;
 
   const getState = (): PwaUpdaterState => ({ updateReady });
   const emit = (): void => {
@@ -185,7 +188,6 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
    */
   const check = (): void => {
     const waiting = registrationRef?.waiting ?? null;
-    waitingWorker = waiting;
     const next = shouldOfferUpdate({
       waiting,
       snoozedUntil: readSnooze(),
@@ -202,15 +204,29 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
   // is not an update, so reloading there would yank a first-time visitor out of
   // whatever they are doing. Only a `controllerchange` that REPLACES an existing
   // controller is a real takeover worth reloading for.
+  //
+  // F054.9 — BUT THE GUARD CANNOT TELL A FIRST CLAIM FROM ONE THE USER ASKED FOR.
+  // A page opened with no controller (shift-reload bypasses the SW, or the first
+  // page after registration) while a worker waits shows the banner; pressing it
+  // activates the worker, whose controllerchange the guard then swallowed. Every
+  // later press posted SKIP_WAITING to a worker that was already active. The
+  // owner pressed «Opdatér nu» 30 times in helpdesk and nothing happened.
+  // `applied` is the missing fact: after an explicit applyUpdate() the next
+  // takeover is the update, whatever the page was controlled by before.
   let hadController = !!container.controller;
+  let applied = false;
+  const reloadOnce = (): void => {
+    if (!reloadOnControllerChange || reloading) return;
+    reloading = true; // guard against a reload-loop
+    if (typeof location !== "undefined") location.reload();
+  };
   const onControllerChange = (): void => {
     if (!reloadOnControllerChange || reloading) return;
-    if (!hadController) {
+    if (!hadController && !applied) {
       hadController = true; // first claim of an uncontrolled page — not an update
       return;
     }
-    reloading = true; // guard against a reload-loop
-    if (typeof location !== "undefined") location.reload();
+    reloadOnce();
   };
   container.addEventListener("controllerchange", onControllerChange);
 
@@ -284,7 +300,23 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
     subscribe,
     getState,
     applyUpdate() {
-      if (waitingWorker) waitingWorker.postMessage(SKIP_WAITING_MESSAGE);
+      // Re-read, never the cached reference: the cached one can be a worker
+      // that has since ACTIVATED, and posting to it does nothing (F054.9).
+      const waiting = registrationRef?.waiting ?? null;
+      if (waiting) {
+        applied = true;
+        // Without clientsClaim an uncontrolled page never gets controllerchange,
+        // so the worker's own activation is the second signal. reloadOnce()
+        // makes the two paths safe to both fire.
+        waiting.addEventListener("statechange", () => {
+          if (waiting.state === "activated") reloadOnce();
+        });
+        waiting.postMessage(SKIP_WAITING_MESSAGE);
+        return;
+      }
+      // Nothing waits, yet an update was offered: the worker already took over
+      // (an earlier press whose reload was lost). Reloading IS the update.
+      if (updateReady) reloadOnce();
     },
     snooze() {
       writeSnooze(Date.now() + snoozeMs);
