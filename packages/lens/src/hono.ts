@@ -29,7 +29,8 @@ export function lensSessionHandler(
       authorization: c.req.header("authorization") ?? null,
       host,
       secure: proto === "https",
+      body: await c.req.text(),
     });
-    return c.json(res.body, res.status as 200 | 401 | 429 | 503);
+    return c.json(res.body, res.status as 200 | 400 | 401 | 403 | 429 | 500 | 503);
   };
 }

@@ -9,6 +9,7 @@ import type { LensSessionContext } from "../src/index";
 
 const CTX: LensSessionContext = {
   principal: "lens@myapp.local",
+  mode: "read",
   host: "myapp.dev",
   secure: true,
   ttlMs: 600_000,

@@ -115,6 +115,48 @@ const res = await handle({ authorization, host, secure }); // → { status, body
   reverse proxy that's a silent false-green (set `LENS_COOKIE_DOMAIN`). Genuine
   http localhost dev stays silent, so a Docker dev-build sandbox just works.
 
+## Write sessions — only when asked for, explicitly (0.2.0, F036.6)
+
+Some surfaces need Lens to ACT, not only look (helpdesk: Lens plays the
+receptionist and writes in live chat). cardmem's standard: the mint door gives
+a READ principal by default; a WRITE principal only on an explicit request, and
+every write mint is audited.
+
+| request body | result |
+|---|---|
+| none / empty / `{}` / `{"mode":"read"}` | read principal, exactly as 0.1.x |
+| `{"mode":"write","writes":true}` | write principal, IF the app enabled writes |
+| `{"mode":"write"}` · `{"writes":true}` · unknown mode · bad JSON | `400`, nothing minted |
+| a write request, app has no `writePrincipal` | `403`, nothing minted |
+
+Both keys, on purpose: one field is one typo or one default away from write
+access.
+
+```ts
+createLensRoute({
+  principal: "lens@myapp.local",              // read
+  writePrincipal: "lens-writer@myapp.local",  // write: a SEPARATE identity
+  async onWriteMint({ principal, host, expiresAt, at }) {
+    await audit.insert({ kind: "lens.write-mint", principal, host, expiresAt, at });
+  },
+  async createSession({ principal, mode, expiresAt }) {
+    // mint a write-capable role ONLY when mode === "write"
+    const value = await signMySessionCookie(principal, expiresAt, { role: mode === "write" ? "reception" : "readonly" });
+    return { name: "myapp_session", value };
+  },
+});
+```
+
+- **Writes are off** until `writePrincipal` is set. It must differ from
+  `principal` (the audit has to tell a read from a write), and it is never
+  cb@webhouse.dk. Setting it without `onWriteMint` throws at startup.
+- **The audit fails closed.** `onWriteMint` runs after `createSession` and
+  BEFORE the cookie is returned. If it throws, the response is `500` and no
+  cookie leaves; the minted row simply expires with the TTL (max 10 min).
+- `ctx.mode` (`"read"` | `"write"`) is new on `LensSessionContext`. Code that
+  only READS the context is unaffected; code that BUILDS one (a test fixture)
+  must add `mode`.
+
 ## Read-only is enforced by YOUR app
 
 This package mints the session; it does **not** enforce read-only from inside the
@@ -132,12 +174,13 @@ smoke — never a stored pixel baseline.
 ```ts
 interface LensCookie { name: string; value: string; domain?: string; path?: string;
   httpOnly?: boolean; secure?: boolean; sameSite?: "Lax" | "Strict" | "None"; expires?: number; }
-interface LensSessionContext { principal: string; host: string; secure: boolean; ttlMs: number; expiresAt: number; }
+interface LensSessionContext { principal: string; mode: "read" | "write"; host: string; secure: boolean; ttlMs: number; expiresAt: number; }
 type CreateLensSession = (ctx: LensSessionContext) => Promise<LensCookie | LensCookie[]> | LensCookie | LensCookie[];
 interface LensMintOptions { secret?: string; createSession: CreateLensSession; principal: string;
-  ttlMs?: number; cookieDomain?: string; maxPerMinute?: number; }
+  ttlMs?: number; cookieDomain?: string; maxPerMinute?: number;
+  writePrincipal?: string; onWriteMint?: (e: { principal: string; host: string; expiresAt: number; at: number }) => void | Promise<void>; }
 
-function createLensMintHandler(opts: LensMintOptions): (req: { authorization: string | null; host: string; secure: boolean }) => Promise<{ status: number; body: unknown }>;
+function createLensMintHandler(opts: LensMintOptions): (req: { authorization: string | null; host: string; secure: boolean; body?: string | null }) => Promise<{ status: number; body: unknown }>;
 // @broberg/lens/next → createLensRoute(opts): { POST(req: Request): Promise<Response> }
 // @broberg/lens/hono → lensSessionHandler(opts): (c: Context) => Promise<Response>
 // @broberg/lens/next-auth → nextAuthLensSession(opts): (ctx: LensSessionContext) => Promise<LensCookie>

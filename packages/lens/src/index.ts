@@ -40,10 +40,18 @@ export interface LensCookie {
   expires?: number;
 }
 
+/** What the caller asked for (F036.6). `read` unless the body said otherwise. */
+export type LensMintMode = "read" | "write";
+
 /** What the app's `createLensSession` hook receives. */
 export interface LensSessionContext {
-  /** The dedicated read-only lens principal (e.g. "lens@myapp.local"). */
+  /**
+   * The principal to mint: the read-only `principal`, or `writePrincipal` when
+   * the request asked for write AND the app enabled it.
+   */
   principal: string;
+  /** Which kind of session this is. Mint a write-capable role only for `"write"`. */
+  mode: LensMintMode;
   /** Request host — the default cookie domain. */
   host: string;
   /** Whether the request arrived over https — the default cookie `secure`. */
@@ -80,6 +88,30 @@ export interface LensMintOptions {
   cookieDomain?: string;
   /** Basic per-handler fixed-window rate-limit. Default 30/min; 0 disables. */
   maxPerMinute?: number;
+  /**
+   * F036.6 — a SEPARATE identity for write sessions. Writes are OFF unless this
+   * is set: a write request on a handler without it gets 403. Never blank, never
+   * cb@webhouse.dk, never the same as `principal` (one identity for both would
+   * leave the audit unable to tell a read from a write).
+   */
+  writePrincipal?: string;
+  /**
+   * F036.6 — REQUIRED with `writePrincipal`. Called after `createSession` and
+   * BEFORE any cookie is returned, for every write mint. If it throws or
+   * rejects, the response is 500 and no cookie leaves: an unaudited write
+   * session is never handed out (the minted row expires with the TTL).
+   */
+  onWriteMint?: (event: LensWriteMintEvent) => void | Promise<void>;
+}
+
+/** What `onWriteMint` receives — enough to audit WHO got write access, WHERE, until WHEN. */
+export interface LensWriteMintEvent {
+  principal: string;
+  host: string;
+  /** unix MS the session expires. */
+  expiresAt: number;
+  /** unix MS of the mint. */
+  at: number;
 }
 
 /** A normalized request — what the framework adapters extract + pass in. */
@@ -87,6 +119,11 @@ export interface LensMintRequest {
   authorization: string | null;
   host: string;
   secure: boolean;
+  /**
+   * F036.6 — the raw request body. Absent/empty means a read request (what the
+   * daemon has always sent). The core parses it, so every adapter agrees.
+   */
+  body?: string | null;
 }
 
 /** The fixed Playwright storageState the Lens daemon consumes verbatim. */
@@ -102,6 +139,29 @@ export interface LensStorageState {
     expires: number;
   }>;
   origins: never[];
+}
+
+/**
+ * F036.6 — the mode contract. Read is the default; write requires BOTH
+ * `mode:"write"` and `writes:true`, so asking for write access is never one
+ * typo or one default away. Anything else is a malformed request.
+ */
+export function parseMintMode(body: string | null | undefined): LensMintMode | { error: string } {
+  if (body === undefined || body === null || body.trim() === "") return "read";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return { error: "body is not valid JSON" };
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { error: "body must be a JSON object" };
+  }
+  const { mode, writes } = parsed as { mode?: unknown; writes?: unknown };
+  if (mode === undefined && writes === undefined) return "read";
+  if (mode === "read" && writes === undefined) return "read";
+  if (mode === "write" && writes === true) return "write";
+  return { error: 'write access needs BOTH {"mode":"write","writes":true}; read is the default' };
 }
 
 export interface LensMintResponse {
@@ -157,6 +217,20 @@ export function createLensMintHandler(
     );
   }
 
+  const writePrincipal = opts.writePrincipal === undefined ? undefined : opts.writePrincipal.trim();
+  if (writePrincipal !== undefined) {
+    if (!writePrincipal) throw new Error("@broberg/lens: `writePrincipal` is blank — omit it to keep writes off.");
+    if (writePrincipal.toLowerCase() === FORBIDDEN_PRINCIPAL) {
+      throw new Error(`@broberg/lens: refusing ${FORBIDDEN_PRINCIPAL} as the write principal — it must be a dedicated identity.`);
+    }
+    if (writePrincipal.toLowerCase() === principal.toLowerCase()) {
+      throw new Error("@broberg/lens: `writePrincipal` must differ from `principal` — the audit has to tell a read from a write.");
+    }
+    if (typeof opts.onWriteMint !== "function") {
+      throw new Error("@broberg/lens: `onWriteMint` is required with `writePrincipal` — every write mint is audited.");
+    }
+  }
+
   const maxPerMinute = opts.maxPerMinute ?? DEFAULT_MAX_PER_MINUTE;
   let windowStart = Date.now();
   let count = 0;
@@ -183,6 +257,13 @@ export function createLensMintHandler(
       return { status: 401, body: { error: "unauthorized" } };
     }
 
+    // F036.6 — validate the mode contract BEFORE anything is minted.
+    const mode = parseMintMode(req.body);
+    if (typeof mode !== "string") return { status: 400, body: { error: mode.error } };
+    if (mode === "write" && writePrincipal === undefined) {
+      return { status: 403, body: { error: "write sessions are not enabled on this endpoint" } };
+    }
+
     // Rate-limit only authenticated requests — the only holder of a valid bearer
     // is the daemon, so this caps the mint rate if the secret ever leaks.
     if (!withinRate()) {
@@ -192,7 +273,8 @@ export function createLensMintHandler(
     const ttlMs = clampTtl(opts.ttlMs ?? DEFAULT_TTL_MS);
     const expiresAt = Date.now() + ttlMs;
     const ctx: LensSessionContext = {
-      principal,
+      principal: mode === "write" ? writePrincipal! : principal,
+      mode,
       host: req.host,
       secure: req.secure,
       ttlMs,
@@ -209,6 +291,16 @@ export function createLensMintHandler(
     } catch (err) {
       console.error("[@broberg/lens] createSession threw while minting a lens session:", err);
       return { status: 500, body: { error: "lens-session mint failed" } };
+    }
+
+    // F036.6 — audit BEFORE the cookie leaves. Fail closed: no audit, no session.
+    if (mode === "write") {
+      try {
+        await opts.onWriteMint!({ principal: ctx.principal, host: req.host, expiresAt, at: Date.now() });
+      } catch (err) {
+        console.error("[@broberg/lens] onWriteMint failed — refusing to hand out an unaudited write session:", err);
+        return { status: 500, body: { error: "lens-session mint failed" } };
+      }
     }
 
     const cookies = Array.isArray(minted) ? minted : [minted];

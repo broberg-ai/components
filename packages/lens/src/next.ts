@@ -32,6 +32,7 @@ export function createLensRoute(opts: LensMintOptions): {
         authorization: req.headers.get("authorization"),
         host,
         secure: proto === "https",
+        body: await req.text(),
       });
       return Response.json(res.body, { status: res.status });
     },
