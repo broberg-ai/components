@@ -149,7 +149,7 @@ Leveret to veje: intercom 29/9 (16 sessioner; m1-levering uden kvittering) og en
 | fysiodk-aalborg-sport | fysiodk-aalborg-sport-F030 | dispatch'et |
 | anna | anna-F002 | dispatch'et |
 | happy-little-place | happy-little-place-F042 | dispatch'et |
-| kai | kai-F002 | dispatch'et |
+| kai | kai-F002 | ⛔ ikke relevant: repoet er ARKIVERET og har intet live site (kai, 1/10). De tre statiske pitch-HTML'er vises i Pitch Vault (dækket ovenfor) og har 0 scripts, 0 trackere og 0 cookies. Åbent fund: de henter Google Fonts (IP til Google). Det er ikke en cookie, men hører til pitch-vault. kai-F002 er arkiveret |
 | moovyy | moovyy-F037 | dispatch'et |
 | storeform | storeform-F003 | dispatch'et |
 | mailworker | mailworker-F011 | dispatch'et |
