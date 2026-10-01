@@ -14,7 +14,7 @@ Three questions, per repo and across the fleet:
 - **Nothing changes a repo without passing that repo's own gate.** Updates arrive as pull requests; the repo's existing CI decides.
 - **Measuring is separate from changing.** The scanner is read-only. Changing is done by PRs, and blocking only by the narrow rule in F091.3.
 - **Major versions are never automatic.** A major is a PR on its own, and a session or Christian takes it deliberately.
-- **Exact pins stay exact.** The fleet pins `@broberg/*` exactly on purpose (D-…: exact-pin prod-auth deps). Updates bump the pin; they never loosen it to a range.
+- **Exact pins stay exact.** The fleet pins `@broberg/*` exactly on purpose (CLAUDE.md: "exact-pin prod-auth deps"). Updates bump the pin; they never loosen it to a range.
 - **Each repo adopts on its own clock** (D-5f65b6 spirit). components builds the tool; owners take it in.
 
 ## Design: same shape as the secret gate (F090)
