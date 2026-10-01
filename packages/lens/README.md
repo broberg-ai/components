@@ -115,7 +115,7 @@ const res = await handle({ authorization, host, secure }); // → { status, body
   reverse proxy that's a silent false-green (set `LENS_COOKIE_DOMAIN`). Genuine
   http localhost dev stays silent, so a Docker dev-build sandbox just works.
 
-## Write sessions — only when asked for, explicitly (0.2.0, F036.6)
+## Write sessions — only when asked for, explicitly (0.2.1, F036.6)
 
 Some surfaces need Lens to ACT, not only look (helpdesk: Lens plays the
 receptionist and writes in live chat). cardmem's standard: the mint door gives

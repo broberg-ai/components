@@ -15,3 +15,4 @@ a623e9a01df549d5e36cd31254614f37004bd9d9:packages/secret-scan/test/f035-13.test.
 58676d5c20bbf2408013a0c6340ddacfdec3a87d:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:246
 f736035f199338c2274e40963891846eb4d3ab7a:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:278
 03c7f349c3d1ac3493b320ba5977c9327ea80d47:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:278
+1924a1b7d9e1f51aa68c21c2b0392468bda54147:packages/lens/test/write-mint.test.ts:generic-api-key:11
