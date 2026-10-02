@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-01T11:01:14.816Z",
+ "scanned_at": "2026-10-02T10:34:43.334Z",
  "repos_scanned": 65,
  "repos_failed": 0,
  "manifests_read": 225,
  "manifests_unreadable": 0,
- "edges": 226,
+ "edges": 230,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -287,7 +287,7 @@
     ],
     "@broberg/pwa": [
      {
-      "range": "0.4.0",
+      "range": "0.4.1",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -700,9 +700,23 @@
    "manifests": 1,
    "unreadable": 0,
    "deps": {
+    "@broberg/mail": [
+     {
+      "range": "0.15.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
     "@broberg/media": [
      {
       "range": "0.3.1",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.8.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -729,17 +743,17 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "^0.29.0",
+      "range": "0.50.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      },
      {
-      "range": "^0.29.0",
+      "range": "0.50.0",
       "field": "devDependencies",
       "at": "package.json"
      },
      {
-      "range": "^0.29.0",
+      "range": "0.50.0",
       "field": "dependencies",
       "at": "tools/fd-sundhed-mail-tests/package.json"
      }
@@ -823,7 +837,7 @@
     ],
     "@broberg/pwa": [
      {
-      "range": "0.4.0",
+      "range": "0.4.1",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -1014,7 +1028,14 @@
     ],
     "@broberg/pwa": [
      {
-      "range": "0.4.0",
+      "range": "0.4.1",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     }
+    ],
+    "@broberg/theme": [
+     {
+      "range": "0.8.0",
       "field": "dependencies",
       "at": "apps/console/package.json"
      }
@@ -1096,6 +1117,13 @@
       "range": "0.3.0",
       "field": "devDependencies",
       "at": "tests/e2e/package.json"
+     }
+    ],
+    "@broberg/lens": [
+     {
+      "range": "0.2.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
      }
     ],
     "@broberg/mail": [
