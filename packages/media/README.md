@@ -66,6 +66,45 @@ readable. Bind a custom domain (via `dns-mcp`, e.g. `media.example.com`) or enab
 the bucket's `r2.dev` public URL, then set that as `publicBaseUrl`. Until it is set,
 `publicUrl()` throws (public stays off — nothing is exposed by accident).
 
+## Attachments on a message (v0.4.0, F006.7)
+
+`@broberg/media/attachments` is the part that makes a stored file a safe
+*attachment*: what the file really is, whether it may come in, where it lives,
+and how to serve it. Pure functions, no I/O; lifted from cardmem's upload path.
+
+```ts
+import { createMedia } from "@broberg/media";
+import { validateAttachment, attachmentKey, attachmentHeaders, sha256Hex, type AttachmentRecord } from "@broberg/media/attachments";
+
+const store = createMedia({ provider: "r2", /* … */ jurisdiction: "eu", keyPrefix: `tenants/${tenantId}/` });
+
+const v = validateAttachment({ bytes, filename });          // the BYTES decide
+if (!v.ok) return new Response(v.reason, { status: 400 });
+const id = crypto.randomUUID();
+const key = attachmentKey(id);                               // attachments/<id> — never the file name
+await store.upload(key, bytes, { contentType: v.contentType });
+const row: AttachmentRecord = { id, messageId, key, contentType: v.contentType, bytes: v.bytes, filename, sha256: await sha256Hex(bytes) };
+
+// serving it through your app:
+const obj = await store.get(row.key);
+return new Response(obj!.bytes, { headers: attachmentHeaders(row.contentType, row.bytes, { filename: row.filename }) });
+```
+
+- **The bytes decide the type.** The first bytes are sniffed (png, jpeg, gif, webp,
+  heic, pdf, office). Store `v.contentType`, never the browser's. A name that
+  promises an image or a PDF the bytes do not deliver is refused, and so is a
+  program, whatever it is called. There is deliberately no parameter for the
+  claimed type.
+- **Default list:** images, pdf, doc/docx, xls/xlsx, ppt/pptx, txt, csv, md, json.
+  No svg/html (they can carry script) and no archives. Widen per app with
+  `allowedExt`. The forbidden floor (exe, sh, js, dmg, …) can never be readmitted.
+- **Limit** 25 MB by default (`maxBytes`).
+- **Serving:** images and PDF render inline; everything else is a download behind
+  CSP `sandbox` + `nosniff`. The file name goes through `@broberg/http`
+  `contentDisposition`, so `faktura-æøå.pdf` keeps its name.
+- **Not here:** the HTTP route and the database table (yours), PDF thumbnails,
+  virus scanning, image re-encoding (`@broberg/media-transform`).
+
 ## Provisioning the bucket
 
 This package **consumes** an existing bucket + S3 creds. To create an

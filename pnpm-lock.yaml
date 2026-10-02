@@ -542,6 +542,9 @@ importers:
 
   packages/media:
     dependencies:
+      '@broberg/http':
+        specifier: 0.1.0
+        version: 0.1.0
       aws4fetch:
         specifier: ^1.0.20
         version: 1.0.20
@@ -1034,6 +1037,9 @@ packages:
         optional: true
       react:
         optional: true
+
+  '@broberg/http@0.1.0':
+    resolution: {integrity: sha512-E7jy5xm2v6d19+zFNHGboemIiSXAm5FqQHnVAyn4+hZZW0O3R32XyjTBC9zgYa8z2HqV1pIoo2JMx0IfWYKsoA==}
 
   '@broberg/mail@0.3.0':
     resolution: {integrity: sha512-LhbExzhS599dqzwCl5Mr3XQWU4Y/zAFTVdTb71WIe382AlLHeWa7MR4rQyDCv2/n92L2mmb4uX3KGZiRlpos1Q==}
@@ -4107,6 +4113,8 @@ snapshots:
       hono: 4.12.25
       preact: 10.29.2
       react: 19.2.7
+
+  '@broberg/http@0.1.0': {}
 
   '@broberg/mail@0.3.0': {}
 

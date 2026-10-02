@@ -1,6 +1,6 @@
 {
   "name": "@broberg/media",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "The fleet's provider-agnostic media-storage facade — one createMedia() API (upload · get · signedUrl · delete · publicUrl) over swappable storage providers, so a later move between providers never touches a call-site. Ships a Cloudflare R2 provider (S3-compatible, SigV4 via aws4fetch — Node/Bun/edge) and a VOLUME provider for an app that already has a durable disk (a Fly volume, a bind mount) and serves the bytes itself. Multi-tenant keyPrefix, EU-jurisdiction, path-traversal refusals. Start on a volume or R2; swap by changing one config object.",
   "type": "module",
   "license": "MIT",
@@ -18,6 +18,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./attachments": {
+      "types": "./dist/attachments.d.ts",
+      "import": "./dist/attachments.js",
+      "require": "./dist/attachments.cjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -26,6 +31,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@broberg/http": "0.1.0",
     "aws4fetch": "^1.0.20"
   },
   "devDependencies": {
@@ -46,7 +52,11 @@
     "broberg",
     "volume",
     "filesystem",
-    "fly-volume"
+    "fly-volume",
+    "attachment",
+    "attachments",
+    "file-type",
+    "magic-bytes"
   ],
   "repository": {
     "type": "git",
