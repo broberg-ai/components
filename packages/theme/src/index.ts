@@ -299,6 +299,8 @@ export interface PrePaintOptions {
   paletteKey?: string;
   /** F001.18 — same for `data-surfaces` (`initPalette({ surfacesKey })`). */
   surfacesKey?: string;
+  /** F001.19 — same for `data-backdrop` (`initPalette({ backdropKey })`). */
+  backdropKey?: string;
 }
 
 /**
@@ -405,6 +407,13 @@ function paletteSnippet(options: PrePaintOptions): string {
       `document.documentElement.setAttribute("data-surfaces","layered")` +
       `}catch(e){}`;
   }
+  if (options.backdropKey) {
+    const key = JSON.stringify(options.backdropKey);
+    out +=
+      `try{if(localStorage.getItem(${key})==="plain")` +
+      `document.documentElement.setAttribute("data-backdrop","plain")` +
+      `}catch(e){}`;
+  }
   return out;
 }
 
@@ -422,5 +431,10 @@ export {
   getSurfaces,
   setSurfaces,
   onSurfacesChange,
+  BACKDROPS,
+  DEFAULT_BACKDROP_KEY,
+  getBackdrop,
+  setBackdrop,
+  onBackdropChange,
 } from "./palette";
-export type { Palette, Surfaces, InitPaletteOptions } from "./palette";
+export type { Palette, Surfaces, Backdrop, InitPaletteOptions } from "./palette";

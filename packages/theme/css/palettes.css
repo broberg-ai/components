@@ -371,3 +371,9 @@
 :root[data-surfaces='layered'][data-palette='broberg'][data-theme='light'] {
   --surface-header: #FFFFFF; --surface-panel: #E8EDF3; --surface-work: #F5F7FA; --bg-card: #FFFFFF;
 }
+
+/* ── Backdrop (F001.19) — data-backdrop="plain" hides the neuron constellation.
+ * mountConstellation() marks its canvas and also stops drawing while plain. */
+:root[data-backdrop='plain'] canvas[data-broberg-constellation] {
+  display: none;
+}

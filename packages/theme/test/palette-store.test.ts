@@ -20,6 +20,7 @@ beforeEach(() => {
   html().removeAttribute("data-palette");
   html().removeAttribute("data-surfaces");
   html().removeAttribute("data-theme");
+  html().removeAttribute("data-backdrop");
 });
 
 describe("the ids are cardmem's stored values; labels are separate", () => {
@@ -33,7 +34,7 @@ describe("store", () => {
   it("reads cardmem's own keys, so nobody loses their choice", () => {
     localStorage.setItem("cardmem.palette", "warm");
     localStorage.setItem("cardmem.surfaces", "layered");
-    expect(initPalette({ paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" })).toEqual({ palette: "warm", surfaces: "layered" });
+    expect(initPalette({ paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" })).toEqual({ palette: "warm", surfaces: "layered", backdrop: "neurons" });
     expect(html().getAttribute("data-palette")).toBe("warm");
     expect(html().getAttribute("data-surfaces")).toBe("layered");
   });
@@ -67,7 +68,7 @@ describe("store", () => {
   it("an unknown stored or passed value is classic/flat, never written", () => {
     localStorage.setItem("k.p", "ember"); // the LABEL, not an id
     localStorage.setItem("k.s", "yes");
-    expect(initPalette({ paletteKey: "k.p", surfacesKey: "k.s" })).toEqual({ palette: "classic", surfaces: "flat" });
+    expect(initPalette({ paletteKey: "k.p", surfacesKey: "k.s" })).toEqual({ palette: "classic", surfaces: "flat", backdrop: "neurons" });
     expect(html().hasAttribute("data-palette")).toBe(false);
     setPalette("fjord" as never);
     expect(getPalette()).toBe("classic");
@@ -121,5 +122,29 @@ describe("prePaintScript agrees with initPalette, state by state", () => {
     } finally {
       Object.defineProperty(window, "localStorage", { value: real, configurable: true });
     }
+  });
+});
+
+describe("backdrop axis (F001.19)", () => {
+  it("reads cardmem.backdrop; plain sets attribute+key, neurons removes both", async () => {
+    const { setBackdrop, getBackdrop } = await import("../src/index.js");
+    localStorage.setItem("cardmem.backdrop", "plain");
+    expect(initPalette({ backdropKey: "cardmem.backdrop" }).backdrop).toBe("plain");
+    expect(html().getAttribute("data-backdrop")).toBe("plain");
+    setBackdrop("neurons");
+    expect(html().hasAttribute("data-backdrop")).toBe(false);
+    expect(localStorage.getItem("cardmem.backdrop")).toBeNull();
+    setBackdrop("stars" as never);
+    expect(getBackdrop()).toBe("neurons");
+  });
+  it("pre-paint restores plain, and only plain; untouched without backdropKey", () => {
+    for (const [stored, want] of [["plain", "plain"], ["neurons", null], ["Plain", null], [null, null]] as const) {
+      localStorage.clear();
+      html().removeAttribute("data-backdrop");
+      if (stored !== null) localStorage.setItem("b", stored);
+      new Function(prePaintScript({ backdropKey: "b" }))();
+      expect(html().getAttribute("data-backdrop")).toBe(want);
+    }
+    expect(prePaintScript({})).not.toContain("data-backdrop");
   });
 });

@@ -149,6 +149,8 @@ describe("the values are cardmem's, not a re-typing (fixtures: cardmem origin/ma
   });
   test("the palette and surfaces blocks are cardmem's, character for character", () => {
     const tail = (s: string) => s.slice(s.indexOf("/* ── Cool"));
-    expect(tail(css)).toBe(tail(fx("design-tokens-palettes.css")));
+    // Our file continues with the backdrop rule (F001.19), which cardmem keeps in styles.css.
+    const ours = tail(css).split("\n/* ── Backdrop")[0]!;
+    expect(ours).toBe(tail(fx("design-tokens-palettes.css")));
   });
 });

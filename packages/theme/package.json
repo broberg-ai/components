@@ -1,6 +1,6 @@
 {
   "name": "@broberg/theme",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Headless design-token theme store + neutral CSS baseline (Tailwind v4) for the broberg.ai estate. Framework-agnostic core + thin React/Preact adapters + a DESIGN.md → Tailwind v4 generator.",
   "type": "module",
   "license": "MIT",
@@ -33,6 +33,11 @@
       "types": "./dist/preact.d.ts",
       "import": "./dist/preact.js",
       "require": "./dist/preact.cjs"
+    },
+    "./constellation": {
+      "types": "./dist/constellation.d.ts",
+      "import": "./dist/constellation.js",
+      "require": "./dist/constellation.cjs"
     },
     "./design-md": {
       "types": "./dist/design-md.d.ts",

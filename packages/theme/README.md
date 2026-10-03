@@ -13,6 +13,31 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
+## 0.11.0 — the neuron backdrop, one copy (F001.19)
+
+The drifting neuron constellation behind cardmem and trail is now
+`@broberg/theme/constellation`, so helpdesk and the trail app get it without a
+fourth copy. Colours come from `--graph-*` in `palettes.css`, so it follows the
+palette.
+
+```ts
+import { mountConstellation } from "@broberg/theme/constellation";
+const dispose = mountConstellation(document.querySelector("#backdrop")!); // canvas: fixed, inset 0, pointer-events none, behind content
+```
+
+- One loop at a time: mounting again disposes the previous one (safe under HMR).
+- Paused while the tab is hidden. `prefers-reduced-motion`: one still frame,
+  repainted on resize and when a hidden tab becomes visible (cardmem's copy went
+  blank in both cases).
+- **Backdrop axis** beside palette and surfaces: `setBackdrop("plain" | "neurons")`,
+  `getBackdrop`, `onBackdropChange`, `initPalette({ backdropKey })`,
+  `prePaintScript({ backdropKey })`. `plain` = `<html data-backdrop="plain">`:
+  nothing is drawn and `palettes.css` hides the canvas. cardmem passes
+  `backdropKey: "cardmem.backdrop"`.
+- `initPalette()` now also returns `backdrop`. Code that destructures only
+  `palette`/`surfaces` is unaffected; a test asserting the whole object with
+  strict equality needs `backdrop: "neurons"` added.
+
 ## 0.10.0 — the palette axis: cardmem's colour choices, from one source (F001.18)
 
 cardmem, helpdesk and the trail app offer the same three choices. They now come

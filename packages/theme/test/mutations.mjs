@@ -26,7 +26,8 @@ const CORE = join(HERE, "src/index.ts");
 // F001.16 — a harness that can only mutate ONE file leaves every decision in the
 // other file undefended, and says nothing about it. Each mutation names its own
 // target now; `SRC` stays the default so no existing entry moves.
-const GUARDED = ["src/design-md.ts", "src/index.ts", "src/palette.ts", "css/palettes.css"];
+const GUARDED = ["src/design-md.ts", "src/index.ts", "src/palette.ts", "css/palettes.css", "src/constellation.ts"];
+const CONSTELLATION = join(HERE, "src/constellation.ts");
 const PALETTE_SRC = join(HERE, "src/palette.ts");
 const PALETTES_CSS = join(HERE, "css/palettes.css");
 const fileOf = (m) => m.file ?? SRC;
@@ -180,6 +181,24 @@ const MUTATIONS = [
     file: PALETTE_SRC,
     from: `  const v = next === "classic" ? null : next;`,
     to: `  const v = next;`,
+  },
+  {
+    name: "F001.19 a second mount no longer disposes the first (rAF loops stack up after HMR)",
+    file: CONSTELLATION,
+    from: `    existing.dispose();\n`,
+    to: ``,
+  },
+  {
+    name: "F001.19 prefers-reduced-motion is ignored (it loops anyway)",
+    file: CONSTELLATION,
+    from: `typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;`,
+    to: `false;`,
+  },
+  {
+    name: "F001.19 resize no longer repaints the still frame (the blank canvas cardmem has)",
+    file: CONSTELLATION,
+    from: `    resize();\n    repaintStill();`,
+    to: `    resize();`,
   },
 
 ];

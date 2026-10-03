@@ -27,7 +27,12 @@ export const PALETTE_LABELS: Readonly<Record<Palette, string>> = {
 export type Surfaces = "flat" | "layered";
 export const SURFACES: readonly Surfaces[] = ["flat", "layered"];
 
+/** F001.19 — the backdrop behind the page. neurons = no attribute. */
+export type Backdrop = "neurons" | "plain";
+export const BACKDROPS: readonly Backdrop[] = ["neurons", "plain"];
+
 export const DEFAULT_PALETTE_KEY = "broberg-palette";
+export const DEFAULT_BACKDROP_KEY = "broberg-backdrop";
 export const DEFAULT_SURFACES_KEY = "broberg-surfaces";
 
 export interface InitPaletteOptions {
@@ -35,10 +40,15 @@ export interface InitPaletteOptions {
   paletteKey?: string;
   /** localStorage key for surfaces. Default `"broberg-surfaces"` (cardmem passes `"cardmem.surfaces"`). */
   surfacesKey?: string;
+  /** F001.19 — localStorage key for the backdrop. Default `"broberg-backdrop"` (cardmem passes `"cardmem.backdrop"`). */
+  backdropKey?: string;
 }
 
 let paletteKey = DEFAULT_PALETTE_KEY;
 let surfacesKey = DEFAULT_SURFACES_KEY;
+let backdropKey = DEFAULT_BACKDROP_KEY;
+let backdrop: Backdrop = "neurons";
+const backdropListeners = new Set<(b: Backdrop) => void>();
 let palette: Palette = "classic";
 let surfaces: Surfaces = "flat";
 const paletteListeners = new Set<(p: Palette) => void>();
@@ -72,15 +82,18 @@ function attr(name: string, value: string | null): void {
 }
 
 /** Read both stored choices and put them on <html>. Pass the same keys to prePaintScript. */
-export function initPalette(options: InitPaletteOptions = {}): { palette: Palette; surfaces: Surfaces } {
+export function initPalette(options: InitPaletteOptions = {}): { palette: Palette; surfaces: Surfaces; backdrop: Backdrop } {
   if (options.paletteKey) paletteKey = options.paletteKey;
   if (options.surfacesKey) surfacesKey = options.surfacesKey;
+  if (options.backdropKey) backdropKey = options.backdropKey;
+  backdrop = stored(backdropKey) === "plain" ? "plain" : "neurons";
+  attr("data-backdrop", backdrop === "plain" ? "plain" : null);
   const p = stored(paletteKey);
   palette = isPalette(p) ? p : "classic";
   surfaces = stored(surfacesKey) === "layered" ? "layered" : "flat";
   attr("data-palette", palette === "classic" ? null : palette);
   attr("data-surfaces", surfaces === "layered" ? "layered" : null);
-  return { palette, surfaces };
+  return { palette, surfaces, backdrop };
 }
 
 export function getPalette(): Palette {
@@ -121,5 +134,26 @@ export function onSurfacesChange(listener: (s: Surfaces) => void): () => void {
   surfacesListeners.add(listener);
   return () => {
     surfacesListeners.delete(listener);
+  };
+}
+
+export function getBackdrop(): Backdrop {
+  return backdrop;
+}
+
+/** neurons removes the attribute and the key; plain sets both. */
+export function setBackdrop(next: Backdrop): void {
+  if (next !== "neurons" && next !== "plain") return;
+  backdrop = next;
+  const v = next === "plain" ? "plain" : null;
+  attr("data-backdrop", v);
+  store(backdropKey, v);
+  for (const l of backdropListeners) l(next);
+}
+
+export function onBackdropChange(listener: (b: Backdrop) => void): () => void {
+  backdropListeners.add(listener);
+  return () => {
+    backdropListeners.delete(listener);
   };
 }
