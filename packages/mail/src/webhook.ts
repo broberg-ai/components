@@ -59,13 +59,20 @@ function header(headers: HeaderLike, name: string): string | undefined {
 export function verifyWebhook(
   rawBody: string,
   headers: HeaderLike,
-  secret: string | undefined,
+  /**
+   * The signing secret — or a LIST of them (F005.21), for a key rotation you
+   * want to run without coordinating: set old and new, remove the old one once
+   * the provider's 24-hour overlap has passed. Any one match is a pass. An
+   * empty list is the same as no secret: refused, never "accept everything".
+   */
+  secret: string | readonly string[] | undefined,
   options: { toleranceSeconds?: number; nowMs?: number } = {},
 ): VerifyResult {
   // Refusing here is deliberate. A missing secret must never fall through to
   // "accept everything" — that is the exact shape of a guard that reports
   // success because it never ran.
-  if (!secret) return { ok: false, reason: 'no_secret' };
+  const secrets = (typeof secret === 'string' ? [secret] : secret ?? []).filter((s) => s);
+  if (secrets.length === 0) return { ok: false, reason: 'no_secret' };
 
   const id = header(headers, 'svix-id');
   const timestamp = header(headers, 'svix-timestamp');
@@ -81,16 +88,18 @@ export function verifyWebhook(
   }
 
   // whsec_<base64>. The prefix is optional in the wild; tolerate both.
-  const raw = secret.startsWith('whsec_') ? secret.slice(6) : secret;
-  let key: Buffer;
-  try {
-    key = Buffer.from(raw, 'base64');
+  const expectedAll: Buffer[] = [];
+  for (const one of secrets) {
+    const raw = one.startsWith('whsec_') ? one.slice(6) : one;
+    let key: Buffer;
+    try {
+      key = Buffer.from(raw, 'base64');
+    } catch {
+      return { ok: false, reason: 'bad_secret_format' };
+    }
     if (key.length === 0) return { ok: false, reason: 'bad_secret_format' };
-  } catch {
-    return { ok: false, reason: 'bad_secret_format' };
+    expectedAll.push(createHmac('sha256', key).update(`${id}.${timestamp}.${rawBody}`).digest());
   }
-
-  const expected = createHmac('sha256', key).update(`${id}.${timestamp}.${rawBody}`).digest();
 
   // The header carries a space-separated list so a secret can be rotated with
   // both keys live. Any one match is a pass.
@@ -106,8 +115,10 @@ export function verifyWebhook(
     // Length check first: timingSafeEqual throws on a mismatch rather than
     // returning false, and a throw here would read as a server error instead of
     // a rejected signature.
-    if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) {
-      return { ok: true };
+    for (const expected of expectedAll) {
+      if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) {
+        return { ok: true };
+      }
     }
   }
   return { ok: false, reason: 'no_signature_match' };
@@ -173,9 +184,10 @@ export function parseMailEvent(rawBody: string): MailEvent | null {
 }
 
 export interface WebhookHandlerConfig {
-  /** Signing secret from the provider dashboard. Absent ⇒ every request is
-   *  rejected; the endpoint never runs unverified. */
-  secret?: string;
+  /** Signing secret from the provider dashboard — or a list of them during a
+   *  rotation (F005.21). Absent or empty ⇒ every request is rejected; the
+   *  endpoint never runs unverified. */
+  secret?: string | readonly string[];
   /** Called once per verified, recognised event. Your persistence lives here. */
   onEvent: (event: MailEvent) => void | Promise<void>;
   /** Optional: observe rejected or unrecognised requests instead of losing them. */
@@ -303,3 +315,16 @@ export interface InboundEnvelope {
   /** The parsed payload, untouched, for anything this shape does not model. */
   raw: unknown;
 }
+
+export { createWebhookAdmin } from './webhook-admin';
+export type {
+  WebhookAdmin,
+  WebhookAdminConfig,
+  WebhookEventSummary,
+  WebhookEventDetail,
+  WebhookEventStatus,
+  WebhookAttempt,
+  WebhookPage,
+  WebhookAdminResult,
+  ReplayFailedReport,
+} from './webhook-admin';

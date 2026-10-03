@@ -29,6 +29,8 @@ const FILES = {
   events: join(PKG, "src", "events.ts"),
   verify: join(PKG, "src", "verify.ts"),
   integrity: join(PKG, "src", "integrity.ts"),
+  webhook: join(PKG, "src", "webhook.ts"),
+  webhookAdmin: join(PKG, "src", "webhook-admin.ts"),
 };
 
 // A mutant left on disk by a killed run is indistinguishable from real source.
@@ -327,6 +329,24 @@ const MUTATIONS = [
     from: "const PLACEHOLDER = /\\{\\{[^}]*\\}\\}/g;",
     to: "const PLACEHOLDER = /\\{\\{\\s*[^}]*\\}\\}/g;",
     expect: ["answered immediately"],
+  },
+  {
+    // F005.21 — replaying an event the provider already delivered, or is still
+    // retrying, sends it twice; replayFailed must touch ONLY failed ones.
+    name: "replayFailed replays every event, not only the failed ones",
+    file: "webhookAdmin",
+    from: '          if (e.status !== "failed") continue;\n',
+    to: "",
+    expect: ["replays every failed event across pages, and nothing else"],
+  },
+  {
+    // F005.21 — a rotation list that ends up empty must still mean "no secret",
+    // never fall through to a verifier with nothing to compare against.
+    name: "an empty secret list is no longer refused as no_secret",
+    file: "webhook",
+    from: "  if (secrets.length === 0) return { ok: false, reason: 'no_secret' };\n",
+    to: "",
+    expect: ["an empty list is no secret"],
   },
 ];
 

@@ -609,3 +609,37 @@ rather than being reshaped into a type we do model.
 
 `verifyWebhook` and `parseMailEvent` are exported separately if you want to wire
 your own handler. Zero dependencies — `node:crypto` only.
+
+## Webhook admin (v0.16.0, F005.21) — see what never reached you, and send it again
+
+When your webhook endpoint was down or answered wrong, the delivery event was lost to you and your
+`last_event` stayed wrong. Resend's headless webhook API (16/9 2026) lets you look and replay:
+
+```ts
+import { createWebhookAdmin, verifyWebhook } from "@broberg/mail/webhook";
+
+const admin = createWebhookAdmin({ apiKey: process.env.RESEND_FULL_ACCESS_KEY, webhookId: "4dd369bc-…" });
+
+const report = await admin.replayFailed({ max: 50 });   // { replayed, errors, scanned, complete, listError? }
+await admin.listEvents({ limit: 20 });                   // newest first; status success | failed | attempting | pending
+await admin.listAttempts(eventId);                       // what YOUR endpoint answered, each time
+await admin.replay(eventId);                             // one more delivery now
+```
+
+- **The key must be FULL-ACCESS.** Resend has no read-only key; a send-only key answers 401, and
+  that comes back as `could_not_ask` saying so — never as an empty list. Keep this key in the
+  vault and use it from an ops job or an agent, not from the code that sends mail.
+- `replayFailed` replays only `failed` events. `attempting` and `pending` are left alone, because
+  the provider is still retrying those itself.
+- Nothing throws. Results are `{ ok: true, value }`, or `{ ok: false, reason: "not_found" | "could_not_ask", detail }`.
+
+**Rotating the signing secret without dropping events:**
+
+```ts
+const r = await admin.rotateSecret();                    // { signingSecret } — store it, never log it
+// For 24 hours BOTH secrets sign every payload. Accept both, then drop the old one:
+verifyWebhook(rawBody, headers, [oldSecret, newSecret]);
+handleMailWebhook(rawBody, headers, { secret: [oldSecret, newSecret], onEvent });
+```
+
+An empty list is treated as no secret: refused, never accept-everything.
