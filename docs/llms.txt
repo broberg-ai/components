@@ -54,7 +54,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/gravatar** v0.2.1 — Isomorphic Gravatar helper (SHA-256 via crypto.subtle) + initials fallback. `npm i @broberg/gravatar`
 - **@broberg/device-stats** v0.3.0 — Which devices your users are actually on: desktop web vs mobile web vs INSTALLED PWA, OS + browser major version, and screen bucket, derived server…. `npm i @broberg/device-stats`
 - **@broberg/feature-stats** v0.1.0 — Which features in an app are actually used, and which never are: aggregate per-day counters (feature, day, count) and NOTHING else. `npm i @broberg/feature-stats`
-- **@broberg/consent-cookie** v0.5.1 — A consent and cookie banner. `npm i @broberg/consent-cookie`
+- **@broberg/consent-cookie** v0.6.0 — A consent and cookie banner. `npm i @broberg/consent-cookie`
 
 ### L2 — Shell (the app frame & controls)
 - **@broberg/theme** v0.9.0 — The 3-way light/dark/system switch, persisted: setPreference('system') follows the OS and KEEPS following it (0.7.0). `npm i @broberg/theme`
