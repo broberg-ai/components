@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-02T10:34:43.334Z",
- "repos_scanned": 65,
+ "scanned_at": "2026-10-03T09:55:12.604Z",
+ "repos_scanned": 66,
  "repos_failed": 0,
- "manifests_read": 225,
+ "manifests_read": 226,
  "manifests_unreadable": 0,
- "edges": 230,
+ "edges": 234,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -604,6 +604,13 @@
       "at": "packages/logger/package.json"
      }
     ],
+    "@broberg/http": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "packages/media/package.json"
+     }
+    ],
     "@broberg/ui-controls-core": [
      {
       "range": ">=0.1.1",
@@ -1140,6 +1147,13 @@
       "at": "apps/core/package.json"
      }
     ],
+    "@broberg/media": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
     "@broberg/notifications": [
      {
       "range": "0.4.0",
@@ -1340,7 +1354,7 @@
   },
   "broberg-ai/trail": {
    "branch": "main",
-   "manifests": 22,
+   "manifests": 23,
    "unreadable": 0,
    "deps": {
     "@broberg/apikey": [
@@ -1374,6 +1388,11 @@
       "range": "0.1.0",
       "field": "dependencies",
       "at": "apps/admin-server/package.json"
+     },
+     {
+      "range": "0.10.1",
+      "field": "dependencies",
+      "at": "apps/aidan/package.json"
      }
     ],
     "@broberg/sso": [
@@ -1419,19 +1438,12 @@
       "at": "apps/server/package.json"
      }
     ],
-    "@broberg/consent-cookie": [
-     {
-      "range": "0.5.1",
-      "field": "dependencies",
-      "at": "apps/docs/package.json"
-     },
-     {
-      "range": "0.5.1",
-      "field": "dependencies",
-      "at": "apps/landing/package.json"
-     }
-    ],
     "@broberg/ai-sdk": [
+     {
+      "range": "0.46.0",
+      "field": "dependencies",
+      "at": "apps/aidan/package.json"
+     },
      {
       "range": "0.48.0",
       "field": "dependencies",
@@ -1446,6 +1458,32 @@
       "range": "0.48.0",
       "field": "dependencies",
       "at": "packages/shared/package.json"
+     }
+    ],
+    "@broberg/forms-turnstile": [
+     {
+      "range": "^0.1.0",
+      "field": "dependencies",
+      "at": "apps/aidan/package.json"
+     }
+    ],
+    "@broberg/mail-core": [
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "apps/aidan/package.json"
+     }
+    ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.5.1",
+      "field": "dependencies",
+      "at": "apps/docs/package.json"
+     },
+     {
+      "range": "0.5.1",
+      "field": "dependencies",
+      "at": "apps/landing/package.json"
      }
     ],
     "@broberg/secret-scan": [
@@ -1463,6 +1501,13 @@
      }
     ]
    }
+  },
+  "broberg-ai/trail-site": {
+   "branch": "gh-pages",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
   },
   "broberg-ai/upmetrics": {
    "branch": "main",
