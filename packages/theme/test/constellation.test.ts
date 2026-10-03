@@ -26,16 +26,19 @@ function fakeCanvas() {
   return { canvas, ops };
 }
 
-let rafQueue: FrameRequestCallback[] = [];
+// A real-shaped rAF: cancel removes ONE id. (A cancel that empties the whole
+// queue hid the bug this suite exists for — measured by the mutation harness.)
+let rafQueue = new Map<number, FrameRequestCallback>();
+let rafId = 0;
 let reduced = false;
-const flush = (n = 1) => { for (let i = 0; i < n; i++) { const q = rafQueue; rafQueue = []; q.forEach((cb) => cb(0)); } };
+const flush = (n = 1) => { for (let i = 0; i < n; i++) { const q = [...rafQueue.values()]; rafQueue.clear(); q.forEach((cb) => cb(0)); } };
 const setVisible = (v: boolean) => Object.defineProperty(document, "visibilityState", { value: v ? "visible" : "hidden", configurable: true });
 
 beforeEach(() => {
-  rafQueue = [];
+  rafQueue = new Map();
   reduced = false;
-  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => (rafQueue.push(cb), rafQueue.length));
-  vi.stubGlobal("cancelAnimationFrame", () => { rafQueue = []; });
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => { rafQueue.set(++rafId, cb); return rafId; });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => { rafQueue.delete(id); });
   window.matchMedia = ((q: string) => ({ matches: q.includes("reduce") ? reduced : false, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
   Object.defineProperty(window, "innerWidth", { value: 1200, configurable: true });
   Object.defineProperty(window, "innerHeight", { value: 900, configurable: true });
@@ -56,7 +59,7 @@ describe("one loop at a time", () => {
     flush(3);
     expect(a.ops.length).toBe(before); // a never painted again after b mounted
     offA(); // disposing an already-disposed runtime is a no-op
-    expect(rafQueue).toEqual([]);
+    expect(rafQueue.size).toBe(0);
   });
 
   it("marks the canvas so palettes.css can hide it", () => {
@@ -88,7 +91,7 @@ describe("reduced motion: a still frame that survives", () => {
     const { canvas, ops } = fakeCanvas();
     const off = mountConstellation(canvas);
     expect(ops.filter((o) => o.op === "arc").length).toBeGreaterThan(0);
-    expect(rafQueue).toEqual([]);
+    expect(rafQueue.size).toBe(0);
     off();
   });
 
@@ -119,12 +122,12 @@ describe("animated", () => {
   it("loops while visible and does not paint while hidden", () => {
     const { canvas, ops } = fakeCanvas();
     const off = mountConstellation(canvas);
-    expect(rafQueue.length).toBe(1);
+    expect(rafQueue.size).toBe(1);
     setVisible(false);
     ops.length = 0;
     flush(2);
     expect(ops).toEqual([]);
-    expect(rafQueue.length).toBe(1); // still scheduled, just not drawing
+    expect(rafQueue.size).toBe(1); // still scheduled, just not drawing
     off();
   });
 });
