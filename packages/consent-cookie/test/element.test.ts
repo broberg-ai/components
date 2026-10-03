@@ -85,6 +85,19 @@ describe("first layer (AC#0)", () => {
     expect($(el, "consent-reject-all")!.className).toBe($(el, "consent-accept-all")!.className);
   });
 
+  // F014.19 — the compact phone row is [Customize][Reject][Accept] in ONE grid, so
+  // Customize must sit in the same row as the two choices (layout itself is
+  // measured with Lens; jsdom has none). It still opens the panel from there.
+  it("customize lives in the same row as reject/accept and still opens the panel", () => {
+    const el = mount();
+    const row = $(el, "consent-reject-all")!.parentElement!;
+    expect(row.className).toBe("row");
+    expect($(el, "consent-customize")!.parentElement).toBe(row);
+    expect($(el, "consent-accept-all")!.parentElement).toBe(row);
+    $(el, "consent-customize")!.click();
+    expect(visible(el, "consent-panel")).toBe(true);
+  });
+
   it("a granular choice stores exactly what was switched on", () => {
     const el = mount();
     $(el, "consent-customize")!.click();

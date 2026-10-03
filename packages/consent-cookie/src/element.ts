@@ -152,7 +152,19 @@ button{font:inherit}
 .btn:focus-visible,.switch:focus-visible,.reopen:focus-visible,a:focus-visible{outline:2px solid var(--bc-ring);outline-offset:2px}
 .main{background:var(--bc-primary);color:var(--bc-on-primary)}
 .ghost{background:transparent;color:var(--bc-fg);border-color:var(--bc-border);font-weight:500}
-.wide{margin-top:10px;display:block;width:100%}
+.wide{grid-column:1/-1;margin-top:2px}
+/* F014.19 — compact on a phone: the banner sat ~265px high on top of a site's own buttons.
+   One row [Customize-link][Reject][Accept]; Reject and Accept stay equal buttons (rejecting
+   must be as easy as accepting). The title is hidden visually only; aria-label names the
+   region. The text is never clamped: a cut-off consent text is a different text. */
+@media (max-width:520px){
+  .banner{padding:12px}
+  .banner h2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .banner p{font-size:12px;line-height:1.4;margin-bottom:10px}
+  .row{grid-template-columns:auto 1fr 1fr;align-items:center}
+  .row .btn{padding:9px 10px;font-size:13.5px}
+  .row .wide{grid-column:auto;order:-1;margin:0;padding:9px 4px;border:0;background:none;text-decoration:underline;font-size:13px}
+}
 .scrim{position:fixed;z-index:2147483001;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
 .panel{width:520px;max-width:100%;max-height:100%;overflow:auto;background:var(--bc-bg);color:var(--bc-fg);border:1px solid var(--bc-border);
   border-radius:calc(var(--bc-radius) + 4px);padding:22px}
@@ -441,8 +453,8 @@ export class BrobergConsentElement extends Base {
   <div class="row">
     <button class="btn main" data-act="reject" data-testid="consent-reject-all">${esc(t.rejectAll)}</button>
     <button class="btn main" data-act="accept" data-testid="consent-accept-all">${esc(t.acceptAll)}</button>
+    <button class="btn ghost wide" data-act="open" data-testid="consent-customize">${esc(t.customize)}</button>
   </div>
-  <button class="btn ghost wide" data-act="open" data-testid="consent-customize">${esc(t.customize)}</button>
 </div>
 <div class="scrim" ${this.view === "panel" ? "" : "hidden"}>
   <div class="panel" tabindex="-1" role="dialog" aria-modal="true" aria-label="${esc(t.panelTitle)}" data-testid="consent-panel">
