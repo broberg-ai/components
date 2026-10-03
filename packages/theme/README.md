@@ -78,6 +78,12 @@ prePaintScript({ storageKey: "cardmem.theme-pref", paletteKey: "cardmem.palette"
 
 Show `PALETTE_LABELS`, store the ids: renaming a label must never reset anyone's choice.
 
+**Call `initPalette()` FIRST, at module load, with your keys.** The keys live in
+the module: `setPalette` / `setSurfaces` / `setBackdrop` called before
+`initPalette({ …Key })` write under the DEFAULT keys (`broberg-palette`,
+`broberg-surfaces`, `broberg-backdrop`), and a consumer with its own keys then
+loses that choice on reload. Found by cardmem on 0.11.0 (3 Oct 2026).
+
 **Two vocabularies, pick one.** The palette axis uses cardmem's names (`--bg`,
 `--fg-muted`, `--gray-*` …) with `data-theme` = `light`/`dark`. The older
 `light-cool` / `dark-warm` / `dark-broberg` themes in `neutral-preset.css` use
