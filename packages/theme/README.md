@@ -13,6 +13,53 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
+## 0.10.0 — the palette axis: cardmem's colour choices, from one source (F001.18)
+
+cardmem, helpdesk and the trail app offer the same three choices. They now come
+from this package instead of three copies:
+
+| axis | attribute on `<html>` | values (stored id → label) |
+|---|---|---|
+| Theme | `data-theme` | `light` · `dark` (+ `system` as a preference) |
+| Palette | `data-palette` | none = `classic` **Ember** · `cool` **Graphite** · `warm` **Sandstone** · `broberg` **Fjord** |
+| Surfaces | `data-surfaces` | none = `flat` · `layered` |
+
+**CSS** — plain, so it imports straight from node_modules:
+
+```css
+@import "@broberg/theme/css/palettes.css";
+/* then map your own names, never copy values: */
+:root { --color-bg: var(--bg); --color-fg: var(--fg); /* … */ }
+```
+
+It carries the classic base (light + dark) for the shared set — every token a
+palette overrides, the status families (clay, olive, amber, sky, danger,
+success), graph-* and what they reference: 54 variables — then the three
+palettes × light/dark, then the surfaces. Values are cardmem's (origin/main
+433e7e27), held to them by `test/palettes.test.ts`, which also re-measures
+contrast for every palette × scheme (ported from cardmem's own test).
+
+**JS** — beside the theme store:
+
+```ts
+import { initPalette, setPalette, setSurfaces, PALETTES, PALETTE_LABELS, prePaintScript } from "@broberg/theme";
+
+initPalette({ paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" }); // your existing keys: nobody loses a choice
+setPalette("broberg");      // classic REMOVES the attribute and the key
+setSurfaces("layered");     // flat removes them
+// <head>, before the bundle — same keys:
+prePaintScript({ storageKey: "cardmem.theme-pref", paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" });
+```
+
+Show `PALETTE_LABELS`, store the ids: renaming a label must never reset anyone's choice.
+
+**Two vocabularies, pick one.** The palette axis uses cardmem's names (`--bg`,
+`--fg-muted`, `--gray-*` …) with `data-theme` = `light`/`dark`. The older
+`light-cool` / `dark-warm` / `dark-broberg` themes in `neutral-preset.css` use
+shadcn names and stay unchanged for the apps that use them. An app uses one or
+the other, not both. Backdrop (neurons/plain) is app graphics, not tokens, and
+stays in the app. Without the new options `prePaintScript` is unchanged.
+
 ## 0.9.0 — the broberg.ai palette (F001.17)
 
 Two new themes, `dark-broberg` and `light-broberg`: the house palette that

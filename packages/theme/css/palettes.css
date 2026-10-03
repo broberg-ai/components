@@ -1,0 +1,373 @@
+/* @broberg/theme — palettes.css (F001.18)
+ *
+ * THREE AXES on <html>, the same ones cardmem, helpdesk and the trail app use:
+ *   data-theme    light | dark             (the store resolves "system")
+ *   data-palette  (none)=classic "Ember" · cool "Graphite" · warm "Sandstone" · broberg "Fjord"
+ *   data-surfaces (none)=flat · layered
+ *
+ * Plain CSS — no @theme — so it can be @import-ed straight from node_modules:
+ *   @import "@broberg/theme/css/palettes.css";
+ * Map your own names on top (e.g. --color-bg: var(--bg)); do not copy values.
+ *
+ * SOURCE: lifted from cardmem (apps/web/src/design-tokens*.css + styles.css,
+ * origin/main 433e7e27, 3 Oct 2026). The CLASSIC block below is generated from
+ * cardmem's base files for the SHARED set only — every variable a palette
+ * overrides, the status families (clay, olive, amber, sky, danger, success),
+ * graph-* and everything they reference. cardmem's app-specific tokens
+ * (--acc-*, --booklet-*, --mk-* …) are not here and stay in cardmem.
+ * Every value is contrast-measured by test/palettes.test.ts, ported from
+ * cardmem's own palettes.test.ts.
+ *
+ * Ids are cardmem's STORED values, labels are separate: renaming a label must
+ * never reset anyone's choice.
+ */
+
+/* ── Classic ("Ember") — the base, light then dark ─────────────────────── */
+:root {
+  --ivory: #FAF9F5;
+  --slate: #141413;
+  --clay: #D97757;
+  --clay-d: #9E4F35;
+  --clay-bg: #F5E2D8;
+  --clay-border: #E8C9BA;
+  --clay-btn: #C6522D;
+  --oat: #E3DACC;
+  --olive: #788C5D;
+  --olive-d: #5C6F44;
+  --olive-bg: #E8EDE0;
+  --olive-border: #CFDAC0;
+  --olive-btn: #6B7C53;
+  --amber: #C99A2E;
+  --amber-d: #87671D;
+  --amber-bg: #F6EDD3;
+  --amber-border: #E7D6A6;
+  --amber-bg-h: #F0E4C0;
+  --paper: #ffffff;
+  --gray-50: #F0EEE6;
+  --gray-100: #E6E3DA;
+  --gray-200: #D1CFC5;
+  --gray-300: #B8B5A9;
+  --gray-400: #94918A;
+  --gray-500: #666560;
+  --gray-600: #5A5954;
+  --gray-700: #4A4945;
+  --gray-800: #3D3D3A;
+  --bg: #FAF9F5;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #F4F2EB;
+  --fg: #1A1715;
+  --fg-muted: rgba(26, 23, 21, 0.70);
+  --fg-subtle: rgba(26, 23, 21, 0.40);
+  --fg-faint: rgba(26, 23, 21, 0.20);
+  --border: rgba(26, 23, 21, 0.10);
+  --border-strong: rgba(26, 23, 21, 0.20);
+  --accent: #E8A87C;
+  --accent-soft: rgba(232, 168, 124, 0.16);
+  --accent-fg: #1A1715;
+  --danger: #BA3E0C;
+  --danger-bg: #FBE3D8;
+  --danger-border: #F0C4A8;
+  --danger-btn: #B23A0B;
+  --sky-d: #3F6E78;
+  --sky-bg: #E2EDEF;
+  --sky-border: #C2DBDF;
+  --success: #15803D;
+  --hover: rgba(26, 23, 21, 0.04);
+  --active: rgba(26, 23, 21, 0.08);
+  --graph-line: 26, 23, 21;
+  --graph-node: #1a1715;
+  --graph-accent: #e8a87c;
+  --graph-accent-line: 232, 168, 124;
+}
+:root[data-theme='dark'] {
+  --ivory: #17140F;
+  --slate: #F5F1EA;
+  --paper: #1F1B16;
+  --oat: #3A332A;
+  --bg: #17140F;
+  --bg-card: #1F1B16;
+  --bg-sunk: #14110D;
+  --fg: #F5F1EA;
+  --fg-muted: rgba(245, 241, 234, 0.70);
+  --fg-subtle: rgba(245, 241, 234, 0.40);
+  --fg-faint: rgba(245, 241, 234, 0.20);
+  --border: rgba(245, 241, 234, 0.10);
+  --border-strong: rgba(245, 241, 234, 0.20);
+  --hover: rgba(245, 241, 234, 0.05);
+  --active: rgba(245, 241, 234, 0.09);
+  --gray-50: #201C16;
+  --gray-100: #272219;
+  --gray-200: #342D24;
+  --gray-300: #4A4137;
+  --gray-400: #6B6155;
+  --gray-500: #A79F92;
+  --gray-600: #BEB7AB;
+  --gray-700: #CFC8BC;
+  --gray-800: #DED8CE;
+  --accent: #E8A87C;
+  --accent-soft: rgba(232, 168, 124, 0.14);
+  --accent-fg: #17140F;
+  --clay: #E08B62;
+  --clay-d: #F0A886;
+  --clay-bg: #3B2419;
+  --clay-border: #5A3826;
+  --olive: #93A874;
+  --olive-d: #AFC293;
+  --olive-bg: #232B1B;
+  --clay-btn: #C05826;
+  --olive-btn: #6A7D4F;
+  --danger-btn: #C55405;
+  --olive-border: #3A462C;
+  --amber: #DCB458;
+  --amber-d: #EBCB86;
+  --amber-bg: #322813;
+  --amber-border: #4E3F1F;
+  --amber-bg-h: #3E3118;
+  --danger: #F97316;
+  --danger-bg: #3A1E10;
+  --danger-border: #5C321A;
+  --success: #4ADE80;
+  --sky-d: #8FBDC7;
+  --sky-bg: #16262A;
+  --sky-border: #243C42;
+  --graph-node: #f5f1ea;
+  --graph-line: 245, 241, 234;
+  --graph-accent: #e8a87c;
+  --graph-accent-line: 232, 168, 124;
+}
+
+/* ── Cool — graphite instead of espresso ─────────────────────────────── */
+:root[data-palette='cool'][data-theme='dark'] {
+  --ivory: #22262C;
+  --slate: #F3F4F6;
+  --paper: #2B3037;
+  --oat: #3D434C;
+  --bg: #22262C;
+  --bg-card: #2B3037;
+  --bg-sunk: #1C1F24;
+  --fg: #F3F4F6;
+  --fg-muted: rgba(243, 244, 246, 0.74);
+  --fg-subtle: rgba(243, 244, 246, 0.52);
+  --fg-faint: rgba(243, 244, 246, 0.24);
+  --border: rgba(243, 244, 246, 0.12);
+  --border-strong: rgba(243, 244, 246, 0.22);
+  --hover: rgba(243, 244, 246, 0.06);
+  --active: rgba(243, 244, 246, 0.10);
+  --gray-50: #2F343B;
+  --gray-100: #353A42;
+  --gray-200: #3F454E;
+  --gray-300: #555C66;
+  --gray-400: #7A828D;
+  --gray-500: #B4BBC4;
+  --gray-600: #C7CDD4;
+  --gray-700: #D6DADF;
+  --gray-800: #E4E7EA;
+  --accent-fg: #22262C;
+}
+:root[data-palette='cool'][data-theme='light'] {
+  --ivory: #F7F8FA;
+  --slate: #1B1D21;
+  --paper: #FFFFFF;
+  --oat: #DDE1E6;
+  --bg: #F7F8FA;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #EFF1F4;
+  --fg: #1B1D21;
+  --fg-muted: rgba(27, 29, 33, 0.72);
+  --fg-subtle: rgba(27, 29, 33, 0.48);
+  --fg-faint: rgba(27, 29, 33, 0.20);
+  --border: rgba(27, 29, 33, 0.10);
+  --border-strong: rgba(27, 29, 33, 0.20);
+  --hover: rgba(27, 29, 33, 0.04);
+  --active: rgba(27, 29, 33, 0.08);
+  --gray-50: #EEF0F3;
+  --gray-100: #E4E7EB;
+  --gray-200: #CDD2D9;
+  --gray-300: #B2B9C2;
+  --gray-400: #8C949E;
+  --gray-500: #5B636D;
+  --gray-600: #4D545D;
+  --gray-700: #3F454D;
+  --gray-800: #32373E;
+}
+
+/* ── Warm — the same lift, in warm stone ─────────────────────────────── */
+:root[data-palette='warm'][data-theme='dark'] {
+  --ivory: #2A2622;
+  --slate: #F6F2EC;
+  --paper: #34302B;
+  --oat: #4A443C;
+  --bg: #2A2622;
+  --bg-card: #34302B;
+  --bg-sunk: #231F1C;
+  --fg: #F6F2EC;
+  --fg-muted: rgba(246, 242, 236, 0.76);
+  --fg-subtle: rgba(246, 242, 236, 0.54);
+  --fg-faint: rgba(246, 242, 236, 0.24);
+  --border: rgba(246, 242, 236, 0.12);
+  --border-strong: rgba(246, 242, 236, 0.22);
+  --hover: rgba(246, 242, 236, 0.06);
+  --active: rgba(246, 242, 236, 0.10);
+  --gray-50: #38332E;
+  --gray-100: #3F3A34;
+  --gray-200: #4A443D;
+  --gray-300: #615A51;
+  --gray-400: #857C71;
+  --gray-500: #C9C0B4;
+  --gray-600: #D6CEC3;
+  --gray-700: #E1DAD0;
+  --gray-800: #EBE5DC;
+  --accent-fg: #2A2622;
+}
+:root[data-palette='warm'][data-theme='light'] {
+  --ivory: #FBF8F3;
+  --slate: #221E1A;
+  --paper: #FFFFFF;
+  --oat: #E8E0D4;
+  --bg: #FBF8F3;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #F4EFE7;
+  --fg: #221E1A;
+  --fg-muted: rgba(34, 30, 26, 0.72);
+  --fg-subtle: rgba(34, 30, 26, 0.48);
+  --fg-faint: rgba(34, 30, 26, 0.20);
+  --border: rgba(34, 30, 26, 0.10);
+  --border-strong: rgba(34, 30, 26, 0.20);
+  --hover: rgba(34, 30, 26, 0.04);
+  --active: rgba(34, 30, 26, 0.08);
+  --gray-50: #F3EEE6;
+  --gray-100: #EAE4DA;
+  --gray-200: #D6CFC3;
+  --gray-300: #BDB5A8;
+  --gray-400: #978F84;
+  --gray-500: #635C54;
+  --gray-600: #554F48;
+  --gray-700: #47423C;
+  --gray-800: #3A3631;
+}
+
+/* ── Broberg.ai — the house palette ───────────────────────────────────── */
+:root[data-palette='broberg'][data-theme='dark'] {
+  --ivory: #23282F;
+  --slate: #F0F4F8;
+  --paper: #2C3137;
+  --oat: #3A4049;
+  --bg: #23282F;
+  --bg-card: #2C3137;
+  --bg-sunk: #1C2027;
+  --fg: #F0F4F8;
+  --fg-muted: rgba(240, 244, 248, 0.72);
+  --fg-subtle: rgba(240, 244, 248, 0.50);
+  --fg-faint: rgba(240, 244, 248, 0.22);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.10);
+  --gray-50: #30353C;
+  --gray-100: #363C44;
+  --gray-200: #40464F;
+  --gray-300: #565D67;
+  --gray-400: #7A838E;
+  --gray-500: #A9B2BD;
+  --gray-600: #BFC7D0;
+  --gray-700: #D2D8DF;
+  --gray-800: #E2E6EB;
+  /* The house orange: #f3522c fills a surface, #ff6a45 is the readable TEXT
+     variant (BID keeps the two apart, and so do we). A button carrying white
+     text needs a deeper step of the same orange — #f3522c holds white at 3.47:1. */
+  --accent: #F3522C;
+  --accent-soft: rgba(243, 82, 44, 0.16);
+  --accent-fg: #1C2027;      /* ink ON the orange — white would be 3.47:1 */
+  --clay: #F3522C;
+  --clay-d: #FF6A45;
+  --clay-bg: #3A2622;
+  --clay-border: #5C3328;
+  --clay-btn: #C93C18;
+  --sky-d: #00B2FF;
+  --graph-accent: #f3522c;
+  --graph-accent-line: 243, 82, 44;
+}
+
+:root[data-palette='broberg'][data-theme='light'] {
+  --ivory: #F5F7FA;
+  --slate: #161B22;
+  --paper: #FFFFFF;
+  --oat: #DCE2EA;
+  --bg: #F5F7FA;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #EEF2F7;
+  --fg: #161B22;
+  --fg-muted: rgba(22, 27, 34, 0.72);
+  --fg-subtle: rgba(22, 27, 34, 0.48);
+  --fg-faint: rgba(22, 27, 34, 0.20);
+  --border: rgba(17, 25, 38, 0.13);
+  --border-strong: rgba(17, 25, 38, 0.22);
+  --hover: rgba(17, 25, 38, 0.045);
+  --active: rgba(17, 25, 38, 0.08);
+  --gray-50: #EEF2F7;
+  --gray-100: #E4E9F0;
+  --gray-200: #CDD4DD;
+  --gray-300: #B1BAC5;
+  --gray-400: #8A95A2;
+  --gray-500: #5A6572;
+  --gray-600: #4A5461;
+  --gray-700: #3B4450;
+  --gray-800: #2D3540;
+  /* #ec4e27 fills; the orange TEXT is one step deeper than BID's #c93a16, which
+     measured 4.38:1 on the pale orange label (clay-bg) — the EPIC pill. */
+  --accent: #EC4E27;
+  --accent-soft: rgba(236, 78, 39, 0.12);
+  --accent-fg: #161B22;
+  --clay: #EC4E27;
+  --clay-d: #B83412;
+  --clay-bg: #FDE9E3;
+  --clay-border: #F6C3B4;
+  --clay-btn: #B83412;
+  --sky-d: #0072A8;
+  --graph-accent: #ec4e27;
+  --graph-accent-line: 236, 78, 39;
+}
+
+/* ── Layered surfaces — header, sidebar panel, workspace and cards ─────────
+ *
+ * Christian, 1 Oct 2026: «alle flader helt samme farve pånær cards … Lav en
+ * mockup hvor fladerne (panel, workspace, header) har nogle nuancer», then, on
+ * mockup 01a0f919 v5: «Layered er helt klart en retning også» — offered as a
+ * CHOICE in the user menu (Surfaces: Flat · Layered), not a replacement.
+ *
+ * A THIRD axis, `data-surfaces`, beside data-theme and data-palette. Flat = no
+ * attribute, so the shell paints exactly as before: the defaults below point
+ * every surface at the token it used until now. Layered re-points the four, one
+ * step apart, values copied from the approved mockup. Classic has no
+ * data-palette, hence :not([data-palette]) — (0,4,0) like the palette rows, so
+ * it beats every palette block (0,3,0) without !important.
+ */
+:root {
+  --surface-header: var(--bg);
+  --surface-panel: var(--bg);
+  --surface-work: var(--ivory);
+}
+:root[data-surfaces='layered']:not([data-palette])[data-theme='dark'] {
+  --surface-header: #241F18; --surface-panel: #1B1712; --surface-work: #14110D; --bg-card: #2A241C;
+}
+:root[data-surfaces='layered']:not([data-palette])[data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #EFEAE0; --surface-work: #F7F5EF; --bg-card: #FFFFFF;
+}
+:root[data-surfaces='layered'][data-palette='cool'][data-theme='dark'] {
+  --surface-header: #2E333B; --surface-panel: #1F2328; --surface-work: #262A31; --bg-card: #323840;
+}
+:root[data-surfaces='layered'][data-palette='cool'][data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #E9ECF0; --surface-work: #F4F5F7; --bg-card: #FFFFFF;
+}
+:root[data-surfaces='layered'][data-palette='warm'][data-theme='dark'] {
+  --surface-header: #38332D; --surface-panel: #26221E; --surface-work: #2E2A25; --bg-card: #3B362F;
+}
+:root[data-surfaces='layered'][data-palette='warm'][data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #F0E9DE; --surface-work: #F8F4EE; --bg-card: #FFFFFF;
+}
+:root[data-surfaces='layered'][data-palette='broberg'][data-theme='dark'] {
+  --surface-header: #2C3137; --surface-panel: #1C2027; --surface-work: #23282F; --bg-card: #30363D;
+}
+:root[data-surfaces='layered'][data-palette='broberg'][data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #E8EDF3; --surface-work: #F5F7FA; --bg-card: #FFFFFF;
+}

@@ -1,0 +1,200 @@
+/* F313.1 — the DARK palette.
+ *
+ * HAND-AUTHORED, beside a GENERATED file, and that is a deliberate exception
+ * worth stating where the next reader stands. `design-tokens.css` is produced
+ * from DESIGN.md by @broberg/theme/design-md, and that generator CANNOT express
+ * a second palette — its own error string says so: "[data-theme] block(s) were
+ * NOT read — a variant re-declares the same names with different values, and
+ * merging them would silently overwrite the base palette". A dark block written
+ * into DESIGN.md today would be discarded in silence.
+ *
+ * So this file exists, the gap is filed with `components`, and the day the
+ * generator learns `colors_dark:` this file is DELETED rather than migrated.
+ *
+ * WHAT KEEPS IT FROM DRIFTING, since a hand-written file beside a generated one
+ * is exactly the trap: `design-tokens-dark.test.ts` parses BOTH files and
+ * compares the token NAME SETS. A token added to DESIGN.md with no dark
+ * counterpart fails the suite by name — not by a count, which would pass on a
+ * dark block declaring the right NUMBER of the wrong names.
+ *
+ * ── WHERE THE VALUES COME FROM ───────────────────────────────────────────────
+ * Christian: "Søg for at farve paletten minder om trail i darkmode, aflæs css i
+ * trails repo." Measured before writing: Trail's LIGHT palette is byte-identical
+ * to ours — same --bg #FAF9F5, same --fg #1A1715, same --accent #E8A87C, the same
+ * four shadows, the same graph values. Two repos, one design language. So the
+ * ground, ink, borders, danger, success and shadows below are READ from
+ * trail/apps/admin/src/index.css, not invented.
+ *
+ * Trail covers ~20 of our 130 tokens. The rest are derived, and the derivation
+ * has one rule worth knowing because it INVERTS:
+ *
+ *   in LIGHT  `x-d` is the DARKER tone — status text on a pale tint
+ *   in DARK   `x-d` must be the LIGHTER tone — the same text on a dark tint
+ *
+ * A dark palette that keeps `-d` dark produces text you cannot read, on exactly
+ * the surfaces that carry warnings. Same for `-bg` (a pale tint becomes a deep
+ * one) and `-border` (a pale edge becomes a mid one).
+ *
+ * ── WHAT DOES NOT MOVE ───────────────────────────────────────────────────────
+ * `--accent` is #E8A87C in BOTH modes. It is the one value a well-meaning
+ * "improve the contrast" pass would change, and it is the character of the brand
+ * in both — Trail keeps it too. There is a test asserting it, so the next
+ * contrast sweep has to argue with a red suite rather than with a comment.
+ *
+ * The radius tokens are not colours and are declared once, in the generated
+ * file. They are deliberately absent here; the name-set guard knows to exempt
+ * them rather than demanding a pointless redeclaration.
+ */
+
+:root[data-theme='dark'] {
+  /* ── Ground and ink — read from Trail ────────────────────────────────── */
+  --ivory: #17140F;          /* the page ground; `html` paints it */
+  --slate: #F5F1EA;          /* body ink */
+  --paper: #1F1B16;          /* a raised surface: card, panel, menu */
+  --oat: #3A332A;            /* the warm divider */
+  --bg: #17140F;
+  --bg-card: #1F1B16;
+  --bg-sunk: #14110D;
+  --fg: #F5F1EA;
+  --fg-muted: rgba(245, 241, 234, 0.70);
+  --fg-subtle: rgba(245, 241, 234, 0.40);
+  --fg-faint: rgba(245, 241, 234, 0.20);
+  /* F362 — the modal scrim, DARKER in dark mode rather than the same value.
+     The light scrim dims an ivory page; here it dims a page that is already
+     near-black, so .45 would barely separate the dialog from what is behind it.
+     Deliberately not reused from light: a scrim's job is the SEPARATION, and
+     that needs a different number when the background changed. */
+  --scrim: rgba(0, 0, 0, 0.65);
+  --scrim-light: rgba(0, 0, 0, 0.50);
+  --border: rgba(245, 241, 234, 0.10);
+  --border-strong: rgba(245, 241, 234, 0.20);
+  --hover: rgba(245, 241, 234, 0.05);
+  --active: rgba(245, 241, 234, 0.09);
+
+  /* ── The grey ramp, inverted. 50 is nearest the ground and 800 nearest the
+       ink in BOTH modes, so every existing usage keeps its meaning. ──────── */
+  --gray-50: #201C16;
+  --gray-100: #272219;
+  --gray-200: #342D24;
+  --gray-300: #4A4137;
+  --gray-400: #6B6155;
+  --gray-500: #A79F92;       /* muted label text — the ramp's workhorse */
+  --gray-600: #BEB7AB;
+  --gray-700: #CFC8BC;
+  --gray-800: #DED8CE;
+
+  /* ── Accent — IDENTICAL to light, on purpose. See the header. ─────────── */
+  --accent: #E8A87C;
+  --accent-soft: rgba(232, 168, 124, 0.14);
+  --accent-fg: #17140F;      /* ink ON the accent — inverts with the ground */
+  --tip: #FFF6C4;            /* F313.10 — paper-yellow tooltip, same in both themes */
+  --tip-fg: #2B2618;
+  --tip-border: #E2D184;
+
+  /* ── Clay: the primary brand fill. Lifted just enough to sit on near-black
+       without becoming a different colour. ──────────────────────────────── */
+  --clay: #E08B62;
+  --clay-d: #F0A886;
+  --clay-bg: #3B2419;
+  --clay-border: #5A3826;
+
+  /* ── Olive ──────────────────────────────────────────────────────────── */
+  --olive: #93A874;
+  --olive-d: #AFC293;
+  --olive-bg: #232B1B;
+
+  /* F095.41 — the two states of the favourite star.
+     THE SHARED HEX IS GONE, and why it had to go is the lesson: #7D7669 was
+     picked to "sit between the two surfaces" and clear 3:1 on both, which it
+     did — 3.81:1 here, 4.50:1 on white. A CONTROL needs 4.5:1, and one value
+     between two surfaces clears that on neither. Forked per theme instead.
+     --fav-on keeps the exact hex --clay has here, so dark is unchanged on
+     screen; light is where the filled star was 2.49:1 and never measured.
+     Worst of the three backdrops (menu / active row / hovered row):
+     fav-empty 4.74:1, fav-on 5.54:1. */
+  --fav-empty: #9A9384;
+  --fav-on: #E08B62;
+  /* F315 — the accent surfaces that carry WHITE text. The identity tokens above
+     do NOT move: white on --clay measures 2.61:1 here and AA needs 4.5, so a
+     readable button and a recognisable brand are two different colours. Solved
+     by walking lightness down with hue and saturation fixed, so it is the same
+     colour, darker — not a different one. */
+  --clay-btn: #C05826;
+  --olive-btn: #6A7D4F;
+  --danger-btn: #C55405;
+  /* F315 — white in dark too: the surface under it is a saturated accent here as
+     well, so this token deliberately does NOT flip. */
+  --fg-on-accent: #FFFFFF;
+
+  --olive-border: #3A462C;
+
+  /* ── Amber ──────────────────────────────────────────────────────────── */
+  --amber: #DCB458;
+  --amber-d: #EBCB86;
+  --amber-bg: #322813;
+  --amber-border: #4E3F1F;
+  --amber-bg-h: #3E3118;
+
+  /* ── Live — the running-session green, and its glow ─────────────────── */
+  --live: #7BC55A;
+  --live-glow: rgba(123, 197, 90, 0.45);
+
+  /* ── Danger and success — Trail's own dark values ───────────────────── */
+  --danger: #F97316;
+  --danger-bg: #3A1E10;
+  --danger-border: #5C321A;
+  --success: #4ADE80;
+
+  /* ── F373 — the journey booklet's own palette, its dark-mode values ────
+     (booklet-only, owner 3 Oct 2026; same values the booklet's own dark block uses) */
+  --booklet-rubric: #E08A70;
+  --booklet-built: #8FD4AA;
+  --booklet-built-dark: #8FD4AA;
+  --booklet-partial: #E6C860;
+  --booklet-missing: #F2A08F;
+
+  /* ── Cool ───────────────────────────────────────────────────────────── */
+  --cool: #9AA3AE;
+  --cool-bg: #1D2024;
+  --cool-border: #2E333A;
+
+  /* ── Plum ───────────────────────────────────────────────────────────── */
+  --plum-d: #C39BDC;
+  --plum-bg: #2A1F33;
+  --plum-border: #40304E;
+
+  /* ── Sky ────────────────────────────────────────────────────────────── */
+  --sky-d: #8FBDC7;
+  --sky-bg: #16262A;
+  --sky-border: #243C42;
+
+  /* ── Marker colours (the timeline's kinds). Hue kept so a marker is the
+       same THING in both modes; lightness lifted so it reads on the dark. ─ */
+  --mk-incident: #EFC04A;
+  --mk-resume: #7C9BD6;
+  --mk-artifact: #A98BE0;
+  --mk-intercom: #4FC7BC;
+
+  /* ── Account identity. These name PEOPLE, so the hue is the identity and
+       only the lightness moves — Mikkel must stay blue, Airina purple. ──── */
+  --acc-christian: #E8926F;
+  --acc-aidan: #8FAE79;
+  --acc-mikkel: #7FA3C4;
+  --acc-airina: #B08FC0;
+}
+
+/* Shadows and the constellation, which live in @theme in styles.css rather than
+   in the generated token file. On a dark ground a shadow tinted with the LIGHT
+   ink (rgba(26,23,21,…)) is invisible — depth in dark comes from black, and it
+   has to be stronger to read at all. Trail's values. */
+:root[data-theme='dark'] {
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.50), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 28px 64px rgba(0, 0, 0, 0.60), 0 8px 24px rgba(0, 0, 0, 0.40);
+  /* The starfield is drawn in JS from these; F313.5 makes it re-read them. */
+  --graph-node: #f5f1ea;
+  --graph-line: 245, 241, 234;
+  --graph-accent: #e8a87c;
+  --graph-accent-line: 232, 168, 124;
+}

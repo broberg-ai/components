@@ -26,7 +26,9 @@ const CORE = join(HERE, "src/index.ts");
 // F001.16 — a harness that can only mutate ONE file leaves every decision in the
 // other file undefended, and says nothing about it. Each mutation names its own
 // target now; `SRC` stays the default so no existing entry moves.
-const GUARDED = ["src/design-md.ts", "src/index.ts"];
+const GUARDED = ["src/design-md.ts", "src/index.ts", "src/palette.ts", "css/palettes.css"];
+const PALETTE_SRC = join(HERE, "src/palette.ts");
+const PALETTES_CSS = join(HERE, "css/palettes.css");
 const fileOf = (m) => m.file ?? SRC;
 
 const MUTATIONS = [
@@ -154,6 +156,30 @@ const MUTATIONS = [
     from: `export function setPreference(pref: ThemePreference): void {
   if (!isPreference(pref)) return;`,
     to: `export function setPreference(pref: ThemePreference): void {`,
+  },
+  {
+    name: "F001.18 broberg light clay-d back to BID's #C93A16 (4.38:1 on the EPIC pill)",
+    file: PALETTES_CSS,
+    from: `  --clay-d: #B83412;`,
+    to: `  --clay-d: #C93A16;`,
+  },
+  {
+    name: "F001.18 a palette overrides a token the base does not have (a typo silently ignored)",
+    file: PALETTES_CSS,
+    from: `  --gray-400: #857C71;`,
+    to: `  --grey-400: #857C71;`,
+  },
+  {
+    name: "F001.18 pre-paint accepts any stored palette (a label like 'fjord' lands on <html>)",
+    file: CORE,
+    from: "`if(${valid}.indexOf(q)>=0)document.documentElement.setAttribute(\"data-palette\",q)` +",
+    to: "`if(q)document.documentElement.setAttribute(\"data-palette\",q)` +",
+  },
+  {
+    name: "F001.18 classic is stored instead of removed (the default stops being 'no attribute')",
+    file: PALETTE_SRC,
+    from: `  const v = next === "classic" ? null : next;`,
+    to: `  const v = next;`,
   },
 
 ];

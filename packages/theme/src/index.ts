@@ -10,6 +10,8 @@
  * six-variant token system shipped by the neutral CSS preset.
  */
 
+import { PALETTES } from "./palette";
+
 export type ThemeKey =
   | "light"
   | "dark"
@@ -289,6 +291,14 @@ export interface PrePaintOptions {
    * prevent. Default `"dark"`, matching initTheme's own default.
    */
   defaultPreference?: ThemePreference;
+  /**
+   * F001.18 — also restore `data-palette` from this localStorage key before the
+   * first paint. Absent ⇒ the snippet does not touch the palette (unchanged from
+   * 0.9.0). Pass the same key you give `initPalette({ paletteKey })`.
+   */
+  paletteKey?: string;
+  /** F001.18 — same for `data-surfaces` (`initPalette({ surfacesKey })`). */
+  surfacesKey?: string;
 }
 
 /**
@@ -370,6 +380,47 @@ export function prePaintScript(options: PrePaintOptions = {}): string {
     `if(p!=="system"&&K.indexOf(p)<0)p=d;` +
     `var t=p==="system"?(matchMedia(${query}).matches?"light":"dark"):p;` +
     `document.documentElement.setAttribute("data-theme",t)` +
-    `}catch(e){}`
+    `}catch(e){}` +
+    paletteSnippet(options)
   );
 }
+
+// F001.18 — its own try, so a palette that cannot be read never costs the
+// theme that already applied. Same validity rule as initPalette: an unknown
+// palette is classic (no attribute), anything but "layered" is flat.
+function paletteSnippet(options: PrePaintOptions): string {
+  let out = "";
+  if (options.paletteKey) {
+    const key = JSON.stringify(options.paletteKey);
+    const valid = JSON.stringify(PALETTES.filter((p) => p !== "classic"));
+    out +=
+      `try{var q=localStorage.getItem(${key});` +
+      `if(${valid}.indexOf(q)>=0)document.documentElement.setAttribute("data-palette",q)` +
+      `}catch(e){}`;
+  }
+  if (options.surfacesKey) {
+    const key = JSON.stringify(options.surfacesKey);
+    out +=
+      `try{if(localStorage.getItem(${key})==="layered")` +
+      `document.documentElement.setAttribute("data-surfaces","layered")` +
+      `}catch(e){}`;
+  }
+  return out;
+}
+
+export {
+  PALETTES,
+  PALETTE_LABELS,
+  SURFACES,
+  DEFAULT_PALETTE_KEY,
+  DEFAULT_SURFACES_KEY,
+  isPalette,
+  initPalette,
+  getPalette,
+  setPalette,
+  onPaletteChange,
+  getSurfaces,
+  setSurfaces,
+  onSurfacesChange,
+} from "./palette";
+export type { Palette, Surfaces, InitPaletteOptions } from "./palette";

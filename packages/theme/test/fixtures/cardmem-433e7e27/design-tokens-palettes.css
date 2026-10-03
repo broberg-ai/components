@@ -1,0 +1,259 @@
+/* F313.9 — the PALETTES: Cool, Warm and Broberg.ai, on top of light/dark.
+ *
+ * Christian, 1 Oct 2026: today's dark palette is «MEGET dystert», then «Vi skal
+ * have implementeret dem alle i en Theme vælger» — Classic, Cool, Warm and the
+ * broberg.ai house palette. Proposals approved in mockup 01a0f919 (v3).
+ *
+ * TWO AXES. `data-theme` (light|dark) is unchanged and still decides which base
+ * file applies; `data-palette` sits on top and re-points the SURFACE + INK set.
+ * No `data-palette` = Classic, so anyone who never picks sees today's app
+ * byte-for-byte. Specificity is the mechanism: :root[data-palette][data-theme]
+ * is (0,3,0) and beats both the light :root (0,1,0) and dark :root[data-theme]
+ * (0,2,0) blocks.
+ *
+ * HAND-AUTHORED for the same reason as design-tokens-dark.css: the DESIGN.md
+ * generator cannot express a second palette. Every value was contrast-measured
+ * before it was written, and palettes.test.ts re-measures them from this file.
+ *
+ * BROBERG.AI is read from broberg-id/ui/src/app.css («HUSETS TOKENS»), not
+ * invented: #23282f ground, #f3522c orange as a surface, #ff6a45 as orange TEXT,
+ * #00b2ff cyan. Its LIGHT block is read from the same file's
+ * :root[data-theme="light"] (#f5f7fa ground, #ec4e27 orange, #c93a16 orange text,
+ * #0072a8 blue) — Christian, 1 Oct: «Der mangler Light broberg.ai Theme».
+ */
+
+/* ── Cool — graphite instead of espresso ─────────────────────────────── */
+:root[data-palette='cool'][data-theme='dark'] {
+  --ivory: #22262C;
+  --slate: #F3F4F6;
+  --paper: #2B3037;
+  --oat: #3D434C;
+  --bg: #22262C;
+  --bg-card: #2B3037;
+  --bg-sunk: #1C1F24;
+  --fg: #F3F4F6;
+  --fg-muted: rgba(243, 244, 246, 0.74);
+  --fg-subtle: rgba(243, 244, 246, 0.52);
+  --fg-faint: rgba(243, 244, 246, 0.24);
+  --border: rgba(243, 244, 246, 0.12);
+  --border-strong: rgba(243, 244, 246, 0.22);
+  --hover: rgba(243, 244, 246, 0.06);
+  --active: rgba(243, 244, 246, 0.10);
+  --gray-50: #2F343B;
+  --gray-100: #353A42;
+  --gray-200: #3F454E;
+  --gray-300: #555C66;
+  --gray-400: #7A828D;
+  --gray-500: #B4BBC4;
+  --gray-600: #C7CDD4;
+  --gray-700: #D6DADF;
+  --gray-800: #E4E7EA;
+  --accent-fg: #22262C;
+}
+:root[data-palette='cool'][data-theme='light'] {
+  --ivory: #F7F8FA;
+  --slate: #1B1D21;
+  --paper: #FFFFFF;
+  --oat: #DDE1E6;
+  --bg: #F7F8FA;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #EFF1F4;
+  --fg: #1B1D21;
+  --fg-muted: rgba(27, 29, 33, 0.72);
+  --fg-subtle: rgba(27, 29, 33, 0.48);
+  --fg-faint: rgba(27, 29, 33, 0.20);
+  --border: rgba(27, 29, 33, 0.10);
+  --border-strong: rgba(27, 29, 33, 0.20);
+  --hover: rgba(27, 29, 33, 0.04);
+  --active: rgba(27, 29, 33, 0.08);
+  --gray-50: #EEF0F3;
+  --gray-100: #E4E7EB;
+  --gray-200: #CDD2D9;
+  --gray-300: #B2B9C2;
+  --gray-400: #8C949E;
+  --gray-500: #5B636D;
+  --gray-600: #4D545D;
+  --gray-700: #3F454D;
+  --gray-800: #32373E;
+}
+
+/* ── Warm — the same lift, in warm stone ─────────────────────────────── */
+:root[data-palette='warm'][data-theme='dark'] {
+  --ivory: #2A2622;
+  --slate: #F6F2EC;
+  --paper: #34302B;
+  --oat: #4A443C;
+  --bg: #2A2622;
+  --bg-card: #34302B;
+  --bg-sunk: #231F1C;
+  --fg: #F6F2EC;
+  --fg-muted: rgba(246, 242, 236, 0.76);
+  --fg-subtle: rgba(246, 242, 236, 0.54);
+  --fg-faint: rgba(246, 242, 236, 0.24);
+  --border: rgba(246, 242, 236, 0.12);
+  --border-strong: rgba(246, 242, 236, 0.22);
+  --hover: rgba(246, 242, 236, 0.06);
+  --active: rgba(246, 242, 236, 0.10);
+  --gray-50: #38332E;
+  --gray-100: #3F3A34;
+  --gray-200: #4A443D;
+  --gray-300: #615A51;
+  --gray-400: #857C71;
+  --gray-500: #C9C0B4;
+  --gray-600: #D6CEC3;
+  --gray-700: #E1DAD0;
+  --gray-800: #EBE5DC;
+  --accent-fg: #2A2622;
+}
+:root[data-palette='warm'][data-theme='light'] {
+  --ivory: #FBF8F3;
+  --slate: #221E1A;
+  --paper: #FFFFFF;
+  --oat: #E8E0D4;
+  --bg: #FBF8F3;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #F4EFE7;
+  --fg: #221E1A;
+  --fg-muted: rgba(34, 30, 26, 0.72);
+  --fg-subtle: rgba(34, 30, 26, 0.48);
+  --fg-faint: rgba(34, 30, 26, 0.20);
+  --border: rgba(34, 30, 26, 0.10);
+  --border-strong: rgba(34, 30, 26, 0.20);
+  --hover: rgba(34, 30, 26, 0.04);
+  --active: rgba(34, 30, 26, 0.08);
+  --gray-50: #F3EEE6;
+  --gray-100: #EAE4DA;
+  --gray-200: #D6CFC3;
+  --gray-300: #BDB5A8;
+  --gray-400: #978F84;
+  --gray-500: #635C54;
+  --gray-600: #554F48;
+  --gray-700: #47423C;
+  --gray-800: #3A3631;
+}
+
+/* ── Broberg.ai — the house palette ───────────────────────────────────── */
+:root[data-palette='broberg'][data-theme='dark'] {
+  --ivory: #23282F;
+  --slate: #F0F4F8;
+  --paper: #2C3137;
+  --oat: #3A4049;
+  --bg: #23282F;
+  --bg-card: #2C3137;
+  --bg-sunk: #1C2027;
+  --fg: #F0F4F8;
+  --fg-muted: rgba(240, 244, 248, 0.72);
+  --fg-subtle: rgba(240, 244, 248, 0.50);
+  --fg-faint: rgba(240, 244, 248, 0.22);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.10);
+  --gray-50: #30353C;
+  --gray-100: #363C44;
+  --gray-200: #40464F;
+  --gray-300: #565D67;
+  --gray-400: #7A838E;
+  --gray-500: #A9B2BD;
+  --gray-600: #BFC7D0;
+  --gray-700: #D2D8DF;
+  --gray-800: #E2E6EB;
+  /* The house orange: #f3522c fills a surface, #ff6a45 is the readable TEXT
+     variant (BID keeps the two apart, and so do we). A button carrying white
+     text needs a deeper step of the same orange — #f3522c holds white at 3.47:1. */
+  --accent: #F3522C;
+  --accent-soft: rgba(243, 82, 44, 0.16);
+  --accent-fg: #1C2027;      /* ink ON the orange — white would be 3.47:1 */
+  --clay: #F3522C;
+  --clay-d: #FF6A45;
+  --clay-bg: #3A2622;
+  --clay-border: #5C3328;
+  --clay-btn: #C93C18;
+  --sky-d: #00B2FF;
+  --graph-accent: #f3522c;
+  --graph-accent-line: 243, 82, 44;
+}
+
+:root[data-palette='broberg'][data-theme='light'] {
+  --ivory: #F5F7FA;
+  --slate: #161B22;
+  --paper: #FFFFFF;
+  --oat: #DCE2EA;
+  --bg: #F5F7FA;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #EEF2F7;
+  --fg: #161B22;
+  --fg-muted: rgba(22, 27, 34, 0.72);
+  --fg-subtle: rgba(22, 27, 34, 0.48);
+  --fg-faint: rgba(22, 27, 34, 0.20);
+  --border: rgba(17, 25, 38, 0.13);
+  --border-strong: rgba(17, 25, 38, 0.22);
+  --hover: rgba(17, 25, 38, 0.045);
+  --active: rgba(17, 25, 38, 0.08);
+  --gray-50: #EEF2F7;
+  --gray-100: #E4E9F0;
+  --gray-200: #CDD4DD;
+  --gray-300: #B1BAC5;
+  --gray-400: #8A95A2;
+  --gray-500: #5A6572;
+  --gray-600: #4A5461;
+  --gray-700: #3B4450;
+  --gray-800: #2D3540;
+  /* #ec4e27 fills; the orange TEXT is one step deeper than BID's #c93a16, which
+     measured 4.38:1 on the pale orange label (clay-bg) — the EPIC pill. */
+  --accent: #EC4E27;
+  --accent-soft: rgba(236, 78, 39, 0.12);
+  --accent-fg: #161B22;
+  --clay: #EC4E27;
+  --clay-d: #B83412;
+  --clay-bg: #FDE9E3;
+  --clay-border: #F6C3B4;
+  --clay-btn: #B83412;
+  --sky-d: #0072A8;
+  --graph-accent: #ec4e27;
+  --graph-accent-line: 236, 78, 39;
+}
+
+/* ── Layered surfaces — header, sidebar panel, workspace and cards ─────────
+ *
+ * Christian, 1 Oct 2026: «alle flader helt samme farve pånær cards … Lav en
+ * mockup hvor fladerne (panel, workspace, header) har nogle nuancer», then, on
+ * mockup 01a0f919 v5: «Layered er helt klart en retning også» — offered as a
+ * CHOICE in the user menu (Surfaces: Flat · Layered), not a replacement.
+ *
+ * A THIRD axis, `data-surfaces`, beside data-theme and data-palette. Flat = no
+ * attribute, so the shell paints exactly as before: the defaults below point
+ * every surface at the token it used until now. Layered re-points the four, one
+ * step apart, values copied from the approved mockup. Classic has no
+ * data-palette, hence :not([data-palette]) — (0,4,0) like the palette rows, so
+ * it beats every palette block (0,3,0) without !important.
+ */
+:root {
+  --surface-header: var(--bg);
+  --surface-panel: var(--bg);
+  --surface-work: var(--ivory);
+}
+:root[data-surfaces='layered']:not([data-palette])[data-theme='dark'] {
+  --surface-header: #241F18; --surface-panel: #1B1712; --surface-work: #14110D; --bg-card: #2A241C;
+}
+:root[data-surfaces='layered']:not([data-palette])[data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #EFEAE0; --surface-work: #F7F5EF; --bg-card: #FFFFFF;
+}
+:root[data-surfaces='layered'][data-palette='cool'][data-theme='dark'] {
+  --surface-header: #2E333B; --surface-panel: #1F2328; --surface-work: #262A31; --bg-card: #323840;
+}
+:root[data-surfaces='layered'][data-palette='cool'][data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #E9ECF0; --surface-work: #F4F5F7; --bg-card: #FFFFFF;
+}
+:root[data-surfaces='layered'][data-palette='warm'][data-theme='dark'] {
+  --surface-header: #38332D; --surface-panel: #26221E; --surface-work: #2E2A25; --bg-card: #3B362F;
+}
+:root[data-surfaces='layered'][data-palette='warm'][data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #F0E9DE; --surface-work: #F8F4EE; --bg-card: #FFFFFF;
+}
+:root[data-surfaces='layered'][data-palette='broberg'][data-theme='dark'] {
+  --surface-header: #2C3137; --surface-panel: #1C2027; --surface-work: #23282F; --bg-card: #30363D;
+}
+:root[data-surfaces='layered'][data-palette='broberg'][data-theme='light'] {
+  --surface-header: #FFFFFF; --surface-panel: #E8EDF3; --surface-work: #F5F7FA; --bg-card: #FFFFFF;
+}
