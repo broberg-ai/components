@@ -80,7 +80,11 @@ const row = (pkg, ver, extra = "") => `{f:"F1",nm:"x",pkg:"${pkg}"${ver ? `,ver:
   const real = readFileSync(ROSTER, "utf8");
   const r = bumpVersions(real, "@broberg/theme", "9.9.9");
   check("the real roster has theme rows and they bump", r.found >= 1, true);
-  check("...and nothing else moved", real.length === r.source.length, true);
+  // Round-trip, not a length compare: "9.9.9" and "0.10.0" differ in length, so
+  // comparing lengths went red the day theme reached a two-digit minor.
+  const original = /pkg:"@broberg\/theme"[^}]*?ver:"([^"]+)"/.exec(real)?.[1];
+  const back = original ? bumpVersions(r.source, "@broberg/theme", original).source : null;
+  check("...and nothing else moved", back === real, true);
 }
 
 console.log(failed ? `\n${failed} failing\n` : `\nall green\n`);
