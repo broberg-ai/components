@@ -84,6 +84,17 @@ the module: `setPalette` / `setSurfaces` / `setBackdrop` called before
 `broberg-surfaces`, `broberg-backdrop`), and a consumer with its own keys then
 loses that choice on reload. Found by cardmem on 0.11.0 (3 Oct 2026).
 
+Two more from cardmem's migration (3 Oct 2026):
+
+- **The palette axis only knows `data-theme` = `light` / `dark`.** `initTheme` and
+  `prePaintScript` still accept every `THEME_KEYS` value from storage, so a stale
+  `dark-cool` from the older vocabulary would land on `<html>` and match none of
+  `palettes.css`. An app that offers only Light · Dark · System should reset
+  anything else at boot.
+- **For test authors:** with "system", the OS is asked via
+  `matchMedia("(prefers-color-scheme: light)")`. A stub that answers `false` to
+  everything therefore resolves to **dark**. Stub the light query explicitly.
+
 **Two vocabularies, pick one.** The palette axis uses cardmem's names (`--bg`,
 `--fg-muted`, `--gray-*` …) with `data-theme` = `light`/`dark`. The older
 `light-cool` / `dark-warm` / `dark-broberg` themes in `neutral-preset.css` use
