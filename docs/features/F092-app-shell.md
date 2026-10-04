@@ -8,6 +8,18 @@
 2. Hvad er app-specifikt (navigationsindhold, ruter) vs. genbrugelig kerne (layout, kollaps, mobil-drawer, tilstand gemt)?
 3. Stak A (React/Next) samtidig eller efter stak B?
 
+## Input modtaget 4/10
+
+**cardmem (#1626, læst ud af import-graf, ikke runtime-verificeret):** skallen er `app.tsx:664-705` (`.app-shell-root` → TopNav + `.app-shell-row`{AppSidebar + main} + MobileBottomNav, collapsed-state), `components/ui/top-nav.tsx` (121), `app-sidebar.tsx` (556), `nav-model.ts` (145; FORMEN GROUPS→items{path,icon,label,badge} er kernen, indholdet er cardmems), `user-menu.tsx` (507), `mobile-bottom-nav.tsx` (102), `brand.tsx`, `page-header.tsx` + `page-tabs.tsx` (faner som ruter), `lib/navigate.ts`; CSS `.app-sidebar*`, `.user-menu-*`, `app-shell-*` i styles.css.
+- App-specifikt, IKKE med: ProjectSwitcher, NotificationBell, SuperPill, ShortcutsButton, CaptureMenu; i sidebaren aktivt projekt, lens-fejltal, skjul/vis pr. item, favoritter; i menuen tenant/chat/zoom-sektionerne.
+- Foreslået kerne: **AppShell** (layout, kollaps, mobil-drawer + backdrop, bundnav), **Sidebar** (grupper, sammenklappelige grupper, fod; data som props; slots til header og badges), **TopBar** (brand-slot venstre, actions-slot, brugermenu ALTID yderst til højre), **UserMenu** (avatar, navn/e-mail, items som props, tema-sektion fra `@broberg/theme`, log-ud-callback), **PageHeader + PageTabs**.
+- Afhængighed der skal løsnes: user-menu/top-nav importerer cardmems auth og mcp direkte → props/callbacks.
+- Migrering: cardmem først, mål 0 visuel diff (Lens-baseline før/efter).
+
+**broberg-id (#1625):** BID-tokenet har `sub, name, email, email_verified, picture`. Avatar = OIDC `picture`; upload bor i BID. **Gravatar sender en hash af e-mailen til USA**, så standarden i brugermenuen bør være initialer, med Gravatar som tilvalg.
+
+Trail (originalen) er spurgt om divergens (#35950); svar afventes.
+
 ## Hvorfor
 
 Christian 4/10 (via appkit): appkit bliver en TYND starter (stak A Next + stak B lean); al genbrugelig kode ligger i offentlige `@broberg/*`-pakker. Skallen findes i dag i trail og cardmem (kopi), og helpdesk + nye apps vil ellers lave den tredje og fjerde.
