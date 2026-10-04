@@ -26,6 +26,8 @@
 
 Trails råd [Likely]: struktur fra trail (topbar + collapsible sidebar + menu-slot), datamodel fra cardmem (`nav-model.ts`: GROUPS→items).
 
+**Rettelse fra Christian via cardmem (#1628): klokken (notifikationscenter) SKAL med i skabelonen.** Kilde: cardmem `components/ui/notification-bell.tsx` (537; knap + panel/portal, mobil-variant via `use-is-mobile.ts`). Kun datakilden er cardmems (aktivt projekt, fetch/SSE, read-sync). Kerne: klokke, badge, panel, markér-som-læst, mobil-layout. Foreslået snit: `NotificationBell({ items, unreadCount, onOpen, onMarkRead, onMarkAllRead, renderItem? })`. Placering: i TopBar lige til venstre for brugermenuen.
+
 ## Næste skridt
 
 Mockup i cardmem (begge telefon-varianter side om side) → Christians valg → stories med AC → kode. Mål for migrering: cardmem og trail med 0 visuel diff (Lens-baseline før/efter).
