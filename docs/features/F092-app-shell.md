@@ -16,7 +16,7 @@
 - Afhængighed der skal løsnes: user-menu/top-nav importerer cardmems auth og mcp direkte → props/callbacks.
 - Migrering: cardmem først, mål 0 visuel diff (Lens-baseline før/efter).
 
-**broberg-id (#1625):** BID-tokenet har `sub, name, email, email_verified, picture`. Avatar = OIDC `picture`; upload bor i BID. **Gravatar sender en hash af e-mailen til USA**, så standarden i brugermenuen bør være initialer, med Gravatar som tilvalg.
+**broberg-id (#1625):** BID-tokenet har `sub, name, email, email_verified, picture`. Avatar = OIDC `picture`; upload bor i BID. ~~Gravatar som tilvalg~~ → **AFGJORT af Christian 4/10 (via broberg-id #1630): INGEN Gravatar.** Avatar = OIDC `picture` (uploades i BID, virker i dag); mangler den → initialer. Begrundelse: ingen flere US-tjenester end nødvendigt. Brugermenuen importerer IKKE `@broberg/gravatar`.
 
 **trail (#1627, målt i filerne):** originalen er `apps/admin/src/app.tsx` (TopNav + TrailSidebar + panel-ruter), `top-nav.tsx` (164; logo, tenant-pille, brain-brødkrumme, ⌘K, brugermenu), `trail-sidebar.tsx` (432; 240px ↔ 60px ikon-skinne, 4 grupper + fod, kollaps i localStorage, starter som skinne på telefon), `user-menu.tsx` (370). Divergens:
 1. **Brugermenuen er allerede konvergeret** til cardmems form og rækkefølge (trail F311.5): identitet → kontoindstillinger → Theme · Palette · Surfaces · Backdrop · Language · Sound → log ud. App-egne punkter (cardmem: zoom/chat; trail: søg/lab på telefon) bliver props.
