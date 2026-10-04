@@ -11,7 +11,7 @@
 ## Input modtaget 4/10
 
 **cardmem (#1626, læst ud af import-graf, ikke runtime-verificeret):** skallen er `app.tsx:664-705` (`.app-shell-root` → TopNav + `.app-shell-row`{AppSidebar + main} + MobileBottomNav, collapsed-state), `components/ui/top-nav.tsx` (121), `app-sidebar.tsx` (556), `nav-model.ts` (145; FORMEN GROUPS→items{path,icon,label,badge} er kernen, indholdet er cardmems), `user-menu.tsx` (507), `mobile-bottom-nav.tsx` (102), `brand.tsx`, `page-header.tsx` + `page-tabs.tsx` (faner som ruter), `lib/navigate.ts`; CSS `.app-sidebar*`, `.user-menu-*`, `app-shell-*` i styles.css.
-- App-specifikt, IKKE med: ProjectSwitcher, NotificationBell, SuperPill, ShortcutsButton, CaptureMenu; i sidebaren aktivt projekt, lens-fejltal, skjul/vis pr. item, favoritter; i menuen tenant/chat/zoom-sektionerne.
+- App-specifikt, IKKE med: ProjectSwitcher, SuperPill, ShortcutsButton, CaptureMenu; i sidebaren aktivt projekt, lens-fejltal, skjul/vis pr. item, favoritter; i menuen tenant/chat/zoom-sektionerne.
 - Foreslået kerne: **AppShell** (layout, kollaps, mobil-drawer + backdrop, bundnav), **Sidebar** (grupper, sammenklappelige grupper, fod; data som props; slots til header og badges), **TopBar** (brand-slot venstre, actions-slot, brugermenu ALTID yderst til højre), **UserMenu** (avatar, navn/e-mail, items som props, tema-sektion fra `@broberg/theme`, log-ud-callback), **PageHeader + PageTabs**.
 - Afhængighed der skal løsnes: user-menu/top-nav importerer cardmems auth og mcp direkte → props/callbacks.
 - Migrering: cardmem først, mål 0 visuel diff (Lens-baseline før/efter).
@@ -27,6 +27,12 @@
 Trails råd [Likely]: struktur fra trail (topbar + collapsible sidebar + menu-slot), datamodel fra cardmem (`nav-model.ts`: GROUPS→items).
 
 **Rettelse fra Christian via cardmem (#1628): klokken (notifikationscenter) SKAL med i skabelonen.** Kilde: cardmem `components/ui/notification-bell.tsx` (537; knap + panel/portal, mobil-variant via `use-is-mobile.ts`). Kun datakilden er cardmems (aktivt projekt, fetch/SSE, read-sync). Kerne: klokke, badge, panel, markér-som-læst, mobil-layout. Foreslået snit: `NotificationBell({ items, unreadCount, onOpen, onMarkRead, onMarkAllRead, renderItem? })`. Placering: i TopBar lige til venstre for brugermenuen.
+
+**Christian, skarpere (#1629): «Klokken er notifications — det SKAL være en standard del af skabelonen.»** Det betyder:
+- **Ikke et valgfrit slot.** TopBar har klokken med som STANDARD i både stak A og B.
+- **En standard-datakontrakt** leveres af pakken: `Notification { id, title, body?, href?, created_at, read_at }`.
+- **En minimal standard-kilde**, så en ny app har et virkende notifikationscenter fra første dag og kun skal pege den på sin backend.
+- Reference for kontrakten: cardmem `GET /api/notifications` + SSE read-sync (cardmem F175).
 
 ## Næste skridt
 
