@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-03T09:55:12.604Z",
- "repos_scanned": 66,
+ "scanned_at": "2026-10-04T10:38:58.444Z",
+ "repos_scanned": 67,
  "repos_failed": 0,
- "manifests_read": 226,
+ "manifests_read": 228,
  "manifests_unreadable": 0,
- "edges": 234,
+ "edges": 237,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -166,6 +166,25 @@
       "range": "0.3.1",
       "field": "dependencies",
       "at": "packages/panel/package.json"
+     }
+    ]
+   }
+  },
+  "broberg-ai/bid-docs": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/sso": [
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "examples/minimal-app/package.json"
+     },
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "examples/nextjs-app/package.json"
      }
     ]
    }
@@ -524,7 +543,7 @@
     ],
     "@broberg/theme": [
      {
-      "range": "0.6.0",
+      "range": "0.11.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -538,7 +557,7 @@
    "deps": {
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.1",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/discovery/package.json"
      }
@@ -788,7 +807,7 @@
     ],
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -1014,7 +1033,7 @@
    "deps": {
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/console/package.json"
      }
@@ -1042,7 +1061,7 @@
     ],
     "@broberg/theme": [
      {
-      "range": "0.8.0",
+      "range": "0.11.0",
       "field": "dependencies",
       "at": "apps/console/package.json"
      }
@@ -1135,7 +1154,7 @@
     ],
     "@broberg/mail": [
      {
-      "range": "^0.15.0",
+      "range": "^0.16.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1426,6 +1445,13 @@
       "at": "apps/admin/package.json"
      }
     ],
+    "@broberg/theme": [
+     {
+      "range": "0.11.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
     "@broberg/webpush": [
      {
       "range": "^0.5.0",
@@ -1481,7 +1507,7 @@
       "at": "apps/docs/package.json"
      },
      {
-      "range": "0.5.1",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/landing/package.json"
      }
@@ -1524,6 +1550,13 @@
     "@broberg/config": [
      {
       "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
+    "@broberg/device-stats": [
+     {
+      "range": "0.3.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
@@ -1665,7 +1698,7 @@
     ],
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -1936,40 +1969,40 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.49.2",
+      "range": "0.50.1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      },
      {
-      "range": "^0.41.1",
+      "range": "^0.50.1",
       "field": "dependencies",
       "at": "packages/cms-ai/package.json"
      }
     ],
     "@broberg/chat": [
      {
-      "range": ">=0.5.0 <1",
+      "range": ">=0.6.3 <1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
     ],
     "@broberg/cms-chat-client": [
      {
-      "range": "^0.4.14",
+      "range": "^0.4.20",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
     ],
     "@broberg/cms-inline-edit": [
      {
-      "range": ">=0.6.3 <1",
+      "range": ">=0.12.0 <1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
     ],
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
@@ -1983,28 +2016,28 @@
     ],
     "@broberg/mail": [
      {
-      "range": "0.7.1",
+      "range": "0.16.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
     ],
     "@broberg/mail-core": [
      {
-      "range": ">=0.8.0 <1",
+      "range": ">=0.9.0 <1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
     ],
     "@broberg/sso": [
      {
-      "range": "0.7.0",
+      "range": "0.8.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
     ],
     "@broberg/ui-controls-core": [
      {
-      "range": "0.2.2",
+      "range": "0.2.3",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      }
@@ -2018,7 +2051,7 @@
     ],
     "@broberg/lens-engine": [
      {
-      "range": ">=0.4.0",
+      "range": ">=0.10.0",
       "field": "peerDependencies",
       "at": "packages/cms-cli/package.json"
      }
@@ -2039,7 +2072,7 @@
    "deps": {
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -2201,7 +2234,7 @@
     ],
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "site/package.json"
      }
@@ -2284,7 +2317,7 @@
     ],
     "@broberg/consent-cookie": [
      {
-      "range": "0.5.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "package.json"
      }
