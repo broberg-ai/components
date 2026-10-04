@@ -18,7 +18,17 @@
 
 **broberg-id (#1625):** BID-tokenet har `sub, name, email, email_verified, picture`. Avatar = OIDC `picture`; upload bor i BID. **Gravatar sender en hash af e-mailen til USA**, så standarden i brugermenuen bør være initialer, med Gravatar som tilvalg.
 
-Trail (originalen) er spurgt om divergens (#35950); svar afventes.
+**trail (#1627, målt i filerne):** originalen er `apps/admin/src/app.tsx` (TopNav + TrailSidebar + panel-ruter), `top-nav.tsx` (164; logo, tenant-pille, brain-brødkrumme, ⌘K, brugermenu), `trail-sidebar.tsx` (432; 240px ↔ 60px ikon-skinne, 4 grupper + fod, kollaps i localStorage, starter som skinne på telefon), `user-menu.tsx` (370). Divergens:
+1. **Brugermenuen er allerede konvergeret** til cardmems form og rækkefølge (trail F311.5): identitet → kontoindstillinger → Theme · Palette · Surfaces · Backdrop · Language · Sound → log ud. App-egne punkter (cardmem: zoom/chat; trail: søg/lab på telefon) bliver props.
+2. **Sidebaren betyder to ting:** trail kun INDE i en brain (global navigation i topbjælken); cardmem global, med Standard/Advanced-filter, live-badges og målt højde.
+3. **Telefon:** trail = ikon-skinne; cardmem = hamburger-drawer + bundnavigation. → **Produktvalg for Christian** (vises i mockuppen).
+4. Topbjælke: trail tenant-pille + brødkrumme; cardmem projektvælger + hamburger → begge er slots.
+
+Trails råd [Likely]: struktur fra trail (topbar + collapsible sidebar + menu-slot), datamodel fra cardmem (`nav-model.ts`: GROUPS→items).
+
+## Næste skridt
+
+Mockup i cardmem (begge telefon-varianter side om side) → Christians valg → stories med AC → kode. Mål for migrering: cardmem og trail med 0 visuel diff (Lens-baseline før/efter).
 
 ## Hvorfor
 
