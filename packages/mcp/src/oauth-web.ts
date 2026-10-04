@@ -41,6 +41,22 @@
 //    and your "Disconnect" button appears to work while access continues until
 //    the token expires on its own.
 
+// ── F007.14 — CONSENT, REDIRECT ALLOWLIST, SINGLE-USE CODES (0.7.0) ─────────
+// Up to 0.6.0 this module issued an authorization code the moment the
+// `authorize` callback returned `{ sub }`, and /register took ANY redirect_uri.
+// The callback reads a session cookie, and SameSite=Lax sends that cookie on a
+// top-level click — so one link carrying an attacker's own client and redirect
+// minted a token for a logged-in member who saw nothing. PKCE does not help:
+// the attacker owns the client, so they own the verifier. Measured at xrt81
+// (#1635): a 30-day club:read token from one click.
+//
+// Now: (1) redirect URIs must be on `allowedRedirectHosts` (secure default:
+// the claude/chatgpt connector hosts + loopback), at /register AND /authorize;
+// (2) an approval renders a CONSENT PAGE — the code is only issued on a POST
+// carrying a signed, short-lived, request-bound token; (3) a code can be
+// redeemed once.
+
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createOAuthCore, type OAuthCoreConfig, type OAuthCore } from "./oauth-core";
 import type { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
@@ -83,7 +99,44 @@ export interface OAuthWebConfig extends OAuthCoreConfig {
   authorize: (req: Request, params: AuthorizeParams) => MaybePromise<AuthorizeDecision>;
   /** Endpoint paths (relative to the issuer origin). Defaults shown. */
   paths?: { authorize?: string; token?: string; register?: string; revoke?: string };
+  /**
+   * F007.14 — hosts a redirect_uri may point at. Checked at /register AND at
+   * /authorize. Default {@link DEFAULT_REDIRECT_HOSTS} (claude.ai, claude.com,
+   * chatgpt.com, chat.openai.com). Loopback (localhost, 127.0.0.1, [::1]) is
+   * always allowed; every other host must be https.
+   */
+  allowedRedirectHosts?: string[];
+  /** F007.14 — language of the built-in consent page. Default "da". */
+  consentLang?: "da" | "en";
+  /**
+   * F007.14 — your own consent page. Must render a POST form to `info.action`
+   * containing every `info.fields` entry as a hidden input, plus a submit named
+   * `decision` with value `approve` or `deny`. The package sets the framing
+   * headers; return the full HTML document.
+   */
+  renderConsent?: (info: ConsentInfo) => string;
+  /**
+   * F007.14 — mark an authorization code used. Return true the FIRST time a
+   * `jti` is seen, false after. Default: in-memory (correct for one instance);
+   * pass a database-backed one when you run several replicas.
+   */
+  consumeCode?: (jti: string, expiresAt: number) => MaybePromise<boolean>;
 }
+
+/** What the consent page shows. All strings are raw; escape them when rendering. */
+export interface ConsentInfo {
+  clientName: string;
+  redirectHost: string;
+  scopes: string[];
+  action: string;
+  fields: Record<string, string>;
+  lang: "da" | "en";
+}
+
+/** Connector hosts allowed by default (F007.14). Loopback is always allowed in addition. */
+export const DEFAULT_REDIRECT_HOSTS: readonly string[] = ["claude.ai", "claude.com", "chatgpt.com", "chat.openai.com"];
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const CONSENT_TTL_MS = 5 * 60 * 1000;
 
 export interface OAuthRoutes {
   /** Route any OAuth request (metadata / register / authorize / token / revoke); returns null if not an OAuth path. */
@@ -100,6 +153,55 @@ const JSON_HEADERS = { "content-type": "application/json" } as const;
 
 export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
   const core = createOAuthCore(config);
+  const allowedHosts = config.allowedRedirectHosts ?? DEFAULT_REDIRECT_HOSTS;
+  const redirectAllowed = (uri: string): boolean => {
+    let u: URL;
+    try {
+      u = new URL(uri);
+    } catch {
+      return false;
+    }
+    if (LOOPBACK.has(u.hostname)) return u.protocol === "http:" || u.protocol === "https:";
+    return u.protocol === "https:" && allowedHosts.includes(u.hostname);
+  };
+
+  // Single-use codes. In-memory default: correct for one instance; consumers
+  // with replicas pass consumeCode backed by their database.
+  const usedCodes = new Map<string, number>();
+  const consumeCode =
+    config.consumeCode ??
+    ((jti: string, expiresAt: number) => {
+      const now = Date.now();
+      for (const [k, exp] of usedCodes) if (exp < now) usedCodes.delete(k);
+      if (usedCodes.has(jti)) return false;
+      usedCodes.set(jti, expiresAt);
+      return true;
+    });
+
+  // The consent token binds the approval to THIS request: who, which client,
+  // which redirect, which PKCE challenge, until when. HMAC with the same secret
+  // that signs the tokens.
+  const consentKey = createHmac("sha256", config.secret).update("broberg-mcp-consent-v1").digest();
+  const consentPayload = (b: { sub: string; clientId: string; redirectUri: string; codeChallenge: string; exp: number; n: string }) =>
+    JSON.stringify([b.sub, b.clientId, b.redirectUri, b.codeChallenge, b.exp, b.n]);
+  const signConsent = (b: Parameters<typeof consentPayload>[0]) => {
+    const body = Buffer.from(consentPayload(b)).toString("base64url");
+    const mac = createHmac("sha256", consentKey).update(body).digest("base64url");
+    return `${body}.${mac}`;
+  };
+  const readConsent = (token: string): { sub: string; clientId: string; redirectUri: string; codeChallenge: string; exp: number } | null => {
+    const [body, mac] = token.split(".");
+    if (!body || !mac) return null;
+    const want = createHmac("sha256", consentKey).update(body).digest();
+    const got = Buffer.from(mac, "base64url");
+    if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
+    try {
+      const [sub, clientId, redirectUri, codeChallenge, exp] = JSON.parse(Buffer.from(body, "base64url").toString()) as [string, string, string, string, number];
+      return { sub, clientId, redirectUri, codeChallenge, exp };
+    } catch {
+      return null;
+    }
+  };
   const issuer = trimSlash(config.issuer);
   const paths = {
     authorize: config.paths?.authorize ?? "/authorize",
@@ -145,6 +247,13 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
     if (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0) {
       return json(400, { error: "invalid_redirect_uri", error_description: "redirect_uris is required" });
     }
+    const refused = body.redirect_uris.find((u) => typeof u !== "string" || !redirectAllowed(u));
+    if (refused !== undefined) {
+      return json(400, {
+        error: "invalid_redirect_uri",
+        error_description: `redirect_uri not allowed: ${String(refused)} (allowed hosts: ${allowedHosts.join(", ")} + loopback)`,
+      });
+    }
     const registered = await config.clients.registerClient(
       body as unknown as Omit<OAuthClientInformationFull, "client_id" | "client_id_issued_at">,
     );
@@ -152,7 +261,10 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
   }
 
   async function handleAuthorize(req: Request): Promise<Response> {
-    const q = new URL(req.url).searchParams;
+    const isPost = req.method.toUpperCase() === "POST";
+    // A POST is the consent decision; its parameters come from the form body.
+    // The original request (with its cookies) still goes to your callback.
+    const q = isPost ? new URLSearchParams(await req.clone().text()) : new URL(req.url).searchParams;
     const clientId = q.get("client_id") ?? "";
     const redirectUri = q.get("redirect_uri") ?? "";
     const client = clientId ? await config.clients.getClient(clientId) : undefined;
@@ -161,6 +273,10 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
     if (!client) return json(400, { error: "invalid_client", error_description: "unknown client_id" });
     if (!redirectUri || !client.redirect_uris.includes(redirectUri)) {
       return json(400, { error: "invalid_request", error_description: "redirect_uri not registered for this client" });
+    }
+    // Defence in depth: a client registered before 0.7.0 may carry any redirect.
+    if (!redirectAllowed(redirectUri)) {
+      return json(400, { error: "invalid_request", error_description: "redirect_uri host is not allowed" });
     }
     const state = q.get("state") ?? undefined;
     const back = new URL(redirectUri);
@@ -186,6 +302,54 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
     const decision = await config.authorize(req, params);
     if ("response" in decision) return decision.response; // host took over (login page, etc.)
     if ("deny" in decision) return redirectErr(back, "access_denied", state);
+
+    if (!isPost) {
+      // F007.14 — approval by the callback is NOT consent. Show what is being
+      // granted, to whom, and issue nothing until the member presses approve.
+      const token = signConsent({
+        sub: decision.sub,
+        clientId,
+        redirectUri,
+        codeChallenge,
+        exp: Date.now() + CONSENT_TTL_MS,
+        n: randomBytes(9).toString("base64url"),
+      });
+      const fields: Record<string, string> = {
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: "code",
+        code_challenge: codeChallenge,
+        code_challenge_method: "S256",
+        scope: params.scope.join(" "),
+        consent_token: token,
+      };
+      if (state) fields.state = state;
+      if (params.resource) fields.resource = params.resource;
+      const info: ConsentInfo = {
+        clientName: typeof client.client_name === "string" && client.client_name ? client.client_name : clientId,
+        redirectHost: back.host,
+        scopes: (decision.scope ?? params.scope.join(" ")).split(/\s+/).filter(Boolean),
+        action: issuer + paths.authorize,
+        fields,
+        lang: config.consentLang ?? "da",
+      };
+      return consentResponse((config.renderConsent ?? renderConsentPage)(info));
+    }
+
+    // POST: the decision. The token must be ours, unexpired, and bound to the
+    // same member, client, redirect and PKCE challenge as this request.
+    const consent = readConsent(q.get("consent_token") ?? "");
+    if (
+      !consent ||
+      consent.exp < Date.now() ||
+      consent.sub !== decision.sub ||
+      consent.clientId !== clientId ||
+      consent.redirectUri !== redirectUri ||
+      consent.codeChallenge !== codeChallenge
+    ) {
+      return json(400, { error: "invalid_request", error_description: "consent token missing, expired or not for this request" });
+    }
+    if (q.get("decision") !== "approve") return redirectErr(back, "access_denied", state);
 
     const code = await core.signCode({
       clientId,
@@ -217,6 +381,11 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
         }
         if (redirectUri !== undefined && claims.redirect_uri !== redirectUri) {
           return json(400, { error: "invalid_grant", error_description: "redirect_uri mismatch" });
+        }
+        // F007.14 — a code is redeemed once. Checked AFTER PKCE, so a guess with
+        // the wrong verifier cannot burn the legitimate client's code.
+        if (!(await consumeCode(claims.jti, claims.exp * 1000))) {
+          return json(400, { error: "invalid_grant", error_description: "authorization code already used" });
         }
         const tokens = await core.issueTokens(claims.client_id, claims.scope, claims.sub);
         return json(200, tokens);
@@ -273,6 +442,45 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
       return null; // not an OAuth route — let the host continue (to /mcp etc.)
     },
   };
+}
+
+const CONSENT_TEXT = {
+  da: { title: "Giv adgang?", body: "vil have adgang til din konto", scopes: "Adgang", redirect: "Du sendes videre til", approve: "Godkend", deny: "Afvis" },
+  en: { title: "Allow access?", body: "wants to access your account", scopes: "Access", redirect: "You will be sent to", approve: "Allow", deny: "Deny" },
+} as const;
+
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+/** The built-in consent page (F007.14). Plain HTML, no script. */
+export function renderConsentPage(info: ConsentInfo): string {
+  const t = CONSENT_TEXT[info.lang];
+  const hidden = Object.entries(info.fields)
+    .map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`)
+    .join("");
+  const scopes = info.scopes.length ? `<p>${t.scopes}: <code>${info.scopes.map(esc).join(" ")}</code></p>` : "";
+  return `<!doctype html><html lang="${info.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${t.title}</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:420px;margin:12vh auto;padding:0 16px}h1{font-size:20px}code{font-size:13px}.row{display:flex;gap:8px;margin-top:20px}button{flex:1;padding:10px;font:inherit;font-weight:600;border-radius:8px;border:1px solid #888;cursor:pointer}</style></head>
+<body><h1>${t.title}</h1><p><strong data-testid="oauth-consent-client">${esc(info.clientName)}</strong> ${t.body}.</p>${scopes}
+<p>${t.redirect} <strong data-testid="oauth-consent-redirect-host">${esc(info.redirectHost)}</strong>.</p>
+<form method="post" action="${esc(info.action)}">${hidden}<div class="row">
+<button type="submit" name="decision" value="deny" data-testid="oauth-consent-deny">${t.deny}</button>
+<button type="submit" name="decision" value="approve" data-testid="oauth-consent-approve">${t.approve}</button>
+</div></form></body></html>`;
+}
+
+function consentResponse(html: string): Response {
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-frame-options": "DENY",
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https: http://localhost:* http://127.0.0.1:*; frame-ancestors 'none'",
+      "referrer-policy": "no-referrer",
+    },
+  });
 }
 
 function json(status: number, payload: unknown): Response {

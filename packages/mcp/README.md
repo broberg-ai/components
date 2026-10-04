@@ -164,6 +164,33 @@ The SDK ships the endpoints (`/authorize`, `/token`, `/register`, `/revoke`,
 `/.well-known/*`) and does the PKCE S256 compare; this provider issues stateless
 HS256 tokens (auth-code / access / refresh) so there's no token database.
 
+### SECURITY — 0.7.0 closes a one-click token theft in `oauth-web` (F007.14)
+
+**Upgrade if you use `@broberg/mcp/oauth-web`.** Up to 0.6.0, `/register` took any
+`redirect_uri` and `/authorize` issued a code the moment your `authorize`
+callback returned `{ sub }`. Your callback reads a session cookie, and
+`SameSite=Lax` sends it on a click — so a link with an attacker's own client and
+redirect gave the attacker a token for a logged-in member who saw nothing. PKCE
+does not help: the attacker owns the verifier. Measured at xrt81 (4 Oct 2026).
+
+What 0.7.0 does, and what it changes for you:
+
+- **Redirect allowlist.** `allowedRedirectHosts` (default `claude.ai`, `claude.com`,
+  `chatgpt.com`, `chat.openai.com`; loopback always allowed; other hosts must be
+  https), checked at `/register` **and** `/authorize` (clients registered before
+  0.7.0 included). A connector on another host must be added.
+- **Consent page.** When your callback approves, the member now sees which
+  client, which redirect host and which scopes, and presses **Godkend / Allow**.
+  The code is issued only on that POST, which carries a signed token bound to
+  the member, client, redirect and PKCE challenge (5 minutes). The page cannot
+  be framed. Change the language with `consentLang: "en"`, or render your own
+  with `renderConsent` (keep every `fields` entry as a hidden input).
+  **Your `authorize` callback is called on both the GET and the POST**; it
+  already reads the session, so nothing changes there.
+- **Single-use codes.** `/token` redeems a code once. The default memory store
+  is right for one instance; with several replicas, pass `consumeCode(jti, expiresAt)`
+  backed by your database.
+
 ### claude.ai / ChatGPT remote connector on Stack B — `@broberg/mcp/oauth-web`
 
 A remote MCP a user adds to **claude.ai (incl. iPhone) or ChatGPT** must speak

@@ -16,6 +16,26 @@ function pkce() {
   return { verifier, challenge };
 }
 
+/**
+ * F007.14 — /authorize now renders a consent page; the code is issued on the
+ * POST. This walks both steps as a browser would: GET, read the hidden fields
+ * out of the page, POST them back with decision=approve.
+ */
+async function approve(r: ReturnType<typeof routesFor>, authUrl: URL, decision = "approve"): Promise<Response> {
+  const page = await r.handle(new Request(authUrl));
+  expect(page!.status).toBe(200);
+  expect(page!.headers.get("location")).toBeNull();
+  const html = await page!.text();
+  const fields = new URLSearchParams();
+  for (const m of html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)) {
+    fields.set(m[1]!, m[2]!.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">"));
+  }
+  fields.set("decision", decision);
+  return (await r.handle(
+    new Request(`${ISSUER}/authorize`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: fields.toString() }),
+  ))!;
+}
+
 /** Build routes where /authorize approves as a fixed member (the site-login stand-in). */
 function routesFor(member = "member-42", capture?: (p: AuthorizeParams) => void) {
   return createOAuthRoutes({
@@ -87,7 +107,7 @@ describe("oauth-web — full claude.ai flow: DCR → authorize → token → bea
       state: "xyz",
       scope: "club:read",
     }).toString();
-    const authRes = await r.handle(new Request(authUrl));
+    const authRes = await approve(r, authUrl);
     expect(authRes!.status).toBe(302);
     const loc = new URL(authRes!.headers.get("location")!);
     expect(loc.searchParams.get("state")).toBe("xyz");
@@ -140,7 +160,7 @@ describe("oauth-web — full claude.ai flow: DCR → authorize → token → bea
     const { challenge } = pkce();
     const authUrl = new URL(`${ISSUER}/authorize`);
     authUrl.search = new URLSearchParams({ response_type: "code", client_id: reg.client_id, redirect_uri: "https://claude.ai/api/mcp/auth_callback", code_challenge: challenge, code_challenge_method: "S256", scope: "club:read" }).toString();
-    const code = new URL((await r.handle(new Request(authUrl)))!.headers.get("location")!).searchParams.get("code")!;
+    const code = new URL((await approve(r, authUrl)).headers.get("location")!).searchParams.get("code")!;
     const bad = await r.handle(new Request(`${ISSUER}/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier: "wrong-verifier", redirect_uri: "https://claude.ai/api/mcp/auth_callback", client_id: reg.client_id }).toString() }));
     expect(bad!.status).toBe(400);
     expect((await bad!.json()).error).toBe("invalid_grant");
