@@ -122,4 +122,18 @@ describe("package-wide guards", () => {
     const css = readFileSync(join(__dirname, "../css/app-shell.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
   });
+  // appkit 5/10, measured at 393px and 1440px in Lens screenshots.
+  const css = readFileSync(join(__dirname, "../css/app-shell.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = (sel: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => m[1].trim() === sel).map((m) => m[2]);
+  it("closed phone drawer casts no shadow at the screen edge and is hidden", () => {
+    const closed = rule(".bas-sidebar.is-mobile-drawer").join(";");
+    expect(closed).not.toMatch(/box-shadow/);
+    expect(closed).toMatch(/visibility:\s*hidden/);
+    expect(rule(".bas-sidebar.is-mobile-drawer.is-open").join(";")).toMatch(/visibility:\s*visible/);
+  });
+  it("drawer mode shows the brand once on desktop: sidebar brand hidden outside the phone query", () => {
+    const desktop = css.split("@media")[0];
+    expect(desktop).toMatch(/\.bas-root\[data-mobile="drawer"\] \.bas-sidebar__brand \{ display: none; \}/);
+    expect(rule('.bas-root[data-mobile="drawer"] .bas-sidebar__brand')).toContain(" display: block; ");
+  });
 });
