@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+  isExternal,
   safeNavigate,
   badgeLabel,
   createFetchNotificationSource,
@@ -112,6 +113,24 @@ describe("safeNavigate — a notification link is server data", () => {
   });
 });
 
+describe("isExternal (F092.10, D-d28547)", () => {
+  it("only an http(s) link to another origin leaves the app", () => {
+    const o = "https://app.example";
+    const cases: Array<[string, boolean]> = [
+      ["https://id.broberg.ai/account", true],
+      ["http://other.example/x", true],
+      ["//evil.example/x", true],
+      ["https://app.example/settings", false],
+      ["/account", false],
+      ["account", false],
+      ["#top", false],
+      ["mailto:a@b.dk", false],
+      ["tel:+4512345678", false],
+    ];
+    expect(cases.map(([h]) => [h, isExternal(h, o)])).toEqual(cases);
+  });
+});
+
 describe("relativeTime", () => {
   const now = Date.parse("2026-10-05T12:00:00Z");
   it.each([
@@ -154,7 +173,8 @@ describe("package-wide guards", () => {
   });
   it("drawer mode shows the brand once on desktop: sidebar brand hidden outside the phone query", () => {
     const desktop = css.split("@media")[0];
-    expect(desktop).toMatch(/\.bas-root\[data-mobile="drawer"\] \.bas-sidebar__brand \{ display: none; \}/);
-    expect(rule('.bas-root[data-mobile="drawer"] .bas-sidebar__brand')).toContain(" display: block; ");
+    // topbar layout only: in "inset" (F092.8) the sidebar IS where the brand lives
+    expect(desktop).toMatch(/\.bas-root\[data-layout="topbar"\]\[data-mobile="drawer"\] \.bas-sidebar__brand \{ display: none; \}/);
+    expect(rule('.bas-root[data-layout="topbar"][data-mobile="drawer"] .bas-sidebar__brand')).toContain(" display: block; ");
   });
 });

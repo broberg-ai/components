@@ -45,6 +45,7 @@ import {
   readSet,
   relativeTime,
   safeNavigate,
+  isExternal,
   TEXT,
   writeFlag,
   writeSet,
@@ -88,9 +89,21 @@ function NavLink(props: {
   children: ComponentChildren;
   "data-testid"?: string;
   "aria-current"?: "page";
+  "aria-label"?: string;
   title?: string;
+  role?: "menuitem";
 }) {
   const { href, onNavigate, onAfter, children, ...rest } = props;
+  // F092.10 / D-d28547: a link that leaves the app opens in a new tab, and is
+  // never handed to the app's router. Decided HERE, once, for every link the
+  // shell renders — a rule that has to be remembered per link is forgotten.
+  if (isExternal(href)) {
+    return (
+      <a {...rest} href={href} target="_blank" rel="noopener noreferrer" onClick={() => onAfter?.()}>
+        {children}
+      </a>
+    );
+  }
   return (
     <a
       {...rest}
@@ -145,6 +158,8 @@ export interface SidebarProps {
   homeHref?: string;
   /** Accessible name of the brandMark link (it has no visible text). Default "Forside"/"Home". */
   homeLabel?: string;
+  /** data-testid of the brand link in the sidebar head. */
+  brandTestId?: string;
   /** Phone, drawer mode: is the drawer open. */
   mobileOpen?: boolean;
   onClose?: () => void;
@@ -315,7 +330,7 @@ export function Sidebar(p: SidebarProps) {
             {p.header ? (
               <div class="bas-sidebar__brand">
                 {p.homeHref ? (
-                  <NavLink href={p.homeHref} onNavigate={p.onNavigate} onAfter={close} class="bas-home" data-testid="sidebar-brand-home">
+                  <NavLink href={p.homeHref} onNavigate={p.onNavigate} onAfter={close} class="bas-home" data-testid={p.brandTestId ?? "sidebar-brand-home"}>
                     {p.header}
                   </NavLink>
                 ) : (
@@ -472,7 +487,10 @@ export function NotificationBell({ source, onNavigate, lang }: NotificationBellP
       await shell.refresh();
     }
     const target = safeNavigate(n.navigate);
-    if (target) {
+    if (target && isExternal(target)) {
+      // F092.10 — leaves the app: a new tab, never the app's router.
+      if (typeof window !== "undefined") window.open(target, "_blank", "noopener,noreferrer");
+    } else if (target) {
       if (onNavigate) onNavigate(target);
       else if (typeof window !== "undefined") window.location.assign(target);
     }
@@ -581,6 +599,11 @@ export interface UserMenuProps {
   onNavigate?: Navigate;
   /** Show Theme · Palette · Surfaces · Backdrop. Default true. */
   appearance?: boolean;
+  /**
+   * F092.11 — a «Sprog»/«Language» row with a segmented control, like the
+   * appearance rows. The app owns the language; the shell shows and reports it.
+   */
+  language?: { value: string; options: { id: string; label: string }[]; onChange: (id: string) => void };
   lang: Lang;
 }
 
@@ -597,9 +620,20 @@ export function Avatar({ user, size = 28 }: { user: ShellUser; size?: number }) 
   );
 }
 
-function Segmented<T extends string>(props: { testid: string; value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void }) {
+function Segmented<T extends string>(props: { testid: string; value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; label?: string }) {
+  // Arrow keys move between the options (D-4cd764); Enter/Space are the native
+  // button's own, so choosing needs nothing extra.
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const buttons = [...(e.currentTarget as HTMLElement).querySelectorAll("button")];
+    const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const next = (i + (e.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next]!.focus();
+  };
   return (
-    <div class="bas-seg" data-testid={props.testid} role="group">
+    <div class="bas-seg" data-testid={props.testid} role="group" aria-label={props.label} onKeyDown={onKeyDown}>
       {props.options.map(([v, label]) => (
         <button type="button" key={v} aria-pressed={props.value === v} data-testid={`${props.testid}-${v}`} onClick={() => props.onChange(v)}>
           {label}
@@ -679,10 +713,10 @@ export function UserMenu(p: UserMenuProps) {
           </div>
           <div class="bas-sep" />
           {p.accountHref ? (
-            <a class="bas-mi" href={p.accountHref} data-testid="user-menu-account" role="menuitem">
+            <NavLink href={p.accountHref} onNavigate={p.onNavigate} onAfter={() => setOpen(false)} class="bas-mi" data-testid="user-menu-account" role="menuitem">
               <IconUser />
               <span>{t.account}</span>
-            </a>
+            </NavLink>
           ) : null}
           {(p.items ?? []).map((it) =>
             it.href ? (
@@ -734,6 +768,23 @@ export function UserMenu(p: UserMenuProps) {
                 <div class="bas-pref">
                   <span>{t.backdrop}</span>
                   <Segmented testid="user-menu-backdrop" value={backdrop} options={[["neurons", t.neurons], ["plain", t.plain]] as const} onChange={setBackdrop} />
+                </div>
+              </div>
+            </>
+          ) : null}
+          {p.language ? (
+            <>
+              {p.appearance === false ? <div class="bas-sep" /> : null}
+              <div class="bas-prefs">
+                <div class="bas-pref">
+                  <span>{t.language}</span>
+                  <Segmented
+                    testid="user-menu-language"
+                    label={t.language}
+                    value={p.language.value}
+                    options={p.language.options.map((o) => [o.id, o.label] as const)}
+                    onChange={p.language.onChange}
+                  />
                 </div>
               </div>
             </>
@@ -883,6 +934,12 @@ export interface AppShellProps {
   collapse?: "offcanvas" | "icon";
   /** The app's logo icon for the top of the icon rail. */
   brandMark?: ComponentChildren;
+  /**
+   * F092.8 — "inset" (default, shadcn dashboard-01): no full-width top bar; the
+   * brand heads the sidebar, and the content's top row is sidebar button ·
+   * title · actions · bell · user menu. "topbar": the 0.2.x full-width bar.
+   */
+  layout?: "inset" | "topbar";
   /** F092.7 — the app's start page. Brand and brandMark become links to it; on a phone the click closes the drawer. */
   homeHref?: string;
   /** Accessible name for the brandMark link. Default "Forside"/"Home". */
@@ -902,6 +959,8 @@ export interface AppShellProps {
 export function AppShell(p: AppShellProps) {
   const prefix = p.storageKey ?? "broberg-app-shell";
   const mode = p.mobile ?? "drawer";
+  const layout = p.layout ?? "inset";
+  const inset = layout === "inset";
   const collapse = p.collapse ?? (mode === "rail" ? "icon" : "offcanvas");
   const [collapsed, setCollapsed] = useState(() => readFlag(`${prefix}.collapsed`, false));
   const [drawer, setDrawer] = useState(false);
@@ -919,7 +978,8 @@ export function AppShell(p: AppShellProps) {
   const triggerLabel = drawerMode ? (drawer ? t.closeMenu : t.openMenu) : collapsed ? t.expand : t.collapse;
   const heading = p.title ?? activeNavLabel(p.groups, p.footer, p.currentPath);
   return (
-    <div class="bas-root" data-testid="app-shell" data-mobile={mode}>
+    <div class="bas-root" data-testid="app-shell" data-mobile={mode} data-layout={layout}>
+      {inset ? null : (
       <TopBar
         brand={p.brand}
         homeHref={p.homeHref}
@@ -931,6 +991,7 @@ export function AppShell(p: AppShellProps) {
         onNavigate={p.onNavigate}
         lang={p.lang}
       />
+      )}
       <div class="bas-row">
         <Sidebar
           groups={p.groups}
@@ -945,7 +1006,8 @@ export function AppShell(p: AppShellProps) {
           mobileOpen={drawer}
           onClose={() => setDrawer(false)}
           mobile={mode}
-          header={mode === "drawer" ? p.brand : undefined}
+          header={inset || mode === "drawer" ? p.brand : undefined}
+          brandTestId={inset ? "brand-home" : undefined}
           groupsKey={`${prefix}.groups`}
           itemsKey={`${prefix}.items`}
           lang={p.lang}
@@ -969,6 +1031,14 @@ export function AppShell(p: AppShellProps) {
                 <h1 class="bas-contenthead__title" data-testid="content-header-title">
                   {heading}
                 </h1>
+              </>
+            ) : null}
+            {inset ? (
+              <>
+                <div class="bas-spacer" />
+                {p.actions ? <div class="bas-contenthead__actions">{p.actions}</div> : null}
+                <NotificationBell source={p.notifications} onNavigate={p.onNavigate} lang={p.lang} />
+                {p.user ? <UserMenu user={p.user} {...p.userMenu} onNavigate={p.onNavigate} lang={p.lang} /> : null}
               </>
             ) : null}
           </div>

@@ -70,7 +70,7 @@
 .bas-sidebar__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 4px 12px; min-height: 44px; }
 .bas-sidebar__brand { min-width: 0; }
 /* drawer mode: on desktop the brand already sits in the top bar — show it in the sidebar only on a phone */
-.bas-root[data-mobile="drawer"] .bas-sidebar__brand { display: none; }
+.bas-root[data-layout="topbar"][data-mobile="drawer"] .bas-sidebar__brand { display: none; }
 .bas-sidebar__mark { display: none; }
 .bas-home { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; border-radius: var(--bas-radius); }
 .bas-home:hover { opacity: .85; }
@@ -152,6 +152,16 @@
   border-bottom: 1px solid var(--border);
 }
 .bas-trigger { width: 28px; height: 28px; margin-left: -4px; }
+
+/* ── layout="inset" (F092.8, shadcn dashboard-01): no full-width bar ── */
+.bas-root[data-layout="inset"] { --bas-top: 0px; }
+.bas-root[data-layout="inset"] .bas-contenthead {
+  position: sticky; top: 0; z-index: 30; height: 56px; gap: 8px;
+  background: color-mix(in srgb, var(--surface-header, var(--bg)) 85%, transparent);
+  backdrop-filter: blur(8px);
+}
+.bas-root[data-layout="inset"] .bas-sidebar__head { min-height: 56px; padding: 8px 12px; }
+.bas-contenthead__actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .bas-contenthead__sep { flex: none; width: 1px; height: 16px; margin: 0 8px; background: var(--border); }
 .bas-contenthead__title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 500; color: var(--fg); }
 
@@ -171,7 +181,7 @@
     transform: translateX(0); visibility: visible; transition: transform var(--bas-dur) var(--bas-ease);
     box-shadow: 0 24px 56px rgba(0, 0, 0, .22);
   }
-  .bas-root[data-mobile="drawer"] .bas-sidebar__brand { display: block; }
+  .bas-root[data-layout="topbar"][data-mobile="drawer"] .bas-sidebar__brand { display: block; }
   .bas-backdrop.is-open { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, .36); }
 
   /* rail: always the 60px icon rail on a phone, never a drawer (styling via .is-railed) */
@@ -202,7 +212,7 @@
   background: var(--bg-card); color: var(--fg);
 }
 .bas-panel--drop {
-  top: calc(var(--bas-top) - 4px); right: 16px; width: 392px; max-width: 92vw; max-height: 560px;
+  top: calc(var(--bas-bar, 56px) - 4px); right: 16px; width: 392px; max-width: 92vw; max-height: 560px;
   border: 1px solid var(--border); border-radius: calc(var(--bas-radius) + 4px);
   box-shadow: 0 24px 56px rgba(0, 0, 0, .18);
 }

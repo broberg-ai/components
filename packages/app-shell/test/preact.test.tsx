@@ -133,7 +133,7 @@ describe("F092.4 — one sidebar trigger like shadcn dashboard-01", () => {
   it("order in the content header: trigger, separator, h1 title", () => {
     render(<AppShell lang="da" groups={GROUPS} currentPath="/" title="Dokumenter" />);
     const head = screen.getByTestId("content-header");
-    expect([...head.children].map((c) => c.getAttribute("data-testid"))).toEqual([
+    expect([...head.children].map((c) => c.getAttribute("data-testid")).slice(0, 3)).toEqual([
       "sidebar-trigger",
       "content-header-separator",
       "content-header-title",
@@ -287,6 +287,222 @@ describe("F092.6 — collapse to an icon rail with the brand mark", () => {
   });
 });
 
+describe("F092.8 — layout=\"inset\" is the default (shadcn dashboard-01)", () => {
+  const brand = <span data-testid="logo">Acme Inc.</span>;
+  const user = { name: "Ann Berg", email: "ann@x.dk" };
+
+  it("inset: no full-width top bar; the brand heads the sidebar", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" brand={brand} user={user} />);
+    expect(screen.getByTestId("app-shell").getAttribute("data-layout")).toBe("inset");
+    expect(screen.queryByTestId("topbar-root")).toBeNull();
+    expect(screen.getByTestId("sidebar-root").contains(screen.getByTestId("logo"))).toBe(true);
+  });
+
+  it("inset puts the brand in the sidebar in rail mode too (not only because drawer mode does)", () => {
+    render(<AppShell lang="da" mobile="rail" groups={GROUPS} currentPath="/" brand={brand} />);
+    expect(screen.getByTestId("sidebar-root").contains(screen.getByTestId("logo"))).toBe(true);
+  });
+
+  it("inset: the content row is trigger · rule · title · actions · bell · user menu, in that order", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/inbox" brand={brand} user={user} actions={<button data-testid="act">+</button>} />);
+    const head = screen.getByTestId("content-header");
+    const ids = [...head.querySelectorAll("[data-testid]")].map((e) => e.getAttribute("data-testid"));
+    const order = ["sidebar-trigger", "content-header-separator", "content-header-title", "act", "topbar-notifications", "topbar-user-menu"];
+    expect(order.map((id) => ids.indexOf(id))).toEqual([...order.map((id) => ids.indexOf(id))].sort((a, b) => a - b));
+    expect(order.every((id) => ids.includes(id))).toBe(true);
+  });
+
+  it("topbar: exactly the 0.2.x bar, bell and user menu in it, not in the content row", () => {
+    render(<AppShell lang="da" layout="topbar" groups={GROUPS} currentPath="/" brand={brand} user={user} />);
+    const bar = screen.getByTestId("topbar-root");
+    expect(bar.contains(screen.getByTestId("topbar-notifications"))).toBe(true);
+    expect(bar.contains(screen.getByTestId("topbar-user-menu"))).toBe(true);
+    expect(screen.getByTestId("content-header").contains(screen.getByTestId("topbar-notifications"))).toBe(false);
+  });
+
+  it("inset + offcanvas folded: the sidebar (and the logo with it) is folded away; icon gives the rail", () => {
+    const { unmount } = render(<AppShell lang="da" groups={GROUPS} currentPath="/" brand={brand} storageKey="i1" />);
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    const root = screen.getByTestId("sidebar-root");
+    expect([root.getAttribute("data-collapse"), root.className.includes("is-collapsed"), root.className.includes("is-railed")]).toEqual(["offcanvas", true, false]);
+    unmount();
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" brand={brand} collapse="icon" brandMark={<b>A</b>} storageKey="i2" />);
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(screen.getByTestId("sidebar-root").className).toContain("is-railed");
+    expect(screen.getByTestId("sidebar-brand-mark")).toBeTruthy();
+  });
+
+  it("phone, inset: the trigger opens the drawer with the logo on top; bell and user menu stay in the content row", () => {
+    mockMatchMedia(true);
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" brand={brand} user={user} homeHref="/" onNavigate={() => {}} />);
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(screen.getByTestId("sidebar-root").className).toContain("is-open");
+    expect(screen.getByTestId("sidebar-root").contains(screen.getByTestId("logo"))).toBe(true);
+    const head = screen.getByTestId("content-header");
+    expect([head.contains(screen.getByTestId("topbar-notifications")), head.contains(screen.getByTestId("topbar-user-menu"))]).toEqual([true, true]);
+    fireEvent.click(screen.getByTestId("brand-home"));
+    expect(screen.getByTestId("sidebar-root").className).not.toContain("is-open");
+  });
+});
+
+describe("F092.9 — «Markér alle læst» closes the panel when it worked", () => {
+  const row = (id: string) => ({ id, kind: "x", title: id, body: null, navigate: null, refId: null, createdAt: Date.now(), seenAt: null });
+
+  for (const phone of [false, true]) {
+    const panel = phone ? "notifications-drawer" : "notifications-dropdown";
+    it(`success closes the ${panel} and the count goes`, async () => {
+      mockMatchMedia(phone);
+      const src = createMemoryNotificationSource([row("a"), row("b")]);
+      render(<NotificationBell lang="da" source={src} />);
+      await waitFor(() => expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("2"));
+      fireEvent.click(screen.getByTestId("topbar-notifications"));
+      await screen.findByTestId(panel);
+      await waitFor(() => expect((screen.getByTestId("notifications-mark-all") as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(screen.getByTestId("notifications-mark-all"));
+      await waitFor(() => expect(screen.queryByTestId(panel)).toBeNull());
+      await waitFor(() => expect(screen.queryByTestId("topbar-notifications-count")).toBeNull());
+    });
+  }
+
+  it("failure keeps the panel open, says so, and leaves the count", async () => {
+    const base = createMemoryNotificationSource([row("a")]);
+    const src: NotificationSource = { ...base, markAllSeen: async () => { throw new Error("HTTP 500"); } };
+    render(<NotificationBell lang="da" source={src} />);
+    await waitFor(() => expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("1"));
+    fireEvent.click(screen.getByTestId("topbar-notifications"));
+    await waitFor(() => expect((screen.getByTestId("notifications-mark-all") as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId("notifications-mark-all"));
+    expect((await screen.findByTestId("notifications-mark-all-error")).textContent).toBe("Kunne ikke markere alle som læst. Prøv igen.");
+    expect(screen.getByTestId("notifications-dropdown")).toBeTruthy();
+    expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("1");
+  });
+});
+
+describe("F092.9 — a click outside closes the bell panel; Escape returns focus to the bell", () => {
+  const row = (id: string) => ({ id, kind: "x", title: id, body: null, navigate: null, refId: null, createdAt: Date.now(), seenAt: null });
+
+  it("mousedown on page content (not the overlay) closes the dropdown; inside the panel it does not", async () => {
+    render(
+      <div>
+        <NotificationBell lang="da" source={createMemoryNotificationSource([row("a")])} />
+        <div data-testid="dropzone">drop</div>
+      </div>,
+    );
+    fireEvent.click(screen.getByTestId("topbar-notifications"));
+    await screen.findByTestId("notifications-dropdown");
+    fireEvent.mouseDown(screen.getByTestId("notifications-list"));
+    expect(screen.getByTestId("notifications-dropdown")).toBeTruthy();
+    fireEvent.mouseDown(screen.getByTestId("dropzone"));
+    await waitFor(() => expect(screen.queryByTestId("notifications-dropdown")).toBeNull());
+  });
+
+  it("Escape closes and puts focus back on the bell", async () => {
+    render(<NotificationBell lang="da" source={createMemoryNotificationSource([row("a")])} />);
+    fireEvent.click(screen.getByTestId("topbar-notifications"));
+    await screen.findByTestId("notifications-dropdown");
+    (screen.getByTestId("notifications-mark-all") as HTMLButtonElement).focus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("notifications-dropdown")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByTestId("topbar-notifications"));
+  });
+});
+
+describe("F092.11 — language row in the user menu", () => {
+  const user = { name: "Ann Berg", email: "ann@x.dk" };
+  const options = [{ id: "en", label: "EN" }, { id: "da", label: "DA" }];
+
+  it("no row without `language`; with it: «Sprog», the current one pressed, a click reports the id", () => {
+    const { unmount } = render(<UserMenu lang="da" user={user} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    expect(screen.queryByTestId("user-menu-language")).toBeNull();
+    unmount();
+    const onChange = vi.fn();
+    render(<UserMenu lang="da" user={user} language={{ value: "da", options, onChange }} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    const group = screen.getByTestId("user-menu-language");
+    expect(group.closest(".bas-pref")!.querySelector("span")!.textContent).toBe("Sprog");
+    expect([screen.getByTestId("user-menu-language-en").getAttribute("aria-pressed"), screen.getByTestId("user-menu-language-da").getAttribute("aria-pressed")]).toEqual(["false", "true"]);
+    fireEvent.click(screen.getByTestId("user-menu-language-en"));
+    expect(onChange).toHaveBeenCalledWith("en");
+  });
+
+  it("English label is «Language»", () => {
+    render(<UserMenu lang="en" user={user} language={{ value: "en", options, onChange: () => {} }} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    expect(screen.getByTestId("user-menu-language").closest(".bas-pref")!.querySelector("span")!.textContent).toBe("Language");
+  });
+
+  it("arrow keys move focus between the options", () => {
+    render(<UserMenu lang="da" user={user} language={{ value: "da", options, onChange: () => {} }} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    const en = screen.getByTestId("user-menu-language-en");
+    const da = screen.getByTestId("user-menu-language-da");
+    en.focus();
+    fireEvent.keyDown(en, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(da);
+    fireEvent.keyDown(da, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(en);
+    fireEvent.keyDown(en, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(da);
+    expect(da.tagName).toBe("BUTTON"); // Enter/Space: the native button's own
+  });
+});
+
+describe("F092.10 — external links open in a new tab", () => {
+  const user = { name: "Ann Berg", email: "ann@x.dk" };
+
+  it("account: external → new tab with noopener noreferrer; internal → same tab through onNavigate", () => {
+    const nav = vi.fn();
+    const { unmount } = render(<UserMenu lang="da" user={user} accountHref="https://id.broberg.ai/account" onNavigate={nav} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    const ext = screen.getByTestId("user-menu-account");
+    expect([ext.getAttribute("target"), ext.getAttribute("rel")]).toEqual(["_blank", "noopener noreferrer"]);
+    fireEvent.click(ext);
+    expect(nav).not.toHaveBeenCalled();
+    unmount();
+    render(<UserMenu lang="da" user={user} accountHref="/account" onNavigate={nav} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    const int = screen.getByTestId("user-menu-account");
+    expect([int.getAttribute("target"), int.getAttribute("rel")]).toEqual([null, null]);
+    fireEvent.click(int);
+    expect(nav).toHaveBeenCalledWith("/account");
+  });
+
+  it("every shell link goes through the same rule: sidebar, sub-items, menu items, tabs", () => {
+    const groups: PreactNavGroup[] = [
+      { label: "G", items: [
+        { id: "docs", label: "Docs", href: "https://docs.example/x" },
+        { id: "p", label: "P", href: "/p", children: [{ id: "status", label: "Status", href: "https://status.example" }] },
+        { id: "home", label: "Home", href: "/" },
+      ] },
+    ];
+    render(<AppShell lang="da" groups={groups} currentPath="/p" onNavigate={() => {}} />);
+    fireEvent.click(screen.getByTestId("sidebar-item-p-toggle"));
+    const attrs = (id: string) => { const e = screen.getByTestId(id); return [e.getAttribute("target"), e.getAttribute("rel")]; };
+    expect(attrs("sidebar-item-docs")).toEqual(["_blank", "noopener noreferrer"]);
+    expect(attrs("sidebar-item-status")).toEqual(["_blank", "noopener noreferrer"]);
+    expect(attrs("sidebar-item-home")).toEqual([null, null]);
+  });
+
+  it("an external notification opens a new tab, not the app's router", async () => {
+    const open = vi.fn();
+    const orig = window.open;
+    window.open = open as unknown as typeof window.open;
+    try {
+      const src = createMemoryNotificationSource([{ id: "n", kind: "x", title: "Ekstern", body: null, navigate: "https://status.example/i/1", refId: null, createdAt: Date.now(), seenAt: null }]);
+      const nav = vi.fn();
+      render(<NotificationBell lang="da" source={src} onNavigate={nav} />);
+      fireEvent.click(screen.getByTestId("topbar-notifications"));
+      await waitFor(() => expect(screen.getAllByTestId("notification-row")).toHaveLength(1));
+      fireEvent.click(screen.getAllByTestId("notification-row")[0]!);
+      await waitFor(() => expect(open).toHaveBeenCalledWith("https://status.example/i/1", "_blank", "noopener,noreferrer"));
+      expect(nav).not.toHaveBeenCalled();
+    } finally {
+      window.open = orig;
+    }
+  });
+});
+
 describe("F092.7 — the logo goes to the start page", () => {
   const brand = <span>Nordlys</span>;
 
@@ -306,9 +522,9 @@ describe("F092.7 — the logo goes to the start page", () => {
     expect(nav).toHaveBeenCalledWith("/");
   });
 
-  it("phone drawer: the brand inside the drawer closes it", () => {
+  it("phone drawer: the brand inside the drawer closes it (topbar layout)", () => {
     mockMatchMedia(true);
-    render(<AppShell lang="da" groups={GROUPS} currentPath="/inbox" brand={brand} homeHref="/" onNavigate={() => {}} />);
+    render(<AppShell lang="da" layout="topbar" groups={GROUPS} currentPath="/inbox" brand={brand} homeHref="/" onNavigate={() => {}} />);
     fireEvent.click(screen.getByTestId("sidebar-trigger"));
     expect(screen.getByTestId("sidebar-root").className).toContain("is-open");
     fireEvent.click(screen.getByTestId("sidebar-brand-home"));
@@ -412,68 +628,6 @@ describe("NotificationBell (F092.2) — on @broberg/notifications' bell shell", 
     await screen.findByTestId("notifications-dropdown");
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByTestId("notifications-dropdown")).toBeNull());
-  });
-});
-
-describe("F092.9 — «Markér alle læst» closes the panel when it worked", () => {
-  const row = (id: string) => ({ id, kind: "x", title: id, body: null, navigate: null, refId: null, createdAt: Date.now(), seenAt: null });
-
-  for (const phone of [false, true]) {
-    const panel = phone ? "notifications-drawer" : "notifications-dropdown";
-    it(`success closes the ${panel} and the count goes`, async () => {
-      mockMatchMedia(phone);
-      const src = createMemoryNotificationSource([row("a"), row("b")]);
-      render(<NotificationBell lang="da" source={src} />);
-      await waitFor(() => expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("2"));
-      fireEvent.click(screen.getByTestId("topbar-notifications"));
-      await screen.findByTestId(panel);
-      await waitFor(() => expect((screen.getByTestId("notifications-mark-all") as HTMLButtonElement).disabled).toBe(false));
-      fireEvent.click(screen.getByTestId("notifications-mark-all"));
-      await waitFor(() => expect(screen.queryByTestId(panel)).toBeNull());
-      await waitFor(() => expect(screen.queryByTestId("topbar-notifications-count")).toBeNull());
-    });
-  }
-
-  it("failure keeps the panel open, says so, and leaves the count", async () => {
-    const base = createMemoryNotificationSource([row("a")]);
-    const src: NotificationSource = { ...base, markAllSeen: async () => { throw new Error("HTTP 500"); } };
-    render(<NotificationBell lang="da" source={src} />);
-    await waitFor(() => expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("1"));
-    fireEvent.click(screen.getByTestId("topbar-notifications"));
-    await waitFor(() => expect((screen.getByTestId("notifications-mark-all") as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(screen.getByTestId("notifications-mark-all"));
-    expect((await screen.findByTestId("notifications-mark-all-error")).textContent).toBe("Kunne ikke markere alle som læst. Prøv igen.");
-    expect(screen.getByTestId("notifications-dropdown")).toBeTruthy();
-    expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("1");
-  });
-});
-
-describe("F092.9 — a click outside closes the bell panel; Escape returns focus to the bell", () => {
-  const row = (id: string) => ({ id, kind: "x", title: id, body: null, navigate: null, refId: null, createdAt: Date.now(), seenAt: null });
-
-  it("mousedown on page content (not the overlay) closes the dropdown; inside the panel it does not", async () => {
-    render(
-      <div>
-        <NotificationBell lang="da" source={createMemoryNotificationSource([row("a")])} />
-        <div data-testid="dropzone">drop</div>
-      </div>,
-    );
-    fireEvent.click(screen.getByTestId("topbar-notifications"));
-    await screen.findByTestId("notifications-dropdown");
-    fireEvent.mouseDown(screen.getByTestId("notifications-list"));
-    expect(screen.getByTestId("notifications-dropdown")).toBeTruthy();
-    fireEvent.mouseDown(screen.getByTestId("dropzone"));
-    await waitFor(() => expect(screen.queryByTestId("notifications-dropdown")).toBeNull());
-  });
-
-  it("Escape closes and puts focus back on the bell", async () => {
-    render(<NotificationBell lang="da" source={createMemoryNotificationSource([row("a")])} />);
-    fireEvent.click(screen.getByTestId("topbar-notifications"));
-    await screen.findByTestId("notifications-dropdown");
-    (screen.getByTestId("notifications-mark-all") as HTMLButtonElement).focus();
-    fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByTestId("notifications-dropdown")).toBeNull());
-    expect(document.activeElement).toBe(screen.getByTestId("topbar-notifications"));
   });
 });
 

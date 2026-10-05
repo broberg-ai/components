@@ -21,6 +21,7 @@ const notifications = createFetchNotificationSource({ url: "/api/notifications" 
   notifications={notifications}
   user={{ name, email, picture }}       // picture = Broberg ID's OIDC `picture`
   userMenu={{ accountHref: "https://id.broberg.ai/account", onSignOut }}
+  layout="inset"                        // default; "topbar" = the 0.2.x full-width bar
   mobile="drawer"                       // or "rail"
   collapse="icon"                       // desktop fold: "offcanvas" (default) or an icon rail
   brandMark={<LogoIcon />}              // top of the icon rail
@@ -48,6 +49,29 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `UserMenu` | Avatar, name + email, **Konto** → Broberg ID, your items, Theme · Palette · Surfaces · Backdrop, sign out. |
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
+
+## 0.3.0 — inset layout by default, links that leave open a new tab, a language row (F092.8, .10, .11)
+
+**Breaking (visual):** `layout` now defaults to **`"inset"`**, shadcn
+dashboard-01's layout: no full-width top bar. The brand heads the sidebar (and
+folds away with it), and the content's top row is
+
+`[sidebar button] | [title] ……… [actions] [bell] [user menu]`
+
+The 0.2.x bar is `layout="topbar"`. The bell and user menu keep their testids
+(`topbar-notifications`, `topbar-user-menu`) in both layouts — the names are
+historical — and in inset the sidebar's brand link is `brand-home`.
+
+- **External links open in a new tab** (D-d28547): every link the shell renders
+  goes through one place, so an http(s) link to another origin — the account
+  page at Broberg ID, a sidebar item, a menu item, a notification — gets
+  `target="_blank" rel="noopener noreferrer"` and never reaches your router.
+  Internal links (`/account` included) go through `onNavigate` as before.
+  `isExternal(href)` is exported.
+- **Language:** `userMenu.language = { value, options: [{ id, label }], onChange }`
+  adds a «Sprog»/«Language» row with the same segmented control as Theme and
+  Palette. The app owns the language; the shell shows and reports it. Arrow keys
+  move between the options in every segmented row.
 
 ## 0.2.0 — one sidebar button, sub-items, an icon rail, the logo goes home (F092.4–.7)
 

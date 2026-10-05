@@ -62,6 +62,27 @@ export function safeNavigate(target: string | null | undefined): string | null {
 }
 
 /**
+ * F092.10 — is this link leaving the app? An http(s) link to another origin.
+ * Paths, "#…", mailto:/tel: and the app's own origin are not. Owner decision
+ * D-d28547: every external link opens in a new tab.
+ */
+export function isExternal(
+  href: string | null | undefined,
+  origin: string | undefined = typeof location !== "undefined" ? location.origin : undefined,
+): boolean {
+  if (typeof href !== "string") return false;
+  const h = href.trim();
+  if (!origin) return /^(https?:)?\/\//i.test(h); // no page to compare with: absolute = external
+  let u: URL;
+  try {
+    u = new URL(h, origin);
+  } catch {
+    return false;
+  }
+  return (u.protocol === "http:" || u.protocol === "https:") && u.origin !== origin;
+}
+
+/**
  * The label of the nav item the user is on, for the content header (F092.4).
  * Sub-items count, and the most specific match wins: on "/models/genesis" a
  * "Genesis" child beats its "Models" parent.
@@ -296,8 +317,9 @@ export const TEXT = {
   da: {
     openMenu: "Åbn menu",
     closeMenu: "Luk menu",
-    couldNotMarkAll: "Kunne ikke markere alle som læst. Prøv igen.",
     home: "Forside",
+    language: "Sprog",
+    couldNotMarkAll: "Kunne ikke markere alle som læst. Prøv igen.",
     collapse: "Skjul sidemenu",
     expand: "Vis sidemenu",
     notifications: "Notifikationer",
@@ -323,8 +345,9 @@ export const TEXT = {
   en: {
     openMenu: "Open menu",
     closeMenu: "Close menu",
-    couldNotMarkAll: "Could not mark all as read. Try again.",
     home: "Home",
+    language: "Language",
+    couldNotMarkAll: "Could not mark all as read. Try again.",
     collapse: "Hide sidebar",
     expand: "Show sidebar",
     notifications: "Notifications",
