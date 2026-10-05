@@ -22,6 +22,10 @@ const notifications = createFetchNotificationSource({ url: "/api/notifications" 
   user={{ name, email, picture }}       // picture = Broberg ID's OIDC `picture`
   userMenu={{ accountHref: "https://id.broberg.ai/account", onSignOut }}
   mobile="drawer"                       // or "rail"
+  collapse="icon"                       // desktop fold: "offcanvas" (default) or an icon rail
+  brandMark={<LogoIcon />}              // top of the icon rail
+  homeHref="/"                          // brand + brandMark link to the start page
+  title="Dokumenter"                    // optional: else the active nav item's label
   lang="da"
 >
   <PageHeader eyebrow="Settings" title="Indstillinger" />
@@ -37,18 +41,47 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 
 | Export | What it is |
 |---|---|
-| `AppShell` | Top bar + sidebar + `<main>`; remembers a collapsed sidebar (`storageKey`). |
-| `Sidebar` | Groups (foldable, remembered) + footer, from data. Active item from `currentPath`. Badges, 99+. |
+| `AppShell` | Top bar + sidebar + `<main>` with a content header (sidebar button · rule · page title, as shadcn dashboard-01); remembers the fold, folded groups and open items (`storageKey`). |
+| `Sidebar` | Groups (foldable, remembered) + footer, from data. Items can have `children` (one level) that open and close. Active item from `currentPath`. Badges, 99+. |
 | `TopBar` | Brand left, `actions` slot, then **the bell and the user menu, always last, in that order**. |
 | `NotificationBell` | Unread count, panel (dropdown on desktop, bottom sheet on a phone), mark one / all read. |
 | `UserMenu` | Avatar, name + email, **Konto** → Broberg ID, your items, Theme · Palette · Surfaces · Backdrop, sign out. |
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
 
+## 0.2.0 — one sidebar button, sub-items, an icon rail, the logo goes home (F092.4–.7)
+
+**Breaking:** the three sidebar buttons are now ONE. `sidebar-collapse` («<» in
+the sidebar), `sidebar-expand` («>» when folded) and `sidebar-toggle` (the
+hamburger) are gone; `Sidebar` no longer takes `onToggleCollapse`.
+
+- **The sidebar button** (`sidebar-trigger`, lucide `PanelLeft`, 16px in a 28px
+  ghost button) sits at the far left of a content header at the top of `<main>`,
+  then a 16px rule, then the page title as `<h1>` — shadcn dashboard-01's
+  site-header. Desktop: folds the sidebar, remembered. Phone: opens the drawer.
+  `aria-expanded` and `aria-label` follow the state.
+- **The title** is `title`, else the label of the active nav item (a sub-item
+  beats its parent). No title → no empty `<h1>`. If you also render
+  `PageHeader`, that is a second `<h1>`; use one or the other as your page title.
+- **Sub-items:** `NavItem.children` (one level). The parent is a button with a
+  chevron that turns 90° (`sidebar-item-<id>-toggle`, `aria-expanded`); the
+  children sit indented behind a thin rule. Open items are remembered; the
+  parent of the current page starts open and is marked.
+- **`collapse="icon"`** folds to a 48px rail instead of hiding: `brandMark` on
+  top, each item's icon with its label as `aria-label` and tooltip, the current
+  page marked. A parent opens its children in a flyout
+  (`sidebar-flyout-<id>`), closed by Escape or a click outside. Default:
+  `"icon"` when `mobile="rail"`, else `"offcanvas"`.
+- **`homeHref`** makes the brand (top bar and drawer) and the `brandMark` links
+  to the start page (`brand-home`, `sidebar-brand-home`, `brand-mark-home`),
+  through `onNavigate`; cmd/ctrl-click opens a tab as usual, and on a phone the
+  click closes the drawer. `homeLabel` names the icon-only `brandMark` link
+  (default «Forside»/«Home»).
+
 ## Phone: `mobile="drawer"` or `mobile="rail"`
 
-- **drawer** (cardmem): a hamburger in the top bar opens the sidebar over a backdrop; a tap on the backdrop or on a link closes it.
-- **rail** (trail): the sidebar is a 60px icon rail; no hamburger. On desktop, collapsing gives the same rail instead of hiding the sidebar.
+- **drawer** (cardmem): the sidebar button opens the sidebar over a backdrop; a tap on the backdrop or on a link closes it.
+- **rail** (trail): the sidebar is a 60px icon rail; the sidebar button is hidden (there is nothing to fold).
 
 ## Notifications are standard — on @broberg/notifications
 

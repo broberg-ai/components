@@ -21,6 +21,12 @@ export interface NavItem<Icon = unknown> {
   icon?: Icon;
   /** A count shown on the item (99+ above 99). 0/undefined shows nothing. */
   badge?: number;
+  /**
+   * Sub-items, ONE level (F092.5). An item with children is a toggle that opens
+   * and closes them, not a link; its own `href` is used only to decide whether
+   * it is on the current path.
+   */
+  children?: NavItem<Icon>[];
 }
 export interface NavGroup<Icon = unknown> {
   label: string;
@@ -53,6 +59,29 @@ export function safeNavigate(target: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The label of the nav item the user is on, for the content header (F092.4).
+ * Sub-items count, and the most specific match wins: on "/models/genesis" a
+ * "Genesis" child beats its "Models" parent.
+ */
+export function activeNavLabel<Icon>(
+  groups: NavGroup<Icon>[],
+  footer: NavItem<Icon>[] | undefined,
+  currentPath: string,
+): string | undefined {
+  let best: { label: string; len: number } | undefined;
+  const visit = (it: NavItem<Icon>) => {
+    if (it.href && isActivePath(it.href, currentPath)) {
+      const len = it.href.length;
+      if (!best || len > best.len) best = { label: it.label, len };
+    }
+    it.children?.forEach(visit);
+  };
+  for (const g of groups) g.items.forEach(visit);
+  footer?.forEach(visit);
+  return best?.label;
 }
 
 /** "99+" above 99, nothing for 0 or less. */
@@ -266,6 +295,8 @@ export function relativeTime(ts: string | number, lang: "da" | "en", now = Date.
 export const TEXT = {
   da: {
     openMenu: "Åbn menu",
+    closeMenu: "Luk menu",
+    home: "Forside",
     collapse: "Skjul sidemenu",
     expand: "Vis sidemenu",
     notifications: "Notifikationer",
@@ -290,6 +321,8 @@ export const TEXT = {
   },
   en: {
     openMenu: "Open menu",
+    closeMenu: "Close menu",
+    home: "Home",
     collapse: "Hide sidebar",
     expand: "Show sidebar",
     notifications: "Notifications",

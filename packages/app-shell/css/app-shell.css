@@ -64,7 +64,9 @@
 .bas-sidebar__brand { min-width: 0; }
 /* drawer mode: on desktop the brand already sits in the top bar — show it in the sidebar only on a phone */
 .bas-root[data-mobile="drawer"] .bas-sidebar__brand { display: none; }
-.bas-collapse { width: 26px; height: 26px; border: 1px solid var(--border); background: var(--paper, var(--bg-card)); color: var(--fg-subtle); }
+.bas-sidebar__mark { display: none; }
+.bas-home { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; border-radius: var(--bas-radius); }
+.bas-home:hover { opacity: .85; }
 .bas-sidebar__nav { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 8px; }
 .bas-sidebar__foot { border-top: 1px solid var(--border); padding: 8px; }
 .bas-group { margin-bottom: 6px; }
@@ -96,23 +98,55 @@
   background: var(--accent-soft); color: var(--fg);
 }
 
-/* Desktop collapse: drawer mode hides the sidebar; rail mode keeps a 60px icon rail. */
-.bas-expand { display: none; }
-@media (min-width: 768px) {
-  .bas-sidebar.is-mobile-drawer.is-collapsed { flex-basis: 0; width: 0; border-right: 0; }
-  .bas-expand {
-    display: inline-flex; position: sticky; top: calc(var(--bas-top) + 8px); align-self: flex-start;
-    margin: 8px 0 0 8px; width: 28px; height: 28px; border: 1px solid var(--border);
-    background: var(--paper, var(--bg-card)); color: var(--fg-subtle); z-index: 5;
-  }
+/* ── items with children (F092.5) ── */
+.bas-item--parent { border: 0; background: transparent; text-align: left; cursor: pointer; }
+.bas-item--parent.is-parent-active { color: var(--fg); }
+.bas-item--parent.is-parent-active .bas-item__icon { color: var(--accent); }
+.bas-item__chev { display: inline-flex; flex: none; margin-left: auto; color: var(--fg-subtle); }
+.bas-sub {
+  display: flex; flex-direction: column; gap: 1px;
+  margin: 2px 0 4px 17px; padding-left: 8px; border-left: 1px solid var(--border);
 }
-.bas-sidebar.is-mobile-rail.is-collapsed { flex-basis: 60px; width: 60px; }
-.bas-sidebar.is-mobile-rail.is-collapsed .bas-item__label,
-.bas-sidebar.is-mobile-rail.is-collapsed .bas-group__label span,
-.bas-sidebar.is-mobile-rail.is-collapsed .bas-sidebar__brand { display: none; }
-.bas-sidebar.is-mobile-rail.is-collapsed .bas-item { justify-content: center; padding: 8px 0; }
-.bas-sidebar.is-mobile-rail.is-collapsed .bas-item__count { position: absolute; top: 2px; right: 4px; padding: 0 4px; }
-.bas-sidebar.is-mobile-rail.is-collapsed .bas-collapse { transform: rotate(180deg); }
+.bas-item--sub { padding: 6px 8px; }
+
+/* ── the rail's flyout (F092.6) ── */
+.bas-flyout {
+  position: fixed; z-index: 70; min-width: 190px; padding: 6px;
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--bg-card, var(--bg)); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--bas-radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+}
+.bas-flyout__title { padding: 4px 8px 6px; font-size: 12px; font-weight: 500; color: var(--fg-subtle); }
+.bas-flyout .bas-item__label { display: block; }
+
+/* ── the rail: phone rail mode, or desktop folded with collapse="icon" ── */
+.bas-sidebar.is-railed .bas-item__label,
+.bas-sidebar.is-railed .bas-item__chev,
+.bas-sidebar.is-railed .bas-group__label,
+.bas-sidebar.is-railed .bas-sidebar__brand { display: none; }
+.bas-sidebar.is-railed .bas-sidebar__nav { padding: 4px 6px 8px; }
+.bas-sidebar.is-railed .bas-sidebar__foot { padding: 8px 6px; }
+.bas-sidebar.is-railed .bas-item { justify-content: center; padding: 8px 0; }
+.bas-sidebar.is-railed .bas-item__bar { left: -6px; }
+.bas-sidebar.is-railed .bas-item__count { position: absolute; top: 2px; right: 2px; padding: 0 4px; }
+.bas-sidebar.is-railed .bas-sidebar__head { justify-content: center; padding: 10px 0 4px; }
+.bas-sidebar.is-railed .bas-sidebar__mark { display: flex; align-items: center; justify-content: center; }
+
+/* Desktop fold: "offcanvas" hides the sidebar, "icon" keeps a 48px rail. */
+@media (min-width: 768px) {
+  .bas-sidebar[data-collapse="offcanvas"].is-collapsed { flex-basis: 0; width: 0; border-right: 0; }
+  .bas-sidebar[data-collapse="icon"].is-collapsed { flex-basis: 48px; width: 48px; }
+}
+
+/* ── content header: the sidebar button, a rule, the page title (F092.4, shadcn dashboard-01) ── */
+.bas-contenthead {
+  display: flex; align-items: center; gap: 4px; height: 48px; padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.bas-trigger { width: 28px; height: 28px; margin-left: -4px; }
+.bas-contenthead__sep { flex: none; width: 1px; height: 16px; margin: 0 8px; background: var(--border); }
+.bas-contenthead__title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 500; color: var(--fg); }
 
 .bas-backdrop { display: none; }
 
@@ -131,17 +165,14 @@
     box-shadow: 0 24px 56px rgba(0, 0, 0, .22);
   }
   .bas-root[data-mobile="drawer"] .bas-sidebar__brand { display: block; }
-  .bas-sidebar.is-mobile-drawer .bas-collapse { display: none; }
   .bas-backdrop.is-open { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, .36); }
 
-  /* rail: always the 60px icon rail on a phone, never a drawer */
+  /* rail: always the 60px icon rail on a phone, never a drawer (styling via .is-railed) */
   .bas-sidebar.is-mobile-rail { flex-basis: 60px; width: 60px; }
-  .bas-sidebar.is-mobile-rail .bas-item__label,
-  .bas-sidebar.is-mobile-rail .bas-group__label span,
-  .bas-sidebar.is-mobile-rail .bas-sidebar__brand,
-  .bas-sidebar.is-mobile-rail .bas-collapse { display: none; }
-  .bas-sidebar.is-mobile-rail .bas-item { justify-content: center; padding: 8px 0; }
-  .bas-sidebar.is-mobile-rail .bas-item__count { position: absolute; top: 2px; right: 4px; padding: 0 4px; }
+  /* the sidebar button has nothing to fold on a phone in rail mode */
+  .bas-root[data-mobile="rail"] .bas-trigger,
+  .bas-root[data-mobile="rail"] .bas-contenthead__sep { display: none; }
+  .bas-contenthead { padding: 0 12px; }
   .bas-topbar__inner { padding: 0 12px; gap: 8px; }
   .bas-userbtn__name { display: none; }
 }

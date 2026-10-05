@@ -86,36 +86,242 @@ describe("Sidebar (F092.1)", () => {
   });
 });
 
-describe("AppShell — collapse and the two phone modes (F092.1)", () => {
-  it("desktop collapse is remembered after a remount", () => {
+describe("AppShell — collapse and the two phone modes (F092.1, one trigger since F092.4)", () => {
+  it("desktop fold is remembered after a remount", () => {
     const { unmount } = render(<AppShell lang="da" groups={GROUPS} currentPath="/" storageKey="t" />);
-    fireEvent.click(screen.getByTestId("sidebar-collapse"));
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
     expect(screen.getByTestId("sidebar-root").className).toContain("is-collapsed");
     unmount();
     render(<AppShell lang="da" groups={GROUPS} currentPath="/" storageKey="t" />);
     expect(screen.getByTestId("sidebar-root").className).toContain("is-collapsed");
-    fireEvent.click(screen.getByTestId("sidebar-expand"));
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
     expect(screen.getByTestId("sidebar-root").className).not.toContain("is-collapsed");
   });
 
-  it("drawer: hamburger opens, backdrop and navigation close", () => {
+  it("phone, drawer: the same trigger opens; backdrop and navigation close", () => {
+    mockMatchMedia(true);
     render(<AppShell lang="da" groups={GROUPS} currentPath="/" mobile="drawer" onNavigate={() => {}} />);
     expect(screen.getByTestId("app-shell").getAttribute("data-mobile")).toBe("drawer");
-    fireEvent.click(screen.getByTestId("sidebar-toggle"));
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
     expect(screen.getByTestId("sidebar-root").className).toContain("is-open");
+    expect(screen.getByTestId("sidebar-trigger").getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(screen.getByTestId("sidebar-backdrop"));
     expect(screen.getByTestId("sidebar-root").className).not.toContain("is-open");
-    fireEvent.click(screen.getByTestId("sidebar-toggle"));
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
     fireEvent.click(screen.getByTestId("sidebar-item-board"));
+    expect(screen.getByTestId("sidebar-root").className).not.toContain("is-open");
+    // on a phone the trigger does not fold the desktop sidebar
+    expect(screen.getByTestId("sidebar-root").className).not.toContain("is-collapsed");
+  });
+
+  it("rail: no backdrop, the sidebar is the rail", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" mobile="rail" />);
+    expect(screen.getByTestId("app-shell").getAttribute("data-mobile")).toBe("rail");
+    expect(screen.queryByTestId("sidebar-backdrop")).toBeNull();
+    expect(screen.getByTestId("sidebar-root").className).toContain("is-mobile-rail");
+  });
+});
+
+describe("F092.4 — one sidebar trigger like shadcn dashboard-01", () => {
+  it("the three old buttons are gone", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" />);
+    for (const id of ["sidebar-collapse", "sidebar-expand", "sidebar-toggle"]) expect(screen.queryByTestId(id)).toBeNull();
+    expect(screen.getAllByTestId("sidebar-trigger")).toHaveLength(1);
+  });
+
+  it("order in the content header: trigger, separator, h1 title", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" title="Dokumenter" />);
+    const head = screen.getByTestId("content-header");
+    expect([...head.children].map((c) => c.getAttribute("data-testid"))).toEqual([
+      "sidebar-trigger",
+      "content-header-separator",
+      "content-header-title",
+    ]);
+    const h1 = screen.getByTestId("content-header-title");
+    expect(h1.tagName).toBe("H1");
+    expect(h1.textContent).toBe("Dokumenter");
+    // the content header sits in <main>, to the right of the sidebar
+    expect(screen.getByTestId("app-content").firstElementChild).toBe(head);
+  });
+
+  it("the icon is lucide PanelLeft, 16px", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" />);
+    const svg = screen.getByTestId("sidebar-trigger").querySelector("svg")!;
+    expect(svg.getAttribute("width")).toBe("16");
+    const rect = svg.querySelector("rect")!;
+    expect([rect.getAttribute("width"), rect.getAttribute("height"), rect.getAttribute("x"), rect.getAttribute("y"), rect.getAttribute("rx")]).toEqual(["18", "18", "3", "3", "2"]);
+    expect(svg.querySelector("path")!.getAttribute("d")).toBe("M9 3v18");
+  });
+
+  it("aria-label and aria-expanded follow the desktop fold", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" />);
+    const btn = screen.getByTestId("sidebar-trigger");
+    expect([btn.getAttribute("aria-expanded"), btn.getAttribute("aria-label")]).toEqual(["true", "Skjul sidemenu"]);
+    fireEvent.click(btn);
+    expect([btn.getAttribute("aria-expanded"), btn.getAttribute("aria-label")]).toEqual(["false", "Vis sidemenu"]);
+  });
+
+  it("title: the prop wins, else the active item (a sub-item beats its parent), else no h1", () => {
+    const nested: PreactNavGroup[] = [
+      { label: "Main", items: [{ id: "models", label: "Models", href: "/models", children: [{ id: "genesis", label: "Genesis", href: "/models/genesis" }] }] },
+    ];
+    const { unmount } = render(<AppShell lang="da" groups={nested} currentPath="/models/genesis" />);
+    expect(screen.getByTestId("content-header-title").textContent).toBe("Genesis");
+    unmount();
+    const r2 = render(<AppShell lang="da" groups={GROUPS} currentPath="/inbox" />);
+    expect(screen.getByTestId("content-header-title").textContent).toBe("Inbox");
+    r2.unmount();
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/nowhere" />);
+    expect(screen.queryByTestId("content-header-title")).toBeNull();
+    expect(screen.queryByTestId("content-header-separator")).toBeNull();
+  });
+});
+
+const NESTED: PreactNavGroup[] = [
+  {
+    label: "Platform",
+    items: [
+      { id: "playground", label: "Playground", href: "/playground", icon: <i>P</i>, children: [
+        { id: "history", label: "History", href: "/playground/history" },
+        { id: "starred", label: "Starred", href: "/playground/starred" },
+      ] },
+      { id: "models", label: "Models", href: "/models", icon: <i>M</i>, children: [{ id: "genesis", label: "Genesis", href: "/models/genesis" }] },
+      { id: "docs", label: "Docs", href: "/docs", icon: <i>D</i> },
+    ],
+  },
+];
+
+describe("F092.5 — items with children open and close", () => {
+  it("a parent is a button with a chevron; click toggles aria-expanded and the sub-list", () => {
+    render(<AppShell lang="da" groups={NESTED} currentPath="/docs" storageKey="n" />);
+    const t = screen.getByTestId("sidebar-item-playground-toggle");
+    expect([t.tagName, t.getAttribute("type")]).toEqual(["BUTTON", "button"]); // native button: Enter and Space work
+    expect(t.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByTestId("sidebar-item-history")).toBeNull();
+    fireEvent.click(t);
+    expect(t.getAttribute("aria-expanded")).toBe("true");
+    expect(t.querySelector(".bas-chev")!.className).toContain("is-open");
+    expect(screen.getByTestId("sidebar-item-history").closest(".bas-sub")).not.toBeNull();
+    fireEvent.click(t);
+    expect(screen.queryByTestId("sidebar-item-history")).toBeNull();
+  });
+
+  it("open items are remembered after a remount", () => {
+    const { unmount } = render(<AppShell lang="da" groups={NESTED} currentPath="/docs" storageKey="n" />);
+    fireEvent.click(screen.getByTestId("sidebar-item-models-toggle"));
+    unmount();
+    render(<AppShell lang="da" groups={NESTED} currentPath="/docs" storageKey="n" />);
+    expect(screen.getByTestId("sidebar-item-models-toggle").getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("sidebar-item-genesis")).toBeTruthy();
+  });
+
+  it("the parent of the current page starts open, and both are marked", () => {
+    render(<AppShell lang="da" groups={NESTED} currentPath="/playground/starred" storageKey="n" />);
+    const t = screen.getByTestId("sidebar-item-playground-toggle");
+    expect(t.getAttribute("aria-expanded")).toBe("true");
+    expect(t.className).toContain("is-parent-active");
+    expect(screen.getByTestId("sidebar-item-starred").className).toContain("is-active");
+    expect(screen.getByTestId("sidebar-item-starred").getAttribute("aria-current")).toBe("page");
+  });
+
+  it("phone drawer: children work the same and a sub-item click closes the drawer", () => {
+    mockMatchMedia(true);
+    render(<AppShell lang="da" groups={NESTED} currentPath="/docs" onNavigate={() => {}} />);
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    fireEvent.click(screen.getByTestId("sidebar-item-playground-toggle"));
+    fireEvent.click(screen.getByTestId("sidebar-item-history"));
+    expect(screen.getByTestId("sidebar-root").className).not.toContain("is-open");
+  });
+});
+
+describe("F092.6 — collapse to an icon rail with the brand mark", () => {
+  const mark = <b data-testid="logo">B</b>;
+
+  it("collapse=icon: folded is the rail, not gone; offcanvas is the default", () => {
+    const { unmount } = render(<AppShell lang="da" groups={NESTED} currentPath="/docs" />);
+    expect(screen.getByTestId("sidebar-root").getAttribute("data-collapse")).toBe("offcanvas");
+    unmount();
+    render(<AppShell lang="da" groups={NESTED} currentPath="/docs" collapse="icon" brandMark={mark} storageKey="r" />);
+    const root = screen.getByTestId("sidebar-root");
+    expect(root.getAttribute("data-collapse")).toBe("icon");
+    expect(root.className).not.toContain("is-railed");
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(root.className).toContain("is-collapsed");
+    expect(root.className).toContain("is-railed");
+  });
+
+  it("the rail shows the brand mark, and every icon has its label as aria-label and title", () => {
+    localStorage.setItem("r.collapsed", "1");
+    render(<AppShell lang="da" groups={NESTED} currentPath="/docs" collapse="icon" brandMark={mark} storageKey="r" />);
+    expect(screen.getByTestId("sidebar-brand-mark").contains(screen.getByTestId("logo"))).toBe(true);
+    const docs = screen.getByTestId("sidebar-item-docs");
+    expect([docs.getAttribute("aria-label"), docs.getAttribute("title")]).toEqual(["Docs", "Docs"]);
+    expect(docs.className).toContain("is-active");
+    const pg = screen.getByTestId("sidebar-item-playground-toggle");
+    expect([pg.getAttribute("aria-label"), pg.getAttribute("title")]).toEqual(["Playground", "Playground"]);
+  });
+
+  it("children open in a flyout from the rail; Escape and a click outside close it", () => {
+    localStorage.setItem("r.collapsed", "1");
+    render(<AppShell lang="da" groups={NESTED} currentPath="/docs" collapse="icon" brandMark={mark} storageKey="r" />);
+    expect(screen.queryByTestId("sidebar-item-history")).toBeNull();
+    fireEvent.click(screen.getByTestId("sidebar-item-playground-toggle"));
+    const fly = screen.getByTestId("sidebar-flyout-playground");
+    expect(fly.contains(screen.getByTestId("sidebar-item-history"))).toBe(true);
+    expect(fly.closest(".bas-sub")).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("sidebar-flyout-playground")).toBeNull();
+    fireEvent.click(screen.getByTestId("sidebar-item-playground-toggle"));
+    expect(screen.getByTestId("sidebar-flyout-playground")).toBeTruthy();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByTestId("sidebar-flyout-playground")).toBeNull();
+  });
+
+  it("the rail state is remembered after a remount", () => {
+    const { unmount } = render(<AppShell lang="da" groups={NESTED} currentPath="/docs" collapse="icon" storageKey="r2" />);
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    unmount();
+    render(<AppShell lang="da" groups={NESTED} currentPath="/docs" collapse="icon" storageKey="r2" />);
+    expect(screen.getByTestId("sidebar-root").className).toContain("is-railed");
+  });
+});
+
+describe("F092.7 — the logo goes to the start page", () => {
+  const brand = <span>Nordlys</span>;
+
+  it("without homeHref the brand is not a link", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" brand={brand} />);
+    expect(screen.queryByTestId("brand-home")).toBeNull();
+  });
+
+  it("brand → onNavigate(homeHref); a cmd-click is left to the browser", () => {
+    const nav = vi.fn();
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/inbox" brand={brand} homeHref="/" onNavigate={nav} />);
+    const a = screen.getByTestId("brand-home");
+    expect([a.tagName, a.getAttribute("href")]).toEqual(["A", "/"]);
+    fireEvent.click(a, { metaKey: true });
+    expect(nav).not.toHaveBeenCalled();
+    fireEvent.click(a);
+    expect(nav).toHaveBeenCalledWith("/");
+  });
+
+  it("phone drawer: the brand inside the drawer closes it", () => {
+    mockMatchMedia(true);
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/inbox" brand={brand} homeHref="/" onNavigate={() => {}} />);
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(screen.getByTestId("sidebar-root").className).toContain("is-open");
+    fireEvent.click(screen.getByTestId("sidebar-brand-home"));
     expect(screen.getByTestId("sidebar-root").className).not.toContain("is-open");
   });
 
-  it("rail: no hamburger, no backdrop, the sidebar is the rail", () => {
-    render(<AppShell lang="da" groups={GROUPS} currentPath="/" mobile="rail" />);
-    expect(screen.getByTestId("app-shell").getAttribute("data-mobile")).toBe("rail");
-    expect(screen.queryByTestId("sidebar-toggle")).toBeNull();
-    expect(screen.queryByTestId("sidebar-backdrop")).toBeNull();
-    expect(screen.getByTestId("sidebar-root").className).toContain("is-mobile-rail");
+  it("the rail's brand mark is a home link with a label (homeLabel, else Forside)", () => {
+    localStorage.setItem("h.collapsed", "1");
+    const { unmount } = render(<AppShell lang="da" groups={GROUPS} currentPath="/" collapse="icon" brandMark={<b>B</b>} homeHref="/" storageKey="h" />);
+    expect(screen.getByTestId("brand-mark-home").getAttribute("aria-label")).toBe("Forside");
+    unmount();
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" collapse="icon" brandMark={<b>B</b>} homeHref="/dash" homeLabel="Nordlys" storageKey="h" />);
+    const m = screen.getByTestId("brand-mark-home");
+    expect([m.getAttribute("aria-label"), m.getAttribute("href")]).toEqual(["Nordlys", "/dash"]);
   });
 });
 
