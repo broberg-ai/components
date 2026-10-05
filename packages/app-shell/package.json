@@ -1,6 +1,6 @@
 {
   "name": "@broberg/app-shell",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The fleet's app shell: collapsible sidebar (phone: rail or drawer), top bar with the notification bell and user menu as standard, page header and tabs. Framework-free core + Preact (Stack B). Styled on @broberg/theme tokens. Avatar from Broberg ID, initials otherwise — no Gravatar.",
   "type": "module",
   "license": "MIT",
@@ -35,9 +35,9 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "@broberg/notifications": ">=0.4.0",
     "@broberg/theme": ">=0.11.0",
-    "preact": ">=10.0.0",
-    "@broberg/notifications": ">=0.4.0"
+    "preact": ">=10.0.0"
   },
   "peerDependenciesMeta": {
     "preact": {
@@ -45,14 +45,14 @@
     }
   },
   "devDependencies": {
+    "@broberg/notifications": "workspace:*",
     "@broberg/theme": "workspace:*",
     "@testing-library/preact": "^3.2.3",
     "happy-dom": "^15.0.0",
     "preact": "^10.23.0",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
-    "@broberg/notifications": "workspace:*"
+    "vitest": "^2.1.0"
   },
   "keywords": [
     "app-shell",

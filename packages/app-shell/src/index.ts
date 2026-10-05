@@ -38,6 +38,23 @@ export function isActivePath(href: string, currentPath: string): boolean {
   return path === target || path.startsWith(target + "/");
 }
 
+/**
+ * A notification's `navigate` is SERVER DATA, and it ends in `location.assign`.
+ * `javascript:` there runs code in the app, so only a same-site path or an
+ * http(s) URL is followed; anything else returns null and the row just closes.
+ */
+export function safeNavigate(target: string | null | undefined): string | null {
+  if (typeof target !== "string") return null;
+  const t = target.trim();
+  if (t.startsWith("/") && !t.startsWith("//") && !t.startsWith("/\\")) return t;
+  try {
+    const u = new URL(t);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** "99+" above 99, nothing for 0 or less. */
 export function badgeLabel(n: number | undefined): string | null {
   if (!n || n <= 0) return null;

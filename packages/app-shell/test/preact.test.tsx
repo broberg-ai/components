@@ -161,6 +161,18 @@ describe("NotificationBell (F092.2) — on @broberg/notifications' bell shell", 
     expect(src.rows().every((n) => n.seenAt != null)).toBe(true);
   });
 
+  it("a javascript: link from the server is not followed — the row only marks seen", async () => {
+    const evil = { ...row("x", "Klik"), navigate: "javascript:alert(document.cookie)" };
+    const src = createMemoryNotificationSource([evil]);
+    const nav = vi.fn();
+    render(<NotificationBell lang="da" source={src} onNavigate={nav} />);
+    fireEvent.click(screen.getByTestId("topbar-notifications"));
+    await waitFor(() => expect(screen.getAllByTestId("notification-row")).toHaveLength(1));
+    fireEvent.click(screen.getAllByTestId("notification-row")[0]!);
+    await waitFor(() => expect(src.rows()[0]!.seenAt).not.toBeNull());
+    expect(nav).not.toHaveBeenCalled();
+  });
+
   it("99+ above 99", async () => {
     const many = Array.from({ length: 120 }, (_, i) => row(String(i), "x"));
     render(<NotificationBell lang="da" source={createMemoryNotificationSource(many)} />);

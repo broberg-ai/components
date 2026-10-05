@@ -75,6 +75,14 @@ notifikationer»** — never «no notifications», because those two must not lo
 the same. `createMemoryNotificationSource(rows)` is for demos and tests; write
 your own `NotificationSource` for SSE or anything else.
 
+### A notification link is server data (0.1.1)
+
+A row's `navigate` comes from your server and ends in `location.assign` (or your
+`onNavigate`). Only a same-site path (`/…`, not `//…`) or an `http(s)` URL is
+followed; `javascript:`, `data:` and anything else is refused, and the click only
+marks the row seen. `safeNavigate(target)` is exported if you route links yourself.
+0.1.0 followed any value — upgrade.
+
 ## `lang` is required
 
 Every component that shows text takes `lang: "da" | "en"` with no default — the

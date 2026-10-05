@@ -43,6 +43,7 @@ import {
   readFlag,
   readSet,
   relativeTime,
+  safeNavigate,
   TEXT,
   writeFlag,
   writeSet,
@@ -293,9 +294,10 @@ export function NotificationBell({ source, onNavigate, lang }: NotificationBellP
       await source.markSeen([n.id]);
       await shell.refresh();
     }
-    if (n.navigate) {
-      if (onNavigate) onNavigate(n.navigate);
-      else if (typeof window !== "undefined") window.location.assign(n.navigate);
+    const target = safeNavigate(n.navigate);
+    if (target) {
+      if (onNavigate) onNavigate(target);
+      else if (typeof window !== "undefined") window.location.assign(target);
     }
   };
   const seen = (n: NotificationRow) => n.seenAt != null || state.clearedIds.includes(n.id);

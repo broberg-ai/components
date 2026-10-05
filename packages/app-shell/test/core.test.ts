@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+  safeNavigate,
   badgeLabel,
   createFetchNotificationSource,
   createMemoryNotificationSource,
@@ -97,6 +98,17 @@ describe("createMemoryNotificationSource", () => {
     s.push(row("d"));
     expect(calls).toBe(2);
     expect(await s.countUnseen()).toBe(1);
+  });
+});
+
+describe("safeNavigate — a notification link is server data", () => {
+  it("follows same-site paths and http(s), refuses everything else", () => {
+    expect(["/a", "/a?b=1#c", " /x ", "https://bid.broberg.ai/k", "http://localhost:3000/"].map(safeNavigate)).toEqual(
+      ["/a", "/a?b=1#c", "/x", "https://bid.broberg.ai/k", "http://localhost:3000/"],
+    );
+    for (const bad of ["javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,x", "vbscript:x", "//evil.example/x", "/\\evil.example", "relative", "", null, undefined]) {
+      expect(safeNavigate(bad as string)).toBeNull();
+    }
   });
 });
 
