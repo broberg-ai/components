@@ -13,6 +13,31 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
+## 0.12.0 — a brand accent: the app's own colour from one hex (F001.20)
+
+A palette is a **surface tone**, not a brand: `classic`, `cool` and `warm` share one
+`--accent`. Measured by appkit: two customers on two palettes got the same orange
+buttons. A brand is now three lines — name, logo, and:
+
+```ts
+import { setAccent, prePaintScript } from "@broberg/theme";
+
+setAccent("#2E7D32");          // --accent, --accent-fg, --accent-soft on <html>
+setAccent(null);               // back to the palette's own accent
+// <head>, so the first paint already has it:
+prePaintScript({ defaultPreference: "system", accent: "#2E7D32" });
+```
+
+- `--accent-fg` is dark ink or white, whichever gives the higher contrast — and
+  always ≥ 4.5:1 (black is the floor for a mid-tone where neither reaches it).
+- Written as inline properties on `<html>`, so a palette or theme switch never
+  wipes it. Same colour in light and dark (v1).
+- Only `#rgb` / `#rrggbb`. Anything else is refused: `setAccent` returns `false`
+  and writes nothing; `prePaintScript` emits nothing for it.
+- `accentTokens(hex)` gives you the three values without touching the page (for a
+  mail template, say).
+- Not persisted on purpose: the app sets its brand, the end user does not choose it.
+
 ## 0.11.0 — the neuron backdrop, one copy (F001.19)
 
 The drifting neuron constellation behind cardmem and trail is now

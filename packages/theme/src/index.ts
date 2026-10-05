@@ -11,6 +11,7 @@
  */
 
 import { PALETTES } from "./palette";
+import { accentSnippet } from "./accent";
 
 export type ThemeKey =
   | "light"
@@ -301,6 +302,8 @@ export interface PrePaintOptions {
   surfacesKey?: string;
   /** F001.19 — same for `data-backdrop` (`initPalette({ backdropKey })`). */
   backdropKey?: string;
+  /** F001.20 — the app's brand accent (#rgb / #rrggbb), applied before first paint. Same value you pass to setAccent(). */
+  accent?: string;
 }
 
 /**
@@ -383,7 +386,8 @@ export function prePaintScript(options: PrePaintOptions = {}): string {
     `var t=p==="system"?(matchMedia(${query}).matches?"light":"dark"):p;` +
     `document.documentElement.setAttribute("data-theme",t)` +
     `}catch(e){}` +
-    paletteSnippet(options)
+    paletteSnippet(options) +
+    accentSnippet(options.accent)
   );
 }
 
@@ -438,3 +442,5 @@ export {
   onBackdropChange,
 } from "./palette";
 export type { Palette, Surfaces, Backdrop, InitPaletteOptions } from "./palette";
+export { accentTokens, setAccent } from "./accent";
+export type { AccentTokens } from "./accent";

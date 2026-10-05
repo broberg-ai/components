@@ -26,8 +26,9 @@ const CORE = join(HERE, "src/index.ts");
 // F001.16 — a harness that can only mutate ONE file leaves every decision in the
 // other file undefended, and says nothing about it. Each mutation names its own
 // target now; `SRC` stays the default so no existing entry moves.
-const GUARDED = ["src/design-md.ts", "src/index.ts", "src/palette.ts", "css/palettes.css", "src/constellation.ts"];
+const GUARDED = ["src/design-md.ts", "src/index.ts", "src/palette.ts", "css/palettes.css", "src/constellation.ts", "src/accent.ts"];
 const CONSTELLATION = join(HERE, "src/constellation.ts");
+const ACCENT = join(HERE, "src/accent.ts");
 const PALETTE_SRC = join(HERE, "src/palette.ts");
 const PALETTES_CSS = join(HERE, "css/palettes.css");
 const fileOf = (m) => m.file ?? SRC;
@@ -199,6 +200,36 @@ const MUTATIONS = [
     file: CONSTELLATION,
     from: `    resize();\n    repaintStill();`,
     to: `    resize();`,
+  },
+  {
+    name: "F001.20 the foreground is picked by the LOWER contrast (unreadable buttons)",
+    file: ACCENT,
+    from: `  let accentFg = ink >= white ? INK : WHITE;`,
+    to: `  let accentFg = ink >= white ? WHITE : INK;`,
+  },
+  {
+    name: "F001.20 no black floor — a mid-grey brand can fall under 4.5:1",
+    file: ACCENT,
+    from: `  if (Math.max(ink, white) < AA) accentFg = BLACK;`,
+    to: ``,
+  },
+  {
+    name: "F001.20 any string is accepted as a colour",
+    file: ACCENT,
+    from: `  if (typeof hex !== "string" || !HEX.test(hex.trim())) return null;`,
+    to: `  if (typeof hex !== "string") return null;`,
+  },
+  {
+    name: "F001.20 setAccent(null) no longer restores the palette's accent",
+    file: ACCENT,
+    from: `    for (const v of VARS) style.removeProperty(v);`,
+    to: ``,
+  },
+  {
+    name: "F001.20 the pre-paint script drops the accent",
+    file: CORE,
+    from: `    paletteSnippet(options) +\n    accentSnippet(options.accent)`,
+    to: `    paletteSnippet(options) + ""`,
   },
 
 ];
