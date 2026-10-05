@@ -421,15 +421,49 @@ export function NotificationBell({ source, onNavigate, lang }: NotificationBellP
       else void shell.refresh();
     });
   }, [shell, source]);
+  // F092.9 — a click anywhere outside the bell and its panel closes it (not
+  // only a click that happens to land on the overlay: Lens 332fdd8c clicked a
+  // dropzone straight through it), and Escape hands focus back to the bell.
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!state.open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && shell.escape() === "close") e.preventDefault();
+      if (e.key === "Escape" && shell.escape() === "close") {
+        e.preventDefault();
+        bellRef.current?.focus();
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (t && (panelRef.current?.contains(t) || bellRef.current?.contains(t))) return;
+      shell.close();
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
   }, [state.open, shell]);
 
+  // F092.9 — Christian: «Marker alle læst på klokken skal automatisk lukke
+  // dropdown det har jeg fået rettet 300 gange i diverse apps». Close only when
+  // it WORKED: a panel that closes on a failure hides that nothing was marked.
+  const [markAllFailed, setMarkAllFailed] = useState(false);
+  useEffect(() => {
+    if (!state.open) setMarkAllFailed(false);
+  }, [state.open]);
+  const onMarkAll = async () => {
+    setMarkAllFailed(false);
+    try {
+      await shell.markAllSeen();
+    } catch {
+      setMarkAllFailed(true);
+      return;
+    }
+    shell.close();
+  };
   const label = badgeLabel(state.count);
   const onRow = async (n: NotificationRow) => {
     shell.close();
@@ -449,6 +483,7 @@ export function NotificationBell({ source, onNavigate, lang }: NotificationBellP
     <div class="bas-bell">
       <button
         type="button"
+        ref={bellRef}
         class="bas-iconbtn"
         data-testid="topbar-notifications"
         aria-label={t.notifications}
@@ -469,6 +504,7 @@ export function NotificationBell({ source, onNavigate, lang }: NotificationBellP
         <>
           <div class={"bas-overlay" + (mobile ? " is-dim" : "")} data-testid="notifications-backdrop" onClick={() => shell.close()} />
           <div
+            ref={panelRef}
             class={"bas-panel " + (mobile ? "bas-panel--sheet" : "bas-panel--drop")}
             role="dialog"
             aria-label={shell.labels.panel}
@@ -476,10 +512,15 @@ export function NotificationBell({ source, onNavigate, lang }: NotificationBellP
           >
             <div class="bas-panel__head">
               <h3>{t.notifications}</h3>
-              <button type="button" class="bas-link" data-testid="notifications-mark-all" onClick={() => void shell.markAllSeen()} disabled={!state.count}>
+              <button type="button" class="bas-link" data-testid="notifications-mark-all" onClick={() => void onMarkAll()} disabled={!state.count}>
                 {shell.labels.markAll}
               </button>
             </div>
+            {markAllFailed ? (
+              <p class="bas-panel__note is-error" role="alert" data-testid="notifications-mark-all-error">
+                {t.couldNotMarkAll}
+              </p>
+            ) : null}
             <div class="bas-panel__list" data-testid="notifications-list">
               {error && state.rows.length === 0 ? (
                 <p class="bas-panel__note is-error" data-testid="notifications-error">

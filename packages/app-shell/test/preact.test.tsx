@@ -415,6 +415,68 @@ describe("NotificationBell (F092.2) — on @broberg/notifications' bell shell", 
   });
 });
 
+describe("F092.9 — «Markér alle læst» closes the panel when it worked", () => {
+  const row = (id: string) => ({ id, kind: "x", title: id, body: null, navigate: null, refId: null, createdAt: Date.now(), seenAt: null });
+
+  for (const phone of [false, true]) {
+    const panel = phone ? "notifications-drawer" : "notifications-dropdown";
+    it(`success closes the ${panel} and the count goes`, async () => {
+      mockMatchMedia(phone);
+      const src = createMemoryNotificationSource([row("a"), row("b")]);
+      render(<NotificationBell lang="da" source={src} />);
+      await waitFor(() => expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("2"));
+      fireEvent.click(screen.getByTestId("topbar-notifications"));
+      await screen.findByTestId(panel);
+      await waitFor(() => expect((screen.getByTestId("notifications-mark-all") as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(screen.getByTestId("notifications-mark-all"));
+      await waitFor(() => expect(screen.queryByTestId(panel)).toBeNull());
+      await waitFor(() => expect(screen.queryByTestId("topbar-notifications-count")).toBeNull());
+    });
+  }
+
+  it("failure keeps the panel open, says so, and leaves the count", async () => {
+    const base = createMemoryNotificationSource([row("a")]);
+    const src: NotificationSource = { ...base, markAllSeen: async () => { throw new Error("HTTP 500"); } };
+    render(<NotificationBell lang="da" source={src} />);
+    await waitFor(() => expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("1"));
+    fireEvent.click(screen.getByTestId("topbar-notifications"));
+    await waitFor(() => expect((screen.getByTestId("notifications-mark-all") as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId("notifications-mark-all"));
+    expect((await screen.findByTestId("notifications-mark-all-error")).textContent).toBe("Kunne ikke markere alle som læst. Prøv igen.");
+    expect(screen.getByTestId("notifications-dropdown")).toBeTruthy();
+    expect(screen.getByTestId("topbar-notifications-count").textContent).toBe("1");
+  });
+});
+
+describe("F092.9 — a click outside closes the bell panel; Escape returns focus to the bell", () => {
+  const row = (id: string) => ({ id, kind: "x", title: id, body: null, navigate: null, refId: null, createdAt: Date.now(), seenAt: null });
+
+  it("mousedown on page content (not the overlay) closes the dropdown; inside the panel it does not", async () => {
+    render(
+      <div>
+        <NotificationBell lang="da" source={createMemoryNotificationSource([row("a")])} />
+        <div data-testid="dropzone">drop</div>
+      </div>,
+    );
+    fireEvent.click(screen.getByTestId("topbar-notifications"));
+    await screen.findByTestId("notifications-dropdown");
+    fireEvent.mouseDown(screen.getByTestId("notifications-list"));
+    expect(screen.getByTestId("notifications-dropdown")).toBeTruthy();
+    fireEvent.mouseDown(screen.getByTestId("dropzone"));
+    await waitFor(() => expect(screen.queryByTestId("notifications-dropdown")).toBeNull());
+  });
+
+  it("Escape closes and puts focus back on the bell", async () => {
+    render(<NotificationBell lang="da" source={createMemoryNotificationSource([row("a")])} />);
+    fireEvent.click(screen.getByTestId("topbar-notifications"));
+    await screen.findByTestId("notifications-dropdown");
+    (screen.getByTestId("notifications-mark-all") as HTMLButtonElement).focus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("notifications-dropdown")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByTestId("topbar-notifications"));
+  });
+});
+
 describe("UserMenu (F092.3)", () => {
   it("BID picture when present, initials when not", () => {
     const { unmount } = render(<UserMenu lang="da" user={{ name: "Ann Berg", picture: "https://id.broberg.ai/avatar/1.webp" }} />);

@@ -296,6 +296,7 @@ export const TEXT = {
   da: {
     openMenu: "Åbn menu",
     closeMenu: "Luk menu",
+    couldNotMarkAll: "Kunne ikke markere alle som læst. Prøv igen.",
     home: "Forside",
     collapse: "Skjul sidemenu",
     expand: "Vis sidemenu",
@@ -322,6 +323,7 @@ export const TEXT = {
   en: {
     openMenu: "Open menu",
     closeMenu: "Close menu",
+    couldNotMarkAll: "Could not mark all as read. Try again.",
     home: "Home",
     collapse: "Hide sidebar",
     expand: "Show sidebar",

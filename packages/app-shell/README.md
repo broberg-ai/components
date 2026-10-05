@@ -117,6 +117,13 @@ followed; `javascript:`, `data:` and anything else is refused, and the click onl
 marks the row seen. `safeNavigate(target)` is exported if you route links yourself.
 0.1.0 followed any value — upgrade.
 
+### The bell panel closes itself (0.2.3)
+
+«Markér alle læst» closes the panel when it worked and leaves it open with an
+error when it did not (`notifications-mark-all-error`) — a panel that closed on a
+failure would hide that nothing was marked. A click anywhere outside the bell and
+its panel closes it, and Escape closes it and puts focus back on the bell.
+
 ## `lang` is required
 
 Every component that shows text takes `lang: "da" | "en"` with no default — the
