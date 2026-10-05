@@ -45,6 +45,80 @@ export class SsoError extends Error {
   }
 }
 
+/**
+ * F095.2 — the user must log in again: there is no live session, no stored
+ * tokens, or the renewal was refused. `reason` says which; "no_session" means
+ * there never was a login to recover, the others mean there was one and it is
+ * spent. Thrown by getAccessToken.
+ */
+export class SsoReauthError extends SsoError {
+  constructor(
+    message: string,
+    readonly reason: "no_session" | "no_tokens" | "expired" | "refresh_failed",
+  ) {
+    super(message);
+    this.name = "SsoReauthError";
+  }
+}
+
+/**
+ * F095.2 — BID's app API answered with an error, or did not answer at all.
+ * `status` is BID's HTTP status (null when nothing came back: timeout, network);
+ * `code` is BID's own `error` field when it sent one. The message carries the
+ * URL, the status and the code — never the body, never a token.
+ */
+export class SsoAppApiError extends SsoError {
+  constructor(
+    message: string,
+    readonly status: number | null,
+    readonly code: string | undefined,
+  ) {
+    super(message);
+    this.name = "SsoAppApiError";
+  }
+}
+
+/**
+ * F095.2 — BID refused because the user's token lacks a scope (403
+ * insufficient_scope). For the profile writes that is `profile:write`: the app
+ * must request it at login, and a user who logged in before it did must log in
+ * again. That is the one actionable fact, so it gets its own class.
+ */
+export class SsoInsufficientScopeError extends SsoAppApiError {
+  constructor(message: string, readonly scope: string) {
+    super(message, 403, "insufficient_scope");
+    this.name = "SsoInsufficientScopeError";
+  }
+}
+
+/** F095.2 — an avatar refused BEFORE it was sent: too big, or not PNG/JPEG/WebP. */
+export class SsoAvatarRejectedError extends SsoError {
+  constructor(message: string, readonly reason: "too_large" | "unsupported_type") {
+    super(message);
+    this.name = "SsoAvatarRejectedError";
+  }
+}
+
+/** BID's limit for a profile picture (llms.txt step 7a: "max 2 MB", read as 2 MiB). */
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+/** The picture types BID accepts. */
+export const AVATAR_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp"];
+
+/** "image/PNG; charset=x" → "image/png". */
+export function mediaType(contentType: string | null | undefined): string {
+  return (contentType ?? "").split(";")[0]!.trim().toLowerCase();
+}
+
+/** The signed-in user's own profile, as BID's GET /api/app/profile returns it. */
+export interface BidProfile {
+  sub: string;
+  name: string | null;
+  picture: string | null;
+  email: string | null;
+  /** BID's own account page — mail, password, passkeys, 2FA and sessions live there. */
+  account_url: string;
+}
+
 /* ── PKCE ────────────────────────────────────────────────────────────────── */
 
 const b64url = (bytes: ArrayBuffer | Uint8Array) => {
@@ -162,6 +236,21 @@ export interface SsoClient {
    * Throws SsoError on anything that is not a valid, sub-only logout token.
    */
   verifyLogoutToken(token: string): Promise<LogoutToken>;
+  /**
+   * F095.2 — the signed-in user's own profile (scope `profile`), with the user's
+   * access token. Throws SsoAppApiError on any refusal.
+   */
+  getProfile(accessToken: string): Promise<BidProfile>;
+  /** F095.2 — change the user's own name (scope `profile:write`). Returns the new profile. */
+  updateProfile(accessToken: string, name: string): Promise<BidProfile>;
+  /**
+   * F095.2 — replace the user's picture (scope `profile:write`). Refuses more than
+   * MAX_AVATAR_BYTES or a type outside AVATAR_TYPES with SsoAvatarRejectedError
+   * BEFORE anything is sent.
+   */
+  uploadAvatar(accessToken: string, bytes: Uint8Array | ArrayBuffer, contentType: string): Promise<BidProfile>;
+  /** F095.2 — remove the user's picture (scope `profile:write`). */
+  removeAvatar(accessToken: string): Promise<BidProfile>;
   /** Exposed for tests and for a health check; not needed in normal use. */
   readonly jwks: JwksCache;
 }
@@ -351,6 +440,88 @@ export function createSsoClient(
       clearTimeout(timer);
     }
   }
+  /**
+   * F095.2 — the general app-API call beside appPost (which stays as it is):
+   * any method, a JSON or raw-bytes body, bounded in time, STATUS FIRST, and
+   * BID's `error` code surfaced as SsoAppApiError rather than lost. The message
+   * names the URL, status and code only — the body is never quoted, because the
+   * request carried the user's token and an echoing server would put it in a log.
+   */
+  async function appRequest(
+    path: string,
+    bearer: string,
+    init: { method: "GET" | "POST"; json?: unknown; bytes?: Uint8Array | ArrayBuffer; contentType?: string },
+    what: string,
+  ): Promise<unknown> {
+    const url = new URL(path, config.issuer).toString();
+    const ctrl = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        // Reject BEFORE aborting: the abort makes fetch reject too, and the race
+        // must be won by the reason that names the timeout.
+        reject(new SsoAppApiError(`${url} did not answer within ${timeoutMs} ms — ${what} is unknown.`, null, undefined));
+        ctrl.abort();
+      }, timeoutMs);
+    });
+    const headers: Record<string, string> = { authorization: `Bearer ${bearer}` };
+    let body: BodyInit | undefined;
+    if (init.json !== undefined) {
+      headers["content-type"] = "application/json";
+      body = JSON.stringify(init.json);
+    } else if (init.bytes !== undefined) {
+      headers["content-type"] = init.contentType ?? "application/octet-stream";
+      body = init.bytes as BodyInit;
+    }
+    try {
+      const res = await Promise.race([
+        fetchImpl(url, { method: init.method, headers, ...(body !== undefined ? { body } : {}), signal: ctrl.signal }),
+        timedOut,
+      ]);
+      const raw = await Promise.race([res.text(), timedOut]);
+      let parsed: unknown;
+      try {
+        parsed = raw.trim() === "" ? undefined : JSON.parse(raw);
+      } catch {
+        parsed = undefined;
+      }
+      const fields = (parsed && typeof parsed === "object" ? parsed : {}) as { error?: unknown; scope?: unknown };
+      const code = typeof fields.error === "string" ? fields.error : undefined;
+      // Status FIRST: a refusal is a refusal whatever its body looks like.
+      if (!res.ok) {
+        if (res.status === 403 && code === "insufficient_scope") {
+          const scope =
+            typeof fields.scope === "string" && fields.scope ? fields.scope : init.method === "GET" ? "profile" : "profile:write";
+          throw new SsoInsufficientScopeError(
+            `${url} answered 403 insufficient_scope — the user's token lacks scope "${scope}"; log in again with it requested.`,
+            scope,
+          );
+        }
+        throw new SsoAppApiError(`${url} answered ${res.status}${code ? ` (${code})` : ""} — ${what} is unknown.`, res.status, code);
+      }
+      if (parsed === undefined) {
+        throw new SsoAppApiError(`${url} answered ${res.status} with a body that is not JSON — ${what} is unknown.`, res.status, undefined);
+      }
+      return parsed;
+    } catch (e) {
+      if (e instanceof SsoError) throw e;
+      // The name only, not the message: a fetch error's message can quote the request.
+      throw new SsoAppApiError(`${url} could not be reached (${e instanceof Error ? e.name : "error"}) — ${what} is unknown.`, null, undefined);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** A profile body, or SsoAppApiError — never a half-filled object passed off as one. */
+  function asProfile(body: unknown, path: string): BidProfile {
+    const b = (body ?? {}) as Record<string, unknown>;
+    if (typeof b.sub !== "string" || b.sub === "" || typeof b.account_url !== "string") {
+      throw new SsoAppApiError(`${path} returned no "sub" or "account_url" — the profile is unknown.`, 200, undefined);
+    }
+    const opt = (v: unknown) => (typeof v === "string" ? v : null);
+    return { sub: b.sub, name: opt(b.name), picture: opt(b.picture), email: opt(b.email), account_url: b.account_url };
+  }
+
   let discoveryPromise: Promise<Discovery> | null = null;
   let jwksCache: JwksCache | null = null;
 
@@ -744,6 +915,41 @@ export function createSsoClient(
     },
 
     verifyLogoutToken,
+
+    async getProfile(accessToken) {
+      const path = "/api/app/profile";
+      return asProfile(await appRequest(path, accessToken, { method: "GET" }, "the profile"), path);
+    },
+
+    async updateProfile(accessToken, name) {
+      const path = "/api/app/profile";
+      return asProfile(await appRequest(path, accessToken, { method: "POST", json: { name } }, "the new name"), path);
+    },
+
+    async uploadAvatar(accessToken, bytes, contentType) {
+      // Both refusals BEFORE the request: a picture BID will refuse is not worth
+      // 2 MB of upload, and the user gets a reason instead of BID's status.
+      const type = mediaType(contentType);
+      if (!AVATAR_TYPES.includes(type)) {
+        throw new SsoAvatarRejectedError(
+          `uploadAvatar: "${type}" is not accepted — BID takes ${AVATAR_TYPES.join(", ")}.`,
+          "unsupported_type",
+        );
+      }
+      if (bytes.byteLength > MAX_AVATAR_BYTES) {
+        throw new SsoAvatarRejectedError(
+          `uploadAvatar: ${bytes.byteLength} bytes — BID takes at most ${MAX_AVATAR_BYTES}.`,
+          "too_large",
+        );
+      }
+      const path = "/api/app/profile/avatar";
+      return asProfile(await appRequest(path, accessToken, { method: "POST", bytes, contentType: type }, "the new picture"), path);
+    },
+
+    async removeAvatar(accessToken) {
+      const path = "/api/app/profile/avatar/remove";
+      return asProfile(await appRequest(path, accessToken, { method: "POST" }, "the removed picture"), path);
+    },
 
     async inviteUsers(appKey, input) {
       if (input.users.length > MAX_INVITATIONS) {

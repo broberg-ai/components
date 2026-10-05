@@ -8,7 +8,15 @@
  */
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { loadSsoConfig, type SsoConfig } from "./config.js";
-import { createSsoClient, SsoError, type SsoClient } from "./client.js";
+import {
+  AVATAR_TYPES,
+  createSsoClient,
+  MAX_AVATAR_BYTES,
+  mediaType,
+  SsoError,
+  SsoReauthError,
+  type SsoClient,
+} from "./client.js";
 import { expiresAtFrom, newSid, type TokenStore } from "./tokens.js";
 import {
   cookieHeader,
@@ -481,17 +489,17 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     const live = await liveSession(c);
     if (!live) {
       if (raw?.sid) await tokenStore.delete(raw.sid);
-      throw new SsoError("no live session — log in again.");
+      throw new SsoReauthError("no live session — log in again.", "no_session");
     }
     const sid = live.sid;
-    if (!sid) throw new SsoError("this session has no stored tokens (it began before tokenStore was configured) — log in again.");
+    if (!sid) throw new SsoReauthError("this session has no stored tokens (it began before tokenStore was configured) — log in again.", "no_tokens");
     const tokens = await tokenStore.get(sid);
-    if (!tokens) throw new SsoError("no tokens stored for this session — log in again.");
+    if (!tokens) throw new SsoReauthError("no tokens stored for this session — log in again.", "no_tokens");
     const now = Math.floor(Date.now() / 1000);
     if (tokens.expiresAt - 30 > now) return tokens.accessToken;
     if (!tokens.refreshToken) {
       await tokenStore.delete(sid);
-      throw new SsoError("the access token has expired and there is no refresh token — log in again.");
+      throw new SsoReauthError("the access token has expired and there is no refresh token — log in again.", "expired");
     }
     // One renewal per session at a time: with refresh-token rotation, a second
     // parallel renewal would present an already-spent token and be refused.
@@ -503,7 +511,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
         next = await client.refreshTokens(tokens.refreshToken!);
       } catch (e) {
         await tokenStore.delete(sid);
-        throw e instanceof SsoError ? e : new SsoError("token refresh failed");
+        throw new SsoReauthError(e instanceof SsoError ? e.message : "token refresh failed", "refresh_failed");
       }
       await tokenStore.set(sid, {
         sub: tokens.sub,
@@ -585,4 +593,153 @@ async function parseTransaction(raw: string | undefined, secret: string): Promis
 /** Read the session a middleware attached. */
 export function getSession(c: Context): SessionPayload | null {
   return (c.get(SESSION_KEY) as SessionPayload | null) ?? null;
+}
+
+/* ── F095.2 — the user's own profile, as an API the app's account page calls ── */
+
+/** What accountRoutes needs from ssoRoutes — pass its return value as is. */
+export interface AccountRoutesInput {
+  client: Pick<SsoClient, "getProfile" | "updateProfile" | "uploadAvatar" | "removeAvatar">;
+  getAccessToken(c: Context): Promise<string>;
+}
+
+/**
+ * Errors are matched by NAME, not instanceof. The ./hono entry is a separate
+ * bundle with its own copy of the error classes, and an app may hand ssoRoutes a
+ * client built from the main entry — instanceof would then miss every one of
+ * them and a 403 insufficient_scope would come out as a 500.
+ */
+type Named = Error & { reason?: string; scope?: string; status?: number | null; code?: string };
+function errName(e: unknown): string | undefined {
+  return e instanceof Error ? e.name : undefined;
+}
+
+/**
+ * Read a request body, but stop at `max` bytes — Content-Length is the client's
+ * claim, and a chunked upload has none. Returns null when the body is larger.
+ */
+async function readCapped(c: Context, max: number): Promise<Uint8Array | null> {
+  const stream = c.req.raw.body;
+  if (!stream) return new Uint8Array(0);
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const ch of chunks) {
+    out.set(ch, at);
+    at += ch.byteLength;
+  }
+  return out;
+}
+
+/**
+ * The signed-in user's own name and picture, for the app's account page.
+ * Mount it on /api/account:
+ *
+ *   const sso = ssoRoutes({ tokenStore });
+ *   app.route("/api/account", accountRoutes(sso));
+ *
+ * GET /profile · POST /profile {name} · POST /profile/avatar (raw image body) ·
+ * POST /profile/avatar/remove. Every answer is JSON, refusals included — it is
+ * an API, so never a login redirect:
+ *   401 {error:"unauthenticated"}            no live session
+ *   401 {error:"reauth"}                     the session's tokens are spent — log in again
+ *   403 {error:"insufficient_scope", scope}  log in again with that scope requested
+ *   413 / 415                                picture too large / not PNG, JPEG or WebP
+ *   4xx {error:<BID's code>}                 BID refused the change (e.g. an invalid name)
+ *   502 {error:"bid_unavailable"}            BID did not answer usably
+ */
+export function accountRoutes(sso: AccountRoutesInput) {
+  const app = new Hono();
+  const { client } = sso;
+
+  // Personal data: never cached by a browser or a proxy.
+  app.use("*", async (c, next) => {
+    c.header("Cache-Control", "no-store");
+    await next();
+  });
+
+  // A write from ANOTHER site is refused. SameSite=Lax stops a foreign domain,
+  // but not a sibling subdomain (same site), and /profile/avatar/remove needs
+  // no body at all — a plain <form> would do. Browsers send Sec-Fetch-Site on
+  // every request; a non-browser caller sends none and is let through.
+  app.use("*", async (c, next) => {
+    const site = c.req.header("sec-fetch-site");
+    if (c.req.method !== "GET" && site !== undefined && site !== "same-origin" && site !== "none") {
+      return c.json({ error: "cross_site" }, 403);
+    }
+    await next();
+  });
+
+  // The session is checked FIRST on every route, before any body is looked at.
+  app.get("/profile", async (c) => c.json(await client.getProfile(await sso.getAccessToken(c))));
+
+  app.post("/profile", async (c) => {
+    const token = await sso.getAccessToken(c);
+    const body = (await c.req.json().catch(() => null)) as { name?: unknown } | null;
+    if (typeof body?.name !== "string") {
+      return c.json({ error: "invalid_request", error_description: '"name" must be a string' }, 400);
+    }
+    return c.json(await client.updateProfile(token, body.name));
+  });
+
+  app.post("/profile/avatar", async (c) => {
+    const token = await sso.getAccessToken(c);
+    const type = mediaType(c.req.header("content-type"));
+    if (!AVATAR_TYPES.includes(type)) {
+      return c.json({ error: "unsupported_type", accepted: AVATAR_TYPES }, 415);
+    }
+    // Early: a declared size over the limit is refused without reading a byte.
+    const declared = Number(c.req.header("content-length"));
+    if (Number.isFinite(declared) && declared > MAX_AVATAR_BYTES) {
+      return c.json({ error: "too_large", max_bytes: MAX_AVATAR_BYTES }, 413);
+    }
+    // And a body without (or lying about) its length is cut off at the limit.
+    const bytes = await readCapped(c, MAX_AVATAR_BYTES);
+    if (!bytes) return c.json({ error: "too_large", max_bytes: MAX_AVATAR_BYTES }, 413);
+    return c.json(await client.uploadAvatar(token, bytes, type));
+  });
+
+  app.post("/profile/avatar/remove", async (c) => c.json(await client.removeAvatar(await sso.getAccessToken(c))));
+
+  app.onError((err, c) => {
+    c.header("Cache-Control", "no-store");
+    const e = err as Named;
+    switch (errName(err)) {
+      case "SsoReauthError":
+        return c.json({ error: e.reason === "no_session" ? "unauthenticated" : "reauth" }, 401);
+      case "SsoInsufficientScopeError":
+        return c.json({ error: "insufficient_scope", scope: e.scope }, 403);
+      case "SsoAvatarRejectedError":
+        return e.reason === "too_large"
+          ? c.json({ error: "too_large", max_bytes: MAX_AVATAR_BYTES }, 413)
+          : c.json({ error: "unsupported_type", accepted: AVATAR_TYPES }, 415);
+      case "SsoAppApiError": {
+        // BID no longer accepts the token (revoked, or the session ended in BID) → log in again.
+        if (e.status === 401) return c.json({ error: "reauth" }, 401);
+        if (typeof e.status === "number" && e.status >= 400 && e.status < 500) {
+          return c.json({ error: e.code ?? "bid_refused" }, e.status as 400);
+        }
+        return c.json({ error: "bid_unavailable" }, 502);
+      }
+      // A plain SsoError here is a setup mistake (e.g. ssoRoutes without tokenStore).
+      case "SsoError":
+        return c.json({ error: "sso_misconfigured" }, 500);
+      default:
+        return c.json({ error: "server_error" }, 500);
+    }
+  });
+
+  return app;
 }

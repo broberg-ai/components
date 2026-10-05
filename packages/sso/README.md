@@ -389,7 +389,76 @@ app.get("/api/something", sso.require, async (c) => {
 - **The tokens die with the session:** «Log ud» deletes the pair, and «Log ud
   overalt» (the back channel) calls `deleteSub(sub)` — inside the same step, so
   a failure is reported to BID as not done.
+- **Purge old rows yourself — the package cannot.** A session that simply
+  expires (no «Log ud»), or a new login that replaces one without a logout,
+  leaves its row in your store indefinitely; nothing ever calls `delete` for it.
+  Delete rows older than `sessionMaxAge` (`SSO_SESSION_MAX_AGE`, default 7 days)
+  with a periodic job or a TTL — e.g. store a `createdAt` beside the row and
+  `DELETE FROM tokens WHERE created_at < now - sessionMaxAge`, or a Redis
+  `EX sessionMaxAge`. It matters because the row would hold a **refresh token**
+  if BID ever issues one, and a forgotten refresh token is a live credential.
+- **Since 0.10.0 the failures are `SsoReauthError`** (a subclass of `SsoError`,
+  so existing `catch` blocks still match) with a `reason`: `no_session`,
+  `no_tokens`, `expired` or `refresh_failed`. Every one of them means "log in
+  again".
 - **`memoryTokenStore()`** is the reference implementation for tests and one
   dev process. It warns once: in production it loses every user's tokens on a
   restart and is not shared between machines.
 - **Without `tokenStore`, nothing changes** — login behaves exactly as in 0.8.0.
+
+## Your own profile — accountRoutes (since 0.10.0)
+
+The account page in your app: the signed-in user reads and changes her **own**
+name and picture without being sent to BID. Needs the token store above.
+
+```ts
+import { ssoRoutes, accountRoutes } from "@broberg/sso/hono";
+
+const sso = ssoRoutes({ tokenStore });
+app.route("/auth", sso.app);
+app.route("/api/account", accountRoutes(sso));   // pass what ssoRoutes returned
+```
+
+| route | does |
+|---|---|
+| `GET /api/account/profile` | `{sub, name, picture, email, account_url}` |
+| `POST /api/account/profile` `{"name":"…"}` | changes the name, answers the new profile |
+| `POST /api/account/profile/avatar` | raw image bytes as the body, `Content-Type: image/png`, `image/jpeg` or `image/webp`, max 2 MB |
+| `POST /api/account/profile/avatar/remove` | removes the picture |
+
+**Scopes.** Reading needs `profile` (in the default `SSO_SCOPES`). Changing needs
+`profile:write` — it must be in your app's registration at BID **and** in
+`SSO_SCOPES`, e.g. `SSO_SCOPES="openid profile email profile:write"`. A user who
+logged in before you added it gets `403 insufficient_scope` until she logs in again.
+
+**Every answer is JSON — it is an API, so never a login redirect:**
+
+| status | body | means — what the page should do |
+|---|---|---|
+| 403 | `{"error":"cross_site"}` | a write from another site (`Sec-Fetch-Site`), sibling subdomains included — call it from the app's own page |
+| 401 | `{"error":"unauthenticated"}` | no live session — send her to log in |
+| 401 | `{"error":"reauth"}` | the session's BID tokens are spent — «Log ind igen» |
+| 403 | `{"error":"insufficient_scope","scope":"profile:write"}` | «Log ind igen for at rette» |
+| 413 | `{"error":"too_large","max_bytes":2097152}` | picture over 2 MB (refused before a byte goes to BID) |
+| 415 | `{"error":"unsupported_type","accepted":[…]}` | not PNG, JPEG or WebP |
+| 4xx | `{"error":"<BID's code>"}` | BID refused the value (e.g. an invalid name) |
+| 502 | `{"error":"bid_unavailable"}` | BID did not answer usably |
+
+**`reauth` is the NORMAL case after an hour, not an edge case.** BID issues apps
+a one-hour access token and — measured in production, 2026-10-05 — **no refresh
+token**. So `getAccessToken` cannot renew, and an hour after login every
+account-page call answers `401 {"error":"reauth"}`. Build the page for that: a
+calm «Log ind igen» that goes to `/auth/login?returnTo=<the account page>`, not
+an error. The same answer comes back when BID itself refuses the token (a 401
+from BID — revoked, or the session was ended in BID). It is never a 500.
+
+**The core methods**, if you are not on Hono: `client.getProfile(token)`,
+`updateProfile(token, name)`, `uploadAvatar(token, bytes, contentType)`,
+`removeAvatar(token)` — each returns the profile. They throw named errors:
+`SsoInsufficientScopeError` (`.scope`), `SsoAvatarRejectedError` (`.reason`:
+`too_large` | `unsupported_type`, thrown **before** anything is sent) and
+`SsoAppApiError` (`.status`, BID's `.code`; `status` is null when BID did not
+answer). All extend `SsoError`. No message ever contains a token.
+
+Mail, password, passkeys, two-factor and sessions stay in BID: link to the
+profile's `account_url` in a new tab.

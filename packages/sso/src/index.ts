@@ -59,3 +59,13 @@ export {
   type TokenStore,
   type TokenSet,
 } from "./tokens.js";
+
+export {
+  SsoReauthError,
+  SsoAppApiError,
+  SsoInsufficientScopeError,
+  SsoAvatarRejectedError,
+  MAX_AVATAR_BYTES,
+  AVATAR_TYPES,
+  type BidProfile,
+} from "./client.js";
