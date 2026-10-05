@@ -395,8 +395,9 @@ app.get("/api/something", sso.require, async (c) => {
   Delete rows older than `sessionMaxAge` (`SSO_SESSION_MAX_AGE`, default 7 days)
   with a periodic job or a TTL — e.g. store a `createdAt` beside the row and
   `DELETE FROM tokens WHERE created_at < now - sessionMaxAge`, or a Redis
-  `EX sessionMaxAge`. It matters because the row would hold a **refresh token**
-  if BID ever issues one, and a forgotten refresh token is a live credential.
+  `EX sessionMaxAge`. It matters because with `offline_access` the row holds a
+  **refresh token**, and a forgotten refresh token is a live credential until
+  the user's BID sign-in ends.
 - **Since 0.10.0 the failures are `SsoReauthError`** (a subclass of `SsoError`,
   so existing `catch` blocks still match) with a `reason`: `no_session`,
   `no_tokens`, `expired` or `refresh_failed`. Every one of them means "log in
@@ -444,13 +445,26 @@ logged in before you added it gets `403 insufficient_scope` until she logs in ag
 | 4xx | `{"error":"<BID's code>"}` | BID refused the value (e.g. an invalid name) |
 | 502 | `{"error":"bid_unavailable"}` | BID did not answer usably |
 
-**`reauth` is the NORMAL case after an hour, not an edge case.** BID issues apps
-a one-hour access token and — measured in production, 2026-10-05 — **no refresh
-token**. So `getAccessToken` cannot renew, and an hour after login every
-account-page call answers `401 {"error":"reauth"}`. Build the page for that: a
-calm «Log ind igen» that goes to `/auth/login?returnTo=<the account page>`, not
-an error. The same answer comes back when BID itself refuses the token (a 401
-from BID — revoked, or the session was ended in BID). It is never a 500.
+**Renewal needs `offline_access`, in two places.** BID's access token lives one
+hour. Since 2026-10-06 (broberg-id F084.156) BID issues a **refresh token**, but
+only when your app's BID registration has `offline_access` (ask broberg-id, per
+app) **and** you request it at login:
+`SSO_SCOPES="openid profile email profile:write offline_access"`. Then
+`getAccessToken` renews by itself and the account page keeps working.
+- **Without `offline_access`** there is no refresh token. An hour after login,
+  every account-page call answers `401 {"error":"reauth"}`.
+- **With it, renewal still ends with the user's BID sign-in.** Log ud, «Log ud
+  overalt», a new password or expiry make BID answer the renewal with
+  `400 invalid_grant`, and that also becomes `401 {"error":"reauth"}`.
+- **Rotation:** every renewal issues a new refresh token, and presenting the old
+  one again revokes the whole chain. `getAccessToken` renews one session at a
+  time **per process**. On several machines, a race costs one «Log ind igen»,
+  never a stale token.
+
+So `reauth` is a normal state, not an edge case. Build the page for it: a calm
+«Log ind igen» that goes to `/auth/login?returnTo=<the account page>` (no
+`prompt=login`), not an error. The same answer comes back when BID refuses the
+access token itself (a 401 from BID). It is never a 500.
 
 **The core methods**, if you are not on Hono: `client.getProfile(token)`,
 `updateProfile(token, name)`, `uploadAvatar(token, bytes, contentType)`,
