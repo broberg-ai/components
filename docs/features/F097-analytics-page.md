@@ -59,7 +59,7 @@ app-shell does NOT depend on `@upmetrics/sdk`. The type is structural, so an `An
 
 ## Stories
 - **F097.1** — app-shell 0.5.0: `AnalyticsPage` + adapter + `fillDays`, every state, da/en, data-testids (vitest).
-- **F097.2** — `analyticsRoutes()` for Hono on `@upmetrics/sdk` `fetchAnalytics`: 200 / 503 / 502, days clamped, key never in a response (vitest). Home decided with upmetrics (see Open Questions).
+- **F097.2** — `analyticsRoutes()` from `@upmetrics/sdk/hono` (built by upmetrics, #1879): verify its contract (200 / 503 / 502, days clamped, key never in a response) and document mounting it next to AnalyticsPage.
 - **F097.3** — Release + pilot: publish, Discovery row, appkit swaps its own page for the shared one, and Lens at 393/1440 matches Upmetrics' own numbers.
 
 ## Acceptance criteria
@@ -77,8 +77,9 @@ app-shell does NOT depend on `@upmetrics/sdk`. The type is structural, so an `An
 Additive: a new export in app-shell 0.5.0 and a new helper. Nothing changes for apps that do not mount it. Rollback is the previous version, with no data or migration involved.
 
 ## Open Questions
-1. **Where does `analyticsRoutes()` live?** (a) In `@upmetrics/sdk` (e.g. `@upmetrics/sdk/hono`): one place for everything that talks to Upmetrics, owned by upmetrics. This is the reuse-first answer. (b) A `/hono` subpath of app-shell, which would make app-shell depend on Hono and `@upmetrics/sdk`. Proposed: (a). To be asked of the upmetrics session before F097.2 starts.
-2. **Which time zone are Upmetrics' `series[].day` buckets in?** appkit's `fillDays` fills on UTC days. If Upmetrics buckets in UTC, a visit at 00:30 Danish time lands on the previous day. That is consistent, but it must be stated on the page or matched. Ask upmetrics; the answer decides whether `fillDays` uses UTC or `Europe/Copenhagen`.
+None. Both were answered by upmetrics on 5/10 (#1879):
+1. **`analyticsRoutes()` lives in `@upmetrics/sdk/hono`, built by upmetrics.** It has exactly the contract above. So F097.2 here becomes: adopt it and document mounting it, and app-shell gets NO dependency on Hono or the SDK. upmetrics will report the version.
+2. **`series[].day` is Europe/Copenhagen** (upmetrics' `copenhagenDayKey` days), ordered and ending today. So `fillDays` fills on the Copenhagen calendar, NOT UTC as appkit's reference does. That reference is off by one day between midnight and 01:00/02:00 Danish time. Test it with a `today` at 23:30Z.
 
 ## Effort estimate
 **M**: about 1 day (F097.1 half a day, F097.2 two hours, F097.3 the rest).
