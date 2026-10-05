@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-04T10:38:58.444Z",
- "repos_scanned": 67,
+ "scanned_at": "2026-10-05T11:35:28.096Z",
+ "repos_scanned": 68,
  "repos_failed": 0,
- "manifests_read": 228,
+ "manifests_read": 231,
  "manifests_unreadable": 0,
- "edges": 237,
+ "edges": 247,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -25,6 +25,69 @@
    "unreadable": 0,
    "no_manifests": true,
    "deps": {}
+  },
+  "broberg-ai/appkit": {
+   "branch": "main",
+   "manifests": 2,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/secret-scan": [
+     {
+      "range": "0.12.1",
+      "field": "devDependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.6.0",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ],
+    "@broberg/i18n": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "0.16.0",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ],
+    "@broberg/media": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ],
+    "@broberg/notifications": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.8.0",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ],
+    "@broberg/theme": [
+     {
+      "range": "0.11.0",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ]
+   }
   },
   "broberg-ai/autodoc": {
    "branch": "main",
@@ -552,7 +615,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 44,
+   "manifests": 45,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -574,6 +637,30 @@
       "range": "workspace:*",
       "field": "dependencies",
       "at": "examples/sso-hono/package.json"
+     }
+    ],
+    "@broberg/theme": [
+     {
+      "range": "workspace:*",
+      "field": "devDependencies",
+      "at": "packages/app-shell/package.json"
+     },
+     {
+      "range": ">=0.11.0",
+      "field": "peerDependencies",
+      "at": "packages/app-shell/package.json"
+     }
+    ],
+    "@broberg/notifications": [
+     {
+      "range": "workspace:*",
+      "field": "devDependencies",
+      "at": "packages/app-shell/package.json"
+     },
+     {
+      "range": ">=0.4.0",
+      "field": "peerDependencies",
+      "at": "packages/app-shell/package.json"
      }
     ],
     "@broberg/mail": [
@@ -1646,7 +1733,7 @@
     ],
     "@broberg/mcp": [
      {
-      "range": "0.5.0",
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
