@@ -7,6 +7,7 @@ import { initPalette, initTheme } from "@broberg/theme";
 import {
   AppShell,
   NotificationBell,
+  PageHeader,
   PageTabs,
   Sidebar,
   TopBar,
@@ -463,6 +464,20 @@ describe("UserMenu (F092.3)", () => {
     fireEvent.click(screen.getByTestId("topbar-user-menu"));
     fireEvent.mouseDown(screen.getByTestId("outside"));
     expect(screen.queryByTestId("topbar-user-menu-dropdown")).toBeNull();
+  });
+});
+
+describe("PageHeader — title optional (0.2.1)", () => {
+  it("without a title: description and actions, and no h1", () => {
+    render(<PageHeader description="Alle filer" actions={<button data-testid="upload">Upload</button>} />);
+    const head = screen.getByTestId("page-header");
+    expect(head.querySelector("h1")).toBeNull();
+    expect(head.textContent).toBe("Alle filerUpload");
+    expect(screen.getByTestId("upload")).toBeTruthy();
+  });
+  it("with a title it is still the h1", () => {
+    render(<PageHeader title="Medier" />);
+    expect(screen.getByTestId("page-header").querySelector("h1")!.textContent).toBe("Medier");
   });
 });
 

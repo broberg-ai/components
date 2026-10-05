@@ -61,8 +61,9 @@ hamburger) are gone; `Sidebar` no longer takes `onToggleCollapse`.
   site-header. Desktop: folds the sidebar, remembered. Phone: opens the drawer.
   `aria-expanded` and `aria-label` follow the state.
 - **The title** is `title`, else the label of the active nav item (a sub-item
-  beats its parent). No title → no empty `<h1>`. If you also render
-  `PageHeader`, that is a second `<h1>`; use one or the other as your page title.
+  beats its parent). No title → no empty `<h1>`. **0.2.1:** `PageHeader.title`
+  is optional, so a page keeps its description and actions under the content
+  header without repeating the title (dashboard-01 has the title only up top).
 - **Sub-items:** `NavItem.children` (one level). The parent is a button with a
   chevron that turns 90° (`sidebar-item-<id>-toggle`, `aria-expanded`); the
   children sit indented behind a thin rule. Open items are remembered; the

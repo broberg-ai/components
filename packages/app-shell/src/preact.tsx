@@ -764,12 +764,17 @@ export function TopBar(p: TopBarProps) {
 
 // ── Page header + tabs ─────────────────────────────────────────────────────
 
-export function PageHeader(p: { eyebrow?: ComponentChildren; title: ComponentChildren; description?: ComponentChildren; actions?: ComponentChildren }) {
+/**
+ * Optional `title` (0.2.1): inside AppShell the page title already sits in the
+ * content header, so a page can use PageHeader for its description and actions
+ * alone — no second, and no empty, <h1>.
+ */
+export function PageHeader(p: { eyebrow?: ComponentChildren; title?: ComponentChildren; description?: ComponentChildren; actions?: ComponentChildren }) {
   return (
     <div class="bas-pagehead" data-testid="page-header">
       <div class="bas-pagehead__text">
         {p.eyebrow ? <div class="bas-pagehead__eyebrow">{p.eyebrow}</div> : null}
-        <h1 class="bas-pagehead__title">{p.title}</h1>
+        {p.title != null && p.title !== "" ? <h1 class="bas-pagehead__title">{p.title}</h1> : null}
         {p.description ? <p class="bas-pagehead__desc">{p.description}</p> : null}
       </div>
       {p.actions ? <div class="bas-pagehead__actions">{p.actions}</div> : null}
