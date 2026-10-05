@@ -24,6 +24,12 @@ export interface SessionPayload {
    * older than any logout.
    */
   iat?: number;
+  /**
+   * F095.1 — the key to this session's server-side tokens (ssoRoutes'
+   * `tokenStore`). Random, 128 bits. The tokens themselves are NEVER in the
+   * cookie: it is signed, not encrypted, and the browser can read it.
+   */
+  sid?: string;
   /** Optional convenience copies; never authorisation data. */
   email?: string;
   name?: string;

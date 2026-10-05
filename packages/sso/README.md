@@ -349,3 +349,47 @@ ssoRoutes({ logout: "central" });
 `completeLogin()` returns `unverifiedClaims: string[]` beside `claims`: the claims that came from the unsigned userinfo response and not from the signed ID token, sorted. Against BID today it is `["email", "email_verified", "name", …]`. An empty list means everything in `claims` was signed, or userinfo was not reached.
 
 When both sources carry a claim, **the signed token's value wins** and the claim is not listed. Before 0.8.0 userinfo was spread over the token, so an issuer whose userinfo disagreed with its own token had the unsigned value win. Against BID this changes nothing today — the two never overlap on email — so for BID it is a hardening, not a fix.
+
+## Calling BID as the user — the token store (since 0.9.0)
+
+The login already receives an **access token** and a **refresh token**. Give
+`ssoRoutes` a `tokenStore` and they are kept **server-side**, so your app can
+call BID's app API as the user — the account page (read and change your own
+name and picture) is the first thing that needs it.
+
+```ts
+import { ssoRoutes } from "@broberg/sso/hono";
+import type { TokenStore } from "@broberg/sso";
+
+const tokenStore: TokenStore = {            // backed by YOUR database (SQLite, Postgres, Redis …)
+  get: (sid) => db.tokens.get(sid),
+  set: (sid, t) => db.tokens.put(sid, t),   // t = { sub, accessToken, refreshToken?, expiresAt }
+  delete: (sid) => db.tokens.delete(sid),
+  deleteSub: (sub) => db.tokens.deleteWhere({ sub }),
+};
+const sso = ssoRoutes({ tokenStore, backchannel: { store } });
+
+app.get("/api/something", sso.require, async (c) => {
+  const token = await sso.getAccessToken(c);   // renewed for you when it has expired
+  …
+});
+```
+
+- **Never in the cookie.** The session cookie is signed, not encrypted, and the
+  browser can read it. It carries only a random `sid`; the tokens live in your
+  store under that key.
+- **`getAccessToken(c)`** returns the stored token, and when it has expired (or
+  is within 30 s of it) renews it with the refresh token, stores the new pair
+  and returns the new token. Two requests that need renewal at the same moment
+  share one renewal (with rotation, a second one would be refused).
+- **It throws `SsoError`, never returns a stale or empty token** — no live
+  session, a session from before you configured a store, no tokens, or a refused
+  renewal. A refused renewal also deletes the dead pair. The message names the
+  status and BID's error code, never a token.
+- **The tokens die with the session:** «Log ud» deletes the pair, and «Log ud
+  overalt» (the back channel) calls `deleteSub(sub)` — inside the same step, so
+  a failure is reported to BID as not done.
+- **`memoryTokenStore()`** is the reference implementation for tests and one
+  dev process. It warns once: in production it loses every user's tokens on a
+  restart and is not shared between machines.
+- **Without `tokenStore`, nothing changes** — login behaves exactly as in 0.8.0.

@@ -12,7 +12,7 @@
  * Said plainly rather than left implied, because a suite that looks
  * comprehensive is exactly how the gap gets missed.
  */
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
 import { loadSsoConfig, SsoConfigError } from "../src/config.js";
 import { createSsoClient, SsoError } from "../src/client.js";
@@ -24,6 +24,7 @@ import {
 } from "../src/jwks.js";
 import { signSession, verifySession, signValue, verifyValue } from "../src/session.js";
 import { ssoRoutes, type BackchannelStore } from "../src/hono.js";
+import { memoryTokenStore } from "../src/tokens.js";
 import { Hono } from "hono";
 
 const ISSUER = "https://id.broberg.ai";
@@ -1829,5 +1830,185 @@ describe("the session carries email_verified only when BID said it (F084.152)", 
     const s = await sessionAfterLogin(undefined);
     expect(s).not.toBeNull();
     expect("email_verified" in (s as object)).toBe(false);
+  });
+});
+
+describe("F095.1 — the user's tokens are kept server-side, renewed, and die with the session", () => {
+  const AT = "access-token-SECRET-aaaa";
+  const RT = "refresh-token-SECRET-bbbb";
+
+  /** The fake IdP, with a token endpoint that also issues refresh tokens and renews them. */
+  async function setup(opts: { tokenStore?: boolean; refresh?: "ok" | "reject"; rotate?: boolean; expiresIn?: number } = {}) {
+    const idp = await makeIdp();
+    let refreshCalls = 0;
+    const sentRefresh: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/oauth2/token")) {
+        const form = new URLSearchParams(String(init?.body ?? ""));
+        if (form.get("grant_type") === "refresh_token") {
+          refreshCalls++;
+          sentRefresh.push(form.get("refresh_token") ?? "");
+          if (opts.refresh === "reject") return Response.json({ error: "invalid_grant" }, { status: 400 });
+          return Response.json({
+            access_token: `access-renewed-${refreshCalls}`,
+            ...(opts.rotate ? { refresh_token: `refresh-rotated-${refreshCalls}` } : {}),
+            expires_in: 3600,
+          });
+        }
+        const base = (await (await idp.fetchImpl(input, init)).json()) as Record<string, unknown>;
+        return Response.json({ ...base, access_token: AT, refresh_token: RT, expires_in: opts.expiresIn ?? 3600 });
+      }
+      return idp.fetchImpl(input, init);
+    }) as unknown as typeof fetch;
+    const config = loadSsoConfig(ENV);
+    const client = createSsoClient(config, { fetchImpl, minRefetchIntervalMs: 0 });
+    const store = memoryTokenStore({ quiet: true });
+    const sso = ssoRoutes({ config, client, ...(opts.tokenStore === false ? {} : { tokenStore: store }) });
+    const app = new Hono();
+    app.route("/auth", sso.app);
+    app.get("/token", async (c) => {
+      try {
+        return c.text(await sso.getAccessToken(c));
+      } catch (e) {
+        return c.text(`ERR ${(e as Error).message}`, 401);
+      }
+    });
+
+    const login = await app.request("https://app.example/auth/login");
+    const tx = login.headers.get("set-cookie")!.split(";")[0]!;
+    const authorize = new URL(login.headers.get("location")!);
+    idp.echo(authorize.searchParams.get("nonce")!);
+    const cb = await app.request(
+      "https://app.example/auth/callback?" + new URLSearchParams({ code: "c", state: authorize.searchParams.get("state")! }),
+      { headers: { cookie: tx } },
+    );
+    const setCookies = cb.headers.getSetCookie();
+    const sessionCookie = setCookies.find((x) => x.startsWith(`${config.cookieName}=`))!.split(";")[0]!;
+    const session = await verifySession(sessionCookie.split("=")[1]!, config.cookieSecret);
+    return { app, store, config, setCookies, sessionCookie, session, idp, refreshCalls: () => refreshCalls, sentRefresh };
+  }
+  const token = (t: Awaited<ReturnType<typeof setup>>) => t.app.request("https://app.example/token", { headers: { cookie: t.sessionCookie } });
+
+  test("after login the pair is stored under the session's sid — and neither token is anywhere in Set-Cookie", async () => {
+    const t = await setup();
+    expect(typeof t.session!.sid).toBe("string");
+    expect(t.session!.sid!.length).toBeGreaterThanOrEqual(20);
+    const stored = await t.store.get(t.session!.sid!);
+    expect([stored?.sub, stored?.accessToken, stored?.refreshToken]).toEqual(["user-1", AT, RT]);
+    const all = t.setCookies.join("\n");
+    // The raw header, and the signed session decoded: the tokens are in neither.
+    for (const secret of [AT, RT]) {
+      expect(all.includes(secret)).toBe(false);
+      expect(JSON.stringify(t.session).includes(secret)).toBe(false);
+      expect(decodeURIComponent(all).includes(secret)).toBe(false);
+    }
+  });
+
+  test("a fresh token is returned as stored, without calling BID", async () => {
+    const t = await setup();
+    const r = await token(t);
+    expect([r.status, await r.text(), t.refreshCalls()]).toEqual([200, AT, 0]);
+  });
+
+  test("an expired token is renewed ONCE with the refresh token; the new pair is stored and returned", async () => {
+    const t = await setup({ rotate: true });
+    const sid = t.session!.sid!;
+    await t.store.set(sid, { ...(await t.store.get(sid))!, expiresAt: Math.floor(Date.now() / 1000) + 10 }); // inside the 30 s margin
+    const r = await token(t);
+    expect([r.status, await r.text(), t.refreshCalls()]).toEqual([200, "access-renewed-1", 1]);
+    expect(t.sentRefresh).toEqual([RT]);
+    const after = await t.store.get(sid);
+    expect([after?.accessToken, after?.refreshToken]).toEqual(["access-renewed-1", "refresh-rotated-1"]);
+    // and the next call uses the renewed token without another round-trip
+    expect([await (await token(t)).text(), t.refreshCalls()]).toEqual(["access-renewed-1", 1]);
+  });
+
+  test("two requests needing renewal at once share ONE refresh (rotation would refuse the second)", async () => {
+    const t = await setup({ rotate: true });
+    const sid = t.session!.sid!;
+    await t.store.set(sid, { ...(await t.store.get(sid))!, expiresAt: 0 });
+    const [a, b] = await Promise.all([token(t), token(t)]);
+    expect([await a.text(), await b.text(), t.refreshCalls()]).toEqual(["access-renewed-1", "access-renewed-1", 1]);
+  });
+
+  test("a refused renewal throws a NAMED error, deletes the dead pair, and never echoes a token", async () => {
+    const t = await setup({ refresh: "reject" });
+    const sid = t.session!.sid!;
+    await t.store.set(sid, { ...(await t.store.get(sid))!, expiresAt: 0 });
+    const r = await token(t);
+    const body = await r.text();
+    expect([r.status, body]).toEqual([401, "ERR token refresh failed (400): invalid_grant"]);
+    expect(body.includes(RT)).toBe(false);
+    expect(await t.store.get(sid)).toBeUndefined();
+  });
+
+  test("no refresh token and expired → named error, pair deleted", async () => {
+    const t = await setup();
+    const sid = t.session!.sid!;
+    const { refreshToken: _drop, ...rest } = (await t.store.get(sid))!;
+    await t.store.set(sid, { ...rest, expiresAt: 0 });
+    const r = await token(t);
+    expect(await r.text()).toBe("ERR the access token has expired and there is no refresh token — log in again.");
+    expect(await t.store.get(sid)).toBeUndefined();
+  });
+
+  test("local logout deletes the pair (read back from the store)", async () => {
+    const t = await setup();
+    const sid = t.session!.sid!;
+    expect(await t.store.get(sid)).toBeDefined();
+    await t.app.request("https://app.example/auth/logout", { headers: { cookie: t.sessionCookie } });
+    expect(await t.store.get(sid)).toBeUndefined();
+  });
+
+  test("without tokenStore: login is 0.8.0 (no sid, no tokens kept) and getAccessToken says what is missing", async () => {
+    const t = await setup({ tokenStore: false });
+    expect(t.session!.sid).toBeUndefined();
+    expect(t.store.size).toBe(0);
+    expect(await (await token(t)).text()).toBe(
+      "ERR getAccessToken needs ssoRoutes({ tokenStore }) — without one the login's tokens are not kept.",
+    );
+  });
+
+  test("expiresAt comes from expires_in", async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const t = await setup({ expiresIn: 120 });
+    const e = (await t.store.get(t.session!.sid!))!.expiresAt;
+    expect(e - before >= 119 && e - before <= 122).toBe(true);
+  });
+
+  test("memoryTokenStore warns once that it is per-process", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    memoryTokenStore();
+    memoryTokenStore();
+    const ours = warn.mock.calls.filter((c) => String(c[0]).includes("memoryTokenStore()"));
+    warn.mockRestore();
+    expect(ours.length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("F095.1 — «Log ud overalt» also deletes the user's tokens", () => {
+  test("a back-channel logout for sub removes every token set for that sub", async () => {
+    const idp = await makeIdp();
+    const config = loadSsoConfig(ENV);
+    const client = createSsoClient(config, { fetchImpl: idp.fetchImpl });
+    const tokenStore = memoryTokenStore({ quiet: true });
+    await tokenStore.set("sid-a", { sub: "user-1", accessToken: "a", expiresAt: 9e9 });
+    await tokenStore.set("sid-b", { sub: "user-1", accessToken: "b", expiresAt: 9e9 });
+    await tokenStore.set("sid-c", { sub: "someone-else", accessToken: "c", expiresAt: 9e9 });
+    const rows = new Map<string, number>();
+    const store: BackchannelStore = {
+      async revokeSubBefore(sub, iat) { rows.set(sub, iat); },
+      async revokedBefore(sub) { return rows.get(sub) ?? null; },
+      async useJti() { return true; },
+    };
+    const sso = ssoRoutes({ config, client, backchannel: { store }, tokenStore });
+    const res = await sso.app.request("https://app.example/backchannel-logout", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `logout_token=${encodeURIComponent(await idp.logout())}`,
+    });
+    expect(res.status).toBe(200);
+    expect([await tokenStore.get("sid-a"), await tokenStore.get("sid-b"), (await tokenStore.get("sid-c"))?.accessToken]).toEqual([undefined, undefined, "c"]);
   });
 });

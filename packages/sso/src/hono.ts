@@ -9,6 +9,7 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { loadSsoConfig, type SsoConfig } from "./config.js";
 import { createSsoClient, SsoError, type SsoClient } from "./client.js";
+import { expiresAtFrom, newSid, type TokenStore } from "./tokens.js";
 import {
   cookieHeader,
   readCookie,
@@ -97,6 +98,12 @@ export interface SsoRoutesOptions {
   loginPath?: string;
   /** Where to send a user after a successful login when no returnTo is given. */
   defaultReturnTo?: string;
+  /**
+   * F095.1 — keep the user's access and refresh token SERVER-SIDE, so the app
+   * can call BID's app API (the account page) as the user via getAccessToken.
+   * Without it, login behaves exactly as in 0.8.0 and the tokens are dropped.
+   */
+  tokenStore?: TokenStore;
 }
 
 function isSecure(c: Context): boolean {
@@ -193,6 +200,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     throw new Error("ssoRoutes: backchannel needs a store shared by every instance of the app — there is no in-memory default.");
   }
   const onStoreError = backchannel?.onStoreError ?? "reject";
+  const tokenStore = options.tokenStore;
 
   /** A verified session, or null — also null when «Log ud overalt» has ended it. */
   async function liveSession(c: Context): Promise<SessionPayload | null> {
@@ -233,6 +241,9 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
         // replay and do nothing. Revoking twice is harmless (the store keeps the
         // latest iat), so a replay only costs one idempotent write.
         await backchannel.store.revokeSubBefore(verified.sub, verified.iat);
+        // F095.1 — the user's tokens go with the sessions. Inside the same try:
+        // not deleted = not done, so BID reports this app as failed.
+        if (tokenStore) await tokenStore.deleteSub(verified.sub);
         await backchannel.store.useJti(verified.jti, verified.exp);
       } catch {
         // Not stored = not done. 5xx so BID reports this app as failed to the user.
@@ -340,11 +351,25 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       nonce: parsed.tx.nonce,
     });
 
-    const exp = Math.floor(Date.now() / 1000) + config.sessionMaxAge;
+    const nowS = Math.floor(Date.now() / 1000);
+    const exp = nowS + config.sessionMaxAge;
+    // F095.1 — tokens to the server-side store, keyed by a fresh sid; only the
+    // sid rides in the cookie.
+    let sid: string | undefined;
+    if (tokenStore && result.accessToken) {
+      sid = newSid();
+      await tokenStore.set(sid, {
+        sub: result.claims.sub,
+        accessToken: result.accessToken,
+        ...(result.refreshToken ? { refreshToken: result.refreshToken } : {}),
+        expiresAt: expiresAtFrom(result.expiresIn, result.accessToken, nowS),
+      });
+    }
     const session: SessionPayload = {
       sub: result.claims.sub,
       exp,
-      iat: Math.floor(Date.now() / 1000),
+      iat: nowS,
+      ...(sid ? { sid } : {}),
       ...(result.claims.email ? { email: result.claims.email } : {}),
       ...(result.claims.name ? { name: result.claims.name } : {}),
       ...(result.claims.picture ? { picture: result.claims.picture } : {}),
@@ -392,6 +417,11 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
       readCookie(c.req.header("cookie"), idTokenCookie),
       config.cookieSecret,
     );
+    // F095.1 — the tokens die with the session. Read the sid before the cookie goes.
+    if (tokenStore) {
+      const leaving = await verifySession(readCookie(c.req.header("cookie"), config.cookieName), config.cookieSecret);
+      if (leaving?.sid) await tokenStore.delete(leaving.sid);
+    }
 
     c.header(
       "Set-Cookie",
@@ -435,7 +465,64 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     await next();
   };
 
-  return { app, attach, require, client, config };
+  /**
+   * F095.1 — the user's access token for calling BID's app API, renewed with the
+   * refresh token when it has expired (or is within 30 s of it). Throws SsoError
+   * — never returns a stale or empty token — when there is no live session, no
+   * stored tokens, or the renewal is refused; a refused renewal also deletes the
+   * dead pair so the next call does not try it again.
+   */
+  const refreshing = new Map<string, Promise<string>>();
+  async function getAccessToken(c: Context): Promise<string> {
+    if (!tokenStore) {
+      throw new SsoError("getAccessToken needs ssoRoutes({ tokenStore }) — without one the login's tokens are not kept.");
+    }
+    const raw = await verifySession(readCookie(c.req.header("cookie"), config.cookieName), config.cookieSecret);
+    const live = await liveSession(c);
+    if (!live) {
+      if (raw?.sid) await tokenStore.delete(raw.sid);
+      throw new SsoError("no live session — log in again.");
+    }
+    const sid = live.sid;
+    if (!sid) throw new SsoError("this session has no stored tokens (it began before tokenStore was configured) — log in again.");
+    const tokens = await tokenStore.get(sid);
+    if (!tokens) throw new SsoError("no tokens stored for this session — log in again.");
+    const now = Math.floor(Date.now() / 1000);
+    if (tokens.expiresAt - 30 > now) return tokens.accessToken;
+    if (!tokens.refreshToken) {
+      await tokenStore.delete(sid);
+      throw new SsoError("the access token has expired and there is no refresh token — log in again.");
+    }
+    // One renewal per session at a time: with refresh-token rotation, a second
+    // parallel renewal would present an already-spent token and be refused.
+    const inFlight = refreshing.get(sid);
+    if (inFlight) return inFlight;
+    const p = (async () => {
+      let next;
+      try {
+        next = await client.refreshTokens(tokens.refreshToken!);
+      } catch (e) {
+        await tokenStore.delete(sid);
+        throw e instanceof SsoError ? e : new SsoError("token refresh failed");
+      }
+      await tokenStore.set(sid, {
+        sub: tokens.sub,
+        accessToken: next.accessToken,
+        // Rotation: use the new one if BID issued one, else keep the old.
+        ...(next.refreshToken ?? tokens.refreshToken ? { refreshToken: next.refreshToken ?? tokens.refreshToken } : {}),
+        expiresAt: expiresAtFrom(next.expiresIn, next.accessToken, Math.floor(Date.now() / 1000)),
+      });
+      return next.accessToken;
+    })();
+    refreshing.set(sid, p);
+    try {
+      return await p;
+    } finally {
+      refreshing.delete(sid);
+    }
+  }
+
+  return { app, attach, require, client, config, getAccessToken };
 }
 
 /** Why a login transaction could not be read back. Three states, three answers. */

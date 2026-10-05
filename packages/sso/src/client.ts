@@ -102,6 +102,8 @@ export interface LoginResult {
   idToken: string;
   accessToken?: string;
   refreshToken?: string;
+  /** Seconds the access token lives, when BID said so (`expires_in`). */
+  expiresIn?: number;
 }
 
 /**
@@ -138,6 +140,12 @@ export interface SsoClient {
    * answers — see the implementation for why that must never become "unverified".
    */
   addressOwnership(accessToken: string, address: string): Promise<AddressOwnership>;
+  /**
+   * F095.1 — trade a refresh token for a new access token (`grant_type=refresh_token`).
+   * Throws SsoError on refusal; the message carries the status and BID's error
+   * code, never a token.
+   */
+  refreshTokens(refreshToken: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number }>;
   /**
    * Invite users to BID on behalf of this app (the app's OWN key, `bidk_…`).
    * One result per email. Throws SsoError on anything BID did not clearly say.
@@ -629,6 +637,7 @@ export function createSsoClient(
         id_token?: string;
         access_token?: string;
         refresh_token?: string;
+        expires_in?: number;
         error?: string;
         error_description?: string;
       };
@@ -663,6 +672,40 @@ export function createSsoClient(
         idToken: body.id_token,
         ...(body.access_token ? { accessToken: body.access_token } : {}),
         ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}),
+        ...(typeof body.expires_in === "number" ? { expiresIn: body.expires_in } : {}),
+      };
+    },
+
+    async refreshTokens(refreshToken) {
+      const { token_endpoint } = await discovery();
+      const res = await fetchImpl(token_endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: config.clientId,
+          ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+        }),
+      });
+      // Status first, parse second (the F084.52 order). The message names the
+      // status and BID's error code ONLY — the raw body is not quoted here,
+      // because this request carried a refresh token and an excerpt is one
+      // careless server away from echoing it into a log.
+      const raw = await res.text();
+      let body: { access_token?: string; refresh_token?: string; expires_in?: number; error?: string };
+      try {
+        body = raw.trim() === "" ? {} : (JSON.parse(raw) as typeof body);
+      } catch {
+        throw new SsoError(`token refresh failed (${res.status}): the response body is not JSON`);
+      }
+      if (!res.ok || typeof body.access_token !== "string" || body.access_token === "") {
+        throw new SsoError(`token refresh failed (${res.status}): ${body.error ?? "no access_token in response"}`);
+      }
+      return {
+        accessToken: body.access_token,
+        ...(typeof body.refresh_token === "string" && body.refresh_token ? { refreshToken: body.refresh_token } : {}),
+        ...(typeof body.expires_in === "number" ? { expiresIn: body.expires_in } : {}),
       };
     },
 
