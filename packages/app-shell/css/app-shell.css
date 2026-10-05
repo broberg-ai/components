@@ -24,7 +24,10 @@
   color: var(--fg);
 }
 .bas-root *, .bas-root *::before, .bas-root *::after { box-sizing: border-box; }
-.bas-root button { font: inherit; }
+/* Zero specificity on purpose: `.bas-root button` (0,1,1) beat `.bas-item`'s
+ * 13px (0,1,0), so an item with children — a <button> — came out in the page's
+ * font size next to its <a> siblings (appkit, Lens 8ce4cc94). */
+:where(.bas-root button) { font: inherit; }
 
 /* ── top bar ── */
 .bas-topbar {
@@ -52,6 +55,10 @@
 
 /* ── sidebar ── */
 .bas-sidebar {
+  /* sticky makes its own stacking context, so the rail's flyout can only rise
+   * as high as the sidebar does; without this <main> paints over it and takes
+   * its clicks (appkit, Lens 839394b1). Below the top bar (50). */
+  z-index: 20;
   flex: 0 0 240px; width: 240px;
   position: sticky; top: var(--bas-top); align-self: flex-start;
   height: calc(100dvh - var(--bas-top));

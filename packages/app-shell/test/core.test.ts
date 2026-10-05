@@ -143,6 +143,15 @@ describe("package-wide guards", () => {
     expect(closed).toMatch(/visibility:\s*hidden/);
     expect(rule(".bas-sidebar.is-mobile-drawer.is-open").join(";")).toMatch(/visibility:\s*visible/);
   });
+  it("the sidebar sits above <main> (its sticky stacking context caps the rail flyout), below the top bar", () => {
+    const z = (sel: string) => Number(/z-index:\s*(\d+)/.exec(rule(sel).join(";"))?.[1]);
+    expect(z(".bas-sidebar")).toBeGreaterThan(0);
+    expect(z(".bas-sidebar")).toBeLessThan(z(".bas-topbar"));
+  });
+  it("the button font reset has zero specificity, so .bas-item's size wins on a parent item", () => {
+    expect(rule(":where(.bas-root button)").join(";")).toMatch(/font:\s*inherit/);
+    expect(css).not.toMatch(/(^|\n)\.bas-root button\s*\{/);
+  });
   it("drawer mode shows the brand once on desktop: sidebar brand hidden outside the phone query", () => {
     const desktop = css.split("@media")[0];
     expect(desktop).toMatch(/\.bas-root\[data-mobile="drawer"\] \.bas-sidebar__brand \{ display: none; \}/);
