@@ -311,6 +311,101 @@ export function relativeTime(ts: string | number, lang: "da" | "en", now = Date.
   return `${d} d`;
 }
 
+// ── Account page (F095.3) ─────────────────────────────────────────────────
+//
+// The user edits their own name and picture inside the app. The app's backend
+// (@broberg/sso's `accountRoutes()`, mounted on /api/account) talks to Broberg
+// ID; this package only talks to that backend, through an adapter, and never
+// imports @broberg/sso.
+
+/** What every account call resolves to — the profile AS THE SERVER NOW HOLDS IT. */
+export interface AccountProfile {
+  sub: string;
+  name: string | null;
+  picture: string | null;
+  email: string | null;
+  /** Broberg ID's own account page (password, passkeys, sessions). */
+  account_url: string;
+}
+
+/** Where the account page gets and saves the profile. Swap it to point anywhere. */
+export interface AccountAdapter {
+  load(): Promise<AccountProfile>;
+  saveName(name: string): Promise<AccountProfile>;
+  uploadAvatar(file: Blob): Promise<AccountProfile>;
+  removeAvatar(): Promise<AccountProfile>;
+}
+
+/** A failed account call: the HTTP status and the server's `error` code, if any. */
+export class AccountError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(code ? `HTTP ${status} ${code}` : `HTTP ${status}`);
+    this.name = "AccountError";
+  }
+}
+
+export const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+/** Checked BEFORE uploading, so a file the server will refuse is never sent. */
+export function checkAvatarFile(file: { size: number; type: string }): "tooLarge" | "wrongType" | null {
+  if (!(AVATAR_TYPES as readonly string[]).includes(file.type)) return "wrongType";
+  if (file.size > AVATAR_MAX_BYTES) return "tooLarge";
+  return null;
+}
+
+/**
+ * What a failed call means for the page. `reauth` = the user's session or its
+ * scope does not allow the change (401, or 403 insufficient_scope): signing in
+ * again is the fix, so the page says that instead of «try again».
+ */
+export function accountErrorKind(err: unknown): "reauth" | "tooLarge" | "wrongType" | "other" {
+  if (!(err instanceof AccountError)) return "other";
+  if (err.status === 401) return "reauth";
+  if (err.status === 403 && err.code === "insufficient_scope") return "reauth";
+  if (err.status === 413) return "tooLarge";
+  if (err.status === 415) return "wrongType";
+  return "other";
+}
+
+/**
+ * The default adapter: the app's own backend, shaped after @broberg/sso's
+ * `accountRoutes()`.
+ *
+ *   GET  {url}/profile                → AccountProfile
+ *   POST {url}/profile         {name} → AccountProfile
+ *   POST {url}/profile/avatar  (raw bytes, Content-Type = the image's) → AccountProfile
+ *   POST {url}/profile/avatar/remove  → AccountProfile
+ *
+ * A non-2xx THROWS an AccountError — a failed save must never look like a
+ * saved one.
+ */
+export function createFetchAccountAdapter(opts: { url?: string; fetch?: typeof fetch; credentials?: RequestCredentials } = {}): AccountAdapter {
+  const base = (opts.url ?? "/api/account").replace(/\/+$/, "");
+  const call = async (path: string, init?: RequestInit): Promise<AccountProfile> => {
+    const res = await (opts.fetch ?? fetch)(`${base}${path}`, {
+      credentials: opts.credentials ?? "same-origin",
+      ...init,
+      headers: { accept: "application/json", ...(init?.headers as Record<string, string> | undefined) },
+    });
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!res.ok) throw new AccountError(res.status, typeof body?.error === "string" ? body.error : undefined);
+    if (!body || typeof body.sub !== "string") throw new AccountError(res.status, "bad_response");
+    return body as unknown as AccountProfile;
+  };
+  return {
+    load: () => call("/profile"),
+    saveName: (name) =>
+      call("/profile", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) }),
+    uploadAvatar: (file) =>
+      call("/profile/avatar", { method: "POST", headers: { "content-type": file.type }, body: file }),
+    removeAvatar: () => call("/profile/avatar/remove", { method: "POST" }),
+  };
+}
+
 // ── Text ───────────────────────────────────────────────────────────────────
 
 export const TEXT = {
@@ -341,6 +436,26 @@ export const TEXT = {
     backdrop: "Baggrund",
     neurons: "Neuroner",
     plain: "Ren",
+    name: "Navn",
+    email: "E-mail",
+    save: "Gem",
+    saving: "Gemmer…",
+    saved: "Gemt",
+    loadingProfile: "Henter profil…",
+    couldNotLoadProfile: "Kunne ikke hente din profil.",
+    couldNotSave: "Kunne ikke gemme. Prøv igen.",
+    reauth: "Log ind igen for at rette",
+    signInAgain: "Log ind igen",
+    changePicture: "Skift billede",
+    removePicture: "Fjern billede",
+    confirmRemovePicture: "Fjern dit billede?",
+    remove: "Fjern",
+    cancel: "Annuller",
+    pictureSaved: "Billedet er gemt",
+    pictureRemoved: "Billedet er fjernet",
+    pictureTooLarge: "Billedet er for stort — højst 2 MB.",
+    pictureWrongType: "Vælg et PNG-, JPEG- eller WebP-billede.",
+    bidSecurity: "Sikkerhed i Broberg ID",
   },
   en: {
     openMenu: "Open menu",
@@ -369,6 +484,26 @@ export const TEXT = {
     backdrop: "Backdrop",
     neurons: "Neurons",
     plain: "Plain",
+    name: "Name",
+    email: "Email",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved",
+    loadingProfile: "Loading profile…",
+    couldNotLoadProfile: "Could not load your profile.",
+    couldNotSave: "Could not save. Try again.",
+    reauth: "Sign in again to make changes",
+    signInAgain: "Sign in again",
+    changePicture: "Change picture",
+    removePicture: "Remove picture",
+    confirmRemovePicture: "Remove your picture?",
+    remove: "Remove",
+    cancel: "Cancel",
+    pictureSaved: "Picture saved",
+    pictureRemoved: "Picture removed",
+    pictureTooLarge: "The picture is too large — 2 MB at most.",
+    pictureWrongType: "Choose a PNG, JPEG or WebP image.",
+    bidSecurity: "Security in Broberg ID",
   },
 } as const;
 export type Lang = keyof typeof TEXT;

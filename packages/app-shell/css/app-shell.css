@@ -305,3 +305,39 @@
   .bas-pagehead { padding: 16px 16px 8px; }
   .bas-tabs { padding: 0 16px; }
 }
+
+/* ── account page (F095.3) ── */
+.bas-account { display: flex; flex-direction: column; gap: 16px; max-width: 560px; width: 100%; min-width: 0; padding: 16px 0; }
+.bas-account__who { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; min-width: 0; }
+.bas-account__avatar { display: inline-flex; flex: none; }
+.bas-account__whotext { min-width: 0; max-width: 100%; }
+.bas-account__name { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.bas-account__email { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; color: var(--fg-muted); overflow-wrap: anywhere; }
+.bas-account__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.bas-account__form { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bas-account__label { font-size: 12.5px; color: var(--fg-muted); }
+.bas-account__input {
+  flex: 1 1 220px; min-width: 0; max-width: 100%; padding: 8px 10px; font: inherit; font-size: 14px;
+  color: var(--fg); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--bas-radius);
+}
+.bas-account__input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bas-account__input[readonly] { color: var(--fg-muted); background: var(--bg-sunk); }
+.bas-account__btn {
+  display: inline-flex; align-items: center; padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--border); border-radius: var(--bas-radius); background: transparent; color: var(--fg); cursor: pointer;
+  transition: background var(--bas-dur) var(--bas-ease);
+}
+.bas-account__btn:hover:not(:disabled) { background: var(--hover); }
+.bas-account__btn:active:not(:disabled) { background: var(--active); }
+.bas-account__btn:disabled { color: var(--fg-faint); cursor: not-allowed; }
+.bas-account__btn.is-primary { background: var(--olive-btn); color: var(--paper, var(--bg-card)); border-color: transparent; }
+.bas-account__btn.is-primary:disabled { opacity: .55; color: var(--paper, var(--bg-card)); }
+.bas-account__btn.is-quiet { border-color: transparent; color: var(--fg-muted); }
+.bas-account__btn.is-danger { color: var(--danger); border-color: var(--danger); }
+.bas-account__confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.bas-account__note { margin: 0; padding: 8px 12px; font-size: 13px; border-radius: var(--bas-radius); border: 1px solid var(--border); overflow-wrap: anywhere; }
+.bas-account__note.is-ok { color: var(--success, var(--fg)); }
+.bas-account__note.is-error { color: var(--danger); }
+.bas-account__note.is-reauth { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: var(--fg); }
+.bas-account__muted { margin: 0; font-size: 13px; color: var(--fg-muted); }
+.bas-account__link { align-self: flex-start; font-size: 13px; color: var(--accent); overflow-wrap: anywhere; }

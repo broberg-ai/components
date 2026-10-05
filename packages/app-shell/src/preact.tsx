@@ -37,8 +37,14 @@ import {
   type ThemePreference,
 } from "@broberg/theme";
 import {
+  accountErrorKind,
   activeNavLabel,
+  AVATAR_TYPES,
   badgeLabel,
+  checkAvatarFile,
+  createFetchAccountAdapter,
+  type AccountAdapter,
+  type AccountProfile,
   initials,
   isActivePath,
   readFlag,
@@ -1046,5 +1052,215 @@ export function AppShell(p: AppShellProps) {
         </main>
       </div>
     </div>
+  );
+}
+
+// ── Account page (F095.3) ──────────────────────────────────────────────────
+
+export interface AccountPageProps {
+  lang: Lang;
+  /** Default: `createFetchAccountAdapter()` → /api/account/profile* (@broberg/sso accountRoutes). */
+  adapter?: AccountAdapter;
+  /**
+   * Where «Log ind igen» goes — a FULL page load, so the app's login flow runs.
+   * Default `/auth/login?returnTo=<current path>` (no prompt=login — that forces
+   * re-proof and is a redirect-loop trap, F084.108). Broberg ID issues
+   * no refresh token, so about an hour after login every change answers 401
+   * reauth: that is a normal state here, not an error.
+   */
+  reauthHref?: string;
+}
+
+/** `/auth/login?returnTo=<this page>` — back here after signing in. */
+export function defaultReauthHref(): string {
+  const here = typeof location === "undefined" ? "/" : location.pathname + location.search;
+  return `/auth/login?returnTo=${encodeURIComponent(here)}`;
+}
+
+type Notice = { kind: "ok" | "error"; text: string } | null;
+
+/**
+ * The user's own name and picture, edited inside the app (F095.3).
+ *
+ * EVERYTHING SHOWN AFTER A SAVE IS THE SERVER'S ANSWER, never what was typed
+ * (CLAUDE.md «Et gem-felt SKAL bevises at gemme»): if Broberg ID trims or
+ * changes the name, the field shows that. On a failed save the field keeps the
+ * typed text, so nothing is lost and the error says why.
+ */
+export function AccountPage({ lang, adapter, reauthHref }: AccountPageProps) {
+  const t = TEXT[lang];
+  const api = useMemo(() => adapter ?? createFetchAccountAdapter(), [adapter]);
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState<"load" | "name" | "avatar" | null>("load");
+  const [notice, setNotice] = useState<Notice>(null);
+  const [reauth, setReauth] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const apply = (p: AccountProfile) => {
+    setProfile(p);
+    setDraft(p.name ?? "");
+  };
+  const fail = (err: unknown, fallback: string) => {
+    const kind = accountErrorKind(err);
+    if (kind === "reauth") {
+      setReauth(true);
+      setNotice(null);
+      return;
+    }
+    const text = kind === "tooLarge" ? t.pictureTooLarge : kind === "wrongType" ? t.pictureWrongType : fallback;
+    setNotice({ kind: "error", text });
+  };
+
+  useEffect(() => {
+    let live = true;
+    setBusy("load");
+    api.load().then(
+      (p) => live && (apply(p), setBusy(null)),
+      (e) => live && (fail(e, t.couldNotLoadProfile), setBusy(null)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [api]);
+
+  const run = async (what: "name" | "avatar", op: () => Promise<AccountProfile>, okText: string) => {
+    setBusy(what);
+    setNotice(null);
+    try {
+      apply(await op());
+      setNotice({ kind: "ok", text: okText });
+    } catch (e) {
+      fail(e, t.couldNotSave);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onSaveName = (e: Event) => {
+    e.preventDefault();
+    if (busy || reauth) return;
+    // A failed save leaves `draft` as typed: apply() runs only on success.
+    void run("name", () => api.saveName(draft), t.saved);
+  };
+
+  const onFile = (e: JSX.TargetedEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    input.value = ""; // the same file can be chosen again after an error
+    if (!file || busy || reauth) return;
+    const bad = checkAvatarFile(file);
+    if (bad) {
+      setNotice({ kind: "error", text: bad === "tooLarge" ? t.pictureTooLarge : t.pictureWrongType });
+      return;
+    }
+    void run("avatar", () => api.uploadAvatar(file), t.pictureSaved);
+  };
+
+  const onRemove = () => {
+    setConfirming(false);
+    void run("avatar", () => api.removeAvatar(), t.pictureRemoved);
+  };
+
+  const locked = reauth || busy !== null || profile === null;
+  const user: ShellUser = { name: profile?.name ?? undefined, email: profile?.email ?? undefined, picture: profile?.picture ?? undefined };
+
+  return (
+    <section class="bas-account" data-testid="account-page" aria-busy={busy !== null}>
+      {reauth ? (
+        <div class="bas-account__note is-reauth" role="alert" data-testid="account-reauth">
+          <span data-testid="account-reauth-text">{t.reauth}</span>
+          <button
+            type="button"
+            class="bas-account__btn is-primary"
+            onClick={() => window.location.assign(reauthHref ?? defaultReauthHref())}
+            data-testid="account-reauth-signin"
+          >
+            {t.signInAgain}
+          </button>
+        </div>
+      ) : null}
+      {notice ? (
+        <p
+          class={"bas-account__note " + (notice.kind === "ok" ? "is-ok" : "is-error")}
+          role={notice.kind === "ok" ? "status" : "alert"}
+          data-testid={notice.kind === "ok" ? "account-ok" : "account-error"}
+        >
+          {notice.text}
+        </p>
+      ) : null}
+      {busy === "load" ? <p class="bas-account__muted" data-testid="account-loading">{t.loadingProfile}</p> : null}
+      {profile ? (
+        <>
+          <div class="bas-account__who">
+            <span class="bas-account__avatar" data-testid="account-avatar" data-picture={profile.picture ?? ""}>
+              <Avatar key={profile.picture ?? "none"} user={user} size={72} />
+            </span>
+            <div class="bas-account__whotext">
+              <div class="bas-account__name" data-testid="account-name">{profile.name ?? ""}</div>
+              <div class="bas-account__email" data-testid="account-email">{profile.email ?? ""}</div>
+            </div>
+          </div>
+          <div class="bas-account__row">
+            <input
+              ref={fileRef}
+              type="file"
+              accept={AVATAR_TYPES.join(",")}
+              hidden
+              tabIndex={-1}
+              onChange={onFile}
+              data-testid="account-avatar-file"
+            />
+            <button type="button" class="bas-account__btn" disabled={locked} onClick={() => fileRef.current?.click()} data-testid="account-avatar-upload">
+              {busy === "avatar" ? t.saving : t.changePicture}
+            </button>
+            {profile.picture && !confirming ? (
+              <button type="button" class="bas-account__btn is-quiet" disabled={locked} onClick={() => setConfirming(true)} data-testid="account-avatar-remove">
+                {t.removePicture}
+              </button>
+            ) : null}
+            {profile.picture && confirming ? (
+              <span class="bas-account__confirm" role="group" data-testid="account-avatar-remove-confirmation">
+                <span>{t.confirmRemovePicture}</span>
+                <button type="button" class="bas-account__btn is-danger" disabled={locked} onClick={onRemove} data-testid="account-avatar-remove-confirm">
+                  {t.remove}
+                </button>
+                <button type="button" class="bas-account__btn is-quiet" onClick={() => setConfirming(false)} data-testid="account-avatar-remove-cancel">
+                  {t.cancel}
+                </button>
+              </span>
+            ) : null}
+          </div>
+          <form class="bas-account__form" onSubmit={onSaveName}>
+            <label class="bas-account__label" for="bas-account-name">{t.name}</label>
+            <div class="bas-account__row">
+              <input
+                id="bas-account-name"
+                class="bas-account__input"
+                type="text"
+                autocomplete="name"
+                value={draft}
+                readOnly={reauth}
+                aria-readonly={reauth}
+                onInput={(e) => {
+                  setDraft(e.currentTarget.value);
+                  if (notice?.kind === "ok") setNotice(null);
+                }}
+                data-testid="account-name-input"
+              />
+              <button type="submit" class="bas-account__btn is-primary" disabled={locked} data-testid="account-name-save">
+                {busy === "name" ? t.saving : t.save}
+              </button>
+            </div>
+          </form>
+          {profile.account_url ? (
+            <NavLink href={profile.account_url} class="bas-account__link" data-testid="account-bid-link">
+              {t.bidSecurity}
+            </NavLink>
+          ) : null}
+        </>
+      ) : null}
+    </section>
   );
 }

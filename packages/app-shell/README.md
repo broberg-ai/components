@@ -49,6 +49,61 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `UserMenu` | Avatar, name + email, **Konto** → Broberg ID, your items, Theme · Palette · Surfaces · Backdrop, sign out. |
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
+| `AccountPage` | The user's own name and picture, edited inside the app (0.4.0). |
+
+## 0.4.0 — AccountPage: name and picture, edited inside the app (F095.3)
+
+The user changes their own name and profile picture without leaving for
+id.broberg.ai. Purely additive: nothing else in the shell moved.
+
+```tsx
+import { AccountPage } from "@broberg/app-shell/preact";
+
+<AccountPage lang="da" />                       // talks to /api/account (below)
+<AccountPage lang="en" adapter={myAdapter} reauthHref="/login?next=/me" />
+```
+
+**Backend.** The default adapter speaks to `@broberg/sso`'s `accountRoutes()`
+mounted on `/api/account` (this package does not import sso):
+
+| Call | Request | Answer |
+|---|---|---|
+| `load()` | `GET /api/account/profile` | `{ sub, name, picture, email, account_url }` |
+| `saveName(name)` | `POST /api/account/profile` `{ name }` | the profile |
+| `uploadAvatar(file)` | `POST /api/account/profile/avatar`, raw bytes, `Content-Type` = the image's | the profile |
+| `removeAvatar()` | `POST /api/account/profile/avatar/remove` | the profile |
+
+Point it elsewhere with `createFetchAccountAdapter({ url })`, or pass any
+`{ load, saveName, uploadAvatar, removeAvatar }` that resolves to the profile.
+A non-2xx throws an `AccountError` (`status`, `code`) — a failed save never
+looks saved.
+
+**What the page shows after a save is the server's answer.** The name field
+and the shown name are set from the response, never from what was typed — if
+Broberg ID trims the name, the field shows the trimmed name. On a failed save
+the error shows and the field keeps the typed text.
+
+**Picture.** A custom button over a hidden `<input type=file
+accept="image/png,image/jpeg,image/webp">`. Over 2 MB or another type is
+refused with a message **before** anything is sent. Remove asks inline
+(Fjern / Annuller), never `confirm()`. The avatar is round by CSS; no cropping
+in v1.
+
+**Signing in again is a normal state.** Broberg ID issues no refresh token, so
+about an hour after login every change answers `401 reauth`. A 401 (or `403
+insufficient_scope`) shows «Log ind igen for at rette» / "Sign in again to make
+changes" with a button that does a full page load to `reauthHref` — default
+`/auth/login?returnTo=<this page>` (no `prompt=login`: BID still has the
+session and offers «Fortsæt som …») — and the fields go read-only.
+
+**«Sikkerhed i Broberg ID»** links to `account_url` in a new tab.
+
+**Test ids:** `account-page`, `account-avatar`, `account-avatar-file`,
+`account-avatar-upload`, `account-avatar-remove`,
+`account-avatar-remove-confirmation`, `account-avatar-remove-confirm`,
+`account-avatar-remove-cancel`, `account-name`, `account-email`,
+`account-name-input`, `account-name-save`, `account-ok`, `account-error`,
+`account-reauth`, `account-reauth-signin`, `account-bid-link`.
 
 ## 0.3.0 — inset layout by default, links that leave open a new tab, a language row (F092.8, .10, .11)
 
