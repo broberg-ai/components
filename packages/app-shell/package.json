@@ -1,0 +1,74 @@
+{
+  "name": "@broberg/app-shell",
+  "version": "0.1.0",
+  "description": "The fleet's app shell: collapsible sidebar (phone: rail or drawer), top bar with the notification bell and user menu as standard, page header and tabs. Framework-free core + Preact (Stack B). Styled on @broberg/theme tokens. Avatar from Broberg ID, initials otherwise — no Gravatar.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist",
+    "css",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
+    "./css/app-shell.css": "./css/app-shell.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsup && node verify-exports.mjs",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@broberg/theme": ">=0.11.0",
+    "preact": ">=10.0.0",
+    "@broberg/notifications": ">=0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "preact": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@broberg/theme": "workspace:*",
+    "@testing-library/preact": "^3.2.3",
+    "happy-dom": "^15.0.0",
+    "preact": "^10.23.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "@broberg/notifications": "workspace:*"
+  },
+  "keywords": [
+    "app-shell",
+    "sidebar",
+    "topbar",
+    "notifications",
+    "user-menu",
+    "preact",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/app-shell"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

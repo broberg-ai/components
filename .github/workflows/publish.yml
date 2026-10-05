@@ -10,6 +10,7 @@ name: publish
 #   • mail-v*         → packages/mail         → @broberg/mail
 #   • config-v*       → packages/config       → @broberg/config
 #   • media-v*        → packages/media        → @broberg/media
+#   • app-shell-v*    → packages/app-shell    → @broberg/app-shell
 #   • sso-v*          → packages/sso          → @broberg/sso
 #   • apikey-v*       → packages/apikey       → @broberg/apikey
 #   • webpush-v*      → packages/webpush      → @broberg/webpush
@@ -50,6 +51,7 @@ on:
       - "mail-v*"
       - "config-v*"
       - "media-v*"
+      - "app-shell-v*"
       - "apikey-v*"
       - "webpush-v*"
       - "cron-v*"
@@ -1037,6 +1039,71 @@ jobs:
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/media
+        run: npm publish --access public --provenance
+
+  publish-app-shell:
+    needs: gate
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/app-shell-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
+    permissions:
+      contents: read
+      id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # resolves to >=22.14, required by OIDC publishing
+          registry-url: https://registry.npmjs.org
+
+      - name: Upgrade npm
+        run: npm install -g npm@11.5.1
+
+      - name: Install (workspace)
+        run: pnpm install --frozen-lockfile
+
+      # F092 — app-shell type-checks and tests against the WORKSPACE @broberg/theme
+      # and @broberg/notifications, so they are built first (turbo ^build).
+      - name: Build (with workspace deps)
+        run: pnpm turbo run build --filter=@broberg/app-shell...
+
+      - name: Typecheck
+        working-directory: packages/app-shell
+        run: pnpm typecheck
+
+      - name: Test
+        working-directory: packages/app-shell
+        run: pnpm test
+
+      - name: Guard — tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/app-shell-v')
+        working-directory: packages/app-shell
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#app-shell-v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag app-shell-v$TAG does not match packages/app-shell version $PKG"
+            exit 1
+          fi
+
+      - name: Guard — version not already on npm
+        working-directory: packages/app-shell
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if npm view "@broberg/app-shell@$PKG" version >/dev/null 2>&1; then
+            echo "::error::@broberg/app-shell@$PKG already published — bump the version first."
+            exit 1
+          fi
+          echo "Publishing @broberg/app-shell@$PKG"
+
+      # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
+      # NOTE: 0.1.0 is the bootstrap publish, done locally (npm has no Trusted
+      # Publisher for a name that does not exist yet); this job serves 0.1.1+.
+      - name: Publish (OIDC)
+        working-directory: packages/app-shell
         run: npm publish --access public --provenance
 
   publish-apikey:

@@ -28,6 +28,7 @@
       "name": "bin-1",
       "weight_seconds": 215.7,
       "packages": [
+        "@broberg/app-shell",
         "@broberg/feature-stats",
         "@broberg/greppable",
         "@broberg/lens-client",
@@ -37,6 +38,7 @@
         "@broberg/sso"
       ],
       "min_tests": {
+        "@broberg/app-shell": 24,
         "@broberg/feature-stats": 17,
         "@broberg/greppable": 8,
         "@broberg/lens-client": 7,
