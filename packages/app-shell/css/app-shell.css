@@ -30,11 +30,21 @@
 :where(.bas-root button) { font: inherit; }
 
 /* ── top bar ── */
+/* F092.12 — the blur lives on ::before, NOT on the bar. backdrop-filter (like
+ * filter, transform, perspective, contain) makes an element the containing block
+ * for its position:fixed descendants, so the bell's bottom sheet anchored to the
+ * bottom of this 56px bar and opened off-screen on a phone (appkit, Lens
+ * 71f2466e: top=-608 bottom=56). The bell's full-screen overlay was trapped in
+ * the bar the same way. */
 .bas-topbar {
   position: sticky; top: 0; z-index: 50;
+  border-bottom: 1px solid var(--border);
+}
+.bas-topbar::before,
+.bas-root[data-layout="inset"] .bas-contenthead::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: color-mix(in srgb, var(--surface-header, var(--bg)) 85%, transparent);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
 }
 .bas-topbar__inner { display: flex; align-items: center; gap: 12px; height: var(--bas-top); padding: 0 16px; }
 .bas-topbar__brand, .bas-topbar__actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -157,8 +167,7 @@
 .bas-root[data-layout="inset"] { --bas-top: 0px; }
 .bas-root[data-layout="inset"] .bas-contenthead {
   position: sticky; top: 0; z-index: 30; height: 56px; gap: 8px;
-  background: color-mix(in srgb, var(--surface-header, var(--bg)) 85%, transparent);
-  backdrop-filter: blur(8px);
+  /* blur on ::before (see .bas-topbar, F092.12) */
 }
 .bas-root[data-layout="inset"] .bas-sidebar__head { min-height: 56px; padding: 8px 12px; }
 .bas-contenthead__actions { display: flex; align-items: center; gap: 8px; min-width: 0; }

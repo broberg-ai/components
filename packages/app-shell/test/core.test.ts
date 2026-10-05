@@ -162,6 +162,15 @@ describe("package-wide guards", () => {
     expect(closed).toMatch(/visibility:\s*hidden/);
     expect(rule(".bas-sidebar.is-mobile-drawer.is-open").join(";")).toMatch(/visibility:\s*visible/);
   });
+  it("F092.12: no bar the bell lives in is a containing block for position:fixed — the blur is on ::before", () => {
+    const CB = /(^|;)\s*(backdrop-filter|-webkit-backdrop-filter|filter|transform|perspective|contain|will-change)\s*:/;
+    for (const sel of [".bas-topbar", '.bas-root[data-layout="inset"] .bas-contenthead', ".bas-contenthead", ".bas-bell"]) {
+      for (const body of rule(sel)) expect([sel, CB.test(body)]).toEqual([sel, false]);
+    }
+    const before = rule('.bas-topbar::before,\n.bas-root[data-layout="inset"] .bas-contenthead::before').join(";");
+    expect(before).toMatch(/backdrop-filter:\s*blur\(8px\)/);
+    expect(before).toMatch(/z-index:\s*-1/);
+  });
   it("the sidebar sits above <main> (its sticky stacking context caps the rail flyout), below the top bar", () => {
     const z = (sel: string) => Number(/z-index:\s*(\d+)/.exec(rule(sel).join(";"))?.[1]);
     expect(z(".bas-sidebar")).toBeGreaterThan(0);
