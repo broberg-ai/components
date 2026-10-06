@@ -19,7 +19,7 @@ import {
   type SsoClient,
 } from "../src/client.js";
 import { accountRoutes, ssoRoutes } from "../src/hono.js";
-import { signSession } from "../src/session.js";
+import { signSession, verifySession } from "../src/session.js";
 import { memoryTokenStore } from "../src/tokens.js";
 
 const ISSUER = "https://id.broberg.ai";
@@ -215,7 +215,7 @@ describe("F095.2 — the profile client calls BID's /api/app/profile* as the use
 /* ── AC3 + AC4: accountRoutes ────────────────────────────────────────────── */
 
 describe("F095.2 — accountRoutes: the app's /api/account, JSON in and out", () => {
-  async function setup(opts: { tokens?: "fresh" | "expired-no-refresh" | "expired-refresh-refused" | "none"; sid?: boolean; tokenStore?: boolean } = {}) {
+  async function setup(opts: { tokens?: "fresh" | "expired-no-refresh" | "expired-refresh-refused" | "none"; sid?: boolean; tokenStore?: boolean; sessionProfile?: { name?: string; picture?: string } } = {}) {
     const bid = fakeBid();
     const config = loadSsoConfig(ENV);
     const client = createSsoClient(config, { fetchImpl: bid.fetchImpl, minRefetchIntervalMs: 0 });
@@ -236,7 +236,7 @@ describe("F095.2 — accountRoutes: the app's /api/account, JSON in and out", ()
       });
     }
     const cookie = `${config.cookieName}=${await signSession(
-      { sub: "user-1", iat: now, exp: now + 600, ...(opts.sid === false ? {} : { sid }) },
+      { sub: "user-1", iat: now, exp: now + 600, ...(opts.sid === false ? {} : { sid }), ...(opts.sessionProfile ?? {}) },
       config.cookieSecret,
     )}`;
     const req = (path: string, init: RequestInit & { noCookie?: boolean } = {}) => {
@@ -244,7 +244,7 @@ describe("F095.2 — accountRoutes: the app's /api/account, JSON in and out", ()
       if (!init.noCookie) headers.set("cookie", cookie);
       return app.request(`https://app.example/api/account${path}`, { ...init, headers });
     };
-    return { bid, store, sid, req, config };
+    return { bid, store, sid, req, config, iat: now, exp: now + 600 };
   }
 
   /** Every refusal: status, exact JSON body, no redirect, no token anywhere in it. */
@@ -300,6 +300,43 @@ describe("F095.2 — accountRoutes: the app's /api/account, JSON in and out", ()
     // negative control: the app's own page is let through
     const ok = await t.req("/profile/avatar/remove", { method: "POST", headers: { "sec-fetch-site": "same-origin" } });
     expect([ok.status, t.bid.appCalls().length]).toEqual([200, 1]);
+  });
+
+  /** The session cookie a response set, decoded — or null when it set none. */
+  async function sessionSet(r: Response, config: ReturnType<typeof loadSsoConfig>) {
+    const raw = r.headers.getSetCookie().find((h) => h.startsWith(`${config.cookieName}=`));
+    if (!raw) return null;
+    const value = raw.split(";")[0]!.slice(config.cookieName.length + 1);
+    const maxAge = Number(/Max-Age=(\d+)/.exec(raw)?.[1]);
+    return { session: await verifySession(value, config.cookieSecret), maxAge };
+  }
+
+  test("F095.5: a saved name re-signs the session cookie — new name, same sub/sid/iat/exp, lifetime NOT extended", async () => {
+    const t = await setup();
+    const name = `Navn ${Date.now()}`;
+    const r = await t.req("/profile", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+    expect(r.status).toBe(200);
+    const set = await sessionSet(r, t.config);
+    expect(set?.session?.name).toBe(name);
+    expect(set?.session?.picture).toBe("https://id.broberg.ai/a/1.png");
+    expect([set?.session?.sub, set?.session?.sid, set?.session?.iat, set?.session?.exp]).toEqual(["user-1", t.sid, t.iat, t.exp]);
+    expect(set!.maxAge).toBeLessThanOrEqual(600);
+    expect(set!.maxAge).toBeGreaterThan(590);
+  });
+
+  test("F095.5: removing the picture drops it from the session cookie; uploading sets the new one", async () => {
+    const t = await setup();
+    const up = await sessionSet(await t.req("/profile/avatar", { method: "POST", headers: { "content-type": "image/png" }, body: new Uint8Array([1, 2, 3]) }), t.config);
+    expect(up?.session?.picture).toBe("https://id.broberg.ai/a/2.png");
+    const rm = await sessionSet(await t.req("/profile/avatar/remove", { method: "POST" }), t.config);
+    expect(rm?.session !== null && rm?.session !== undefined && !("picture" in rm.session)).toBe(true);
+  });
+
+  test("F095.5: nothing changed → no Set-Cookie; a refused write → no Set-Cookie", async () => {
+    const t = await setup({ sessionProfile: { name: "Christian Broberg", picture: "https://id.broberg.ai/a/1.png" } });
+    expect(await sessionSet(await t.req("/profile"), t.config)).toBe(null);
+    t.bid.answerWith(() => Response.json({ error: "invalid_name" }, { status: 400 }));
+    expect(await sessionSet(await t.req("/profile", { method: "POST", headers: { "content-type": "application/json" }, body: '{"name":"x"}' }), t.config)).toBe(null);
   });
 
   test("POST /profile/avatar forwards the raw bytes and the Content-Type", async () => {

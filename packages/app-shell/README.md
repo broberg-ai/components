@@ -51,6 +51,23 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `Avatar` | `picture` when given, otherwise initials. |
 | `AccountPage` | The user's own name and picture, edited inside the app (0.4.0). |
 
+## 0.5.0 — the user menu follows the account page (F095.5)
+
+`onProfileChange(profile)` is called with the profile **as the server now holds
+it** after a name save, a picture upload or a removal. It is never called on load
+or after a failed save. Pass it to the shell's `user`, so the menu changes at once:
+
+```tsx
+const [user, setUser] = useState(sessionUser);
+<AppShell user={user} …>
+  <AccountPage lang="da" onProfileChange={(p) => setUser({ ...user, name: p.name ?? undefined, picture: p.picture ?? undefined })} />
+</AppShell>
+```
+
+With `@broberg/sso` ≥0.11 the session cookie is re-signed with the new name and
+picture as well, so the menu is also right after a reload. «Gem» is disabled
+while the name (trimmed) equals what the server holds.
+
 ## 0.4.0 — AccountPage: name and picture, edited inside the app (F095.3)
 
 The user changes their own name and profile picture without leaving for

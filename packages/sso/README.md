@@ -474,5 +474,13 @@ access token itself (a 401 from BID). It is never a 500.
 `SsoAppApiError` (`.status`, BID's `.code`; `status` is null when BID did not
 answer). All extend `SsoError`. No message ever contains a token.
 
+**The user menu follows (since 0.11.0, F095.5).** Every successful
+`accountRoutes` answer re-signs the session cookie with the name and picture BID
+returned (`ssoRoutes().refreshSessionProfile`). sub, sid, iat and exp are kept,
+and Max-Age is what is left of the session: the lifetime is never extended.
+Nothing is written when nothing changed, and nothing is written on a refusal.
+A reload therefore shows the new name in the menu without a new login. A GET also
+picks up a change the user made in BID itself.
+
 Mail, password, passkeys, two-factor and sessions stay in BID: link to the
 profile's `account_url` in a new tab.

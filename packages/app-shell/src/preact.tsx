@@ -1069,6 +1069,13 @@ export interface AccountPageProps {
    * reauth: that is a normal state here, not an error.
    */
   reauthHref?: string;
+  /**
+   * F095.5 — called with the profile AS THE SERVER NOW HOLDS IT after every
+   * successful change (name saved, picture uploaded, picture removed), so the
+   * host can update the shell's user menu at once. Not called on load or on a
+   * failed save.
+   */
+  onProfileChange?: (profile: AccountProfile) => void;
 }
 
 /** `/auth/login?returnTo=<this page>` — back here after signing in. */
@@ -1087,7 +1094,7 @@ type Notice = { kind: "ok" | "error"; text: string } | null;
  * changes the name, the field shows that. On a failed save the field keeps the
  * typed text, so nothing is lost and the error says why.
  */
-export function AccountPage({ lang, adapter, reauthHref }: AccountPageProps) {
+export function AccountPage({ lang, adapter, reauthHref, onProfileChange }: AccountPageProps) {
   const t = TEXT[lang];
   const api = useMemo(() => adapter ?? createFetchAccountAdapter(), [adapter]);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
@@ -1129,7 +1136,9 @@ export function AccountPage({ lang, adapter, reauthHref }: AccountPageProps) {
     setBusy(what);
     setNotice(null);
     try {
-      apply(await op());
+      const p = await op();
+      apply(p);
+      onProfileChange?.(p);
       setNotice({ kind: "ok", text: okText });
     } catch (e) {
       fail(e, t.couldNotSave);
@@ -1140,7 +1149,7 @@ export function AccountPage({ lang, adapter, reauthHref }: AccountPageProps) {
 
   const onSaveName = (e: Event) => {
     e.preventDefault();
-    if (busy || reauth) return;
+    if (busy || reauth || unchanged) return;
     // A failed save leaves `draft` as typed: apply() runs only on success.
     void run("name", () => api.saveName(draft), t.saved);
   };
@@ -1164,6 +1173,9 @@ export function AccountPage({ lang, adapter, reauthHref }: AccountPageProps) {
   };
 
   const locked = reauth || busy !== null || profile === null;
+  // Nothing to save until the name differs from what the server holds (trimmed:
+  // BID trims, so a trailing space is not a change).
+  const unchanged = draft.trim() === (profile?.name ?? "").trim();
   const user: ShellUser = { name: profile?.name ?? undefined, email: profile?.email ?? undefined, picture: profile?.picture ?? undefined };
 
   return (
@@ -1249,7 +1261,7 @@ export function AccountPage({ lang, adapter, reauthHref }: AccountPageProps) {
                 }}
                 data-testid="account-name-input"
               />
-              <button type="submit" class="bas-account__btn is-primary" disabled={locked} data-testid="account-name-save">
+              <button type="submit" class="bas-account__btn is-primary" disabled={locked || unchanged} data-testid="account-name-save">
                 {busy === "name" ? t.saving : t.save}
               </button>
             </div>

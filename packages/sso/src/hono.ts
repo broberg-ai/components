@@ -15,6 +15,7 @@ import {
   mediaType,
   SsoError,
   SsoReauthError,
+  type BidProfile,
   type SsoClient,
 } from "./client.js";
 import { expiresAtFrom, newSid, type TokenStore } from "./tokens.js";
@@ -530,7 +531,32 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     }
   }
 
-  return { app, attach, require, client, config, getAccessToken };
+  /**
+   * F095.5 — after the user changed her own name or picture, re-sign the
+   * session cookie with the new values, so the user menu shows them on the next
+   * page load without a new login. Only the convenience copies change: sub,
+   * sid, iat and exp are kept as they are (the cookie's lifetime is NOT
+   * extended — Max-Age is what is left of it). No live session → nothing.
+   */
+  async function refreshSessionProfile(c: Context, profile: { name: string | null; picture: string | null }): Promise<void> {
+    const live = await liveSession(c);
+    if (!live) return;
+    const next: SessionPayload = { ...live };
+    if (profile.name) next.name = profile.name;
+    else delete next.name;
+    if (profile.picture) next.picture = profile.picture;
+    else delete next.picture;
+    if (next.name === live.name && next.picture === live.picture) return;
+    const left = live.exp - Math.floor(Date.now() / 1000);
+    if (left <= 0) return;
+    c.header(
+      "Set-Cookie",
+      cookieHeader(config.cookieName, await signSession(next, config.cookieSecret), { maxAge: left, secure: isSecure(c) }),
+      { append: true },
+    );
+  }
+
+  return { app, attach, require, client, config, getAccessToken, refreshSessionProfile };
 }
 
 /** Why a login transaction could not be read back. Three states, three answers. */
@@ -601,6 +627,12 @@ export function getSession(c: Context): SessionPayload | null {
 export interface AccountRoutesInput {
   client: Pick<SsoClient, "getProfile" | "updateProfile" | "uploadAvatar" | "removeAvatar">;
   getAccessToken(c: Context): Promise<string>;
+  /**
+   * F095.5 — re-sign the session cookie with the profile BID answered, so the
+   * user menu shows the new name and picture on the next page load. ssoRoutes
+   * provides it; optional so an older or hand-built input still works.
+   */
+  refreshSessionProfile?(c: Context, profile: { name: string | null; picture: string | null }): Promise<void>;
 }
 
 /**
@@ -682,8 +714,16 @@ export function accountRoutes(sso: AccountRoutesInput) {
     await next();
   });
 
+  // Every answer carries the profile AS BID NOW HOLDS IT; the session cookie
+  // follows it (F095.5), so the user menu is right after a reload too — also
+  // when the name was changed in BID itself.
+  const answer = async (c: Context, profile: BidProfile) => {
+    if (sso.refreshSessionProfile) await sso.refreshSessionProfile(c, profile);
+    return c.json(profile);
+  };
+
   // The session is checked FIRST on every route, before any body is looked at.
-  app.get("/profile", async (c) => c.json(await client.getProfile(await sso.getAccessToken(c))));
+  app.get("/profile", async (c) => answer(c, await client.getProfile(await sso.getAccessToken(c))));
 
   app.post("/profile", async (c) => {
     const token = await sso.getAccessToken(c);
@@ -691,7 +731,7 @@ export function accountRoutes(sso: AccountRoutesInput) {
     if (typeof body?.name !== "string") {
       return c.json({ error: "invalid_request", error_description: '"name" must be a string' }, 400);
     }
-    return c.json(await client.updateProfile(token, body.name));
+    return answer(c, await client.updateProfile(token, body.name));
   });
 
   app.post("/profile/avatar", async (c) => {
@@ -708,10 +748,10 @@ export function accountRoutes(sso: AccountRoutesInput) {
     // And a body without (or lying about) its length is cut off at the limit.
     const bytes = await readCapped(c, MAX_AVATAR_BYTES);
     if (!bytes) return c.json({ error: "too_large", max_bytes: MAX_AVATAR_BYTES }, 413);
-    return c.json(await client.uploadAvatar(token, bytes, type));
+    return answer(c, await client.uploadAvatar(token, bytes, type));
   });
 
-  app.post("/profile/avatar/remove", async (c) => c.json(await client.removeAvatar(await sso.getAccessToken(c))));
+  app.post("/profile/avatar/remove", async (c) => answer(c, await client.removeAvatar(await sso.getAccessToken(c))));
 
   app.onError((err, c) => {
     c.header("Cache-Control", "no-store");

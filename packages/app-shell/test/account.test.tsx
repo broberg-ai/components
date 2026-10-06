@@ -240,6 +240,7 @@ describe("AccountPage — sign in again", () => {
       const a = fakeAdapter({ saveName: vi.fn(async () => { throw new AccountError(401, "reauth"); }) });
       render(<AccountPage lang="en" adapter={a} reauthHref="/login?next=/me" />);
       await screen.findByTestId("account-name");
+      typeName("Y");
       fireEvent.click(screen.getByTestId("account-name-save"));
       expect((await screen.findByTestId("account-reauth-text")).textContent).toBe("Sign in again to make changes");
       expect(screen.queryByTestId("account-error")).toBeNull();
@@ -337,9 +338,61 @@ it("waits for the save — the button is disabled while the request is in flight
   const a = fakeAdapter({ saveName: vi.fn(() => new Promise<AccountProfile>((r) => (resolve = r))) });
   render(<AccountPage lang="da" adapter={a} />);
   await screen.findByTestId("account-name");
+  typeName("Ny");
   fireEvent.click(screen.getByTestId("account-name-save"));
   await waitFor(() => expect((screen.getByTestId("account-name-save") as HTMLButtonElement).disabled).toBe(true));
   expect(screen.getByTestId("account-name-save").textContent).toBe("Gemmer…");
   resolve({ ...BASE });
   await screen.findByTestId("account-ok");
+});
+
+describe("F095.5 — the host hears about a change, and an unchanged name cannot be saved", () => {
+  const save = () => screen.getByTestId("account-name-save") as HTMLButtonElement;
+
+  it("«Gem» is disabled on a fresh load and for the same name (trailing space included), enabled once it differs", async () => {
+    const a = fakeAdapter();
+    render(<AccountPage lang="da" adapter={a} />);
+    await screen.findByTestId("account-name");
+    expect(save().disabled).toBe(true);
+    typeName(`${BASE.name} `);
+    expect(save().disabled).toBe(true);
+    typeName("Nyt navn");
+    expect(save().disabled).toBe(false);
+    typeName(BASE.name!);
+    expect(save().disabled).toBe(true);
+    fireEvent.submit(input().form!);
+    expect(a.saveName).not.toHaveBeenCalled();
+  });
+
+  it("onProfileChange gets the SERVER's answer after a name save, an upload and a removal — never on load", async () => {
+    const seen: AccountProfile[] = [];
+    const a = fakeAdapter({ saveName: vi.fn(async (n: string) => ({ ...BASE, name: n.trim() })) });
+    render(<AccountPage lang="da" adapter={a} onProfileChange={(p) => seen.push(p)} />);
+    await screen.findByTestId("account-name");
+    expect(seen).toEqual([]);
+    typeName("  Ny Navn  ");
+    fireEvent.click(save());
+    await screen.findByTestId("account-ok");
+    pickFile(file("image/png", 10));
+    await waitFor(() => expect(seen.length).toBe(2));
+    fireEvent.click(screen.getByTestId("account-avatar-remove"));
+    fireEvent.click(screen.getByTestId("account-avatar-remove-confirm"));
+    await waitFor(() => expect(seen.length).toBe(3));
+    expect(seen.map((p) => [p.name, p.picture])).toEqual([
+      ["Ny Navn", BASE.picture],
+      [BASE.name, "https://id.broberg.ai/avatars/u1-b.webp"],
+      [BASE.name, null],
+    ]);
+  });
+
+  it("a failed save does NOT call onProfileChange", async () => {
+    const seen: AccountProfile[] = [];
+    const a = fakeAdapter({ saveName: vi.fn(async () => { throw new AccountError(500); }) });
+    render(<AccountPage lang="da" adapter={a} onProfileChange={(p) => seen.push(p)} />);
+    await screen.findByTestId("account-name");
+    typeName("X");
+    fireEvent.click(save());
+    await screen.findByTestId("account-error");
+    expect(seen).toEqual([]);
+  });
 });
