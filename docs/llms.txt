@@ -29,7 +29,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (57)
+## Packages by category (58)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.12.0 — The design-token foundation every surface inherits, plus prePaintScript(): the <head> string that sets the theme before the first paint, so no app …. `npm i @broberg/theme`
@@ -68,7 +68,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/speech-dictionary** v0.1.3 — Fleet STT vocabulary + correction primitive. `npm i @broberg/speech-dictionary`
 - **@broberg/sms** v0.12.0 — One SMS send primitive for the fleet. `npm i @broberg/sms`
 - **@broberg/notifications** v0.4.0 — The fleet's in-app notification list core: ONE counting rule shared by every app, so the list, the bell and the OS badge cannot disagree. `npm i @broberg/notifications`
-- **@broberg/app-shell** v0.3.1 — The fleet's app shell for Stack B (Preact; React later): a collapsible sidebar from data (groups/items/footer, active item from currentPath, state …. `npm i @broberg/app-shell`
+- **@broberg/app-shell** v0.4.0 — The fleet's app shell for Stack B (Preact; React later): a collapsible sidebar from data (groups/items/footer, active item from currentPath, state …. `npm i @broberg/app-shell`
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
 - **@broberg/lens-engine** v0.10.0 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
@@ -89,13 +89,14 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.50.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
-- **@upmetrics/sdk** v0.4.1 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
+- **@broberg/ai-sdk** v0.52.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@upmetrics/sdk** v0.11.0 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
 - **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts`
 - **@broberg/complimenta-sdk** v0.3.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk`
 - **@broberg/cms-inline-edit** v0.12.0 — Inline editing on live @webhouse/cms-sites including structural LIST editing (add/remove items), plus self-healing page links. `npm i @broberg/cms-inline-edit`
+- **@webhouse/cms** v0.4.27 — @webhouse/cms/enrich. `npm i @webhouse/cms`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
 ## Shipped, but NOT an npm package (3)
