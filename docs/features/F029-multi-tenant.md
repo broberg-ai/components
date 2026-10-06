@@ -1,75 +1,90 @@
-# F029 — Multi-Tenant Management
+# F029 — @broberg/tenant: organisations, memberships and invitations, the same way in every app
 
-> L4 Capstone · hybrid · effort **L** · impact **high** · owner `cms`. Status: Backlog.
-> Graduate-candidate: YES — should get its own repo + cardmem project (recommendation, confirm with Christian).
+> Epic · runtime package (headless core + Hono adapter) + switcher in app-shell · effort M · status: **revised 6 Oct 2026 after the survey F029.7, awaiting Christian's decision before code**
+
+## Summary
+Six apps each handle «which organisation am I in, with what role, and who may join» in their own way, and four of them get the same thing wrong: they silently pick an organisation the user did not ask for. `@broberg/tenant` gives every app the same strict rules for memberships, choosing the active organisation and invitations, while each app keeps its data in its own database however it likes. Organisations are never stored in Broberg ID.
 
 ## Motivation
-A headless library providing the canonical data model, resolution logic, and lifecycle operations for multi-tenant apps across the estate. Core: the three-level hierarchy (platform→org→tenant/site), the active-tenant resolution chain (request-scoped override > cookie > env default > registry default), and a lazy-loaded TTL-cached instance pool routing every authenticated op to the correct tenant context without cross-tenant leakage. Also: org-level settings inheritance (cascade down to sites with a strict NEVER_INHERIT guard), a serial write-lock for safe registry mutations, and a global key-index sidecar mapping bearer/session to tenant slugs before any per-tenant DB opens.
+Christian, 6 Oct 2026: «Burde vi have et modul til Tenant styring … er der nogle fordele ved at have et /tenant npm modul?» He also decided (D-5345a2) that organisations and memberships do **not** live in Broberg ID.
+
+The survey F029.7 read the code in xrt81, cms, cardmem, trail and helpdesk, plus Scout's plan (table in `F029.7-tenant-survey.md`). Four findings decide the design:
+1. **Six implementations, and none of them is shared.** Scout is about to write the seventh.
+2. **The part that repeats is the part with the bugs.** Choosing the active organisation falls back silently to «the first membership» in cardmem and trail, cms falls back to the first site, and xrt81 looks members up by email without an organisation. Only helpdesk refuses hard.
+3. **Data isolation does NOT repeat:** shared DB with `tenant_id` (3), a DB per organisation (trail, Scout), a directory per site (cms). The package must not choose it.
+4. **Role names do not repeat** (owner/admin/member, owner/operator/viewer, admin/editor/viewer), but the shape (user, organisation, role) does.
+
+## What changed against the June plan, and why
+
+The June plan was written from cms alone: a `registry.json`, an engine pool keyed by `orgId:siteId`, `mergeConfigs` inheritance, trail's key-index, a Next adapter, and pilots in cms and trail. The survey shows that those are **cms' and trail's isolation choices, not the fleet's common pattern**. A shared pool would force one isolation model on Scout (Postgres per org) and the three shared-DB apps alike. Stories F029.1–.6 are therefore archived (reasons on each card), and the June text lives in git history (`git log -- docs/features/F029-multi-tenant.md`).
 
 ## Solution
-**hybrid.** The core resolution logic + data model appear in 4+ repos (cms site-registry/site-pool, trail tenant-pool/key-index, xrt81 tenants schema, cardmem orgs) in structurally similar but divergent form. The pure logic (Registry type, findSite/findOrg, mergeConfigs inheritance, pool get-or-create, key-index resolve) is identical enough to share → runtime package. The UI (org/site switchers) is framework-specific → copy-owned. The DB schema DDL is copy-owned (xrt81 adds themeColor/visionModel/BYOK; cardmem adds plan/githubOrgName). So: headless engine (package) + schema/UI copy-owned scaffolds.
+A small headless package with storage through an adapter, the same pattern as sso's `TokenStore`:
+
+```ts
+interface TenantStore {              // the app implements it against its own DB
+  tenantBySlug(slug: string): Promise<Tenant | null>;
+  membershipsOf(userId: string): Promise<Membership[]>;      // across tenants
+  addMembership(m: Membership): Promise<void>;
+  // invitations
+  saveInvite(i: StoredInvite): Promise<void>;                // tokenHash, never the token
+  inviteByTokenHash(hash: string): Promise<StoredInvite | null>;
+  markInviteUsed(id: string, at: number): Promise<boolean>;  // false = already used (single use)
+}
+```
+
+- **`resolveActiveTenant({ requested, memberships })`** is strict. The requested organisation (path slug, header or cookie: the app chooses the source) must be one of the user's memberships, or it throws `TenantNotMember` / `TenantNotFound` / `TenantSuspended`. **Never a silent fallback.** No request → the app's explicit default rule, never «the first row».
+- **Invitations:** `createInvite(tenant, email, role)` → token (only its hash is stored), expiry, single use. `acceptInvite(token, user)` requires the signed-in email to match (case-insensitive), is idempotent, and can never grant a role outside the app's `invitableRoles` (helpdesk's «cannot escalate to the platform»).
+- **Capabilities:** `can(role, action)` from a matrix the app supplies, plus an `onDenied` audit hook (cardmem's pattern).
+- **Hono adapter (`/hono`):** `tenantMiddleware({ store, from })` sets `c.var.tenant` and `c.var.membership` and answers with JSON 401/403/404, never a redirect.
+- **UI:** `TenantSwitcher` in `@broberg/app-shell`, which shows only the user's memberships and switches through the app's own route.
+
+## Reuse
+- **Identity:** `@broberg/sso` (who the user is). Organisations stay in the app's DB (D-5345a2).
+- **Storage:** the app's own (shared SQLite/libSQL, `@broberg/db-sdk` Postgres per org, anything else) via `TenantStore`. Discovery search for «tenant» on 6/10 found nothing shipped, only F029 itself.
+- **Invitation mail:** `@broberg/mail` in the app, not in the package (the package returns the link).
+- **Switcher UI:** `@broberg/app-shell`.
+
+## Design
+The switcher belongs in the user menu in app-shell and is designed in its own story (design consult then). The rest of the epic has no visual surface.
 
 ## Scope
 
 ### In scope
-- Extract from `webhouse/cms` `packages/cms-admin/src/lib/{site-registry,site-pool,org-settings,site-paths}.ts`.
-- Headless core (Registry types + loadRegistry/mutations + TenantPool + mergeConfigs + KeyIndex + resolveTenantContext + getAdminDataDir) + Next + Hono adapters.
+- `packages/tenant` → `@broberg/tenant`: types, `TenantStore`, `resolveActiveTenant`, invitations, `can`, named errors, `memoryTenantStore()` for tests.
+- `@broberg/tenant/hono`: `tenantMiddleware`, plus JSON routes for invitation accept and the list of my memberships.
+- `TenantSwitcher` in `@broberg/app-shell`.
 
 ### Out of scope
-- App-specific tenant DB schema (each app owns its Drizzle schema).
-- Per-brand switcher UI styling.
-
-## Architecture
-
-### Best source (reference implementation)
-`webhouse/cms` — `packages/cms-admin/src/lib/`: site-registry.ts (Registry/OrgEntry/SiteEntry types, load/save with serial write-lock _writeLock chain, atomic deep-clone mutations, findSite/findOrg/getDefaultSite, bootstrapRegistryFromEnv, single/multi-site detection); site-pool.ts (lazy Map<orgId:siteId,CmsInstance> with prod-forever/dev-TTL tiers, absolutizeConfigPaths chdir-race guard, formatSiteError Zod-aware); org-settings.ts (3-level mergeConfigs + INHERITABLE_FIELDS/NEVER_INHERIT + detectMigratableFields); site-paths.ts (resolution precedence + EmptyOrgError cross-org leak guard).
-
-### Other implementations seen
-- Cross-checks (structurally similar, divergent): trail tenant-pool.ts + key-index.ts (slug-keyed file discovery), xrt81 tenants schema + auth scoping (themeColor/visionModel/BYOK), cardmem orgs schema (plan/githubOrgName). cms is the most complete + battle-tested source.
-
-### Headless core vs. adapters
-- **Core (no React/next):** Registry/OrgEntry/SiteEntry/OrgSettings types + Zod schemas; loadRegistry/saveRegistry (serial write-lock); findSite/findOrg/getDefaultSite/addOrg/addSite/updateSite/removeSite/moveSite; TenantPool (Map-backed lazy get-or-create, TTL tiers, invalidate); mergeConfigs (INHERITABLE_FIELDS/NEVER_INHERIT); KeyIndex (resolveBearer/resolveSession/addBearer/addSession/revoke via a driver-agnostic {run,query} shim); resolveTenantContext({cookie?,bearer?,override?}); getAdminDataDir (WEBHOUSE_DATA_DIR > /data > XDG > $HOME chain).
-- **Stack A (Next):** reads cookies() from next/headers in resolveTenantContext; invalidateActiveSite(); OrgSwitcher + SiteSwitcher RSCs (read registry via server action, write active-org/active-site cookies); EmptyOrgError boundary. No pool/registry logic here.
-- **Stack B (Hono):** tenantMiddleware (reads Bearer/session cookie → KeyIndex.resolve → c.set('tenantSlug')); pool adapter takes a createDb(slug) factory; KeyIndex driver shim uses bun:sqlite. No next/*.
-
-### Public API
-```ts
-export type { Registry, OrgEntry, SiteEntry, OrgSettings, TenantRef, TenantPool };
-export { loadRegistry, saveRegistry, findSite, findOrg, getDefaultSite, addOrg, addSite, updateSite, removeSite, moveSite, bootstrapRegistryFromEnv };
-export { createTenantPool, mergeConfigs, INHERITABLE_FIELDS, NEVER_INHERIT, createKeyIndex, resolveTenantContext, getAdminDataDir };
-// '@broberg/multi-tenant/next' → invalidateActiveSite, getActiveTenantRef, OrgSwitcher, SiteSwitcher ; '/hono' → tenantMiddleware
-```
+- **Data isolation** (shared DB, DB per org, pool): the app's own. The package never opens a tenant DB.
+- **Plans, limits, billing:** stored in four apps and enforced in none, so there is no common pattern to lift.
+- **Levels under the organisation** (site, project, unit): the app's own.
+- **Migrating existing apps:** each app's own decision, after a pilot.
+- **Organisations in Broberg ID:** D-5345a2.
 
 ## Stories
-- **F029.1** — Headless core: Registry, pool, mergeConfigs — _AC:_ loadRegistry/saveRegistry serial write-lock, findSite/findOrg/getDefaultSite, add/update/remove/moveSite, createTenantPool (TTL tiers, invalidate), mergeConfigs (INHERITABLE/NEVER_INHERIT), getAdminDataDir; zero framework imports; tests: concurrent saveRegistry serialize; deep-clone on addSite prevents ghost entries on write failure; empty-string site values don't override inheritable org values; pool re-creates after TTL.
-- **F029.2** — KeyIndex — driver-agnostic bearer/session routing — _AC:_ createKeyIndex(driver:{run,query}); resolveBearer → {tenantSlug,userId}|null for revoked/missing; resolveSession honours expires_at; addBearer/addSession idempotent (INSERT OR REPLACE); tests: unknown/revoked/expired → null; idempotent upsert no throw.
-- **F029.3** — Next.js adapter — cookies-based active-tenant resolution — _AC:_ resolveTenantContext() reads override > cms-active-org/site cookies > registry default; invalidateActiveSite(); OrgSwitcher + SiteSwitcher RSCs write cookies + revalidate path; EmptyOrgError when active org has no sites (not another org's first); no bun:sqlite/Hono imports.
-- **F029.4** — Hono adapter — tenantMiddleware + bun:sqlite KeyIndex driver — _AC:_ tenantMiddleware(pool, keyIndex) reads Bearer then session cookie; resolve; sets c.set('tenantSlug') + c.set('tenantDb', pool.get(slug)); 401 on missing/revoked + unknown slug (no cross-tenant fallback); tests cover all four error paths.
-- **F029.5** — Pilot adoption in cms (Next.js) — _AC:_ cms removes site-registry/site-pool/org-settings/site-paths.ts + imports from the package + /next; all existing routes + admin UI pass their suite unchanged; no browser-observable delta (Lens smoke).
-- **F029.6** — Pilot adoption in trail (Hono/Bun) — _AC:_ trail removes tenant-pool.ts + key-index.ts, wires /hono tenantMiddleware with the bun:sqlite KeyIndex driver; TRAIL_MULTI_TENANT=1 preserved (boot-time slug discovery, secondary DB boot); integration test: token from tenant-A against tenant-B → no cross-tenant response.
+- **F029.7** — Survey before code (done).
+- **F029.8** — Core: types, TenantStore, strict resolver, invitations, `can`, memoryTenantStore.
+- **F029.9** — Hono adapter: tenantMiddleware and invitation/membership routes with JSON refusals.
+- **F029.10** — TenantSwitcher in app-shell.
+- **F029.11** — Pilot in ONE app (chosen by Christian) with its own adapter, plus a release report.
 
 ## Acceptance criteria
-1. @broberg/multi-tenant builds + typechecks clean; headless core imports no framework packages.
-2. Each story (F029.1–F029.6) meets its own AC.
-3. Piloted in cms and adopted back with no regression (Lens / runtime-verified).
-4. A second consumer (trail) migrates onto the shared package with identical behaviour.
+1. `resolveActiveTenant` refuses an organisation the user is not a member of with a named error, and never returns another tenant. Measured in vitest with a negative control (a member of A requests B → refused; A requested → A).
+2. An invitation token is stored only as a hash, works once, expires, requires a matching email, and cannot grant a role outside `invitableRoles`. Measured in vitest on the store (read back), mutation-checked.
+3. The package runs against two different isolation models without changes: a shared DB with `tenant_id` and a DB per organisation. Measured in vitest with two `TenantStore` implementations.
+4. In the pilot app, a user who is a member of two organisations switches with the switcher, and a request for an organisation without membership is refused. Measured by Lens on the pilot's deployed build.
 
 ## Dependencies
-- F009 — User mgmt (blocks). External: @broberg/db-sdk (KeyIndex driver interface).
+- D-5345a2 (organisations are not in BID).
+- `@broberg/sso` for identity.
 
 ## Rollout
-Strangler: 1) extract headless core from cms site-* into @broberg/multi-tenant; 2) unit tests (write-lock, mergeConfigs, pool TTL, EmptyOrgError, KeyIndex); 3) wire the Next adapter back into cms (byte-for-byte API); 4) Hono adapter, pilot trail (replace tenant-pool + key-index); 5) adopt xrt81; 6) spread to cardmem + cpm orgs. Then GRADUATE to own repo+project.
-
-Graduate-candidate: YES — should get its own repo + cardmem project (recommendation, confirm with Christian).
+New package, opt-in per app, no impact on anyone until an app adopts it. The pilot app migrates its own data to its `TenantStore`; other apps follow only on Christian's word (D-5f65b6).
 
 ## Open Questions
-- registry.json schema_version field for non-breaking additions (cms + trail write unversioned today)?
-- trail uses slug-keyed dirs not registry.json — support both discovery modes or migrate trail?
-- INHERITABLE_FIELDS is cms-specific — generic mergeConfigs (caller passes allowlist) or a cms subtype?
-- xrt81 AES-256-GCM BYOK keys stay in app schema — include the secret-redaction pattern (clearRedactedSecrets/ORG_SETTINGS_SECRET_FIELDS) in the shared merge so secrets aren't inherited in plaintext?
+1. **Pilot app (Christian's decision).** Recommendation: **Scout**. It has no code yet, so nothing has to be migrated, and it is about to build exactly this in its F001. The alternative is helpdesk, whose implementation is closest to the target (strict, allowlist), so a swap there would be a measurable proof of «same behaviour».
+2. **Own repo or in components?** The June plan said «graduate to its own repo». It is now a small core package of the same kind as sso, so the recommendation is **components**, unless Christian says otherwise.
 
 ## Effort estimate
-**L** — owner session: `cms`. Reuse model: hybrid.
-
-## Risks
-Key divergence: each tenant table has app-specific columns — the core must own only the in-memory Registry + registry.json, NOT the DB schema (adopters own their Drizzle schema), else it becomes a leaky monolith. The chdir-race guard (absolutizeConfigPaths) is cms-filesystem-specific — stays in the cms adapter. The serial write-lock (_writeLock chain) must be preserved exactly — a naive async/await reintroduces the ghost-sites race seen in prod. registry.json is unversioned today — a field rename in the shared type is a silent breaking change; consider a schema_version field.
+**M**: F029.8 about a day, F029.9 half a day, F029.10 half a day, the pilot depends on the app.
