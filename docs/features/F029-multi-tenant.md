@@ -33,7 +33,10 @@ interface TenantStore {              // the app implements it against its own DB
 }
 ```
 
-- **`resolveActiveTenant({ requested, memberships })`** is strict. The requested organisation (path slug, header or cookie: the app chooses the source) must be one of the user's memberships, or it throws `TenantNotMember` / `TenantNotFound` / `TenantSuspended`. **Never a silent fallback.** No request → the app's explicit default rule, never «the first row».
+- **`resolveActiveTenant({ requested?, preferred?, memberships })`** has two inputs with two rules. trail's argument (#1976, 6/10) made this precise:
+  - **`requested`** is an explicit choice for THIS request (path slug, header). It is **strict**: if it is not one of the user's memberships, the call throws `TenantNotMember` / `TenantNotFound` / `TenantSuspended`. Otherwise the answer would be shown under the wrong organisation's name.
+  - **`preferred`** is a standing preference (cookie, `users.active_org_id`). It goes stale for innocent reasons (a membership is revoked, a tenant is deleted), and a hard refusal there locks the user out of her own system. So it **falls back, but only within the user's own memberships, and never silently**: the result carries `{ tenant, fellBack: true, reason }`, so the app can clear the stale preference and the UI can say which organisation is active. Its fallback order comes from the app (e.g. the most recently used), never «the first row without ORDER BY».
+  - **Never another tenant than one of the user's own**, in either mode.
 - **Invitations:** `createInvite(tenant, email, role)` → token (only its hash is stored), expiry, single use. `acceptInvite(token, user)` requires the signed-in email to match (case-insensitive), is idempotent, and can never grant a role outside the app's `invitableRoles` (helpdesk's «cannot escalate to the platform»).
 - **Capabilities:** `can(role, action)` from a matrix the app supplies, plus an `onDenied` audit hook (cardmem's pattern).
 - **Hono adapter (`/hono`):** `tenantMiddleware({ store, from })` sets `c.var.tenant` and `c.var.membership` and answers with JSON 401/403/404, never a redirect.
@@ -70,7 +73,7 @@ The switcher belongs in the user menu in app-shell and is designed in its own st
 - **F029.11** — Pilot in ONE app (chosen by Christian) with its own adapter, plus a release report.
 
 ## Acceptance criteria
-1. `resolveActiveTenant` refuses an organisation the user is not a member of with a named error, and never returns another tenant. Measured in vitest with a negative control (a member of A requests B → refused; A requested → A).
+1. `resolveActiveTenant`: a `requested` organisation without membership → a named error; a stale `preferred` → one of the user's own memberships with `fellBack: true`; never a tenant outside the user's memberships. Measured in vitest with negative controls (a member of A requests B → refused; prefers B → A + fellBack; requests A → A).
 2. An invitation token is stored only as a hash, works once, expires, requires a matching email, and cannot grant a role outside `invitableRoles`. Measured in vitest on the store (read back), mutation-checked.
 3. The package runs against two different isolation models without changes: a shared DB with `tenant_id` and a DB per organisation. Measured in vitest with two `TenantStore` implementations.
 4. In the pilot app, a user who is a member of two organisations switches with the switcher, and a request for an organisation without membership is refused. Measured by Lens on the pilot's deployed build.
