@@ -406,6 +406,107 @@ export function createFetchAccountAdapter(opts: { url?: string; fetch?: typeof f
   };
 }
 
+// ── Analytics page (F097) ─────────────────────────────────────────────────
+//
+// The app's OWN visitor numbers from Upmetrics. The app's backend mounts
+// `analyticsRoutes()` from `@upmetrics/sdk/hono` (the uk_ key stays on the
+// server); this package only talks to that backend, through an adapter, and has
+// no dependency on the SDK — the type below is structural, so Upmetrics'
+// `AnalyticsResponse` fits it as is.
+
+export interface AnalyticsDay {
+  /** YYYY-MM-DD on the Europe/Copenhagen calendar (Upmetrics' own day key). */
+  day: string;
+  visitors: number;
+  pageviews: number;
+}
+
+export interface AnalyticsData {
+  totals: { visitors: number; pageviews: number };
+  /** The same-length period just before this one. */
+  prev: { visitors: number; pageviews: number };
+  /** Only days that had visits — use fillDays() to draw the whole period. */
+  series: AnalyticsDay[];
+  topPages: { value: string; count: number }[];
+}
+
+export interface AnalyticsAdapter {
+  load(days: number): Promise<AnalyticsData>;
+}
+
+/** A failed analytics call: HTTP status (0 = no answer) and the server's `error` code. */
+export class AnalyticsError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(code ? `HTTP ${status} ${code}` : `HTTP ${status}`);
+    this.name = "AnalyticsError";
+  }
+}
+
+/** "unconfigured" only for the backend's explicit 503 analytics_unconfigured; anything else is "unavailable". */
+export function analyticsErrorKind(err: unknown): "unconfigured" | "unavailable" {
+  return err instanceof AnalyticsError && err.status === 503 && err.code === "analytics_unconfigured" ? "unconfigured" : "unavailable";
+}
+
+/**
+ * The default adapter: `GET {url}?days=N` on the app's own backend (default
+ * /api/analytics, where `@upmetrics/sdk/hono`'s analyticsRoutes() answers).
+ * A non-2xx, an unreadable body or no answer at all THROWS — never zeros that
+ * look like a real, quiet month.
+ */
+export function createFetchAnalyticsAdapter(opts: { url?: string; fetch?: typeof fetch; credentials?: RequestCredentials } = {}): AnalyticsAdapter {
+  const url = opts.url ?? "/api/analytics";
+  return {
+    async load(days) {
+      let res: Response;
+      try {
+        res = await (opts.fetch ?? fetch)(`${url}${url.includes("?") ? "&" : "?"}days=${encodeURIComponent(String(days))}`, {
+          credentials: opts.credentials ?? "same-origin",
+          headers: { accept: "application/json" },
+        });
+      } catch {
+        throw new AnalyticsError(0);
+      }
+      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!res.ok) throw new AnalyticsError(res.status, typeof body?.error === "string" ? body.error : undefined);
+      const ok =
+        body !== null &&
+        typeof (body.totals as Record<string, unknown> | undefined)?.visitors === "number" &&
+        Array.isArray(body.series) &&
+        Array.isArray(body.topPages);
+      if (!ok) throw new AnalyticsError(res.status, "bad_response");
+      return body as unknown as AnalyticsData;
+    },
+  };
+}
+
+/** Today's YYYY-MM-DD on the Copenhagen calendar — the calendar Upmetrics buckets on. */
+export function copenhagenDay(at: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Copenhagen", year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+}
+
+/**
+ * Exactly `days` entries ending today (Copenhagen calendar), with Upmetrics'
+ * values where it sent a day and zeros where it did not — Upmetrics only sends
+ * days that had visits. Calendar arithmetic, so a DST change never skips or
+ * repeats a day.
+ */
+export function fillDays(series: AnalyticsDay[], days: number, now: Date = new Date()): AnalyticsDay[] {
+  const byDay = new Map(series.map((d) => [d.day, d]));
+  const [y, m, d] = copenhagenDay(now).split("-").map(Number) as [number, number, number];
+  return Array.from({ length: days }, (_, i) => {
+    const day = new Date(Date.UTC(y, m - 1, d - (days - 1 - i))).toISOString().slice(0, 10);
+    return byDay.get(day) ?? { day, visitors: 0, pageviews: 0 };
+  });
+}
+
+/** Whole-percent change against the previous period, or null when there is nothing to compare with. */
+export function changePct(now: number, before: number): number | null {
+  return before === 0 ? null : Math.round(((now - before) / before) * 100);
+}
+
 // ── Text ───────────────────────────────────────────────────────────────────
 
 export const TEXT = {
@@ -456,6 +557,20 @@ export const TEXT = {
     pictureTooLarge: "Billedet er for stort — højst 2 MB.",
     pictureWrongType: "Vælg et PNG-, JPEG- eller WebP-billede.",
     bidSecurity: "Sikkerhed i Broberg ID",
+    analyticsPeriod: "Periode",
+    analyticsDays: "{n} dage",
+    analyticsVisitors: "Besøgende",
+    analyticsPageviews: "Sidevisninger",
+    analyticsVsPrev: "{pct} % mod forrige periode",
+    analyticsNoPrev: "Ingen sammenligning",
+    analyticsOverTime: "Sidevisninger pr. dag",
+    analyticsTopPages: "Mest besøgte sider",
+    analyticsDay: "Dag",
+    analyticsPage: "Side",
+    analyticsEmpty: "Ingen besøg i perioden.",
+    analyticsLoading: "Henter tal…",
+    analyticsUnconfigured: "Analytics er ikke sat op for denne app.",
+    analyticsUnavailable: "Upmetrics svarer ikke lige nu. Prøv igen om lidt.",
   },
   en: {
     openMenu: "Open menu",
@@ -504,6 +619,20 @@ export const TEXT = {
     pictureTooLarge: "The picture is too large — 2 MB at most.",
     pictureWrongType: "Choose a PNG, JPEG or WebP image.",
     bidSecurity: "Security in Broberg ID",
+    analyticsPeriod: "Period",
+    analyticsDays: "{n} days",
+    analyticsVisitors: "Visitors",
+    analyticsPageviews: "Page views",
+    analyticsVsPrev: "{pct}% vs previous period",
+    analyticsNoPrev: "No comparison",
+    analyticsOverTime: "Page views per day",
+    analyticsTopPages: "Most visited pages",
+    analyticsDay: "Day",
+    analyticsPage: "Page",
+    analyticsEmpty: "No visits in this period.",
+    analyticsLoading: "Loading figures…",
+    analyticsUnconfigured: "Analytics is not set up for this app.",
+    analyticsUnavailable: "Upmetrics is not answering right now. Try again shortly.",
   },
 } as const;
 export type Lang = keyof typeof TEXT;

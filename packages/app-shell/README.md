@@ -50,6 +50,38 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
 | `AccountPage` | The user's own name and picture, edited inside the app (0.4.0). |
+| `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
+
+## 0.6.0 — AnalyticsPage: the app's own numbers from Upmetrics (F097.1)
+
+```tsx
+import { AnalyticsPage } from "@broberg/app-shell/preact";
+<AnalyticsPage lang="da" />            // GET /api/analytics?days=N, periods 7 / 30 / 90
+```
+
+The server half is Upmetrics' own, in `@upmetrics/sdk` ≥0.11.0. The `uk_` key
+stays on the server, and the route belongs behind your login:
+
+```ts
+import { analyticsRoutes } from "@upmetrics/sdk/hono";
+import { getSession } from "@broberg/sso/hono";
+// JSON 401, not sso.require: require REDIRECTS to login, which an API call cannot follow.
+app.use("/api/analytics", sso.attach, (c, next) => (getSession(c) ? next() : c.json({ error: "unauthenticated" }, 401)));
+app.route("/", analyticsRoutes());     // UPMETRICS_API_KEY from env, or analyticsRoutes({ projectKey })
+```
+
+- **Two totals** (visitors, page views) are shown against the previous period
+  of the same length, with «Ingen sammenligning» when that period was 0.
+- **Page views per day** draws every day of the period. Upmetrics only sends
+  days with visits, and `fillDays` fills the rest on the **Europe/Copenhagen**
+  calendar, as Upmetrics counts. A screen reader gets the same numbers as a table.
+- **Most visited pages:** a long path is cut off with … inside its row and never
+  widens the page.
+- **No zeros that look real.** 503 `analytics_unconfigured` shows «Analytics er
+  ikke sat op», and anything else (502, no answer, a body that is not analytics)
+  shows «Upmetrics svarer ikke lige nu».
+- `adapter` swaps the source; `periods` and `initialDays` change the buttons.
+  This package does not depend on `@upmetrics/sdk`: the data type is structural.
 
 ## 0.5.0 — the user menu follows the account page (F095.5)
 

@@ -39,6 +39,13 @@ import {
 import {
   accountErrorKind,
   activeNavLabel,
+  analyticsErrorKind,
+  changePct,
+  createFetchAnalyticsAdapter,
+  fillDays,
+  type AnalyticsAdapter,
+  type AnalyticsData,
+  type AnalyticsDay,
   AVATAR_TYPES,
   badgeLabel,
   checkAvatarFile,
@@ -1244,7 +1251,7 @@ export function AccountPage({ lang, adapter, reauthHref, onProfileChange }: Acco
               </span>
             ) : null}
           </div>
-          <form class="bas-account__form" onSubmit={onSaveName}>
+          <form class="bas-account__form" onSubmit={onSaveName} data-testid="account-name-form">
             <label class="bas-account__label" for="bas-account-name">{t.name}</label>
             <div class="bas-account__row">
               <input
@@ -1274,5 +1281,160 @@ export function AccountPage({ lang, adapter, reauthHref, onProfileChange }: Acco
         </>
       ) : null}
     </section>
+  );
+}
+
+// ── Analytics page (F097.1) ────────────────────────────────────────────────
+
+export interface AnalyticsPageProps {
+  lang: Lang;
+  /** Default: `createFetchAnalyticsAdapter()` → GET /api/analytics?days=N (@upmetrics/sdk/hono analyticsRoutes). */
+  adapter?: AnalyticsAdapter;
+  /** The period buttons, in days. Default 7 / 30 / 90. */
+  periods?: number[];
+  /** The period shown first. Default 30 (or the first of `periods` when 30 is not one of them). */
+  initialDays?: number;
+}
+
+type AnalyticsLoad =
+  | { state: "loading" }
+  | { state: "ok"; days: number; data: AnalyticsData }
+  | { state: "error"; reason: "unconfigured" | "unavailable" };
+
+/**
+ * The app's own visitors, page views, page views per day and most visited
+ * pages, from Upmetrics through the app's backend (F097.1). A backend that is
+ * not set up or does not answer says so — it never shows zeros that would read
+ * as a quiet month.
+ */
+export function AnalyticsPage({ lang, adapter, periods = [7, 30, 90], initialDays }: AnalyticsPageProps) {
+  const t = TEXT[lang];
+  const api = useMemo(() => adapter ?? createFetchAnalyticsAdapter(), [adapter]);
+  const [days, setDays] = useState(initialDays ?? (periods.includes(30) ? 30 : periods[0]!));
+  const [load, setLoad] = useState<AnalyticsLoad>({ state: "loading" });
+  const locale = lang === "da" ? "da-DK" : "en-GB";
+  const num = (n: number) => n.toLocaleString(locale);
+
+  useEffect(() => {
+    // A late answer for a period the user has already left is dropped.
+    let live = true;
+    setLoad({ state: "loading" });
+    api.load(days).then(
+      (data) => live && setLoad({ state: "ok", days, data }),
+      (e) => live && setLoad({ state: "error", reason: analyticsErrorKind(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [api, days]);
+
+  return (
+    <section class="bas-analytics" data-testid="analytics-page" aria-busy={load.state === "loading"}>
+      <div class="bas-analytics__periods" role="group" aria-label={t.analyticsPeriod}>
+        {periods.map((d) => (
+          <button
+            key={d}
+            type="button"
+            class={"bas-analytics__period" + (d === days ? " is-active" : "")}
+            aria-pressed={d === days}
+            onClick={() => setDays(d)}
+            data-testid={`analytics-period-${d}`}
+          >
+            {t.analyticsDays.replace("{n}", String(d))}
+          </button>
+        ))}
+      </div>
+
+      {load.state === "loading" ? <p class="bas-analytics__muted" data-testid="analytics-loading">{t.analyticsLoading}</p> : null}
+      {load.state === "error" ? (
+        <p class="bas-analytics__note" role="alert" data-testid="analytics-error" data-reason={load.reason}>
+          {load.reason === "unconfigured" ? t.analyticsUnconfigured : t.analyticsUnavailable}
+        </p>
+      ) : null}
+      {load.state === "ok" ? (
+        <>
+          <div class="bas-analytics__tiles">
+            {(["visitors", "pageviews"] as const).map((k) => {
+              const c = changePct(load.data.totals[k], load.data.prev[k]);
+              return (
+                <div key={k} class="bas-analytics__tile" data-testid={`analytics-${k}`}>
+                  <div class="bas-analytics__label">{k === "visitors" ? t.analyticsVisitors : t.analyticsPageviews}</div>
+                  <div class="bas-analytics__value" data-testid={`analytics-${k}-value`}>{num(load.data.totals[k])}</div>
+                  <div class="bas-analytics__muted" data-testid={`analytics-${k}-change`}>
+                    {c === null ? t.analyticsNoPrev : t.analyticsVsPrev.replace("{pct}", `${c > 0 ? "+" : ""}${c}`)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <AnalyticsSeries data={fillDays(load.data.series, load.days)} t={t} locale={locale} num={num} />
+          <div class="bas-analytics__card" data-testid="analytics-top-pages">
+            <h2 class="bas-analytics__h">{t.analyticsTopPages}</h2>
+            {load.data.topPages.length === 0 ? (
+              <p class="bas-analytics__muted" data-testid="analytics-top-pages-empty">{t.analyticsEmpty}</p>
+            ) : (
+              <ol class="bas-analytics__pages">
+                {load.data.topPages.map((p) => (
+                  <li key={p.value} class="bas-analytics__page">
+                    <span class="bas-analytics__path" title={p.value}>{p.value}</span>
+                    <span class="bas-analytics__count">{num(p.count)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+/** "2026-10-06" → "6. okt." — the key is a calendar date, so it is formatted as one (UTC, no shift). */
+function dayLabel(day: string, locale: string): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function AnalyticsSeries({ data, t, locale, num }: { data: AnalyticsDay[]; t: (typeof TEXT)[Lang]; locale: string; num: (n: number) => string }) {
+  const max = Math.max(1, ...data.map((d) => d.pageviews));
+  const empty = data.every((d) => d.pageviews === 0);
+  return (
+    <div class="bas-analytics__card" data-testid="analytics-series">
+      <h2 class="bas-analytics__h">{t.analyticsOverTime}</h2>
+      {empty ? (
+        <p class="bas-analytics__muted" data-testid="analytics-series-empty">{t.analyticsEmpty}</p>
+      ) : (
+        <>
+          <div class="bas-analytics__bars" aria-hidden="true">
+            {data.map((d) => (
+              <div key={d.day} class="bas-analytics__col" title={`${dayLabel(d.day, locale)}: ${num(d.pageviews)}`} data-day={d.day}>
+                <div class="bas-analytics__bar" style={{ height: d.pageviews === 0 ? "0" : `max(2px, ${(d.pageviews / max) * 100}%)` }} />
+              </div>
+            ))}
+          </div>
+          <div class="bas-analytics__axis" aria-hidden="true">
+            <span>{dayLabel(data[0]!.day, locale)}</span>
+            <span>{dayLabel(data[data.length - 1]!.day, locale)}</span>
+          </div>
+          {/* The same numbers as a table, for a screen reader (the bars are decoration for it). */}
+          <table class="bas-analytics__sr" data-testid="analytics-series-table">
+            <caption>{t.analyticsOverTime}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t.analyticsDay}</th>
+                <th scope="col">{t.analyticsPageviews}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((d) => (
+                <tr key={d.day}>
+                  <td>{dayLabel(d.day, locale)}</td>
+                  <td>{num(d.pageviews)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
   );
 }
