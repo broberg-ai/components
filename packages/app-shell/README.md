@@ -50,10 +50,12 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
 | `AccountPage` | The user's own name and picture, edited inside the app (0.4.0). |
-| `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.0). |
+| `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
-## 0.7.0 — TenantSwitcher: the user's own organisations (F029.10)
+## 0.7.1 — TenantSwitcher: the user's own organisations (F029.10)
+
+0.7.0 was tagged but never reached npm: the secret gate stopped it on a test fixture key, now listed in `.gitleaksignore`.
 
 ```tsx
 import { TenantSwitcher } from "@broberg/app-shell/preact";

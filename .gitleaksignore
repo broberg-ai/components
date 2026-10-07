@@ -16,3 +16,5 @@ a623e9a01df549d5e36cd31254614f37004bd9d9:packages/secret-scan/test/f035-13.test.
 f736035f199338c2274e40963891846eb4d3ab7a:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:278
 03c7f349c3d1ac3493b320ba5977c9327ea80d47:packages/secret-scan/test/secret-scan.test.ts:generic-api-key:278
 1924a1b7d9e1f51aa68c21c2b0392468bda54147:packages/lens/test/write-mint.test.ts:generic-api-key:11
+# 7/10 2026: "uk_TEST-SECRET-0123456789" — a fake Upmetrics key in a stubbed contract test; read and judged a fixture.
+e5cc266a07bc32ac4b3b373ed6fe552b9e091393:packages/app-shell/test/upmetrics-contract.test.ts:generic-api-key:11
