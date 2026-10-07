@@ -88,7 +88,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/email-shell** (planned) — NOT A PACKAGE YET. `npm i @broberg/email-shell`
 
 ### L4 — Capstone (whole-product builders)
-- **@broberg/tenant** v0.1.0 — Organisations, memberships, invitations and role checks, the same way in every app. `npm i @broberg/tenant`
+- **@broberg/tenant** v0.2.0 — Organisations, memberships, invitations and role checks, the same way in every app. `npm i @broberg/tenant`
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk`
