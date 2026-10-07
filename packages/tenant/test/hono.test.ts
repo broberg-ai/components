@@ -142,6 +142,17 @@ describe("tenantRoutes — invitations end to end, read back from the store", ()
     expect((await t.req("/me/invites", "boss", { method: "POST", body: JSON.stringify({ email: "a@b.dk", role: "member" }) })).status).toBe(404);
   });
 
+  test("a write from another site (even a sibling subdomain) → 403 cross_site, nothing created; same-origin passes", async () => {
+    const t = setup();
+    for (const site of ["cross-site", "same-site"]) {
+      const r = await t.req("/t/alpha/api/invites", "boss", { method: "POST", body: JSON.stringify({ email: "a@b.dk", role: "member" }) }, { "sec-fetch-site": site });
+      expect([r.status, await r.json()]).toEqual([403, { error: "cross_site" }]);
+    }
+    expect(t.sent).toEqual([]);
+    const ok = await t.req("/t/alpha/api/invites", "boss", { method: "POST", body: JSON.stringify({ email: "a@b.dk", role: "member" }) }, { "sec-fetch-site": "same-origin" });
+    expect([ok.status, t.sent.length]).toEqual([201, 1]);
+  });
+
   test("every answer is no-store", async () => {
     const t = setup();
     expect((await t.req("/me/memberships", "mem")).headers.get("cache-control")).toBe("no-store");

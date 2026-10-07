@@ -163,6 +163,17 @@ export function tenantRoutes<Action extends string>(o: TenantRoutesOptions<Actio
     c.header("Cache-Control", "no-store");
     await next();
   });
+  // A write from ANOTHER site is refused. SameSite=Lax stops a foreign domain
+  // but not a sibling subdomain (same site). Browsers send Sec-Fetch-Site on
+  // every request; a non-browser caller sends none and is let through. Same
+  // guard as @broberg/sso's accountRoutes.
+  app.use("*", async (c, next) => {
+    const site = c.req.header("sec-fetch-site");
+    if (c.req.method !== "GET" && site !== undefined && site !== "same-origin" && site !== "none") {
+      return c.json({ error: "cross_site" }, 403);
+    }
+    await next();
+  });
 
   app.get("/memberships", async (c) => {
     const user = await o.user(c);

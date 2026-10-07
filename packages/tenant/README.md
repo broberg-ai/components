@@ -119,5 +119,6 @@ app.route("/api/me", tenantRoutes({ store, user, invitableRoles: ["member", "adm
 | role may not | `403 {"error":"forbidden","action":"…"}`, after your `onDenied` |
 | `requireCapability` without `tenantMiddleware` in front | `500 {"error":"no_tenant_context"}`: closed, never open |
 | invitation refusals | `invite_not_found` 404 · `invite_expired`/`invite_revoked` 410 · `invite_used` 409 · `invite_email_mismatch`/`invite_role_not_invitable` 403 |
+| a write from another site, sibling subdomains included (`Sec-Fetch-Site`) | `403 {"error":"cross_site"}` |
 
 `POST /invites` exists only when you pass `invite.deliverInvite`. The token goes straight to your mail function and never back to the inviter's browser; the response is `{ inviteId }`. `revokeInvite({ store, invite })` in the core revokes an invitation that has not been used.
