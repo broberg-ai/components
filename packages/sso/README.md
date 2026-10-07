@@ -204,8 +204,9 @@ run 3× in production; this package's own Hono adapter now does the same, after
 answering every failed callback with one message containing the word *"or"*.
 
 **Mount the Hono adapter on 0.3.0 or later and you get all of this for free** —
-the signed window, the longer cookie, and three distinct answers
-(`login_expired` · `no_login_in_progress` · `bad_login_cookie`). **On 0.2.3–0.2.5
+the signed window, the longer cookie, and three distinct causes
+(`expired` · `absent` · `unreadable`). **Since 0.12.0 the browser no longer sees
+all three by default**: see *What a refused login tells the browser* below. **On 0.2.3–0.2.5
 the adapter had the signed window but still used ONE number for both**, so it
 answered every failed callback with a single message containing the word *"or"*.
 Take the core and nothing is passed on your behalf, on any version. Reported by broberg-id, who found their own framework-free
@@ -484,3 +485,42 @@ picks up a change the user made in BID itself.
 
 Mail, password, passkeys, two-factor and sessions stay in BID: link to the
 profile's `account_url` in a new tab.
+
+## What a refused login tells the browser (changed in 0.12.0)
+
+**Changed default: the browser now gets ONE answer, `login_failed`, for an expired
+login AND an unreadable cookie.** Through 0.11.0 it got `login_expired` and
+`bad_login_cookie` separately. `no_login_in_progress` is unchanged.
+
+| cause | your app / log (`onCallbackRefused`) | browser, default `"single"` | browser, `"granular"` |
+|---|---|---|---|
+| no login started here | `absent` | `no_login_in_progress` | `no_login_in_progress` |
+| took too long | `expired` | `login_failed` | `login_expired` |
+| signature did not hold | `unreadable` | `login_failed` | `bad_login_cookie` |
+
+**Why.** The order in `parseTransaction` is what makes this matter, and it is not
+obvious until you read the function: the signature is checked FIRST, and the age
+only after it held. So `login_expired` is a positive confirmation that the
+cookie's HMAC held against the CURRENT secret, and `bad_login_cookie` denies it.
+Someone holding a cookie they FOUND (a log, a shared machine, a backup) could ask
+whether it is still live, see the moment the secret rotates, and see whether two
+environments share a secret. It does not help anyone forge anything. It is a
+fact the server gave away for free. Reported by helpdesk, 22 September 2026.
+
+**The operator still gets all three.** `onCallbackRefused(cause, c)` receives the
+precise cause on every refusal; without it the adapter writes
+`[@broberg/sso] /callback refused: <cause>` with `console.warn`. Watch for
+`unreadable` on real users: that is what a rotated `SSO_COOKIE_SECRET` looks like.
+
+```ts
+ssoRoutes({
+  onCallbackRefused: (cause) => log.warn({ cause }, "sso callback refused"),
+  // callbackErrors: "granular", // opt in: «dit login udløb» in the browser
+});
+```
+
+**What the opt-in costs.** `callbackErrors: "granular"` gives the browser the
+three codes back, so it can say *"your login expired, try again"*. The price is
+the one bit above, for anyone with a found cookie. Fine for an internal app behind
+a VPN; think twice on the open internet.
+

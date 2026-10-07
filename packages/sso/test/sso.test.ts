@@ -23,7 +23,7 @@ import {
   JwksUnknownKeyError,
 } from "../src/jwks.js";
 import { signSession, verifySession, signValue, verifyValue } from "../src/session.js";
-import { ssoRoutes, type BackchannelStore } from "../src/hono.js";
+import { ssoRoutes, type BackchannelStore, type CallbackRefusal, type SsoRoutesOptions } from "../src/hono.js";
 import { memoryTokenStore } from "../src/tokens.js";
 import { Hono } from "hono";
 
@@ -1334,9 +1334,12 @@ describe("a failed callback says WHICH of the three things went wrong", () => {
    * by any other failure, and the fresh half of the boundary test would pass
    * for a reason that has nothing to do with the boundary.
    */
-  const routes = (reached?: { hit: boolean }) =>
+  // F084.55: these F084.54 cases are about the GRANULAR answers, which are now
+  // an opt-in. The default ("single") has its own block at the end.
+  const routes = (reached?: { hit: boolean }, extra: Partial<SsoRoutesOptions> = { callbackErrors: "granular" }) =>
     ssoRoutes({
-      config: loadSsoConfig(ENV),
+      ...extra,
+      config: extra.config ?? loadSsoConfig(ENV),
       client: {
         beginLogin: async () => ({
           url: "https://id.broberg.ai/authorize?x=1",
@@ -1353,8 +1356,8 @@ describe("a failed callback says WHICH of the three things went wrong", () => {
       } as never,
     });
 
-  const callback = (cookie?: string) =>
-    routes().app.request("https://app.example/callback?code=c&state=the-state", {
+  const callback = (cookie?: string, extra?: Partial<SsoRoutesOptions>) =>
+    routes(undefined, extra).app.request("https://app.example/callback?code=c&state=the-state", {
       headers: cookie ? { cookie } : {},
     });
 
@@ -1454,6 +1457,81 @@ describe("a failed callback says WHICH of the three things went wrong", () => {
     const cleared = set.find((c) => c.startsWith("bid_session_tx="));
     expect(cleared).toMatch(/Max-Age=0/);
     expect(cleared).toMatch(/^bid_session_tx=;/);
+  });
+
+  /* ── F084.55: two receivers — the app gets the cause, the browser one answer ── */
+
+  const quiet = { onCallbackRefused: () => {} };
+
+  /**
+   * AC#0 — the oracle, demonstrated against the granular behaviour before
+   * anything changed: the SAME found value answers login_expired while the
+   * secret it was signed with is current, and bad_login_cookie after rotation.
+   */
+  test("granular: one found value tells a stranger whether the secret has rotated", async () => {
+    const found = await txCookieAt(NOW - 350);
+    const before = await (await callback(found, { callbackErrors: "granular", ...quiet })).json();
+    const rotated = loadSsoConfig({ ...ENV, SSO_COOKIE_SECRET: "r".repeat(64) });
+    const after = await (await callback(found, { callbackErrors: "granular", config: rotated, ...quiet })).json();
+    expect(before.error).toBe("login_expired");
+    expect(after.error).toBe("bad_login_cookie");
+  });
+
+  /** AC#1 — with the default, the same pair is indistinguishable: strict equality on code AND message. */
+  test("default: expired and unreadable give the browser the SAME answer", async () => {
+    const found = await txCookieAt(NOW - 350);
+    const forged = (await txCookieAt(NOW - 10)).slice(0, -6) + "xxxxxx";
+    const expiredRes = await callback(found, quiet);
+    const unreadableRes = await callback(forged, quiet);
+    const rotated = loadSsoConfig({ ...ENV, SSO_COOKIE_SECRET: "r".repeat(64) });
+    const afterRotation = await (await callback(found, { config: rotated, ...quiet })).json();
+    const expired = await expiredRes.json();
+    const unreadable = await unreadableRes.json();
+    expect(expired).toEqual({ error: "login_failed", message: "This login could not be completed. Begin again from the login page." });
+    expect(unreadable).toEqual(expired);
+    expect(afterRotation).toEqual(expired);
+    expect(unreadableRes.status).toBe(expiredRes.status);
+  });
+
+  /** AC#2 — absent leaks nothing, so it keeps its own code under the default. */
+  test("default: no_login_in_progress is still its own answer", async () => {
+    const absent = await (await callback(undefined, quiet)).json();
+    expect(absent.error).toBe("no_login_in_progress");
+  });
+
+  /** AC#3 — the app gets all three causes, whatever the browser was told. */
+  test("default: the app's onCallbackRefused still receives the precise cause", async () => {
+    const seen: CallbackRefusal[] = [];
+    const hook = { onCallbackRefused: (cause: CallbackRefusal) => void seen.push(cause) };
+    await callback(undefined, hook);
+    await callback(await txCookieAt(NOW - 350), hook);
+    await callback((await txCookieAt(NOW - 10)).slice(0, -6) + "xxxxxx", hook);
+    expect(seen).toEqual(["absent", "expired", "unreadable"]);
+  });
+
+  test("default without a hook: the cause still reaches the log", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await callback(await txCookieAt(NOW - 350), {});
+      await callback((await txCookieAt(NOW - 10)).slice(0, -6) + "xxxxxx", {});
+      expect(warn.mock.calls.map((c) => c[0])).toEqual([
+        "[@broberg/sso] /callback refused: expired",
+        "[@broberg/sso] /callback refused: unreadable",
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  /** AC#4 — the opt-in gives all three codes back to the browser. */
+  test("granular opt-in: the browser gets all three codes again", async () => {
+    const g = { callbackErrors: "granular" as const, ...quiet };
+    const codes = [
+      (await (await callback(undefined, g)).json()).error,
+      (await (await callback(await txCookieAt(NOW - 350), g)).json()).error,
+      (await (await callback((await txCookieAt(NOW - 10)).slice(0, -6) + "xxxxxx", g)).json()).error,
+    ];
+    expect(codes).toEqual(["no_login_in_progress", "login_expired", "bad_login_cookie"]);
   });
 });
 

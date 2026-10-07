@@ -113,7 +113,29 @@ export interface SsoRoutesOptions {
    * Without it, login behaves exactly as in 0.8.0 and the tokens are dropped.
    */
   tokenStore?: TokenStore;
+  /**
+   * What the BROWSER is told when /callback refuses a login (F084.55, 0.12.0).
+   * "single" (default): an expired login and an unreadable cookie get the SAME
+   *   answer, `login_failed`. The two differ only in whether the cookie's
+   *   signature held against the current secret, and a stranger holding a
+   *   FOUND cookie must not be able to ask that.
+   * "granular": the 0.3.0–0.11.0 behaviour — `login_expired` and
+   *   `bad_login_cookie` told apart. For an app that knows its threat model
+   *   (e.g. internal, behind a VPN) and wants «dit login udløb» in the browser.
+   * `no_login_in_progress` is its own answer either way: it depends on no secret.
+   */
+  callbackErrors?: "single" | "granular";
+  /**
+   * Receives the PRECISE cause of every refused callback, whatever the browser
+   * was told — this is the operator's channel. `unreadable` on a real user's
+   * browser is what a rotated SSO_COOKIE_SECRET looks like from outside.
+   * Without it, the cause is written with console.warn so the log still has it.
+   */
+  onCallbackRefused?: (cause: CallbackRefusal, c: Context) => void | Promise<void>;
 }
+
+/** Why /callback refused: no login started here · too old · signature did not hold. */
+export type CallbackRefusal = "absent" | "expired" | "unreadable";
 
 function isSecure(c: Context): boolean {
   // localhost over http is the one case where a Secure cookie would simply
@@ -210,6 +232,9 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
   }
   const onStoreError = backchannel?.onStoreError ?? "reject";
   const tokenStore = options.tokenStore;
+  const callbackErrors = options.callbackErrors ?? "single";
+  const onCallbackRefused =
+    options.onCallbackRefused ?? ((cause: CallbackRefusal) => console.warn(`[@broberg/sso] /callback refused: ${cause}`));
 
   /** A verified session, or null — also null when «Log ud overalt» has ended it. */
   async function liveSession(c: Context): Promise<SessionPayload | null> {
@@ -318,12 +343,13 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
        * anything — one bit per attempt against an HMAC-SHA256 key he never
        * reaches. It is a property the server gives away for free.
        *
-       * KEPT AS IS FOR NOW, deliberately and not by omission: the three answers
-       * solve a real problem for a consumer who owns only the browser end and
-       * must show "your login expired, try again" rather than "something went
-       * wrong". Splitting the two audiences — all three to the app and the log,
-       * one to the browser by default — is components-F084.55 and is the owner's
-       * call, not a thing to change twice in an hour under a peer's argument.
+       * SO THE TWO AUDIENCES ARE SPLIT (components-F084.55, Christian
+       * 2026-10-07: «ét svar» as the default). The app and the log get all
+       * three causes through `onCallbackRefused`, always. The browser gets ONE
+       * answer for expired + unreadable unless the app opts into "granular".
+       * `absent` stays its own code: it depends on no secret, so it leaks
+       * nothing. Do NOT reorder parseTransaction to hide the oracle instead —
+       * signature-before-age is what keeps the operator's two causes apart.
        *
        * The operator half stands unchanged and is the reason the codes exist at
        * all: `bad_login_cookie` on a REAL user's browser is what a rotated
@@ -346,7 +372,16 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
           message: "This browser's login cookie could not be read. Begin again from the login page.",
         },
       };
-      const { status, ...body } = failures[parsed.reason];
+      await onCallbackRefused(parsed.reason, c);
+      const shown =
+        callbackErrors === "single" && parsed.reason !== "absent"
+          ? {
+              status: 400 as const,
+              error: "login_failed",
+              message: "This login could not be completed. Begin again from the login page.",
+            }
+          : failures[parsed.reason];
+      const { status, ...body } = shown;
       // Clear it either way: a transaction we refuse must not sit in the browser
       // waiting to be refused again on every retry.
       c.header("Set-Cookie", cookieHeader(txCookie, "", { maxAge: 0, secure: isSecure(c) }));
