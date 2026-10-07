@@ -35,7 +35,8 @@
         "@broberg/logger",
         "@broberg/notify",
         "@broberg/speech-dictionary",
-        "@broberg/sso"
+        "@broberg/sso",
+        "@broberg/tenant"
       ],
       "min_tests": {
         "@broberg/app-shell": 24,
@@ -45,7 +46,8 @@
         "@broberg/logger": 16,
         "@broberg/notify": 4,
         "@broberg/speech-dictionary": 7,
-        "@broberg/sso": 78
+        "@broberg/sso": 78,
+        "@broberg/tenant": 19
       }
     },
     {

@@ -850,6 +850,21 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)
 
+  packages/tenant:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.3
+        version: 22.20.3
+      tsup:
+        specifier: ^8
+        version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^3
+        version: 3.2.7(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)
+
   packages/theme:
     dependencies:
       culori:
@@ -5039,7 +5054,7 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 22.19.20
+      '@types/node': 22.20.3
 
   '@types/chai@5.2.3':
     dependencies:
@@ -5048,7 +5063,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 22.19.20
+      '@types/node': 22.20.3
 
   '@types/culori@2.1.1': {}
 
@@ -5058,7 +5073,7 @@ snapshots:
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 22.19.20
+      '@types/node': 22.20.3
       '@types/qs': 6.15.1
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -5103,12 +5118,12 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 22.19.20
+      '@types/node': 22.20.3
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 22.19.20
+      '@types/node': 22.20.3
 
   '@types/stats.js@0.17.4': {}
 
@@ -5127,7 +5142,7 @@ snapshots:
 
   '@types/web-push@3.6.4':
     dependencies:
-      '@types/node': 22.19.20
+      '@types/node': 22.20.3
 
   '@types/webxr@0.5.24': {}
 
