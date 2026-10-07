@@ -29,7 +29,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (58)
+## Packages by category (59)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.12.0 — The design-token foundation every surface inherits, plus prePaintScript(): the <head> string that sets the theme before the first paint, so no app …. `npm i @broberg/theme`
@@ -87,6 +87,9 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/changelog** (planned) — Auto product-changelog from git history. `npm i @broberg/changelog`
 - **@broberg/email-shell** (planned) — NOT A PACKAGE YET. `npm i @broberg/email-shell`
 
+### L4 — Capstone (whole-product builders)
+- **@broberg/tenant** v0.1.0 — Organisations, memberships, invitations and role checks, the same way in every app. `npm i @broberg/tenant`
+
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk`
 - **@broberg/ai-sdk** v0.52.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
@@ -111,7 +114,7 @@ them — so a grep for a package name will never find them.
 - **Podcast engine (article to two-host audio)** (SDK) · NOT AN NPM PACKAGE — you call it, there is nothing to install · owner: cms
   A podcast engine any site drives over HTTP: article to two-host script to human approval to audio, the script doubling as the subtitles
 
-## Status not recorded (14)
+## Status not recorded (13)
 
 **This section is an admission, not a verdict.** Nobody has told us whether these
 are usable, so the honest answer is that we do not know — and at least four of
@@ -139,8 +142,6 @@ something the fleet already runs.
   Physical signal lights + Philips Hue control for the fleet: raise an alarm and the house shows it
 - **Podcast manager / maker** (L3) · STATUS NOT RECORDED — we have not asked cms whether this is usable today, so this is NOT evidence either way · owner: cms — ASK THEM before building a second one, and before assuming it is unavailable
   A podcast manager / maker
-- **Multi-tenant management** (L4) · STATUS NOT RECORDED — we have not asked cms whether this is usable today, so this is NOT evidence either way · owner: cms — ASK THEM before building a second one, and before assuming it is unavailable
-  Multi-tenant management
 - **Native mobile boilerplate** (L4) · STATUS NOT RECORDED — we have not asked cms whether this is usable today, so this is NOT evidence either way · owner: cms — ASK THEM before building a second one, and before assuming it is unavailable
   A native mobile boilerplate (Capacitor)
 - **Greenfield scaffolder** (L4) · STATUS NOT RECORDED — we have not asked cardmem whether this is usable today, so this is NOT evidence either way · owner: cardmem — ASK THEM before building a second one, and before assuming it is unavailable
