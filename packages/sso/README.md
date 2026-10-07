@@ -510,7 +510,7 @@ fact the server gave away for free. Reported by helpdesk, 22 September 2026.
 **The operator still gets all three.** `onCallbackRefused(cause, c)` receives the
 precise cause on every refusal; without it the adapter writes
 `[@broberg/sso] /callback refused: <cause>` with `console.warn`. Watch for
-`unreadable` on real users: that is what a rotated `SSO_COOKIE_SECRET` looks like.
+`unreadable` on real users: that is what a rotated `SSO_COOKIE_SECRET` looks like. A hook that throws is reported with `console.error` and the refusal still stands (0.12.1); it never becomes a 500.
 
 ```ts
 ssoRoutes({

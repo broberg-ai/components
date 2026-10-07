@@ -372,7 +372,13 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
           message: "This browser's login cookie could not be read. Begin again from the login page.",
         },
       };
-      await onCallbackRefused(parsed.reason, c);
+      // The operator's channel must never turn a refusal into a 500: a hook that
+      // throws is reported, and the browser still gets its answer.
+      try {
+        await onCallbackRefused(parsed.reason, c);
+      } catch (err) {
+        console.error("[@broberg/sso] onCallbackRefused threw; the refusal stands", err);
+      }
       const shown =
         callbackErrors === "single" && parsed.reason !== "absent"
           ? {

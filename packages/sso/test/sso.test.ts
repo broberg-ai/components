@@ -1523,6 +1523,23 @@ describe("a failed callback says WHICH of the three things went wrong", () => {
     }
   });
 
+  test("a hook that throws does not turn the refusal into a 500", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await callback(await txCookieAt(NOW - 350), {
+        onCallbackRefused: () => {
+          throw new Error("logger down");
+        },
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("login_failed");
+      expect(res.headers.get("set-cookie")).toMatch(/^bid_session_tx=;.*Max-Age=0/);
+      expect(err).toHaveBeenCalledTimes(1);
+    } finally {
+      err.mockRestore();
+    }
+  });
+
   /** AC#4 — the opt-in gives all three codes back to the browser. */
   test("granular opt-in: the browser gets all three codes again", async () => {
     const g = { callbackErrors: "granular" as const, ...quiet };
