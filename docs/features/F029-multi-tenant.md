@@ -86,8 +86,9 @@ The switcher belongs in the user menu in app-shell and is designed in its own st
 New package, opt-in per app, no impact on anyone until an app adopts it. The pilot app migrates its own data to its `TenantStore`; other apps follow only on Christian's word (D-5f65b6).
 
 ## Open Questions
-1. **Pilot app (Christian's decision).** Recommendation: **Scout**. It has no code yet, so nothing has to be migrated, and it is about to build exactly this in its F001. The alternative is helpdesk, whose implementation is closest to the target (strict, allowlist), so a swap there would be a measurable proof of «same behaviour».
-2. **Own repo or in components?** The June plan said «graduate to its own repo». It is now a small core package of the same kind as sso, so the recommendation is **components**, unless Christian says otherwise.
+None. Christian decided on 6–7/10:
+1. **Pilot app: appkit-demo** (appkit-lean-demo). It is the template new apps are built from, so the package reaches every future app, and appkit already runs our Lens proofs. To check: the demo needs at least two organisations per test user before the switch can be proven.
+2. **Home: components** (`packages/tenant` → `@broberg/tenant`), not its own repo.
 
 ## Effort estimate
 **M**: F029.8 about a day, F029.9 half a day, F029.10 half a day, the pilot depends on the app.
