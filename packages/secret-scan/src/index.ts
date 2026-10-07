@@ -1248,3 +1248,7 @@ export function classify(value: string, opts?: RedactOptions): ClassifyResult | 
   }
   return null;
 }
+
+// F035.21 — personal data (CPR, phone, email); see src/personal-data.ts.
+export { findPersonalData, redactPersonalData, hasPersonalData } from './personal-data';
+export type { PersonalDataKind, PersonalDataMatch, PersonalDataResult } from './personal-data';

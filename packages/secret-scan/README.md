@@ -276,6 +276,34 @@ nothing. Do not lower it.
 itself. Check the **installed** version, not the source tree and not the roster,
 before concluding a pattern is absent.
 
+## Personal data — CPR, phone numbers, email (v0.13.0)
+
+For a write that must never carry personal data (scout guards every write to
+Trail with it):
+
+```ts
+import { hasPersonalData, findPersonalData, redactPersonalData } from '@broberg/secret-scan';
+
+if (hasPersonalData(candidate)) refuse();
+findPersonalData('tlf 20304050') // → [{ kind: 'phone', start: 4, end: 12 }]
+redactPersonalData('Anne 010190-1234') // → { redacted: 'Anne [REDACTED:cpr]', findings: [{ kind: 'cpr', count: 1 }], scanned: ['cpr', 'phone', 'email'] }
+```
+
+- **CPR**: `ddmmyy-xxxx` and `ddmmyyxxxx`, only on a real date. The century
+  comes from the 7th digit, so `290200-4xxx` (2000) matches and `290200-1xxx`
+  (1900) does not. There is no modulus-11 check, because CPR numbers issued
+  since 2007 do not satisfy it.
+- **Phone**: Danish 8 digits starting 2–9 (contiguous, `20 30 40 50`,
+  `2030 4050`, with or without `+45`/`0045`), and E.164 (`+14155552671`).
+- **Email**: `local@domain.tld`.
+
+**It fails CLOSED on phone numbers, on purpose.** Any 8-digit number starting
+2–9 counts, order numbers included, and so does a longer grouped run. For a
+"must never reach the knowledge base" gate, a refused write is the cheap error
+and a leaked phone number is the expensive one. Do not tighten it into a leak.
+
+Names are not detected; a name list is app data, so the consumer checks it.
+
 ## Two recommended integration shapes
 
 1. **Write boundary (ingest gate)** — redact before you persist, so secrets never
