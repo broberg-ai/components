@@ -53,6 +53,18 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.8.0 — TenantSwitcher on a phone (F029.10, found by appkit's pilot)
+
+- **The menu stays on screen.** It is anchored to the switcher, which sits among
+  your actions rather than at the edge, so at 393 px it ran off the right side.
+  It is now measured when it opens and shifted back inside, 16 px from the edge.
+- **Changed output: no raw role.** Roles are your app's words, so the switcher
+  cannot translate them, and a bare «member» in a Danish UI is worse than nothing.
+  Pass `roleLabel={(role) => …}` to show them; without it, other rows show no role.
+  The active row still says «aktiv», and a suspended one still says so.
+- **On a phone the switcher takes at most 40% of the width**, and the organisation
+  name is cut with «…» before the page title is.
+
 ## 0.7.1 — TenantSwitcher: the user's own organisations (F029.10)
 
 0.7.0 was tagged but never reached npm: the secret gate stopped it on a test fixture key, now listed in `.gitleaksignore`.

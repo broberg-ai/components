@@ -14,7 +14,7 @@
 // PageHeader, PageTabs) in your own layout.
 
 import type { ComponentChildren, JSX } from "preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { createBellShell } from "@broberg/notifications/shell";
 import {
   getBackdrop,
@@ -1456,14 +1456,23 @@ export interface TenantSwitcherProps {
    * why; the switcher never pretends a switch happened.
    */
   onSwitch: (slug: string) => Promise<void> | void;
+  /**
+   * The role in the user's own words («Medarbejder», «Administrator»). Roles
+   * are the app's vocabulary, so the switcher cannot translate them. Without
+   * it no role is shown — a raw «member» in a Danish UI is worse than nothing.
+   */
+  roleLabel?: (role: string) => string;
 }
+
+/** Space kept between a popover and the screen edge. */
+const EDGE = 16;
 
 /**
  * The user's own organisations, the active one marked, and a switch. Only the
  * memberships the backend returns are listed — never a typed or guessed slug.
  * With one organisation it is a plain label, not a menu.
  */
-export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch }: TenantSwitcherProps) {
+export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch, roleLabel }: TenantSwitcherProps) {
   const t = TEXT[lang];
   const api = useMemo(() => adapter ?? createFetchTenantAdapter(), [adapter]);
   const [rows, setRows] = useState<TenantMembershipRow[] | null>(null);
@@ -1472,6 +1481,22 @@ export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch }: TenantSw
   const [busy, setBusy] = useState<string | null>(null);
   const [switchFailed, setSwitchFailed] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+
+  // The switcher sits among the app's actions, not at the screen edge, so a
+  // menu anchored to it can run off either side on a phone. Measure it and
+  // shift it back inside, EDGE px from the edge (appkit, 393 px, Lens b0ff5fb2).
+  useLayoutEffect(() => {
+    const el = menu.current;
+    if (!open || !el) return;
+    el.style.transform = "";
+    const r = el.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    let dx = 0;
+    if (r.right > vw - EDGE) dx = vw - EDGE - r.right;
+    if (r.left + dx < EDGE) dx = EDGE - r.left;
+    if (dx !== 0) el.style.transform = `translateX(${Math.round(dx)}px)`;
+  }, [open, rows, loadFailed, switchFailed]);
 
   const load = () => {
     setLoadFailed(false);
@@ -1533,7 +1558,7 @@ export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch }: TenantSw
         <span class="bas-tenant__label" data-testid="tenant-switcher-label">{label}</span>
       </button>
       {open ? (
-        <div class="bas-menu bas-tenant__menu" role="menu" data-testid="tenant-switcher-menu">
+        <div class="bas-menu bas-tenant__menu" ref={menu} role="menu" data-testid="tenant-switcher-menu">
           {loadFailed ? (
             <div class="bas-tenant__note" role="alert" data-testid="tenant-switcher-load-error">
               <span>{t.tenantLoadFailed}</span>
@@ -1560,7 +1585,11 @@ export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch }: TenantSw
                 data-testid={`tenant-switcher-item-${r.tenant.slug}`}
               >
                 <span class="bas-tenant__name">{r.tenant.name}</span>
-                <span class="bas-tenant__role">{suspended ? t.tenantSuspended : isActive ? t.tenantActive : r.role}</span>
+                {suspended || isActive || roleLabel ? (
+                  <span class="bas-tenant__role" data-testid={`tenant-switcher-role-${r.tenant.slug}`}>
+                    {suspended ? t.tenantSuspended : isActive ? t.tenantActive : roleLabel!(r.role)}
+                  </span>
+                ) : null}
               </button>
             );
           })}

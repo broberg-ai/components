@@ -382,7 +382,9 @@
 .bas-tenant__btn:hover, .bas-tenant__btn.is-open { background: var(--active); }
 .bas-tenant__btn::after { content: "▾"; font-size: 10px; color: var(--fg-muted); flex: none; }
 .bas-tenant__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
-.bas-tenant__menu { left: 0; right: auto; }
+.bas-tenant__menu { left: 0; right: auto; max-width: calc(100vw - 32px); }
+/* phone: the org name gives way before the page title does */
+@media (max-width: 767px) { .bas-tenant { max-width: 40vw; } }
 .bas-tenant__item { justify-content: space-between; }
 .bas-tenant__item.is-active { font-weight: 600; }
 .bas-tenant__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

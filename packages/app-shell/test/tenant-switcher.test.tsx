@@ -34,7 +34,7 @@ describe("TenantSwitcher", () => {
     expect(items.map((i) => i.getAttribute("data-testid"))).toEqual(["tenant-switcher-item-alpha", "tenant-switcher-item-beta", "tenant-switcher-item-sleepy"]);
     expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual(["true", "false", "false"]);
     expect(screen.getByTestId("tenant-switcher-label").textContent).toBe("Alpha Klinik");
-    expect(screen.getByTestId("tenant-switcher-item-beta").textContent).toBe("Beta Butikmember");
+    expect(screen.getByTestId("tenant-switcher-item-beta").textContent).toBe("Beta Butik"); // no roleLabel → no raw role (appkit, 7/10)
   });
 
   it("a suspended organisation cannot be chosen", async () => {
@@ -122,4 +122,47 @@ it("layout guard (393 px): a long organisation name is cut off, never widens the
   expect(rule(".bas-tenant__label")).toMatch(/text-overflow:\s*ellipsis/);
   expect(rule(".bas-tenant__label")).toMatch(/min-width:\s*0/);
   expect(rule(".bas-tenant")).toMatch(/max-width:\s*100%/);
+
+});
+
+describe("TenantSwitcher on a phone (appkit pilot, 7/10)", () => {
+  it("roleLabel puts the role in the app's own words; the active row still says active", async () => {
+    const roleLabel = (r: string) => ({ admin: "Administrator", member: "Medarbejder" })[r] ?? r;
+    render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS)} onSwitch={vi.fn()} roleLabel={roleLabel} />);
+    await openMenu();
+    expect(screen.getByTestId("tenant-switcher-role-beta").textContent).toBe("Medarbejder");
+    expect(screen.getByTestId("tenant-switcher-role-alpha").textContent).not.toBe("Administrator");
+  });
+
+  describe("the menu stays on screen (appkit, 393 px, Lens b0ff5fb2)", () => {
+    const at = (left: number, width = 320) => {
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        return { left, right: left + width, top: 0, bottom: 0, width, height: 0, x: left, y: 0, toJSON() {} } as DOMRect;
+      });
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 393 });
+      Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: 393 });
+    };
+    afterEach(() => vi.restoreAllMocks());
+
+    it("past the right edge → shifted left to 16 px from it", async () => {
+      at(200); // right = 520 > 393 - 16
+      render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS)} onSwitch={vi.fn()} />);
+      await openMenu();
+      expect(screen.getByTestId("tenant-switcher-menu").style.transform).toBe("translateX(-143px)");
+    });
+
+    it("past the left edge → shifted right to 16 px", async () => {
+      at(-30);
+      render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS)} onSwitch={vi.fn()} />);
+      await openMenu();
+      expect(screen.getByTestId("tenant-switcher-menu").style.transform).toBe("translateX(46px)");
+    });
+
+    it("already inside → left alone", async () => {
+      at(20);
+      render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS)} onSwitch={vi.fn()} />);
+      await openMenu();
+      expect(screen.getByTestId("tenant-switcher-menu").style.transform).toBe("");
+    });
+  });
 });
