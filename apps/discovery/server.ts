@@ -28,6 +28,7 @@ import { getEnrollStore, type Role } from "./enroll";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
 // edit: 503s until GITHUB_WRITE_TOKEN + SPEECH_DICT_EDIT_KEY are configured).
 import { readDictionary, editDictionary, authenticateEditor, type EditDiff } from "./speech-dictionary";
+import { webmcpLab } from "./webmcp-lab";
 
 const VERSION = "0.3.0";
 
@@ -322,6 +323,9 @@ app.get("/", (c) => {
 });
 
 app.get("/health", (c) => c.json({ ok: true, service: "discovery", version: VERSION }));
+
+// F098.1 — a fictional bookable page to measure what AI agents can do with it.
+app.route("/webmcp-lab", webmcpLab().app);
 
 // Onboarding surface (F060) — discoverable without a query.
 app.get("/onboarding", (c) => c.html(withConsent(ONBOARDING)));
