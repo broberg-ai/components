@@ -244,8 +244,9 @@ empty / whitespace-only / no-match → `null`. It honours `extraPatterns` too
 Field-anchored patterns (`mistral` / `vimeo` / `cloudflare-api-token` /
 `labeled-hex-secret` / the `deepseek` fallback) only classify when the pasted
 value includes their `NAME=value` context — a bare provider token classifies via
-its prefix, and a prefix-less bare token (e.g. a raw Mistral key) is genuinely
-unidentifiable and returns `null`.
+its prefix, and a prefix-less bare token (e.g. an OLD raw Mistral key) is genuinely
+unidentifiable and returns `null`. Mistral's newer `mstrl_…` keys carry a prefix
+and classify from the value alone (v0.14.0).
 
 ### A `null` has two meanings — check the length floor first
 
@@ -333,7 +334,8 @@ regexes — most-specific first so attribution is correct:
 
 - **LLM:** Anthropic (`sk-ant-…`, incl. `oat01-`), OpenAI (`sk-`/`sk-proj-`),
   OpenRouter (`sk-or-v1-`), ElevenLabs, fal.ai, Google/Gemini (`AIza…`),
-  Google OAuth (`GOCSPX-`), Mistral (field-anchored).
+  Google OAuth (`GOCSPX-`), Mistral (`mstrl_…` from v0.14.0; older
+  prefix-less keys field-anchored).
 - **Cloud / infra:** AWS (access key id `AKIA…`/`ASIA…`, **secret access key**,
   **session token** — see below), GitHub, GitLab, Slack, Stripe live, Resend,
   Fly.io, Cloudflare (global key · API token via field-context · Turnstile secret),

@@ -505,6 +505,15 @@ const PATTERNS: SecretPattern[] = [
     regex: /\b(?:cf|cloudflare)_?api_?token\b\s*[:=]\s*["'`]?[A-Za-z0-9_-]{40}(?![A-Za-z0-9_-])/gi,
   },
   {
+    // F035.20 — Mistral's newer keys carry a prefix: `mstrl_` + 32 base62 + `_` +
+    // 6 base62 (45 chars). Measured by cardmem on ONE stored key, value never
+    // sent. The prefix makes it distinctive, so it runs by default (D-453d89).
+    // Exact shape only: a key with another split is left unlabelled, not guessed.
+    label: 'mistral-api-key',
+    description: 'Mistral API key (mstrl_ + 32 base62 + _ + 6 base62)',
+    regex: /\bmstrl_[A-Za-z0-9]{32}_[A-Za-z0-9]{6}(?![A-Za-z0-9_-])/g,
+  },
+  {
     // Mistral API key — prefix-less ~32 base62 (Christian-confirmed sample). A bare
     // [A-Za-z0-9]{32} would FP on every ID/hash, so CONTEXT-ONLY: anchored on a
     // mistral-(api-)key/token-named field. Runs before labeled-hex for attribution.
