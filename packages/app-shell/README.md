@@ -50,7 +50,25 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
 | `AccountPage` | The user's own name and picture, edited inside the app (0.4.0). |
+| `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.0). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
+
+## 0.7.0 — TenantSwitcher: the user's own organisations (F029.10)
+
+```tsx
+import { TenantSwitcher } from "@broberg/app-shell/preact";
+<TenantSwitcher lang="da" activeSlug={tenant.slug} onSwitch={(slug) => location.assign(`/t/${slug}`)} />
+```
+
+- **Only the user's own memberships** are listed, from `GET /api/me/memberships`, which is
+  `tenantRoutes` in `@broberg/tenant/hono`. A slug is never typed or guessed.
+- **The active organisation is marked.** A suspended one is shown and cannot be chosen.
+- **`onSwitch` is the app's own route**: navigation, or setting the preference and reloading.
+  If it rejects, the switcher says «Kunne ikke skifte organisation. Du er stadig i …», keeps the
+  current organisation and leaves the menu open. It never pretends a switch happened.
+- **With one organisation** it is a plain label, not a menu. A failed load says so and offers a retry.
+- It reuses the user menu's popover: Escape and a click outside close it. There is no native
+  `<select>`, every control has a `data-testid`, and a long name is cut off instead of widening the bar.
 
 ## 0.6.0 — AnalyticsPage: the app's own numbers from Upmetrics (F097.1)
 

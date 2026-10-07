@@ -507,6 +507,48 @@ export function changePct(now: number, before: number): number | null {
   return before === 0 ? null : Math.round(((now - before) / before) * 100);
 }
 
+// ── Tenant switcher (F029.10) ──────────────────────────────────────────────
+//
+// The user's own organisations, from the app's backend (@broberg/tenant/hono's
+// tenantRoutes: GET /memberships). This package never imports @broberg/tenant;
+// the row type is structural.
+
+export interface TenantMembershipRow {
+  tenant: { id: string; slug: string; name: string; status?: "active" | "suspended" };
+  role: string;
+}
+
+export interface TenantAdapter {
+  load(): Promise<TenantMembershipRow[]>;
+}
+
+export class TenantLoadError extends Error {
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`);
+    this.name = "TenantLoadError";
+  }
+}
+
+/** GET {url} (default /api/me/memberships) → the user's memberships. Non-2xx or a bad body THROWS. */
+export function createFetchTenantAdapter(opts: { url?: string; fetch?: typeof fetch; credentials?: RequestCredentials } = {}): TenantAdapter {
+  return {
+    async load() {
+      let res: Response;
+      try {
+        res = await (opts.fetch ?? fetch)(opts.url ?? "/api/me/memberships", { credentials: opts.credentials ?? "same-origin", headers: { accept: "application/json" } });
+      } catch {
+        throw new TenantLoadError(0);
+      }
+      const body = (await res.json().catch(() => null)) as unknown;
+      if (!res.ok) throw new TenantLoadError(res.status);
+      if (!Array.isArray(body) || !body.every((r) => r && typeof r.role === "string" && r.tenant && typeof r.tenant.slug === "string")) {
+        throw new TenantLoadError(res.status);
+      }
+      return body as TenantMembershipRow[];
+    },
+  };
+}
+
 // ── Text ───────────────────────────────────────────────────────────────────
 
 export const TEXT = {
@@ -571,6 +613,12 @@ export const TEXT = {
     analyticsLoading: "Henter tal…",
     analyticsUnconfigured: "Analytics er ikke sat op for denne app.",
     analyticsUnavailable: "Upmetrics svarer ikke lige nu. Prøv igen om lidt.",
+    tenantSwitch: "Skift organisation",
+    tenantLoadFailed: "Kunne ikke hente dine organisationer.",
+    tenantSwitchFailed: "Kunne ikke skifte organisation. Du er stadig i {name}.",
+    tenantRetry: "Prøv igen",
+    tenantSuspended: "lukket",
+    tenantActive: "aktiv",
   },
   en: {
     openMenu: "Open menu",
@@ -633,6 +681,12 @@ export const TEXT = {
     analyticsLoading: "Loading figures…",
     analyticsUnconfigured: "Analytics is not set up for this app.",
     analyticsUnavailable: "Upmetrics is not answering right now. Try again shortly.",
+    tenantSwitch: "Switch organisation",
+    tenantLoadFailed: "Could not load your organisations.",
+    tenantSwitchFailed: "Could not switch organisation. You are still in {name}.",
+    tenantRetry: "Try again",
+    tenantSuspended: "suspended",
+    tenantActive: "active",
   },
 } as const;
 export type Lang = keyof typeof TEXT;

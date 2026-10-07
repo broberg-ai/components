@@ -1,6 +1,6 @@
 {
   "name": "@broberg/app-shell",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "The fleet's app shell: collapsible sidebar (phone: rail or drawer), top bar with the notification bell and user menu as standard, page header and tabs. Framework-free core + Preact (Stack B). Styled on @broberg/theme tokens. Avatar from Broberg ID, initials otherwise — no Gravatar.",
   "type": "module",
   "license": "MIT",

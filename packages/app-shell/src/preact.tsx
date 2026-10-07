@@ -37,6 +37,9 @@ import {
   type ThemePreference,
 } from "@broberg/theme";
 import {
+  createFetchTenantAdapter,
+  type TenantAdapter,
+  type TenantMembershipRow,
   accountErrorKind,
   activeNavLabel,
   analyticsErrorKind,
@@ -1435,6 +1438,134 @@ function AnalyticsSeries({ data, t, locale, num }: { data: AnalyticsDay[]; t: (t
           </table>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Tenant switcher (F029.10) ──────────────────────────────────────────────
+
+export interface TenantSwitcherProps {
+  lang: Lang;
+  /** The slug the app is in right now — the app knows it (from tenantMiddleware). */
+  activeSlug: string;
+  /** Default: `createFetchTenantAdapter()` → GET /api/me/memberships (@broberg/tenant/hono tenantRoutes). */
+  adapter?: TenantAdapter;
+  /**
+   * Switch through the APP's own route — navigate to `/t/<slug>/…`, or set the
+   * preference and reload. A rejection keeps the current organisation and shows
+   * why; the switcher never pretends a switch happened.
+   */
+  onSwitch: (slug: string) => Promise<void> | void;
+}
+
+/**
+ * The user's own organisations, the active one marked, and a switch. Only the
+ * memberships the backend returns are listed — never a typed or guessed slug.
+ * With one organisation it is a plain label, not a menu.
+ */
+export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch }: TenantSwitcherProps) {
+  const t = TEXT[lang];
+  const api = useMemo(() => adapter ?? createFetchTenantAdapter(), [adapter]);
+  const [rows, setRows] = useState<TenantMembershipRow[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [switchFailed, setSwitchFailed] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  const load = () => {
+    setLoadFailed(false);
+    api.load().then(setRows, () => setLoadFailed(true));
+  };
+  useEffect(load, [api]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const active = rows?.find((r) => r.tenant.slug === activeSlug);
+  const label = active?.tenant.name ?? activeSlug;
+
+  const pick = async (slug: string) => {
+    if (slug === activeSlug || busy) return;
+    setBusy(slug);
+    setSwitchFailed(false);
+    try {
+      await onSwitch(slug);
+      setOpen(false);
+    } catch {
+      setSwitchFailed(true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // One organisation, and it is the active one: nothing to switch to.
+  if (rows && rows.length <= 1 && !loadFailed) {
+    return (
+      <div class="bas-tenant" data-testid="tenant-switcher">
+        <span class="bas-tenant__label" data-testid="tenant-switcher-label">{label}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div class="bas-tenant" ref={root} data-testid="tenant-switcher">
+      <button
+        type="button"
+        class={"bas-tenant__btn" + (open ? " is-open" : "")}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t.tenantSwitch}
+        onClick={() => setOpen((v) => !v)}
+        data-testid="tenant-switcher-button"
+      >
+        <span class="bas-tenant__label" data-testid="tenant-switcher-label">{label}</span>
+      </button>
+      {open ? (
+        <div class="bas-menu bas-tenant__menu" role="menu" data-testid="tenant-switcher-menu">
+          {loadFailed ? (
+            <div class="bas-tenant__note" role="alert" data-testid="tenant-switcher-load-error">
+              <span>{t.tenantLoadFailed}</span>
+              <button type="button" class="bas-mi" onClick={load} data-testid="tenant-switcher-retry">{t.tenantRetry}</button>
+            </div>
+          ) : null}
+          {switchFailed ? (
+            <p class="bas-tenant__note is-error" role="alert" data-testid="tenant-switcher-switch-error">
+              {t.tenantSwitchFailed.replace("{name}", label)}
+            </p>
+          ) : null}
+          {(rows ?? []).map((r) => {
+            const isActive = r.tenant.slug === activeSlug;
+            const suspended = r.tenant.status === "suspended";
+            return (
+              <button
+                key={r.tenant.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={isActive}
+                class={"bas-mi bas-tenant__item" + (isActive ? " is-active" : "")}
+                disabled={suspended || busy !== null}
+                onClick={() => void pick(r.tenant.slug)}
+                data-testid={`tenant-switcher-item-${r.tenant.slug}`}
+              >
+                <span class="bas-tenant__name">{r.tenant.name}</span>
+                <span class="bas-tenant__role">{suspended ? t.tenantSuspended : isActive ? t.tenantActive : r.role}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
