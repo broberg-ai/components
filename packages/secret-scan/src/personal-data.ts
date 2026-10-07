@@ -37,7 +37,12 @@ const PHONE_DK =
   /(?<![\d+])(?:(?:\+|00)45[ -]?)?(?:[2-9]\d{7}|[2-9]\d(?:[ -]\d{2}){3}|[2-9]\d{3}[ -]\d{4})(?!\d)/g;
 const PHONE_E164 = /(?<![\d+])\+[1-9]\d{6,14}(?!\d)/g;
 
-const EMAIL = /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}/g;
+// Linear on purpose. The local part starts only at the beginning of its run (the
+// lookbehind), and domain labels are split by dots alone, so neither half can
+// backtrack. A naive form took 30 s on 50,000 characters. The TLD rule (letters,
+// 2+) is checked in code.
+const EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
+const TLD = /\.[A-Za-z]{2,}$/;
 
 /** The CPR century rule: the 7th digit and the year decide which century. */
 function cprYear(yy: number, seventh: number): number {
@@ -63,7 +68,9 @@ function collect(text: string): PersonalDataMatch[] {
   for (const re of [PHONE_DK, PHONE_E164]) {
     for (const m of text.matchAll(re)) out.push({ kind: 'phone', start: m.index!, end: m.index! + m[0].length });
   }
-  for (const m of text.matchAll(EMAIL)) out.push({ kind: 'email', start: m.index!, end: m.index! + m[0].length });
+  for (const m of text.matchAll(EMAIL)) {
+    if (TLD.test(m[0])) out.push({ kind: 'email', start: m.index!, end: m.index! + m[0].length });
+  }
   return out;
 }
 

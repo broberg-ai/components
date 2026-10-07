@@ -72,6 +72,11 @@ describe('F035.21 — email', () => {
     expect(kinds('skriv til anne.hansen+trail@example.dk nu')).toEqual([['email', 'anne.hansen+trail@example.dk']]);
   });
 
+  it('subdomains, a trailing full stop, and a one-letter TLD', () => {
+    expect(kinds('mail a.b@mail.example.co.uk.')).toEqual([['email', 'a.b@mail.example.co.uk']]);
+    expect(kinds('a@b.c')).toEqual([]);
+  });
+
   it('not a bare @handle or a domain', () => {
     expect(kinds('@anne og example.dk')).toEqual([]);
   });
@@ -96,5 +101,21 @@ describe('F035.21 — redact / has', () => {
     expect(r).toEqual({ redacted: 'Mødet flyttes til torsdag kl. 10.', findings: [], scanned: ['cpr', 'phone', 'email'] });
     expect(hasPersonalData('Mødet flyttes til torsdag kl. 10.')).toBe(false);
     expect(hasPersonalData('tlf 20304050')).toBe(true);
+  });
+});
+
+describe('F035.21 — stays linear on hostile input', () => {
+  // The first email pattern backtracked: 50,000 characters took 30 s. This runs
+  // before every write, on text we do not control. The bound is generous on
+  // purpose (linear is ~5 ms here), so only a return of the blow-up turns it red.
+  it.each([
+    ['a dashed domain', 'a@' + 'a-'.repeat(25_000) + '!'],
+    ['a dotted domain', 'a@' + 'a.'.repeat(25_000) + '1'],
+    ['a run of local-part characters', 'a'.repeat(50_000) + '@'],
+    ['a run of digits', '2'.repeat(50_000)],
+  ])('%s', (_, t) => {
+    const start = performance.now();
+    findPersonalData(t);
+    expect(performance.now() - start).toBeLessThan(1000);
   });
 });
