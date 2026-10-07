@@ -19,6 +19,7 @@ import {
   TenantNotMember,
   TenantSuspended,
   type Membership,
+  type MembershipGrant,
   type StoredInvite,
   type Tenant,
   type TenantStore,
@@ -107,10 +108,13 @@ function unitStore(seed: { tenants: Tenant[]; memberships: Membership[] }): Tena
       return [...byOrg].map(([tenantId, role]) => ({ userId, tenantId, role }));
     },
     async addMembership(m) {
-      const unitId = `u-${m.tenantId}`;
+      // F029.12: a scoped invitation names the unit; without one, the org's root unit.
+      const unitId = m.scope ?? `u-${m.tenantId}`;
+      if (!units.some((u) => u.unitId === unitId)) units.push({ unitId, orgId: m.tenantId });
       if (!unitMembers.some((x) => x.userId === m.userId && x.unitId === unitId)) unitMembers.push({ userId: m.userId, unitId, role: m.role });
     },
-  };
+    unitMembers,
+  } as TenantStore & { unitMembers: typeof unitMembers };
 }
 
 const STORES: [string, (seed: { tenants: Tenant[]; memberships: Membership[] }) => TenantStore][] = [
@@ -289,5 +293,81 @@ describe("createPolicy — the app's role matrix (RBAC)", () => {
     expect(onDenied.mock.calls).toEqual([[{ role: "member", action: "team:manage", context: { tenantId: A.id } }]]);
     await p.assert({ role: "admin" }, "team:manage");
     expect(onDenied.mock.calls.length).toBe(1);
+  });
+});
+
+// F029.12 — an invitation to a UNIT (Scout). `scope` is opaque, write-side only.
+describe("invitation scope (F029.12)", () => {
+  const seed = () => ({ tenants: [A, B], memberships: [{ userId: "boss", tenantId: A.id, role: "admin" }] });
+  const ny = { id: "ny", email: "ny@x.dk" };
+
+  test("stored on the invitation, read back from the store", async () => {
+    const store = memoryTenantStore(seed());
+    const { invite } = await createInvite({ store, tenantId: A.id, email: "ny@x.dk", role: "member", scope: "unit-klinik-a", invitableRoles: ROLES });
+    expect(store.invites.get(invite.id)?.scope).toBe("unit-klinik-a");
+  });
+
+  test("accept hands scope to addMembership and returns it", async () => {
+    const store = memoryTenantStore(seed());
+    const { token } = await createInvite({ store, tenantId: A.id, email: "ny@x.dk", role: "member", scope: "unit-klinik-a", invitableRoles: ROLES });
+    const m = await acceptInvite({ store, token, user: ny, invitableRoles: ROLES });
+    expect(m).toEqual({ userId: "ny", tenantId: A.id, role: "member", scope: "unit-klinik-a" });
+    expect(store.grants).toEqual([{ userId: "ny", tenantId: A.id, role: "member", scope: "unit-klinik-a" }]);
+    // the read side is untouched: one org-level row, no scope
+    expect(await store.membershipsOf("ny")).toEqual([{ userId: "ny", tenantId: A.id, role: "member" }]);
+  });
+
+  test("a half-finished accept is healed WITH its scope", async () => {
+    const base = memoryTenantStore(seed());
+    let fail = true;
+    const seen: MembershipGrant[] = [];
+    const store: TenantStore = {
+      ...base,
+      async addMembership(m) {
+        seen.push(m);
+        if (fail) {
+          fail = false;
+          throw new Error("crash after markInviteUsed");
+        }
+        await base.addMembership(m);
+      },
+    };
+    const { token } = await createInvite({ store, tenantId: A.id, email: "ny@x.dk", role: "member", scope: "unit-klinik-a", invitableRoles: ROLES });
+    await expect(acceptInvite({ store, token, user: ny, invitableRoles: ROLES })).rejects.toThrow("crash after markInviteUsed");
+    expect(base.grants).toEqual([]);
+    const again = await acceptInvite({ store, token, user: ny, invitableRoles: ROLES });
+    expect(again.scope).toBe("unit-klinik-a");
+    expect(seen.map((m) => m.scope)).toEqual(["unit-klinik-a", "unit-klinik-a"]);
+    expect(base.grants).toEqual([{ userId: "ny", tenantId: A.id, role: "member", scope: "unit-klinik-a" }]);
+  });
+
+  test("no scope → exactly the 0.1.0 shape (no scope key anywhere)", async () => {
+    const store = memoryTenantStore(seed());
+    const { invite, token } = await createInvite({ store, tenantId: A.id, email: "ny@x.dk", role: "member", invitableRoles: ROLES });
+    expect("scope" in store.invites.get(invite.id)!).toBe(false);
+    const m = await acceptInvite({ store, token, user: ny, invitableRoles: ROLES });
+    expect(m).toEqual({ userId: "ny", tenantId: A.id, role: "member" });
+    expect("scope" in m).toBe(false);
+    expect(store.grants).toEqual([]);
+  });
+
+  test("Scout units: two units in ONE org are still one tenant choice", async () => {
+    const store = unitStore({ tenants: [A, B], memberships: [] }) as TenantStore & { unitMembers: { userId: string; unitId: string; role: string }[] };
+    for (const scope of ["unit-klinik-a", "unit-klinik-b"]) {
+      const { token } = await createInvite({ store, tenantId: A.id, email: "ny@x.dk", role: "member", scope, invitableRoles: ROLES });
+      await acceptInvite({ store, token, user: ny, invitableRoles: ROLES });
+    }
+    expect(store.unitMembers.filter((u) => u.userId === "ny").map((u) => u.unitId)).toEqual(["unit-klinik-a", "unit-klinik-b"]);
+    expect(await store.membershipsOf("ny")).toEqual([{ userId: "ny", tenantId: A.id, role: "member" }]);
+    const active = await resolveActiveTenant({ store, userId: "ny" });
+    expect(active.tenant.id).toBe(A.id);
+    expect(active.membership.role).toBe("member");
+  });
+
+  test("invitableRoles still applies with a scope", async () => {
+    const store = memoryTenantStore(seed());
+    await expect(
+      createInvite({ store, tenantId: A.id, email: "ny@x.dk", role: "owner", scope: "unit-klinik-a", invitableRoles: ROLES }),
+    ).rejects.toMatchObject({ reason: "role_not_invitable" });
   });
 });

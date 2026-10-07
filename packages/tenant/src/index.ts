@@ -36,6 +36,17 @@ export interface Membership {
   role: string;
 }
 
+/**
+ * What accepting an invitation WRITES: a Membership plus the invitation's
+ * `scope`, when it had one. `scope` is opaque to the package — Scout puts a
+ * unit id there. It exists only on the write side: `membershipsOf` keeps
+ * returning ONE organisation-level Membership per tenant, so a user in two
+ * units of one org is still one tenant choice with one role.
+ */
+export interface MembershipGrant extends Membership {
+  scope?: string;
+}
+
 /** An invitation as stored. The token itself is NEVER stored — only its hash. */
 export interface StoredInvite {
   id: string;
@@ -43,6 +54,8 @@ export interface StoredInvite {
   /** Lower-cased and trimmed. */
   email: string;
   role: string;
+  /** Opaque to the package; carried into addMembership on accept. */
+  scope?: string;
   tokenHash: string;
   invitedBy?: string;
   createdAt: number;
@@ -59,10 +72,17 @@ export interface StoredInvite {
 export interface TenantStore {
   tenantById(id: string): Promise<Tenant | null>;
   tenantBySlug(slug: string): Promise<Tenant | null>;
-  /** Every membership the user has, across tenants. */
+  /**
+   * Every membership the user has, across tenants — ONE organisation-level row
+   * per tenant, never one per scope (derive it, as Scout does from units).
+   */
   membershipsOf(userId: string): Promise<Membership[]>;
-  /** Idempotent: adding an existing (userId, tenantId) must not duplicate it. */
-  addMembership(m: Membership): Promise<void>;
+  /**
+   * Idempotent: adding an existing (userId, tenantId) must not duplicate it —
+   * keyed (userId, tenantId, scope) when the grant carries a scope. A grant
+   * with a scope must also leave the user a member of the tenant as a whole.
+   */
+  addMembership(m: MembershipGrant): Promise<void>;
   /** Insert, or replace the invite with the same id. */
   saveInvite(invite: StoredInvite): Promise<void>;
   inviteByTokenHash(tokenHash: string): Promise<StoredInvite | null>;
@@ -270,6 +290,14 @@ export interface CreateInviteInput {
   email: string;
   role: string;
   /**
+   * Opaque — a unit, a site, whatever level below the organisation the app
+   * has. The package stores it and hands it to addMembership on accept; it
+   * never checks it. Whether the INVITER may grant this scope is the app's
+   * check, made before calling createInvite (the /hono route asks
+   * `authorizeScope`).
+   */
+  scope?: string;
+  /**
    * The roles an invitation may grant. A role outside it is refused — an
    * invitation can never be the way to become owner or platform admin unless
    * the app says so (helpdesk's rule).
@@ -296,6 +324,7 @@ export async function createInvite(input: CreateInviteInput): Promise<{ invite: 
     tenantId: tenant.id,
     email: normEmail(input.email),
     role: input.role,
+    ...(input.scope !== undefined ? { scope: input.scope } : {}),
     tokenHash: await hashInviteToken(token),
     ...(input.invitedBy ? { invitedBy: input.invitedBy } : {}),
     createdAt: now,
@@ -320,7 +349,7 @@ export interface AcceptInviteInput {
  * to. Repeating the accept as the SAME user is safe and returns the same
  * membership; anyone else gets `used`.
  */
-export async function acceptInvite(input: AcceptInviteInput): Promise<Membership> {
+export async function acceptInvite(input: AcceptInviteInput): Promise<MembershipGrant> {
   const { store, user } = input;
   const now = input.now ?? Date.now();
   const invite = await store.inviteByTokenHash(await hashInviteToken(input.token));
@@ -328,7 +357,12 @@ export async function acceptInvite(input: AcceptInviteInput): Promise<Membership
   if (invite.revokedAt !== undefined) throw new InviteRefused("revoked");
   if (normEmail(user.email) !== invite.email) throw new InviteRefused("email_mismatch");
   if (!input.invitableRoles.includes(invite.role)) throw new InviteRefused("role_not_invitable");
-  const membership: Membership = { userId: user.id, tenantId: invite.tenantId, role: invite.role };
+  const membership: MembershipGrant = {
+    userId: user.id,
+    tenantId: invite.tenantId,
+    role: invite.role,
+    ...(invite.scope !== undefined ? { scope: invite.scope } : {}),
+  };
 
   if (invite.usedAt !== undefined) {
     if (invite.usedBy !== user.id) throw new InviteRefused("used");
@@ -402,12 +436,16 @@ export function createPolicy<Action extends string>(config: PolicyConfig<Action>
  */
 export function memoryTenantStore(seed: { tenants?: Tenant[]; memberships?: Membership[] } = {}): TenantStore & {
   readonly invites: ReadonlyMap<string, StoredInvite>;
+  /** Every scoped grant written by addMembership, in order. */
+  readonly grants: readonly MembershipGrant[];
 } {
   const tenants = new Map((seed.tenants ?? []).map((t) => [t.id, { ...t }]));
   const memberships: Membership[] = (seed.memberships ?? []).map((m) => ({ ...m }));
+  const grants: MembershipGrant[] = [];
   const invites = new Map<string, StoredInvite>();
   return {
     invites,
+    grants,
     async tenantById(id) {
       return tenants.get(id) ?? null;
     },
@@ -419,7 +457,14 @@ export function memoryTenantStore(seed: { tenants?: Tenant[]; memberships?: Memb
       return memberships.filter((m) => m.userId === userId).map((m) => ({ ...m }));
     },
     async addMembership(m) {
-      if (!memberships.some((x) => x.userId === m.userId && x.tenantId === m.tenantId)) memberships.push({ ...m });
+      // A scoped grant is kept apart; the org-level row (first role wins) is
+      // what membershipsOf answers — a real store derives that role its own way.
+      if (m.scope !== undefined && !grants.some((x) => x.userId === m.userId && x.tenantId === m.tenantId && x.scope === m.scope)) {
+        grants.push({ ...m });
+      }
+      if (!memberships.some((x) => x.userId === m.userId && x.tenantId === m.tenantId)) {
+        memberships.push({ userId: m.userId, tenantId: m.tenantId, role: m.role });
+      }
     },
     async saveInvite(invite) {
       invites.set(invite.id, { ...invite });

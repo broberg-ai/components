@@ -1,6 +1,6 @@
 {
   "name": "@broberg/tenant",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Organisations, memberships, invitations and role checks, the same way in every app. Storage is the app's own (a TenantStore adapter); the package never chooses how tenant data is isolated, and organisations never live in Broberg ID.",
   "type": "module",
   "license": "MIT",

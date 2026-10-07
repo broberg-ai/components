@@ -49,6 +49,19 @@ const membership = await acceptInvite({ store, token, user: { id, email }, invit
 
 Refusals are `InviteRefused` with `reason`: `not_found`, `expired`, `revoked`, `used`, `email_mismatch` or `role_not_invitable`.
 
+### Inviting to a unit below the organisation: `scope` (0.2.0)
+
+```ts
+await createInvite({ store, tenantId, email, role: "unit_lead", scope: unitId, invitableRoles });
+const grant = await acceptInvite({ store, token, user, invitableRoles }); // { userId, tenantId, role, scope }
+```
+
+- `scope` is **opaque**: a unit, a site, whatever your app has below the organisation. The package stores it and never interprets it.
+- On accept it goes **into `store.addMembership`** (a `MembershipGrant`), not only into the return value. That way, a crash between the two writes is repaired by the same-user re-accept, unit included.
+- **Whether the inviter may grant that scope is your check.** Only your app knows its unit tree. Do it before `createInvite`; the Hono route asks `authorizeScope` (below).
+- **Write side only.** `membershipsOf` still returns ONE organisation-level row per tenant, with no scope. A user in two units of one organisation is one tenant choice, not a `tenant_choice_required`.
+- With scopes, make `addMembership` idempotent on `(userId, tenantId, scope)`, and let a scoped grant also make the user a member of the organisation.
+
 ## Role checks (RBAC)
 
 ```ts
@@ -71,7 +84,7 @@ interface TenantStore {
   tenantById(id): Promise<Tenant | null>;
   tenantBySlug(slug): Promise<Tenant | null>;
   membershipsOf(userId): Promise<Membership[]>;   // across tenants; derive it if members belong to units
-  addMembership(m): Promise<void>;                // idempotent
+  addMembership(m: MembershipGrant): Promise<void>; // idempotent; on (userId, tenantId, scope) when scoped
   saveInvite(invite): Promise<void>;              // insert or replace by id
   inviteByTokenHash(hash): Promise<StoredInvite | null>;
   markInviteUsed(id, at, userId): Promise<boolean>; // ATOMIC: true only for the call that claimed it
@@ -118,7 +131,9 @@ app.route("/api/me", tenantRoutes({ store, user, invitableRoles: ["member", "adm
 | several memberships, nothing says which | `409 {"error":"tenant_choice_required","count":n}` |
 | role may not | `403 {"error":"forbidden","action":"…"}`, after your `onDenied` |
 | `requireCapability` without `tenantMiddleware` in front | `500 {"error":"no_tenant_context"}`: closed, never open |
+| `POST /invites` with `scope`, no `authorizeScope` given | `400 {"error":"invalid_request"}`: never silently dropped |
+| `authorizeScope` answers false | `403 {"error":"scope_not_allowed"}` |
 | invitation refusals | `invite_not_found` 404 · `invite_expired`/`invite_revoked` 410 · `invite_used` 409 · `invite_email_mismatch`/`invite_role_not_invitable` 403 |
 | a write from another site, sibling subdomains included (`Sec-Fetch-Site`) | `403 {"error":"cross_site"}` |
 
-`POST /invites` exists only when you pass `invite.deliverInvite`. The token goes straight to your mail function and never back to the inviter's browser; the response is `{ inviteId }`. `revokeInvite({ store, invite })` in the core revokes an invitation that has not been used.
+`POST /invites` exists only when you pass `invite.deliverInvite`. The token goes straight to your mail function and never back to the inviter's browser; the response is `{ inviteId }`. A body with `scope` needs `invite.authorizeScope(inviter, scope, role)`, and `deliverInvite` then receives `scope` too. `revokeInvite({ store, invite })` in the core revokes an invitation that has not been used.

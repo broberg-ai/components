@@ -10,6 +10,7 @@ import {
   resolveActiveTenant,
   type ActiveTenant,
   type Membership,
+  type MembershipGrant,
   type Policy,
   type ResolveInput,
   type Tenant,
@@ -147,7 +148,15 @@ export interface TenantRoutesOptions<Action extends string> {
   invite?: {
     policy: Policy<Action>;
     action: Action;
-    deliverInvite: (msg: { to: string; token: string; tenant: Tenant; role: string; invitedBy: string }) => Promise<void>;
+    deliverInvite: (msg: { to: string; token: string; tenant: Tenant; role: string; invitedBy: string; scope?: string }) => Promise<void>;
+    /**
+     * Required for an invitation with a `scope` (a unit below the organisation).
+     * Only the app knows its unit tree, so only the app can say whether THIS
+     * inviter may grant this role there. Without it a body carrying `scope` is
+     * refused 400; a false answer is refused 403 `scope_not_allowed`. A scope is
+     * never silently dropped.
+     */
+    authorizeScope?: (inviter: Membership, scope: string, role: string) => boolean | Promise<boolean>;
   };
 }
 
@@ -192,9 +201,13 @@ export function tenantRoutes<Action extends string>(o: TenantRoutesOptions<Actio
     const body = (await c.req.json().catch(() => null)) as { token?: unknown } | null;
     if (typeof body?.token !== "string" || body.token === "") return c.json({ error: "invalid_request" }, 400);
     try {
-      const m: Membership = await acceptInvite({ store: o.store, token: body.token, user, invitableRoles: o.invitableRoles });
+      const m: MembershipGrant = await acceptInvite({ store: o.store, token: body.token, user, invitableRoles: o.invitableRoles });
       const t = await o.store.tenantById(m.tenantId);
-      return c.json({ tenant: t ? { id: t.id, slug: t.slug, name: t.name } : { id: m.tenantId }, role: m.role });
+      return c.json({
+        tenant: t ? { id: t.id, slug: t.slug, name: t.name } : { id: m.tenantId },
+        role: m.role,
+        ...(m.scope !== undefined ? { scope: m.scope } : {}),
+      });
     } catch (e) {
       const res = tenantErrorResponse(c, e);
       if (res) return res;
@@ -206,9 +219,14 @@ export function tenantRoutes<Action extends string>(o: TenantRoutesOptions<Actio
     const inv = o.invite;
     app.post("/invites", requireCapability(inv.policy, inv.action), async (c) => {
       const active = getTenant(c)!;
-      const body = (await c.req.json().catch(() => null)) as { email?: unknown; role?: unknown } | null;
+      const body = (await c.req.json().catch(() => null)) as { email?: unknown; role?: unknown; scope?: unknown } | null;
       if (typeof body?.email !== "string" || !body.email.includes("@") || typeof body.role !== "string") {
         return c.json({ error: "invalid_request" }, 400);
+      }
+      const scope = body.scope;
+      if (scope !== undefined) {
+        if (typeof scope !== "string" || scope === "" || !inv.authorizeScope) return c.json({ error: "invalid_request" }, 400);
+        if (!(await inv.authorizeScope(active.membership, scope, body.role))) return c.json({ error: "scope_not_allowed" }, 403);
       }
       try {
         const { invite, token } = await createInvite({
@@ -218,8 +236,16 @@ export function tenantRoutes<Action extends string>(o: TenantRoutesOptions<Actio
           role: body.role,
           invitableRoles: o.invitableRoles,
           invitedBy: active.membership.userId,
+          ...(scope !== undefined ? { scope } : {}),
         });
-        await inv.deliverInvite({ to: invite.email, token, tenant: active.tenant, role: invite.role, invitedBy: active.membership.userId });
+        await inv.deliverInvite({
+          to: invite.email,
+          token,
+          tenant: active.tenant,
+          role: invite.role,
+          invitedBy: active.membership.userId,
+          ...(invite.scope !== undefined ? { scope: invite.scope } : {}),
+        });
         return c.json({ inviteId: invite.id }, 201);
       } catch (e) {
         const res = tenantErrorResponse(c, e);

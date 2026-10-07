@@ -158,3 +158,48 @@ describe("tenantRoutes — invitations end to end, read back from the store", ()
     expect((await t.req("/me/memberships", "mem")).headers.get("cache-control")).toBe("no-store");
   });
 });
+
+// F029.12 — POST /invites with a scope: the app authorises it, never dropped silently.
+describe("POST /invites with scope (F029.12)", () => {
+  function scoped(authorizeScope?: (inviter: { role: string }, scope: string, role: string) => boolean) {
+    const store = memoryTenantStore({ tenants: [A], memberships: [{ userId: "boss", tenantId: A.id, role: "admin" }] });
+    const policy = createPolicy<Action>({ roles: { admin: ["*"] } });
+    const sent: { scope?: string }[] = [];
+    const user = (c: { req: { header(n: string): string | undefined } }) => USERS[c.req.header("x-user") ?? ""] ?? null;
+    const app = new Hono();
+    app.use("/t/:tenant/*", tenantMiddleware({ store, user, requested: (c) => c.req.param("tenant") }));
+    app.route(
+      "/t/:tenant/api",
+      tenantRoutes({
+        store,
+        user,
+        invitableRoles: ["member"],
+        invite: { policy, action: "team:manage", deliverInvite: async (m) => void sent.push(m), ...(authorizeScope ? { authorizeScope } : {}) },
+      }),
+    );
+    const post = (b: unknown) =>
+      app.request("/t/alpha/api/invites", { method: "POST", body: JSON.stringify(b), headers: { "x-user": "boss", "content-type": "application/json" } });
+    return { store, sent, post };
+  }
+
+  test("scope without authorizeScope → 400, nothing stored", async () => {
+    const t = scoped();
+    expect(await body(await t.post({ email: "ny@x.dk", role: "member", scope: "unit-a" }))).toEqual([400, null, { error: "invalid_request" }]);
+    expect(t.store.invites.size).toBe(0);
+  });
+
+  test("authorizeScope says no → 403 scope_not_allowed (lead of A inviting to sibling B)", async () => {
+    const t = scoped((_inviter, scope) => scope === "unit-a");
+    expect(await body(await t.post({ email: "ny@x.dk", role: "member", scope: "unit-b" }))).toEqual([403, null, { error: "scope_not_allowed" }]);
+    expect(t.store.invites.size).toBe(0);
+  });
+
+  test("authorizeScope says yes → stored, delivered, and accepted with the scope", async () => {
+    const calls: unknown[] = [];
+    const t = scoped((inviter, scope, role) => (calls.push([inviter.role, scope, role]), true));
+    expect((await t.post({ email: "ny@x.dk", role: "member", scope: "unit-a" })).status).toBe(201);
+    expect(calls).toEqual([["admin", "unit-a", "member"]]);
+    expect([...t.store.invites.values()].map((i) => i.scope)).toEqual(["unit-a"]);
+    expect(t.sent.map((m) => m.scope)).toEqual(["unit-a"]);
+  });
+});
