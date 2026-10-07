@@ -187,21 +187,28 @@ export interface ResolveInput {
 
 type Usable = { tenant: Tenant; membership: Membership };
 
-async function usableMemberships(store: TenantStore, userId: string): Promise<Usable[]> {
-  const out: Usable[] = [];
-  for (const m of await store.membershipsOf(userId)) {
+async function memberships(store: TenantStore, userId: string): Promise<{ all: Membership[]; usable: Usable[] }> {
+  const all = await store.membershipsOf(userId);
+  const usable: Usable[] = [];
+  for (const m of all) {
     const tenant = await store.tenantById(m.tenantId);
-    if (tenant && tenant.status !== "suspended") out.push({ tenant, membership: m });
+    if (tenant && tenant.status !== "suspended") usable.push({ tenant, membership: m });
   }
-  return out;
+  return { all, usable };
 }
 
-/** Why `slug` cannot be used by this user, or null when it can. */
-async function check(store: TenantStore, slug: string, usable: Usable[]): Promise<{ ok: Usable } | { why: FallbackReason }> {
+/**
+ * Why `slug` cannot be used by this user. «Suspended» is only said to a
+ * MEMBER of that tenant — to anyone else a suspended tenant is simply one they
+ * are not a member of, so its existence is not revealed.
+ */
+async function check(store: TenantStore, slug: string, m: { all: Membership[]; usable: Usable[] }): Promise<{ ok: Usable } | { why: FallbackReason }> {
   const tenant = await store.tenantBySlug(slug);
   if (!tenant) return { why: "not_found" };
+  const isMember = m.all.some((x) => x.tenantId === tenant.id);
+  if (!isMember) return { why: "not_member" };
   if (tenant.status === "suspended") return { why: "suspended" };
-  const hit = usable.find((u) => u.tenant.id === tenant.id);
+  const hit = m.usable.find((u) => u.tenant.id === tenant.id);
   return hit ? { ok: hit } : { why: "not_member" };
 }
 
@@ -211,10 +218,11 @@ async function check(store: TenantStore, slug: string, usable: Usable[]): Promis
  */
 export async function resolveActiveTenant(input: ResolveInput): Promise<ActiveTenant> {
   const { store, userId } = input;
-  const usable = await usableMemberships(store, userId);
+  const ms = await memberships(store, userId);
+  const usable = ms.usable;
 
   if (input.requested) {
-    const r = await check(store, input.requested, usable);
+    const r = await check(store, input.requested, ms);
     if ("ok" in r) return { ...r.ok, fellBack: false };
     if (r.why === "not_found") throw new TenantNotFound(input.requested);
     if (r.why === "suspended") throw new TenantSuspended(input.requested);
@@ -223,7 +231,7 @@ export async function resolveActiveTenant(input: ResolveInput): Promise<ActiveTe
 
   let reason: FallbackReason | undefined;
   if (input.preferred) {
-    const r = await check(store, input.preferred, usable);
+    const r = await check(store, input.preferred, ms);
     if ("ok" in r) return { ...r.ok, fellBack: false };
     reason = r.why;
   }
@@ -339,6 +347,16 @@ export async function acceptInvite(input: AcceptInviteInput): Promise<Membership
   }
   await store.addMembership(membership);
   return membership;
+}
+
+/**
+ * Revoke an invitation that has not been used yet. Pass the stored invite (the
+ * app lists its own invites); an accept after this is refused with `revoked`.
+ */
+export async function revokeInvite(input: { store: TenantStore; invite: StoredInvite; now?: number }): Promise<StoredInvite> {
+  const revoked = { ...input.invite, revokedAt: input.now ?? Date.now() };
+  await input.store.saveInvite(revoked);
+  return revoked;
 }
 
 // ── Role checks (RBAC) ─────────────────────────────────────────────────────

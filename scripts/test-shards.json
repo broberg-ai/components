@@ -47,7 +47,7 @@
         "@broberg/notify": 4,
         "@broberg/speech-dictionary": 7,
         "@broberg/sso": 78,
-        "@broberg/tenant": 19
+        "@broberg/tenant": 27
       }
     },
     {

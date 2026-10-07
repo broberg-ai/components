@@ -855,6 +855,9 @@ importers:
       '@types/node':
         specifier: ^22.20.3
         version: 22.20.3
+      hono:
+        specifier: ^4
+        version: 4.12.25
       tsup:
         specifier: ^8
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)

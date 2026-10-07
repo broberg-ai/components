@@ -11,6 +11,7 @@ import {
   InviteRefused,
   memoryTenantStore,
   resolveActiveTenant,
+  revokeInvite,
   TenantChoiceRequired,
   TenantForbidden,
   TenantNoMembership,
@@ -164,6 +165,12 @@ describe.each(STORES)("resolveActiveTenant — %s", (_name, make) => {
     await expect(resolveActiveTenant({ store, userId: "u1", pickDefault: () => ({ tenant: B, membership: { userId: "u1", tenantId: B.id, role: "admin" } }) })).rejects.toBeInstanceOf(TenantChoiceRequired);
   });
 
+  test("a suspended tenant is only called suspended to its MEMBERS — to anyone else it is not_member", async () => {
+    const store = make(seed());
+    await expect(resolveActiveTenant({ store, userId: "u1", requested: "sleepy" })).rejects.toBeInstanceOf(TenantNotMember);
+    await expect(resolveActiveTenant({ store, userId: "u3", requested: "sleepy" })).rejects.toBeInstanceOf(TenantSuspended);
+  });
+
   test("no usable membership (only a suspended tenant) → TenantNoMembership", async () => {
     const store = make(seed());
     await expect(resolveActiveTenant({ store, userId: "u3" })).rejects.toBeInstanceOf(TenantNoMembership);
@@ -220,6 +227,14 @@ describe.each(STORES)("invitations — %s", (_name, make) => {
     await store.saveInvite({ ...invite, role: "owner" });
     await expect(acceptInvite({ store, token, user: { id: "a", email: "a@b.dk" }, invitableRoles: ROLES, now: T0 + 1 })).rejects.toBeInstanceOf(InviteRefused);
     expect(await store.membershipsOf("a")).toEqual([]);
+  });
+
+  test("a revoked invitation is refused and grants nothing", async () => {
+    const store = fresh();
+    const { invite, token } = await createInvite({ store, tenantId: A.id, email: "r@x.dk", role: "member", invitableRoles: ROLES, now: T0 });
+    await revokeInvite({ store, invite, now: T0 + 1 });
+    await expect(acceptInvite({ store, token, user: { id: "r", email: "r@x.dk" }, invitableRoles: ROLES, now: T0 + 2 })).rejects.toMatchObject({ reason: "revoked" });
+    expect(await store.membershipsOf("r")).toEqual([]);
   });
 
   test("an invitation to a suspended tenant cannot be created", async () => {

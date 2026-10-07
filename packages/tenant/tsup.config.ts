@@ -9,4 +9,12 @@ export default defineConfig([
     sourcemap: true,
     treeshake: true,
   },
+  {
+    entry: { hono: "src/hono.ts" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    external: ["hono"],
+  },
 ]);

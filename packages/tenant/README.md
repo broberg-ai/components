@@ -85,3 +85,39 @@ interface TenantStore {
 - **How tenant data is isolated**: that is your app's decision.
 - **Plans, limits, billing**: these are specific to each product.
 - **Levels below the organisation** (site, project, unit): yours. Your store derives the organisation-level membership from them.
+
+## Hono (`@broberg/tenant/hono`)
+
+Every refusal is JSON with a status, never a redirect, because a fetch cannot follow a redirect to a login page.
+
+```ts
+import { tenantMiddleware, requireCapability, tenantRoutes, getTenant } from "@broberg/tenant/hono";
+import { getSession } from "@broberg/sso/hono";
+
+const user = (c) => { const s = getSession(c); return s ? { id: s.sub, email: s.email ?? "" } : null; };
+
+app.use("/api/t/:tenant/*", sso.attach, tenantMiddleware({
+  store, user,
+  requested: (c) => c.req.param("tenant"),          // strict
+  preferred: (c) => getCookie(c, "active-tenant"),  // may fall back
+  onFellBack: (c) => deleteCookie(c, "active-tenant"),
+}));
+app.get("/api/t/:tenant/team", requireCapability(policy, "team:manage"), handler);
+app.route("/api/t/:tenant", tenantRoutes({
+  store, user, invitableRoles: ["member", "admin"],
+  invite: { policy, action: "team:manage", deliverInvite: ({ to, token, tenant }) => mail.send(/* link with token */) },
+}));
+app.route("/api/me", tenantRoutes({ store, user, invitableRoles: ["member", "admin"] })); // GET /memberships, POST /invites/accept
+```
+
+| situation | answer |
+|---|---|
+| no signed-in user | `401 {"error":"unauthenticated"}` |
+| a tenant that is not hers, **whether or not it exists** | `404 {"error":"tenant_not_found"}`. It is the same answer either way, so slugs cannot be enumerated. |
+| her tenant, suspended | `403 {"error":"tenant_suspended"}` (only ever said to a member) |
+| several memberships, nothing says which | `409 {"error":"tenant_choice_required","count":n}` |
+| role may not | `403 {"error":"forbidden","action":"…"}`, after your `onDenied` |
+| `requireCapability` without `tenantMiddleware` in front | `500 {"error":"no_tenant_context"}`: closed, never open |
+| invitation refusals | `invite_not_found` 404 · `invite_expired`/`invite_revoked` 410 · `invite_used` 409 · `invite_email_mismatch`/`invite_role_not_invitable` 403 |
+
+`POST /invites` exists only when you pass `invite.deliverInvite`. The token goes straight to your mail function and never back to the inviter's browser; the response is `{ inviteId }`. `revokeInvite({ store, invite })` in the core revokes an invitation that has not been used.
