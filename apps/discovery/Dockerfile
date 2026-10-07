@@ -27,6 +27,7 @@ RUN bun install
 COPY apps/discovery/server.ts ./server.ts
 COPY apps/discovery/enroll.ts ./enroll.ts
 COPY apps/discovery/speech-dictionary.ts ./speech-dictionary.ts
+COPY apps/discovery/webmcp-lab.ts ./webmcp-lab.ts
 
 # F039.5 owner-only session-key reset, run via `flyctl ssh` (no HTTP endpoint).
 COPY apps/discovery/scripts/reset-session-key.mjs ./scripts/reset-session-key.mjs
