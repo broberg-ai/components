@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-07T11:08:50.415Z",
- "repos_scanned": 69,
+ "scanned_at": "2026-10-08T11:26:30.881Z",
+ "repos_scanned": 70,
  "repos_failed": 0,
- "manifests_read": 232,
+ "manifests_read": 241,
  "manifests_unreadable": 0,
- "edges": 253,
+ "edges": 263,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -40,7 +40,7 @@
     ],
     "@broberg/app-shell": [
      {
-      "range": "0.6.0",
+      "range": "0.8.0",
       "field": "dependencies",
       "at": "starters/lean/package.json"
      }
@@ -82,7 +82,14 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.11.0",
+      "range": "0.12.1",
+      "field": "dependencies",
+      "at": "starters/lean/package.json"
+     }
+    ],
+    "@broberg/tenant": [
+     {
+      "range": "0.2.0",
       "field": "dependencies",
       "at": "starters/lean/package.json"
      }
@@ -556,12 +563,12 @@
     ],
     "@broberg/secret-scan": [
      {
-      "range": "0.11.1",
+      "range": "0.14.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "0.11.1",
+      "range": "0.14.0",
       "field": "dependencies",
       "at": "packages/mcp-tools/package.json"
      }
@@ -1309,7 +1316,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.11.0",
+      "range": "0.12.1",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1440,6 +1447,121 @@
    "deps": {}
   },
   "broberg-ai/scout": {
+   "branch": "main",
+   "manifests": 9,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.54.1",
+      "field": "dependencies",
+      "at": "apps/gateway/package.json"
+     }
+    ],
+    "@broberg/config": [
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "apps/gateway/package.json"
+     },
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "packages/shared/package.json"
+     }
+    ],
+    "@broberg/cron": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/gateway/package.json"
+     }
+    ],
+    "@broberg/db-sdk": [
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "apps/gateway/package.json"
+     },
+     {
+      "range": "^0.2.0",
+      "field": "devDependencies",
+      "at": "packages/curator/package.json"
+     },
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "packages/db/package.json"
+     },
+     {
+      "range": "^0.2.0",
+      "field": "devDependencies",
+      "at": "packages/guard/package.json"
+     },
+     {
+      "range": "^0.2.0",
+      "field": "devDependencies",
+      "at": "packages/memory/package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "^0.12.1",
+      "field": "dependencies",
+      "at": "apps/gateway/package.json"
+     },
+     {
+      "range": "^0.12.1",
+      "field": "devDependencies",
+      "at": "apps/worker/package.json"
+     }
+    ],
+    "@broberg/tenant": [
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "apps/gateway/package.json"
+     },
+     {
+      "range": "^0.2.0",
+      "field": "dependencies",
+      "at": "packages/db/package.json"
+     }
+    ],
+    "@broberg/apikey": [
+     {
+      "range": "0.3.1",
+      "field": "dependencies",
+      "at": "packages/db/package.json"
+     }
+    ],
+    "@broberg/event-log": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "packages/db/package.json"
+     },
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "packages/guard/package.json"
+     }
+    ],
+    "@broberg/secret-scan": [
+     {
+      "range": "0.13.1",
+      "field": "dependencies",
+      "at": "packages/db/package.json"
+     },
+     {
+      "range": "0.13.1",
+      "field": "dependencies",
+      "at": "packages/memory/package.json"
+     }
+    ]
+   }
+  },
+  "broberg-ai/scout-skills": {
    "branch": "main",
    "manifests": 0,
    "unreadable": 0,
@@ -1664,7 +1786,7 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.37.3",
+      "range": "0.54.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
