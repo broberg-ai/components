@@ -382,7 +382,7 @@ function invalidClientHint(error: string | undefined, weSentASecret: boolean): s
  * A guard you cannot see is a guard you cannot keep. Now jwtVerify refuses
  * first, and there is a test that fails if this list is widened.
  */
-const ALLOWED_ALGS = [
+export const ALLOWED_ALGS = [
   // FIRST, because it is what Broberg ID actually signs with. Measured on the
   // live issuer 2026-09-20:
   //   /jwks      kid=Iodh… kty=OKP alg=EdDSA crv=Ed25519

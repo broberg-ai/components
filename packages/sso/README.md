@@ -524,3 +524,31 @@ three codes back, so it can say *"your login expired, try again"*. The price is
 the one bit above, for anyone with a found cookie. Fine for an internal app behind
 a VPN; think twice on the open internet.
 
+
+## Trusting another service — BID tickets (since 0.13.0)
+
+One service proves who it is to another with a short-lived **ticket** from Broberg ID (a JWT signed with BID's keys). The receiver checks it locally against BID's *public* keys — no shared secret anywhere. Format: broberg-id `docs/features/F087.1-identitetsmodel.md` §3 (draft until the organisation question is settled; only `org`'s mapping would move).
+
+```ts
+import { createTicketVerifier, JwksUnavailableError, SsoError } from "@broberg/sso";
+
+const tickets = createTicketVerifier({
+  issuer: "https://id.broberg.ai",
+  audience: "https://discovery.broberg.ai", // THIS service's own URL
+  warmUp: true,
+});
+
+try {
+  const who = await tickets.verify(bearer, { scope: "discovery:read-fleet" });
+  // { principal: "svc-trail", type: "service", clientId, org, act, scopes, exp, jti }
+} catch (e) {
+  if (e instanceof JwksUnavailableError) return c.text("try again", 503); // could not ask BID
+  if (e instanceof SsoError) return c.text("forbidden", 401);            // the ticket is not acceptable
+  throw e;
+}
+```
+
+- **Checked:** signature against BID's key set (same algorithm allowlist as ID tokens, EdDSA first), `iss`, `aud` = your audience, `exp`/`iat` with 30 s skew, a `jti`, a known `principal_type` (human | service | agent), every scope you ask for, and a lifetime no longer than 15 minutes (BID issues 5 min for services, 15 for agents).
+- **Never accepted as a ticket:** an ID token or a logout token, even though BID signed both.
+- **BID briefly down:** a key already in the cache still verifies, with no network call. An unknown key while BID is down throws `JwksUnavailableError` — answer 503, do not reject the caller.
+- Not a login client: a service that only receives tickets needs no `client_id`, no redirect and no session.

@@ -36,6 +36,14 @@ export {
 } from "./client.js";
 
 export {
+  createTicketVerifier,
+  type TicketVerifier,
+  type TicketVerifierOptions,
+  type TicketPrincipal,
+  type PrincipalType,
+} from "./ticket.js";
+
+export {
   createJwksCache,
   JwksError,
   JwksUnavailableError,
