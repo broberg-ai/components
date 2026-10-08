@@ -12,6 +12,8 @@
 .bdt-root {
   --bdt-radius: var(--radius, 8px);
   display: flex; flex-direction: column; gap: 12px;
+  /* F094.5: nothing in the table may push its parent wider (D-55a2af). */
+  max-width: 100%; min-width: 0;
   color: var(--fg);
   font-size: 14px;
 }
@@ -22,7 +24,7 @@
 .bdt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ── toolbar ── */
-.bdt-toolbar { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.bdt-toolbar { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; min-width: 0; }
 .bdt-search {
   flex: 0 1 320px; min-width: 0; height: 36px; padding: 0 12px;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--bdt-radius);
@@ -99,7 +101,9 @@
 .bdt-status-error .bdt-icon { color: var(--danger); }
 
 /* ── footer ── */
-.bdt-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bdt-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; min-width: 0; }
 .bdt-selected { color: var(--fg-muted); }
-.bdt-pager { display: flex; align-items: center; gap: 8px; }
+/* F094.5: at 393px the pager was 420px wide and pushed the page 27px sideways
+ * (appkit, Lens run f187e0e1). It wraps now: the four buttons go to the next line. */
+.bdt-pager { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .bdt-label { color: var(--fg-muted); white-space: nowrap; }

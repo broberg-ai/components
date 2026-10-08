@@ -131,3 +131,16 @@ describe("package-wide guards", () => {
     expect(src.match(/<(select|dialog|option)[\s>]/g) ?? []).toEqual([]);
   });
 });
+
+describe("F094.5 — nothing in the table pushes a phone page sideways (D-55a2af)", () => {
+  // happy-dom has no layout, so the guard reads the rules the browser will apply.
+  // Measured by appkit with Lens at 393px (run f187e0e1): the pager was 420px wide.
+  const css = readFileSync(join(__dirname, "../css/data-table.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = (sel: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => m[1].trim() === sel).map((m) => m[2]).join(";");
+  it.each([".bdt-pager", ".bdt-footer", ".bdt-toolbar"])("%s wraps and may shrink", (sel) => {
+    expect([sel, /flex-wrap:\s*wrap/.test(rule(sel)), /min-width:\s*0/.test(rule(sel))]).toEqual([sel, true, true]);
+  });
+  it(".bdt-root cannot grow past its parent", () => {
+    expect([/max-width:\s*100%/.test(rule(".bdt-root")), /min-width:\s*0/.test(rule(".bdt-root"))]).toEqual([true, true]);
+  });
+});
