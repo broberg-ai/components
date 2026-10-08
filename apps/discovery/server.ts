@@ -5,6 +5,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
+import { ssoRoutes, getSession } from "@broberg/sso/hono";
+import { loadSsoConfig } from "@broberg/sso";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createLogger } from "@broberg/logger";
@@ -334,14 +336,42 @@ const OPEN_PATHS = new Set(["/health", "/robots.txt"]);
 // body + header), so the read gate does not double-check them.
 const OWN_AUTH = new Set(["POST /api/enroll", "POST /api/speech-dictionary/edit"]);
 export const isFleetPath = (path: string, method = "GET") => !OPEN_PATHS.has(path) && !OWN_AUTH.has(`${method} ${path}`) && method !== "OPTIONS";
+// F038.23 — people sign in with Broberg ID (OIDC, client "discovery", public +
+// PKCE). Only the subjects in DISCOVERY_ALLOWED_SUBS get in: a BID account alone
+// is not a fleet member. Ship dark: no BID_ISSUER → no sso, sessions-only.
+const sso = (() => {
+  try {
+    loadSsoConfig();
+    return ssoRoutes({ loginPath: "/auth" });
+  } catch {
+    return null;
+  }
+})();
+const ALLOWED_SUBS = new Set((process.env.DISCOVERY_ALLOWED_SUBS ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+if (sso) {
+  app.route("/auth", sso.app);
+  app.use("*", sso.attach);
+}
+const wantsHtml = (accept: string | undefined) => !!accept && accept.includes("text/html");
+
 app.use("*", async (c, next) => {
+  if (c.req.path.startsWith("/auth/")) return next();
   if (!isFleetPath(c.req.path, c.req.method)) return next();
   c.header("X-Robots-Tag", "noindex, nofollow");
+  const person = sso ? getSession(c) : null;
+  if (person) {
+    if (ALLOWED_SUBS.has(person.sub)) return next();
+    return c.text("Din Broberg ID-konto har ikke adgang til Discovery. Bed components om adgang.", 403);
+  }
   const session = c.req.header("x-discovery-session") ?? "";
   const key = c.req.header("x-enroll-key") ?? "";
   const store = await getEnrollStore();
   const bound = store && session && key.length >= 32 ? await store.sessionKeyHash(session) : null;
   if (!bound || bound !== createHash("sha256").update(key).digest("hex")) {
+    // A person in a browser goes to Broberg ID's login; a machine gets the JSON.
+    if (sso && !session && wantsHtml(c.req.header("accept"))) {
+      return c.redirect(`/auth/login?returnTo=${encodeURIComponent(c.req.path + (new URL(c.req.url).search || ""))}`, 302);
+    }
     return c.json({ error: "login_required — Discovery is not public. A fleet session sends headers x-discovery-session (its session name) and x-enroll-key (its DISCOVERY_ENROLL_KEY); a person signs in with Broberg ID (coming). No key yet? ask components to register your session." }, 401);
   }
   return next();

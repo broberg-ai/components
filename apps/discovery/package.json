@@ -13,7 +13,8 @@
     "@broberg/consent-cookie": "0.6.0",
     "@broberg/logger": "^0.1.1",
     "@libsql/client": "^0.17.3",
-    "hono": "^4.6.14"
+    "hono": "^4.6.14",
+    "@broberg/sso": "0.12.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

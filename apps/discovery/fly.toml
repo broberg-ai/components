@@ -8,6 +8,15 @@ primary_region = "arn"
 # the installed package branches on NODE_ENV.
 [env]
   NODE_ENV = "production"
+  # F038.23 — people sign in with Broberg ID (client "discovery", public + PKCE,
+  # registered by broberg-id 8/10). SSO_COOKIE_SECRET is a Fly secret.
+  BID_ISSUER = "https://id.broberg.ai"
+  SSO_CLIENT_ID = "discovery"
+  SSO_REDIRECT_URI = "https://discovery.broberg.ai/auth/callback"
+  SSO_POST_LOGOUT_REDIRECT_URI = "https://discovery.broberg.ai/"
+  # Broberg ID subjects allowed in (comma-separated). A BID account alone is not
+  # access. Christian's sub, as bound by pitch (F053) — never his email.
+  DISCOVERY_ALLOWED_SUBS = "i7luja5HkacmowtPnc9UVNnpa2IXoF2y"
 
 [http_service]
   internal_port = 8080

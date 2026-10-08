@@ -7,6 +7,7 @@
       "dependencies": {
         "@broberg/consent-cookie": "0.6.0",
         "@broberg/logger": "^0.1.1",
+        "@broberg/sso": "0.12.1",
         "@libsql/client": "^0.17.3",
         "hono": "^4.6.14",
       },
@@ -23,6 +24,8 @@
     "@broberg/logger": ["@broberg/logger@0.1.1", "", { "dependencies": { "@broberg/secret-scan": "^0.1.8" }, "peerDependencies": { "hono": "^4" }, "optionalPeers": ["hono"] }, "sha512-6JsYGfPLuO4CdKuEda+21722+JjsLTJ+cz5mE82FPiRzpbkcL75MGKrePiNv3+dHIG+ORmgcfO7GLFMUSrX9Ig=="],
 
     "@broberg/secret-scan": ["@broberg/secret-scan@0.1.8", "", {}, "sha512-tmtVyPvpDzQAkzpycOMhg0VOktsZY2gsOe6jpvazh97o1FyGAeyhUQOpRteKl5JlA7onLk1q/neqvM4qRT7U/w=="],
+
+    "@broberg/sso": ["@broberg/sso@0.12.1", "", { "dependencies": { "jose": "^6" }, "peerDependencies": { "hono": "^4" }, "optionalPeers": ["hono"] }, "sha512-834MLvKWsPG4lS7ka7bfk9QPAoHhBeRlbAaCL4S0ZpF89SBe5/2QhiA2I/OPirNuRRcqjk39fxReLAk/ac8BjQ=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.21.5", "", { "os": "aix", "cpu": "ppc64" }, "sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ=="],
 
@@ -195,6 +198,8 @@
     "fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
 
     "hono": ["hono@4.12.25", "", {}, "sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ=="],
+
+    "jose": ["jose@6.2.12", "", {}, "sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw=="],
 
     "js-base64": ["js-base64@3.7.8", "", {}, "sha512-hNngCeKxIUQiEUN3GPJOkz4wF/YvdUdbNL9hsBcMQTkKzboD7T/q3OYOuuPZLUE6dBxSGpwhk5mwuDud7JVAow=="],
 
