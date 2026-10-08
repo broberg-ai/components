@@ -20,7 +20,7 @@ One element works the same in Next, Vite+Preact and plain HTML. No site copies i
 | `consent-mode` | Send Google Consent Mode v2 signals. |
 | `categories` | The OPTIONAL categories your site really uses, e.g. `categories="analytics"`. The banner text and the settings panel then name only those. `categories=""` = only necessary cookies (the text says you do not use statistics or marketing). Absent = both, as before 0.5.0. **Set it** — the default text promises statistics and marketing, which is false on a site without them. |
 | `reopen-position` | `bottom-left` (default), `bottom-right`, `top-left` or `top-right` (`left`/`right` from 0.2.0 still mean the bottom corners). The floating «Cookies» handle WILL cover whatever you have in that corner. Move it, or… |
-| `hide-reopen` | …drop it entirely when it disrupts your design. Then the site MUST reopen the dialog another way: any element with `data-broberg-consent-open`, e.g. on the privacy page. Some way back is required by law. |
+| `hide-reopen` | …drop it entirely when it disrupts your design. Then the site MUST reopen the dialog another way: any element with `data-broberg-consent-open`, e.g. on the privacy page, or a menu item that calls `el.open()`. Some way back is required by law. Since 0.6.1 it can be set or removed at any time — e.g. hidden below your own mobile breakpoint — and only the handle reacts; an open panel keeps its focus and unsaved choices. |
 
 **No floating handle — reopen from the privacy page instead (since 0.4.0 documented; works since 0.2.0):**
 

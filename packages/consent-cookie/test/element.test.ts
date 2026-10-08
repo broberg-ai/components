@@ -370,3 +370,38 @@ describe("the text only claims what the site uses (F014.16)", () => {
     expect(body(el)).toBe("Egen tekst.");
   });
 });
+
+// F014.20 — appkit toggles hide-reopen at its own breakpoint after mount.
+describe("hide-reopen can change after mount (F014.20)", () => {
+  it("setting and removing it hides and shows the handle at once", () => {
+    const el = mount();
+    $(el, "consent-accept-all")!.click();
+    expect(visible(el, "consent-reopen")).toBe(true);
+    el.setAttribute("hide-reopen", "");
+    expect($(el, "consent-reopen")!.hasAttribute("hidden")).toBe(true);
+    el.removeAttribute("hide-reopen");
+    expect($(el, "consent-reopen")!.hasAttribute("hidden")).toBe(false);
+  });
+
+  it("removing it before a decision does not show the handle over the banner", () => {
+    const el = mount({ "hide-reopen": "" });
+    el.removeAttribute("hide-reopen");
+    expect(visible(el, "consent-banner")).toBe(true);
+    expect($(el, "consent-reopen")!.hasAttribute("hidden")).toBe(true);
+  });
+
+  it("an open panel keeps its focus and unsaved switches while it flips", () => {
+    const el = mount();
+    $(el, "consent-customize")!.click();
+    const sw = $(el, "consent-toggle-analytics")!;
+    sw.click();
+    sw.focus();
+    el.setAttribute("hide-reopen", "");
+    el.removeAttribute("hide-reopen");
+    expect($(el, "consent-toggle-analytics")).toBe(sw); // same node, not re-rendered
+    expect(el.shadowRoot!.activeElement).toBe(sw);
+    expect(sw.getAttribute("aria-checked")).toBe("true");
+    expect(visible(el, "consent-panel")).toBe(true);
+    expect($(el, "consent-reopen")!.hasAttribute("hidden")).toBe(true);
+  });
+});

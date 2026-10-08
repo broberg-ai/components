@@ -289,7 +289,7 @@ const Base: typeof HTMLElement =
 
 export class BrobergConsentElement extends Base {
   static get observedAttributes(): string[] {
-    return ["lang"];
+    return ["lang", "hide-reopen"];
   }
 
   /** The headless manager. Read consent with `el.manager.has("analytics")`. */
@@ -358,8 +358,22 @@ export class BrobergConsentElement extends Base {
     if (active === this) active = null;
   }
 
-  attributeChangedCallback(): void {
-    if (this.root) this.render();
+  attributeChangedCallback(name: string): void {
+    if (!this.root) return;
+    // F014.20 — an app toggles hide-reopen at its own breakpoint (appkit: hidden on
+    // phones, the choice lives in the user menu). Only the handle's visibility moves;
+    // a full render would rebuild the shadow DOM and take focus and the unsaved
+    // switches from a panel that happens to be open when the phone is turned.
+    if (name === "hide-reopen") {
+      const handle = this.root.querySelector<HTMLElement>('[data-testid="consent-reopen"]');
+      if (handle) handle.toggleAttribute("hidden", !this.reopenVisible());
+      return;
+    }
+    this.render();
+  }
+
+  private reopenVisible(): boolean {
+    return this.view === "closed" && !this.manager.needsBanner() && !this.hasAttribute("hide-reopen");
   }
 
   /** Open the settings panel (what the reopen handle and footer links do). */
@@ -430,9 +444,7 @@ export class BrobergConsentElement extends Base {
 
   private render(): void {
     const t = this.t;
-    const hideReopen = this.hasAttribute("hide-reopen");
     const privacy = this.getAttribute("privacy-href");
-    const decided = !this.manager.needsBanner();
     const rec = this.manager.getRecord();
     const version = esc(this.getAttribute("policy-version") ?? "");
 
@@ -472,7 +484,7 @@ export class BrobergConsentElement extends Base {
   </div>
 </div>
 <button class="reopen${reopenCorner(this.getAttribute("reopen-position"))}" data-act="open" data-testid="consent-reopen" aria-label="${esc(t.panelTitle)}" ${
-      this.view === "closed" && decided && !hideReopen ? "" : "hidden"
+      this.reopenVisible() ? "" : "hidden"
     }>${COOKIE_SVG}${esc(t.reopen)}</button>`;
 
     this.root.querySelectorAll<HTMLElement>("[data-act]").forEach((b) => {
