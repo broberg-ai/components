@@ -140,6 +140,11 @@ describe("F094.5 — nothing in the table pushes a phone page sideways (D-55a2af
   it.each([".bdt-pager", ".bdt-footer", ".bdt-toolbar"])("%s wraps and may shrink", (sel) => {
     expect([sel, /flex-wrap:\s*wrap/.test(rule(sel)), /min-width:\s*0/.test(rule(sel))]).toEqual([sel, true, true]);
   });
+  it("the sr-only label cannot escape the scroll frame (appkit, Lens run 38712c01: it stretched the body to 767px)", () => {
+    expect(/position:\s*relative/.test(rule(".bdt-scroll"))).toBe(true);
+    const sr = rule(".bdt-sr");
+    expect([/position:\s*absolute/.test(sr), /clip-path:\s*inset\(50%\)/.test(sr), /top:\s*0/.test(sr), /left:\s*0/.test(sr)]).toEqual([true, true, true, true]);
+  });
   it(".bdt-root cannot grow past its parent", () => {
     expect([/max-width:\s*100%/.test(rule(".bdt-root")), /min-width:\s*0/.test(rule(".bdt-root"))]).toEqual([true, true]);
   });

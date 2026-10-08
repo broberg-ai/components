@@ -21,7 +21,14 @@
 :where(.bdt-root button, .bdt-root input) { font: inherit; color: inherit; }
 
 .bdt-icon { flex: none; }
-.bdt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* F094.5: the classic sr-only box, clipped to nothing. It used to be absolute
+ * with NO positioned ancestor, so its containing block was the page: it sat at
+ * x=766 at 393px and stretched the body sideways (appkit, Lens run 38712c01).
+ * .bdt-scroll is now position:relative, so it stays inside the clipped frame. */
+.bdt-sr {
+  position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
 
 /* ── toolbar ── */
 .bdt-toolbar { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; min-width: 0; }
@@ -68,7 +75,7 @@
 .bdt-separator { height: 1px; margin: 4px -4px; background: var(--border); }
 
 /* ── table ── */
-.bdt-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--bdt-radius); }
+.bdt-scroll { position: relative; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--bdt-radius); }
 .bdt-table { width: 100%; border-collapse: collapse; }
 .bdt-th, .bdt-td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .bdt-th { height: 40px; font-weight: 500; color: var(--fg-muted); background: var(--surface-header, var(--bg-sunk)); text-align: left; }
