@@ -180,6 +180,35 @@ describe("AC1 — keyboard, with a live region", () => {
   });
 });
 
+describe("leaving a lifted row", () => {
+  it("focus going elsewhere puts it back and calls nothing", async () => {
+    const onReorder = setup();
+    const h = tid("row-drag-2");
+    h.focus();
+    fireEvent.keyDown(h, { key: " " });
+    fireEvent.keyDown(tid("row-drag-2"), { key: "ArrowDown" });
+    tid("data-table-search").focus();
+    fireEvent.blur(tid("row-drag-2"));
+    await act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+    expect(shownOrder()).toEqual(["1", "2", "3", "4"]);
+    expect(tid("data-table-live").textContent).toBe(DEFAULT_LABELS.dragCancelled);
+    expect(onReorder).not.toHaveBeenCalled();
+  });
+
+  it("a blur that is followed by refocus (the row's node being moved) keeps the move", async () => {
+    const onReorder = setup();
+    const h = tid("row-drag-2");
+    h.focus();
+    fireEvent.keyDown(h, { key: " " });
+    fireEvent.blur(h);
+    h.focus();
+    await act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+    fireEvent.keyDown(tid("row-drag-2"), { key: "ArrowDown" });
+    fireEvent.keyDown(tid("row-drag-2"), { key: " " });
+    expect(onReorder.mock.calls[0][0]).toEqual(["1", "3", "2", "4"]);
+  });
+});
+
 describe("AC2 — off while sorted or filtered, and the handle says why", () => {
   const assertOff = (onReorder: ReturnType<typeof vi.fn>, id: string) => {
     const h = tid(`row-drag-${id}`);

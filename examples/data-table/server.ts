@@ -15,6 +15,7 @@ const html = `<!doctype html><html lang="da"><head><meta charset="utf-8"><meta n
 
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 5194),
+  hostname: "127.0.0.1", // an example page, not something to serve to the LAN
   fetch(req) {
     const path = new URL(req.url).pathname;
     const file = files.get(path);

@@ -450,8 +450,16 @@ export function DataTable<T>(props: DataTableProps<T>) {
           setAnnounce(L.dragMoved(over + 1, pageTotal));
         }
       }}
-      // Tabbing away ends the move. A blur with no next element is the re-insert above, not the user leaving.
-      onBlur={(e) => { const d = dragRef.current; if (d?.via === "keyboard" && d.id === id && e.relatedTarget) cancel(); }}
+      // Leaving the handle ends the move — by Tab or by a click elsewhere. The re-insert
+      // above also blurs it, but refocuses before the next task, so check after one.
+      onBlur={() => {
+        setTimeout(() => {
+          const d = dragRef.current;
+          if (d?.via !== "keyboard" || d.id !== id) return;
+          const now = rowsRef.current?.ownerDocument.activeElement;
+          if (!(now instanceof HTMLElement) || !now.classList.contains("bdt-drag-handle") || now.closest("[data-reorder-id]")?.getAttribute("data-reorder-id") !== id) cancel();
+        }, 0);
+      }}
     >
       <Icon d={ICON.grip} />
     </button>
