@@ -236,6 +236,34 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)
 
+  packages/data-table:
+    dependencies:
+      '@broberg/ui-controls-core':
+        specifier: ^0.2.3
+        version: 0.2.3
+    devDependencies:
+      '@broberg/theme':
+        specifier: workspace:*
+        version: link:../theme
+      '@testing-library/preact':
+        specifier: ^3.2.3
+        version: 3.2.4(preact@10.29.2)
+      happy-dom:
+        specifier: ^15.0.0
+        version: 15.11.7
+      preact:
+        specifier: ^10.23.0
+        version: 10.29.2
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)
+
   packages/deploy-core:
     devDependencies:
       '@types/node':
@@ -1100,6 +1128,9 @@ packages:
 
   '@broberg/ui-controls-core@0.1.1':
     resolution: {integrity: sha512-Uy/P5X4bJfEnIhxEY+KRsBdRux4Wjbinv392196Mihu52esqpkmpISJBtFU7u1MS31Bq1yxNG2ILWwhlaYYCRg==}
+
+  '@broberg/ui-controls-core@0.2.3':
+    resolution: {integrity: sha512-EBPFtl3/pGqzpSOa/kopW9exJIcmPpFUqPXNDzco6MK5bxTqK1nJF6kAd3mDmiSEegqxDRD2F9PNy+cLS1il1w==}
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -4180,6 +4211,8 @@ snapshots:
   '@broberg/secret-scan@0.9.3': {}
 
   '@broberg/ui-controls-core@0.1.1': {}
+
+  '@broberg/ui-controls-core@0.2.3': {}
 
   '@csstools/color-helpers@5.1.0': {}
 

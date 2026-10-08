@@ -143,6 +143,7 @@
       "weight_seconds": 215.9,
       "packages": [
         "@broberg/bodymap",
+        "@broberg/data-table",
         "@broberg/device-stats",
         "@broberg/mail-core",
         "@broberg/secret-scan",
@@ -151,6 +152,7 @@
       ],
       "min_tests": {
         "@broberg/bodymap": 67,
+        "@broberg/data-table": 14,
         "@broberg/device-stats": 55,
         "@broberg/mail-core": 70,
         "@broberg/secret-scan": 140,

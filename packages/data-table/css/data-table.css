@@ -1,0 +1,102 @@
+/* @broberg/data-table — css/data-table.css (F094.1)
+ *
+ *   @import "@broberg/theme/css/palettes.css";
+ *   @import "@broberg/data-table/css/data-table.css";
+ *
+ * Every colour is a @broberg/theme token, so all palettes and light/dark work
+ * with no extra CSS. The only literals are shadows, as rgba. Classes carry a
+ * bdt- prefix so they cannot collide with an app's own during a migration.
+ * Mobile cards are F094.3; this file is the desktop table.
+ */
+
+.bdt-root {
+  --bdt-radius: var(--radius, 8px);
+  display: flex; flex-direction: column; gap: 12px;
+  color: var(--fg);
+  font-size: 14px;
+}
+.bdt-root *, .bdt-root *::before, .bdt-root *::after { box-sizing: border-box; }
+:where(.bdt-root button, .bdt-root input) { font: inherit; color: inherit; }
+
+.bdt-icon { flex: none; }
+.bdt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── toolbar ── */
+.bdt-toolbar { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.bdt-search {
+  flex: 0 1 320px; min-width: 0; height: 36px; padding: 0 12px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--bdt-radius);
+}
+.bdt-search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.bdt-button, .bdt-cell-select, .bdt-icon-button {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--bdt-radius);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.bdt-button { height: 36px; padding: 0 12px; }
+.bdt-icon-button { width: 32px; height: 32px; justify-content: center; padding: 0; }
+.bdt-cell-select { height: 30px; padding: 0 8px; min-width: 120px; justify-content: space-between; }
+.bdt-button:hover, .bdt-cell-select:hover, .bdt-icon-button:hover:not(:disabled) { background: var(--hover); }
+.bdt-button:active, .bdt-cell-select:active, .bdt-icon-button:active:not(:disabled) { background: var(--active); }
+.bdt-button:focus-visible, .bdt-cell-select:focus-visible, .bdt-icon-button:focus-visible, .bdt-sort:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.bdt-icon-button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── dropdown panel (menu + listbox) ── */
+.bdt-dropdown { position: relative; display: inline-block; }
+.bdt-panel {
+  position: absolute; top: calc(100% + 4px); z-index: 40; min-width: 180px; max-height: 320px; overflow-y: auto;
+  padding: 4px; background: var(--bg-card, var(--bg)); border: 1px solid var(--border); border-radius: var(--bdt-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+.bdt-panel-start { left: 0; }
+.bdt-panel-end { right: 0; }
+.bdt-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: calc(var(--bdt-radius) - 2px);
+  cursor: pointer; white-space: nowrap;
+}
+.bdt-item.is-highlighted { background: var(--hover); }
+.bdt-item.is-destructive { color: var(--danger); }
+.bdt-check { display: inline-flex; width: 16px; }
+.bdt-separator { height: 1px; margin: 4px -4px; background: var(--border); }
+
+/* ── table ── */
+.bdt-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--bdt-radius); }
+.bdt-table { width: 100%; border-collapse: collapse; }
+.bdt-th, .bdt-td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.bdt-th { height: 40px; font-weight: 500; color: var(--fg-muted); background: var(--surface-header, var(--bg-sunk)); text-align: left; }
+.bdt-table tbody tr:last-child .bdt-td { border-bottom: 0; }
+.bdt-table tbody tr:hover { background: var(--hover); }
+.bdt-table tbody tr.is-selected { background: var(--accent-soft); }
+.bdt-align-right { text-align: right; }
+.bdt-th.bdt-align-right .bdt-sort { margin-left: auto; }
+.bdt-num { font-variant-numeric: tabular-nums; }
+.bdt-col-select { width: 40px; }
+.bdt-col-actions { width: 48px; text-align: right; }
+.bdt-empty { padding: 32px 12px; text-align: center; color: var(--fg-muted); }
+
+.bdt-sort {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
+  background: none; border: 0; border-radius: calc(var(--bdt-radius) - 2px); cursor: pointer; font-weight: 500;
+}
+.bdt-sort:hover { background: var(--hover); color: var(--fg); }
+
+.bdt-checkbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+/* ── typed cells ── */
+.bdt-badge {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--fg-muted); font-size: 12px; white-space: nowrap;
+}
+.bdt-status { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted); white-space: nowrap; }
+.bdt-status-done .bdt-icon { color: var(--success); }
+.bdt-status-progress .bdt-icon { color: var(--accent); }
+.bdt-status-error .bdt-icon { color: var(--danger); }
+
+/* ── footer ── */
+.bdt-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bdt-selected { color: var(--fg-muted); }
+.bdt-pager { display: flex; align-items: center; gap: 8px; }
+.bdt-label { color: var(--fg-muted); white-space: nowrap; }
