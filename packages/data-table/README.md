@@ -2,7 +2,7 @@
 
 The fleet's data table for Stack B (Vite + Preact + Tailwind + `@broberg/theme`, no shadcn — D-7598d1). Built after shadcn's dashboard table, which Christian asked for as the standard way to show tables in Stack B apps.
 
-**0.1.0 is the desktop table (F094.1).** Drag handles (F094.2) and mobile cards (F094.3) follow; until F094.3 a narrow screen scrolls the table sideways inside its own frame.
+**0.2.0 adds the phone layout (F094.3).** Below 768px every row is a card: the first visible column is the card's title, the other visible columns are stacked as label + value, and the checkbox and ⋮ menu sit in the card's top. Search, select-all, «Tilpas kolonner» and the pager work the same over cards. Nothing scrolls sideways. **This changes what a phone renders** compared with 0.1.x (a table before, cards now). Each card has `data-testid="row-card-<id>"`. Sorting has no control on a phone yet (the headers are gone); drag handles are F094.2.
 
 ```ts
 import { DataTable, type Column } from "@broberg/data-table/preact";

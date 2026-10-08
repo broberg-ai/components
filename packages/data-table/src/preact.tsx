@@ -138,6 +138,21 @@ const STATUS_ICON: Record<StatusTone, string> = {
   error: "M12 8v4M12 16h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
 };
 
+// ── F094.3: below 768px every row is a card (same breakpoint as @broberg/app-shell) ──
+const MOBILE_QUERY = "(max-width: 767px)";
+function useIsMobile(): boolean {
+  const get = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(MOBILE_QUERY).matches;
+  const [mobile, setMobile] = useState(get);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const on = () => setMobile(mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
+  return mobile;
+}
+
 // ── one dropdown, used by every menu in the table ──
 interface MenuItem {
   key: string;
@@ -366,8 +381,35 @@ export function DataTable<T>(props: DataTableProps<T>) {
   const actions = props.rowActions ?? [];
   const colSpan = shown.length + (props.selectable ? 1 : 0) + (actions.length ? 1 : 0);
 
+  const rowMenu = (row: T, id: string) => (
+    <Dropdown
+      triggerTestId={`${p}-actions-${id}`}
+      triggerClass="bdt-icon-button"
+      triggerLabel={<Icon d={ICON.dots} />}
+      ariaLabel={L.rowActions}
+      role="menu"
+      align="end"
+      items={(() => {
+        const out: MenuItem[] = [];
+        let sep = false;
+        actions.forEach((a, i) => {
+          if (a === "separator") { sep = out.length > 0; return; }
+          out.push({ key: String(i), label: a.label, testId: `${p}-actions-${id}-${i}`, destructive: a.destructive, separatorBefore: sep });
+          sep = false;
+        });
+        return out;
+      })()}
+      onChoose={(key) => {
+        const a = actions[Number(key)];
+        if (a && a !== "separator") a.onSelect(row);
+      }}
+    />
+  );
+  const isMobile = useIsMobile();
+  const primary = shown[0];
+
   return (
-    <div class="bdt-root" data-testid={p}>
+    <div class={`bdt-root${isMobile ? " is-mobile" : ""}`} data-testid={p}>
       <div class="bdt-toolbar">
         {props.searchable !== false && (
           <input
@@ -397,6 +439,49 @@ export function DataTable<T>(props: DataTableProps<T>) {
         />
       </div>
 
+      {isMobile ? (
+        <div class="bdt-cards" data-testid={`${p}-cards`}>
+          {props.selectable && page.rows.length > 0 && (
+            <label class="bdt-cards-head">
+              <Checkbox state={selectionState(pageIds, selected)} label={L.selectAll} testId={`${p}-select-all`}
+                onToggle={() => updateSelection(toggleAll(pageIds, selected))} />
+              <span>{L.selectAll}</span>
+            </label>
+          )}
+          {page.rows.length === 0 ? (
+            <div class="bdt-empty" data-testid={`${p}-empty`}>{L.empty}</div>
+          ) : (
+            page.rows.map((row) => {
+              const id = props.getRowId(row);
+              const rest = shown.slice(1);
+              return (
+                <article key={id} class={`bdt-card${selected.has(id) ? " is-selected" : ""}`} data-testid={`row-card-${id}`}>
+                  <div class="bdt-card-top">
+                    {props.selectable && (
+                      <Checkbox state={selected.has(id) ? "all" : "none"} label={L.selectRow} testId={`${p}-select-${id}`}
+                        onToggle={() => updateSelection(toggleOne(id, selected))} />
+                    )}
+                    <div class="bdt-card-title" data-testid={`${p}-cell-${id}-${primary?.id}-td`}>
+                      {primary ? renderCell(primary, row, id) : null}
+                    </div>
+                    {actions.length > 0 && rowMenu(row, id)}
+                  </div>
+                  {rest.length > 0 && (
+                    <dl class="bdt-card-body">
+                      {rest.map((c) => (
+                        <div class="bdt-card-field" key={c.id}>
+                          <dt>{c.header}</dt>
+                          <dd class={c.cell === "number" ? "bdt-num" : undefined} data-testid={`${p}-cell-${id}-${c.id}-td`}>{renderCell(c, row, id)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </article>
+              );
+            })
+          )}
+        </div>
+      ) : (
       <div class="bdt-scroll">
         <table class="bdt-table">
           <thead>
@@ -453,28 +538,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
                     ))}
                     {actions.length > 0 && (
                       <td class="bdt-td bdt-col-actions">
-                        <Dropdown
-                          triggerTestId={`${p}-actions-${id}`}
-                          triggerClass="bdt-icon-button"
-                          triggerLabel={<Icon d={ICON.dots} />}
-                          ariaLabel={L.rowActions}
-                          role="menu"
-                          align="end"
-                          items={(() => {
-                            const out: MenuItem[] = [];
-                            let sep = false;
-                            actions.forEach((a, i) => {
-                              if (a === "separator") { sep = out.length > 0; return; }
-                              out.push({ key: String(i), label: a.label, testId: `${p}-actions-${id}-${i}`, destructive: a.destructive, separatorBefore: sep });
-                              sep = false;
-                            });
-                            return out;
-                          })()}
-                          onChoose={(key) => {
-                            const a = actions[Number(key)];
-                            if (a && a !== "separator") a.onSelect(row);
-                          }}
-                        />
+                        {rowMenu(row, id)}
                       </td>
                     )}
                   </tr>
@@ -484,6 +548,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
           </tbody>
         </table>
       </div>
+      )}
 
       <div class="bdt-footer">
         <div class="bdt-selected" data-testid={`${p}-selected-label`}>

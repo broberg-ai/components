@@ -114,3 +114,20 @@
  * (appkit, Lens run f187e0e1). It wraps now: the four buttons go to the next line. */
 .bdt-pager { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .bdt-label { color: var(--fg-muted); white-space: nowrap; }
+
+/* ── F094.3: below 768px every row is a card — no table, no sideways scroll ── */
+.bdt-cards { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bdt-cards-head { display: flex; align-items: center; gap: 8px; padding: 0 4px; color: var(--fg-muted); cursor: pointer; }
+.bdt-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px; min-width: 0;
+  background: var(--bg-card, var(--bg)); border: 1px solid var(--border); border-radius: var(--bdt-radius);
+}
+.bdt-card.is-selected { background: var(--accent-soft); }
+.bdt-card-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bdt-card-title { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.bdt-card-body { display: grid; grid-template-columns: minmax(0, 40%) minmax(0, 1fr); gap: 6px 12px; margin: 0; }
+.bdt-card-field { display: contents; }
+.bdt-card-field dt { color: var(--fg-muted); font-size: 13px; overflow-wrap: anywhere; }
+.bdt-card-field dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.bdt-card .bdt-cell-select { min-width: 0; max-width: 100%; }
+.bdt-root.is-mobile .bdt-empty { padding: 24px 12px; border: 1px solid var(--border); border-radius: var(--bdt-radius); }

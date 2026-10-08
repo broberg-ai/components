@@ -1,6 +1,6 @@
 {
   "name": "@broberg/data-table",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "The fleet's data table for Stack B (Preact, no shadcn): sorting, search, pagination, multi-select with an indeterminate select-all, remembered column visibility, a row ⋮-menu and typed cells (badge, status, number, select). Framework-free core + Preact component, styled on @broberg/theme tokens.",
   "type": "module",
   "license": "MIT",
