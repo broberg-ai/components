@@ -1,0 +1,13 @@
+{
+  "name": "data-table-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "bun run server.ts" },
+  "dependencies": {
+    "@broberg/app-shell": "workspace:*",
+    "@broberg/data-table": "workspace:*",
+    "@broberg/notifications": "workspace:*",
+    "@broberg/theme": "workspace:*",
+    "preact": "^10.23.0"
+  }
+}

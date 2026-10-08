@@ -29,6 +29,8 @@ const columns: Column<Doc>[] = [
 />
 ```
 
+**See it running:** `examples/data-table` rebuilds shadcn dashboard-01's table (tabs with counts via app-shell `PageTabs`, every cell type, the ⋮ menu) with invented data — `pnpm --filter data-table-example dev`, then open http://localhost:5194 (`PORT` to change). The example supplies the page padding and font itself: in an app those belong to the app, not the table.
+
 ## What it does
 
 | | |
