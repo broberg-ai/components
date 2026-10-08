@@ -391,3 +391,38 @@
 .bas-tenant__role { flex: none; font-size: 11.5px; color: var(--fg-muted); }
 .bas-tenant__note { margin: 0; padding: 10px 14px; font-size: 12.5px; color: var(--fg-muted); }
 .bas-tenant__note.is-error { color: var(--danger); }
+
+/* ── F092.13 confirm dialog ── */
+.bas-confirm-backdrop {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px;
+  background: rgba(0, 0, 0, .45);
+}
+.bas-confirm {
+  width: min(440px, 100%); padding: 20px; display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg-card, var(--bg)); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius, 8px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .24);
+}
+.bas-confirm__title { margin: 0; font-size: 17px; font-weight: 600; }
+.bas-confirm__body { color: var(--fg-muted); font-size: 14px; line-height: 1.5; }
+.bas-confirm__error { color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius, 8px); padding: 8px 10px; font-size: 13px; }
+.bas-confirm__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.bas-confirm__btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; cursor: pointer;
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius, 8px);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.bas-confirm__btn:hover:not(:disabled) { background: var(--hover); }
+.bas-confirm__btn:active:not(:disabled) { background: var(--active); }
+.bas-confirm__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bas-confirm__btn:disabled { opacity: .6; cursor: not-allowed; }
+.bas-confirm__btn.is-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.bas-confirm__btn.is-primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.bas-confirm__btn.is-danger { background: var(--danger-btn, var(--danger)); color: var(--accent-fg); border-color: var(--danger-btn, var(--danger)); }
+.bas-confirm__btn.is-danger:hover:not(:disabled) { background: var(--danger-btn, var(--danger)); filter: brightness(1.08); }
+.bas-confirm__spinner {
+  width: 14px; height: 14px; border-radius: 999px; border: 2px solid currentColor; border-right-color: transparent;
+  animation: bas-confirm-spin 700ms linear infinite;
+}
+@keyframes bas-confirm-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bas-confirm__spinner { animation: none; } }

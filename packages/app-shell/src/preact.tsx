@@ -1598,3 +1598,114 @@ export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch, roleLabel 
     </div>
   );
 }
+
+// ── F092.13 — ConfirmDialog ──────────────────────────────────────────────────
+// The fleet's confirm window, so no app reaches for window.confirm() or a
+// native <dialog> (D-4cd764). Built for appkit's «Slet» in a data-table row.
+//
+// Two choices that go beyond the obvious, both about the destructive case:
+//  · it opens with focus on CANCEL, the safe button, so a stray Enter does
+//    not delete anything;
+//  · while `busy`, neither Escape nor a click outside closes it. The request
+//    has already gone; a window that vanished would let the user believe they
+//    had cancelled a deletion that is in fact happening.
+export interface ConfirmDialogProps {
+  open: boolean;
+  title: ComponentChildren;
+  body?: ComponentChildren;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  /** Red confirm button, for an action that cannot be undone. */
+  destructive?: boolean;
+  /** The confirm action is running: buttons disabled, the window cannot be dismissed. */
+  busy?: boolean;
+  /** Shown inside the window; the window stays open so the user can retry or cancel. */
+  error?: ComponentChildren;
+  onConfirm: () => void;
+  onCancel: () => void;
+  /** Prefix for every data-testid. Default "confirm-dialog". */
+  testId?: string;
+}
+
+let confirmDialogSeq = 0;
+
+export function ConfirmDialog(p: ConfirmDialogProps) {
+  const t = p.testId ?? "confirm-dialog";
+  const panel = useRef<HTMLDivElement>(null);
+  const cancelBtn = useRef<HTMLButtonElement>(null);
+  const ids = useMemo(() => {
+    const n = ++confirmDialogSeq;
+    return { title: `bas-confirm-title-${n}`, body: `bas-confirm-body-${n}` };
+  }, []);
+  // Read through a ref so the key handler, registered once per open, sees the
+  // CURRENT busy/onCancel rather than the values from the moment it opened.
+  const live = useRef(p);
+  live.current = p;
+
+  useEffect(() => {
+    if (!p.open) return;
+    const before = document.activeElement as HTMLElement | null;
+    cancelBtn.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (!live.current.busy) live.current.onCancel();
+        return;
+      }
+      if (e.key !== "Tab" || !panel.current) return;
+      const focusable = [...panel.current.querySelectorAll<HTMLElement>("button:not([disabled])")];
+      if (focusable.length === 0) { e.preventDefault(); return; }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || !panel.current.contains(active))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (active === last || !panel.current.contains(active))) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (before && typeof before.focus === "function" && document.contains(before)) before.focus();
+    };
+  }, [p.open]);
+
+  if (!p.open) return null;
+  return (
+    <div
+      class="bas-confirm-backdrop"
+      data-testid={`${t}-backdrop`}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !p.busy) p.onCancel();
+      }}
+    >
+      <div
+        ref={panel}
+        class="bas-confirm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={ids.title}
+        aria-describedby={p.body ? ids.body : undefined}
+        aria-busy={p.busy ? "true" : undefined}
+        data-testid={t}
+      >
+        <h2 class="bas-confirm__title" id={ids.title} data-testid={`${t}-title`}>{p.title}</h2>
+        {p.body ? <div class="bas-confirm__body" id={ids.body} data-testid={`${t}-body`}>{p.body}</div> : null}
+        {p.error ? <div class="bas-confirm__error" role="alert" data-testid={`${t}-error`}>{p.error}</div> : null}
+        <div class="bas-confirm__actions">
+          <button ref={cancelBtn} type="button" class="bas-confirm__btn" disabled={p.busy} data-testid={`${t}-cancel`} onClick={() => p.onCancel()}>
+            {p.cancelLabel ?? "Annuller"}
+          </button>
+          <button
+            type="button"
+            class={`bas-confirm__btn is-primary${p.destructive ? " is-danger" : ""}${p.busy ? " is-busy" : ""}`}
+            disabled={p.busy}
+            data-testid={`${t}-confirm`}
+            onClick={() => p.onConfirm()}
+          >
+            {p.busy ? <span class="bas-confirm__spinner" aria-hidden="true" /> : null}
+            {p.confirmLabel ?? "Bekræft"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

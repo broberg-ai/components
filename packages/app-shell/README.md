@@ -53,6 +53,38 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.9.0 — ConfirmDialog: the confirm window instead of `window.confirm()` (F092.13)
+
+Asked for by appkit for «Slet» in a `@broberg/data-table` row. No native `confirm()` or `<dialog>` (D-4cd764).
+
+```tsx
+import { ConfirmDialog } from "@broberg/app-shell/preact";
+
+<ConfirmDialog
+  open={!!pending}
+  title="Slet dokument?"
+  body={`«${pending?.title}» slettes permanent.`}
+  confirmLabel="Slet"
+  destructive
+  busy={deleting}
+  error={deleteError}
+  onConfirm={() => remove(pending!.id)}
+  onCancel={() => setPending(null)}
+  testId="doc-delete"
+/>
+```
+
+- `role="alertdialog"`, `aria-modal`, title and body wired with aria-labelledby/describedby. Closed renders nothing.
+- **Focus starts on Cancel**, the safe button, so a stray Enter deletes nothing. Tab stays inside the window, and focus returns to whatever had it before (the ⋮ button).
+- **Escape or a click on the backdrop cancels**; a click inside the window does not.
+- **While `busy`**, both buttons are disabled and neither Escape nor the backdrop closes it: the request has already gone, and a window that vanished would let the user think they had cancelled a deletion that is happening. The confirm button shows a spinner.
+- `error` appears inside the window as `role="alert"`; the window stays open so the user can retry or cancel. You decide when to close it (set `open` false on success).
+- `destructive` makes the confirm button red. Labels default to Danish («Bekræft» / «Annuller»).
+- testids: `<testId>`, `-backdrop`, `-title`, `-body`, `-error`, `-cancel`, `-confirm` (default prefix `confirm-dialog`).
+- Styled in `css/app-shell.css` (`bas-confirm*`) on theme tokens only.
+
+Purely additive: nothing that rendered in 0.8.0 renders differently.
+
 ## 0.8.0 — TenantSwitcher on a phone (F029.10, found by appkit's pilot)
 
 - **The menu stays on screen.** It is anchored to the switcher, which sits among
