@@ -35,30 +35,55 @@ function getClient(): Promise<Client | null> {
   return _client;
 }
 
-export type AuthResult = { ok: true; status: "registered" | "matched" } | { ok: false; error: string };
+export type AuthResult = { ok: true; status: "matched" } | { ok: false; error: string };
 
-/** TOFU: first presented key for a session binds; later calls from that session must match it. */
+const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
+
+/**
+ * F044.3 — a session must ALREADY be registered. This used to be
+ * trust-on-first-use: an unknown session's first key was bound and the call
+ * accepted. Since an edit commits to main and tags a release that CI publishes
+ * to npm, that let anyone on the internet ship a new @broberg/speech-dictionary
+ * (used by fd-sundhed, trail, cardmem, buddy) by inventing a session name.
+ * Unknown sessions are now refused and NOTHING is written; components adds an
+ * editor with registerEditor() (scripts/register-speech-editor.ts), never the
+ * caller itself.
+ */
 export async function authenticateEditor(session: string, presentedKey: string): Promise<AuthResult> {
   if (!session) return { ok: false, error: "session is required" };
   if (presentedKey.length < 32) {
-    return { ok: false, error: "x-speech-dict-key required (min 32 chars — generate your own: `openssl rand -hex 32`, keep it in your own repo's .env)" };
+    return { ok: false, error: "x-speech-dict-key required (min 32 chars)" };
   }
   const client = await getClient();
   if (!client) return { ok: false, error: "edit_key_store_unavailable" };
 
-  const keyHash = createHash("sha256").update(presentedKey).digest("hex");
   const rs = await client.execute({ sql: "SELECT key_hash FROM speech_dict_edit_keys WHERE session = ?", args: [session] });
   const bound = rs.rows.length ? String(rs.rows[0]!.key_hash) : null;
-
   if (!bound) {
-    await client.execute({
-      sql: "INSERT INTO speech_dict_edit_keys (session, key_hash, bound_at) VALUES (?, ?, ?) ON CONFLICT(session) DO NOTHING",
-      args: [session, keyHash, Date.now()],
-    });
-    return { ok: true, status: "registered" };
+    return { ok: false, error: "session_not_registered — editing the speech dictionary publishes an npm release, so editors are registered by components; ask components (ask_peer) to register this session" };
   }
-  if (bound === keyHash) return { ok: true, status: "matched" };
+  if (bound === hashKey(presentedKey)) return { ok: true, status: "matched" };
   return { ok: false, error: "session_key_mismatch — this session is already bound to a different key" };
+}
+
+/** Ops only, never reachable over HTTP: register (or keep) an editor's key hash. */
+export async function registerEditor(session: string, key: string): Promise<{ ok: boolean; error?: string }> {
+  if (!session || key.length < 32) return { ok: false, error: "session and a key of at least 32 chars are required" };
+  const client = await getClient();
+  if (!client) return { ok: false, error: "edit_key_store_unavailable" };
+  await client.execute({
+    sql: "INSERT INTO speech_dict_edit_keys (session, key_hash, bound_at) VALUES (?, ?, ?) ON CONFLICT(session) DO NOTHING",
+    args: [session, hashKey(key), Date.now()],
+  });
+  return { ok: true };
+}
+
+/** For tests and audits: how many editors are registered. */
+export async function countEditors(): Promise<number> {
+  const client = await getClient();
+  if (!client) return 0;
+  const rs = await client.execute("SELECT COUNT(*) AS n FROM speech_dict_edit_keys");
+  return Number(rs.rows[0]!.n);
 }
 
 const REPO = "broberg-ai/components";

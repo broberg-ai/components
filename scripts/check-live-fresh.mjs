@@ -23,6 +23,12 @@
  * silently, which cost xrt81 a full day.
  */
 import { DATA } from "./inventory-data.mjs";
+// F038.22 — Discovery is behind login. CI reads it as a registered session:
+// DISCOVERY_SESSION + DISCOVERY_KEY (GitHub secrets). Absent → no headers.
+const DISCOVERY_AUTH = process.env.DISCOVERY_SESSION && process.env.DISCOVERY_KEY
+  ? { headers: { "x-discovery-session": process.env.DISCOVERY_SESSION, "x-enroll-key": process.env.DISCOVERY_KEY } }
+  : {};
+
 
 const base = (process.argv[2] ?? "https://discovery.broberg.ai").replace(/\/$/, "");
 const url = `${base}/api/packages`;
@@ -33,7 +39,7 @@ const url = `${base}/api/packages`;
 // mentions the other.
 let res;
 try {
-  res = await fetch(url);
+  res = await fetch(url, DISCOVERY_AUTH);
 } catch (err) {
   console.error(`\n  Could not reach ${url}\n  ${err instanceof Error ? err.message : String(err)}\n  Nothing was checked.\n`);
   process.exit(1);

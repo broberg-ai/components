@@ -283,7 +283,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
     { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = trust-on-first-use: generate your OWN key (openssl rand -hex 32) into your repo's .env, send it as header x-enroll-key — the first enroll binds it to your session, later enrolls must match. Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
     { method: "GET", path: "/api/speech-dictionary", description: "@broberg/speech-dictionary's current terms + corrections, always the latest committed state (F044.1)", example: "/api/speech-dictionary" },
-    { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff. Auth = trust-on-first-use: generate your OWN key (openssl rand -hex 32), send it as header x-speech-dict-key + body.session — first call binds it, no pre-shared secret ever changes hands. Commits + auto-publishes a new patch version. Body {session,addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
+    { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff. REGISTERED EDITORS ONLY (F044.3): an edit commits and auto-publishes a new npm patch version, so a session is registered by components (ask_peer components), never by its own first call; send the key components registered as header x-speech-dict-key + body.session. An unknown session gets 401 session_not_registered. Body {session,addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
   ],
   vocabularies: {
     layers: layers.map((l) => ({ id: l.id, name: l.name })),
@@ -317,6 +317,37 @@ app.use("/api/*", async (c, next) => {
 
 // Root: HTML dashboard for humans, the self-describing manifest for machines
 // (Accept: application/json) — so the literal front door opens up for both.
+// ---- F038.22 / F038.24 — the fleet part is not public ----
+// /api/fleet, /api/enrollments, /api/sessions/* and /llms-full.txt describe the
+// fleet itself (who runs what, what each repo uses). Christian 8/10: behind login
+// until the OIDC (Broberg ID) login is ready. Interim login = the session's OWN
+// registered enroll key, which every enrolled repo already holds as
+// DISCOVERY_ENROLL_KEY — no new secret is handed out:
+//   x-discovery-session: <session name>   x-enroll-key: <that session's key>
+// Every fleet response, allowed or refused, carries X-Robots-Tag: noindex.
+// Christian 8/10, later the same evening: «discovery.broberg.ai skal bag BID NU» —
+// the WHOLE site, not only the fleet part. Until the Broberg ID client is wired,
+// only /health and /robots.txt are open; everything else needs a registered
+// session's key. Humans get BID login as soon as the OIDC client exists.
+const OPEN_PATHS = new Set(["/health", "/robots.txt"]);
+// The two write routes authenticate themselves (registered session key in the
+// body + header), so the read gate does not double-check them.
+const OWN_AUTH = new Set(["POST /api/enroll", "POST /api/speech-dictionary/edit"]);
+export const isFleetPath = (path: string, method = "GET") => !OPEN_PATHS.has(path) && !OWN_AUTH.has(`${method} ${path}`) && method !== "OPTIONS";
+app.use("*", async (c, next) => {
+  if (!isFleetPath(c.req.path, c.req.method)) return next();
+  c.header("X-Robots-Tag", "noindex, nofollow");
+  const session = c.req.header("x-discovery-session") ?? "";
+  const key = c.req.header("x-enroll-key") ?? "";
+  const store = await getEnrollStore();
+  const bound = store && session && key.length >= 32 ? await store.sessionKeyHash(session) : null;
+  if (!bound || bound !== createHash("sha256").update(key).digest("hex")) {
+    return c.json({ error: "login_required — Discovery is not public. A fleet session sends headers x-discovery-session (its session name) and x-enroll-key (its DISCOVERY_ENROLL_KEY); a person signs in with Broberg ID (coming). No key yet? ask components to register your session." }, 401);
+  }
+  return next();
+});
+app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /\n"));
+
 app.get("/", (c) => {
   if ((c.req.header("accept") ?? "").includes("application/json")) return c.json(manifest());
   return c.html(withConsent(LANDING));
@@ -504,10 +535,9 @@ app.get("/api/sessions/:session", async (c) => {
   });
 });
 
-// Self-report an enrollment. Auth = trust-on-first-use per session: each session
-// generates its OWN key (openssl rand -hex 32) and keeps it in its OWN .env — no
-// central key to distribute, no human in the loop. The first enroll for a session
-// binds sha256(key); later enrolls from that session must present the same key.
+// Self-report an enrollment. Auth = the session's registered key (x-enroll-key).
+// F038.21: no longer trust-on-first-use — an unknown session is refused; components
+// registers new sessions (scripts/register-session.ts).
 // Validates pkg against the known list so the roster can't be polluted. Idempotent
 // on (session, pkg).
 app.post("/api/enroll", async (c) => {
@@ -535,10 +565,12 @@ app.post("/api/enroll", async (c) => {
   }
   const keyHash = createHash("sha256").update(presented).digest("hex");
   const bound = await store.sessionKeyHash(session);
-  let keyStatus: "registered" | "matched";
+  let keyStatus: "matched";
   if (!bound) {
-    await store.bindSessionKey(session, keyHash);
-    keyStatus = "registered"; // first contact for this session — TOFU bind
+    // F038.21 — known sessions only (Christian 8/10, until BID login is ready).
+    // This used to bind an unknown session's first key (trust-on-first-use), so
+    // anyone could invent a session and write to the fleet roster.
+    return c.json({ error: "session_not_registered — enrollment is open to registered fleet sessions only; ask components (ask_peer) to register this session" }, 401);
   } else if (bound === keyHash) {
     keyStatus = "matched";
   } else {
@@ -583,9 +615,8 @@ app.post("/api/speech-dictionary/edit", async (c) => {
     return c.json({ ok: false, error: "invalid_json" }, 400);
   }
 
-  // Trust-on-first-use per caller session — no pre-shared secret to distribute,
-  // so there's nothing for a human to generate and hand off through a chat
-  // channel. Caller generates its OWN key locally (openssl rand -hex 32).
+  // F044.3 — registered editors only. This used to be trust-on-first-use, which
+  // let any invented session name publish a new npm version; see authenticateEditor.
   const session = typeof body.session === "string" ? body.session : "";
   const presented = c.req.header("x-speech-dict-key") ?? "";
   const auth = await authenticateEditor(session, presented);

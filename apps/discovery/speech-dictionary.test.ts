@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 // authenticateEditor's TOFU store is a lazy singleton reading env at first use.
 process.env.ENROLL_DB_URL = ":memory:";
 
-import { applyDiff, authenticateEditor, bumpPatch, groupTerms, type CorrectionEntry, type TermEntry } from "./speech-dictionary";
+import { applyDiff, authenticateEditor, bumpPatch, countEditors, groupTerms, registerEditor, type CorrectionEntry, type TermEntry } from "./speech-dictionary";
 
 const TERMS: TermEntry[] = [
   { term: "cardmem", group: "product" },
@@ -28,7 +28,7 @@ describe("bumpPatch", () => {
   });
 });
 
-describe("authenticateEditor (trust-on-first-use)", () => {
+describe("authenticateEditor — only registered sessions (F044.3)", () => {
   const KEY = "a".repeat(32);
 
   it("rejects a key shorter than 32 chars", async () => {
@@ -41,26 +41,30 @@ describe("authenticateEditor (trust-on-first-use)", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("binds on first use, matches on subsequent calls with the same key", async () => {
-    const session = "test-session-" + Math.random();
+  it("an UNKNOWN session is refused and NOTHING is bound — the hole that let anyone publish", async () => {
+    const before = await countEditors();
+    const session = "stranger-" + Math.random();
     const first = await authenticateEditor(session, KEY);
-    expect(first).toEqual({ ok: true, status: "registered" });
-    const second = await authenticateEditor(session, KEY);
-    expect(second).toEqual({ ok: true, status: "matched" });
+    expect(first.ok).toBe(false);
+    expect(first.ok ? "" : first.error).toMatch(/^session_not_registered/);
+    expect(await countEditors()).toBe(before);
+    // and a second try with the same key is still refused: no silent bind happened
+    expect((await authenticateEditor(session, KEY)).ok).toBe(false);
   });
 
-  it("rejects a different key for an already-bound session", async () => {
-    const session = "test-session-" + Math.random();
-    await authenticateEditor(session, KEY);
-    const wrong = await authenticateEditor(session, "b".repeat(32));
-    expect(wrong.ok).toBe(false);
+  it("a registered session with its key is accepted; a different key is refused", async () => {
+    const session = "editor-" + Math.random();
+    await registerEditor(session, KEY);
+    expect(await authenticateEditor(session, KEY)).toEqual({ ok: true, status: "matched" });
+    expect((await authenticateEditor(session, "b".repeat(32))).ok).toBe(false);
   });
 
-  it("two different sessions never share a binding", async () => {
-    const a = await authenticateEditor("session-a-" + Math.random(), KEY);
-    const b = await authenticateEditor("session-b-" + Math.random(), "c".repeat(32));
-    expect(a.ok).toBe(true);
-    expect(b.ok).toBe(true);
+  it("registering again cannot replace an editor's key", async () => {
+    const session = "editor-" + Math.random();
+    await registerEditor(session, KEY);
+    await registerEditor(session, "c".repeat(32));
+    expect((await authenticateEditor(session, "c".repeat(32))).ok).toBe(false);
+    expect((await authenticateEditor(session, KEY)).ok).toBe(true);
   });
 });
 

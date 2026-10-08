@@ -276,7 +276,7 @@ jobs:
       working_directory: "."
       config: apps/discovery/fly.toml
       dockerfile: apps/discovery/Dockerfile
-      health_url: https://discovery.broberg.ai/api
+      health_url: https://discovery.broberg.ai/health # F038.22: everything else is behind login
     secrets:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -285,6 +285,9 @@ jobs:
     needs: [changes, deploy]
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    env: # F038.22 — Discovery is behind login; CI reads it as a registered session
+      DISCOVERY_SESSION: ${{ secrets.DISCOVERY_SESSION }}
+      DISCOVERY_KEY: ${{ secrets.DISCOVERY_KEY }}
     timeout-minutes: 10 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     steps:
       - uses: actions/checkout@v4

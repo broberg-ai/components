@@ -38,6 +38,12 @@
 // passing.
 import { readFileSync } from "node:fs";
 import { DATA, oneLiner } from "./inventory-data.mjs";
+// F038.22 — Discovery is behind login. CI reads it as a registered session:
+// DISCOVERY_SESSION + DISCOVERY_KEY (GitHub secrets). Absent → no headers.
+const DISCOVERY_AUTH = process.env.DISCOVERY_SESSION && process.env.DISCOVERY_KEY
+  ? { headers: { "x-discovery-session": process.env.DISCOVERY_SESSION, "x-enroll-key": process.env.DISCOVERY_KEY } }
+  : {};
+
 
 const BASE = process.argv[2];
 const SHORT = "llms.txt";
@@ -53,7 +59,7 @@ const readLocal = (p) => readFileSync(new URL(`../docs/${p}`, import.meta.url), 
 const readLive = async (p) => {
   let res;
   try {
-    res = await fetch(`${BASE.replace(/\/$/, "")}/${p}`);
+    res = await fetch(`${BASE.replace(/\/$/, "")}/${p}`, DISCOVERY_AUTH);
   } catch (e) {
     console.error(`✗ GET ${BASE}/${p} did not complete: ${e.message}\n  NOT a verdict on the content — the surface could not be reached.`);
     process.exit(2);

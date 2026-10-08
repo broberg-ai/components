@@ -10,6 +10,12 @@
 import { readFileSync } from "node:fs";
 import { DATA } from "./inventory-data.mjs";
 import { fetchLatestReleases } from "./npm-latest.mjs";
+// F038.22 — Discovery is behind login. CI reads it as a registered session:
+// DISCOVERY_SESSION + DISCOVERY_KEY (GitHub secrets). Absent → no headers.
+const DISCOVERY_AUTH = process.env.DISCOVERY_SESSION && process.env.DISCOVERY_KEY
+  ? { headers: { "x-discovery-session": process.env.DISCOVERY_SESSION, "x-enroll-key": process.env.DISCOVERY_KEY } }
+  : {};
+
 
 const target = process.argv[2] ?? new URL("../docs/inventory.html", import.meta.url);
 
@@ -26,7 +32,7 @@ const target = process.argv[2] ?? new URL("../docs/inventory.html", import.meta.
  */
 async function readTarget(t) {
   if (!String(t).startsWith("http")) return readFileSync(t, "utf8");
-  const res = await fetch(String(t));
+  const res = await fetch(String(t), DISCOVERY_AUTH);
   if (!res.ok) {
     // Deliberately says nothing about the card. Naming it here is what sent
     // someone to the wrong file.

@@ -31,6 +31,7 @@ COPY apps/discovery/webmcp-lab.ts ./webmcp-lab.ts
 
 # F039.5 owner-only session-key reset, run via `flyctl ssh` (no HTTP endpoint).
 COPY apps/discovery/scripts/reset-session-key.mjs ./scripts/reset-session-key.mjs
+COPY apps/discovery/scripts/register-speech-editor.ts ./scripts/register-speech-editor.ts
 
 ENV PORT=8080
 EXPOSE 8080
