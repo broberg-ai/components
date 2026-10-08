@@ -29,7 +29,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (59)
+## Packages by category (60)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.12.0 — The design-token foundation every surface inherits, plus prePaintScript(): the <head> string that sets the theme before the first paint, so no app …. `npm i @broberg/theme`
@@ -89,6 +89,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### L4 — Capstone (whole-product builders)
 - **@broberg/tenant** v0.2.0 — Organisations, memberships, invitations and role checks, the same way in every app. `npm i @broberg/tenant`
+- **@broberg/data-table** v0.1.0 — The standard way to show a table in a Stack B app (Vite + Preact + @broberg/theme, NO shadcn - D-7598d1), after shadcn's dashboard table, which Chr…. `npm i @broberg/data-table`
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk`
