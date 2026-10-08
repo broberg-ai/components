@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { useState } from "preact/hooks";
+import { render as preactRender } from "preact";
 import { ConfirmDialog, type ConfirmDialogProps } from "../src/preact";
 
 afterEach(cleanup);
@@ -136,5 +137,24 @@ describe("AC4 — CSS uses theme tokens only", () => {
     expect(confirm.length).toBeGreaterThan(0);
     expect(confirm.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
     expect(confirm.match(/\b(?:rgb|hsl)a?\((?![^)]*,\s*\.\d+\))[^)]*\)/gi) ?? []).toEqual([]);
+  });
+});
+
+describe("F092.14 — focus and Escape from the first frame", () => {
+  // appkit, Lens run 01be00da: Escape 2 ms after the window appeared did nothing,
+  // because focus and the listener were set in useEffect (after paint, 153 ms).
+  // @testing-library's render() wraps in act() and flushes EVERY effect, which
+  // hides the gap — so this test renders with preact's own render(), where a
+  // plain useEffect is still pending when the next line runs.
+  it("right after a plain render, focus is on Cancel and Escape already closes it", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const onCancel = vi.fn();
+    preactRender(<ConfirmDialog {...base({ open: true, onCancel })} />, host);
+    expect(document.activeElement?.getAttribute("data-testid")).toBe("confirm-dialog-cancel");
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    preactRender(null, host);
+    host.remove();
   });
 });

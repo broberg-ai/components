@@ -53,6 +53,10 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.9.1 — ConfirmDialog listens from the first frame (F092.14)
+
+Focus on Cancel and the Escape listener are now set in `useLayoutEffect`, at commit, not in `useEffect` after paint. appkit measured (Lens, real Chromium) that focus reached Cancel 153 ms after the window appeared; an Escape inside that gap went to the ⋮ trigger that still had focus and did nothing. No API change.
+
 ## 0.9.0 — ConfirmDialog: the confirm window instead of `window.confirm()` (F092.13)
 
 Asked for by appkit for «Slet» in a `@broberg/data-table` row. No native `confirm()` or `<dialog>` (D-4cd764).

@@ -1642,7 +1642,11 @@ export function ConfirmDialog(p: ConfirmDialogProps) {
   const live = useRef(p);
   live.current = p;
 
-  useEffect(() => {
+  // useLayoutEffect, not useEffect (F092.14): Preact runs useEffect after paint,
+  // and appkit measured 153 ms before focus reached Cancel. In that gap the ⋮
+  // trigger still had focus, its own handler swallowed Escape, and the dialog had
+  // no listener yet — so an Escape right after opening did nothing.
+  useLayoutEffect(() => {
     if (!p.open) return;
     const before = document.activeElement as HTMLElement | null;
     cancelBtn.current?.focus();
