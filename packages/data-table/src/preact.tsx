@@ -8,11 +8,12 @@
 // closes on Escape and on a click outside. Every interactive element carries a
 // data-testid under one prefix, so Lens can drive it.
 import type { ComponentChild, JSX } from "preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { makeOutsideClickHandler, selectKeyReducer, type SelectState } from "@broberg/ui-controls-core";
 import {
   filterRows,
   loadHiddenColumns,
+  moveRow,
   nextSort,
   paginate,
   saveHiddenColumns,
@@ -70,6 +71,15 @@ export interface DataTableLabels {
   selectRow: string;
   rowActions: string;
   empty: string;
+  /** F094.2 — the drag handle's name when it can be used. */
+  dragHandle: string;
+  /** …and when it cannot: says WHY (sorted or filtered). */
+  dragDisabled: string;
+  /** Spoken in the live region. Positions are 1-based within the page. */
+  dragLifted: (position: number, total: number) => string;
+  dragMoved: (position: number, total: number) => string;
+  dragDropped: (position: number, total: number) => string;
+  dragCancelled: string;
 }
 
 export const DEFAULT_LABELS: DataTableLabels = {
@@ -86,6 +96,12 @@ export const DEFAULT_LABELS: DataTableLabels = {
   selectRow: "Vælg række",
   rowActions: "Handlinger",
   empty: "Ingen resultater.",
+  dragHandle: "Flyt række — mellemrum løfter, pilene flytter",
+  dragDisabled: "Kan ikke flyttes mens tabellen er sorteret eller filtreret",
+  dragLifted: (p, t) => `Række løftet, position ${p} af ${t}. Pil op og ned flytter, mellemrum slipper, Escape fortryder.`,
+  dragMoved: (p, t) => `Position ${p} af ${t}.`,
+  dragDropped: (p, t) => `Række sluppet på position ${p} af ${t}.`,
+  dragCancelled: "Flytning fortrudt.",
 };
 
 export interface DataTableProps<T> {
@@ -99,6 +115,12 @@ export interface DataTableProps<T> {
   onSelectionChange?: (ids: string[]) => void;
   rowActions?: RowAction<T>[];
   onCellChange?: (rowId: string, columnId: string, value: string) => void;
+  /**
+   * F094.2 — gives every row a drag handle. Called with ALL row ids in their new
+   * order after a drop. Off while the table is sorted or filtered: then the order
+   * on screen is not the stored one, and a drop would save an order nobody saw.
+   */
+  onReorder?: (ids: string[]) => void;
   /** Remember hidden columns in localStorage under this key. Without it, nothing is stored. */
   columnStorageKey?: string;
   pageSizes?: number[];
@@ -130,6 +152,7 @@ const ICON = {
   next: "m9 18 6-6-6-6",
   last: "m13 17 5-5-5-5M6 17l5-5-5-5",
   columns: "M12 3v18M3 3h18v18H3z",
+  grip: "M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01",
 };
 const STATUS_ICON: Record<StatusTone, string> = {
   done: "M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14.01l-3-3",
@@ -298,6 +321,27 @@ export function DataTable<T>(props: DataTableProps<T>) {
     () => new Set(props.columnStorageKey ? loadHiddenColumns(props.columnStorageKey) : []),
   );
 
+  // F094.2 — a row being moved; `from`/`over` are indices within the current page.
+  type Drag = { id: string; from: number; over: number; via: "pointer" | "keyboard" };
+  const [drag, setDragState] = useState<Drag | null>(null);
+  // Handlers read the ref, not the render's `drag`: two key presses inside one
+  // frame both saw the old position and the second arrow was lost (Lens, Chromium).
+  const dragRef = useRef<Drag | null>(null);
+  const setDrag = (d: Drag | null) => { dragRef.current = d; setDragState(d); };
+  const [announce, setAnnounce] = useState("");
+  const rowsRef = useRef<HTMLElement | null>(null);
+  const setRowsEl = (el: HTMLElement | null) => { rowsRef.current = el; };
+  // Moving the lifted row re-inserts its DOM node, and a re-inserted node loses
+  // focus — so a keyboard drag would stop listening after its first arrow. A
+  // layout effect, because a plain effect waits for the next frame and a fast
+  // second key press landed on <body> in between (measured in Chromium via Lens).
+  useLayoutEffect(() => {
+    if (drag?.via !== "keyboard") return;
+    const row = [...(rowsRef.current?.querySelectorAll<HTMLElement>("[data-reorder-id]") ?? [])].find((el) => el.dataset.reorderId === drag.id);
+    const h = row?.querySelector<HTMLElement>(".bdt-drag-handle");
+    if (h && h.ownerDocument.activeElement !== h) h.focus();
+  }, [drag]);
+
   const shown = props.columns.filter((c) => !hidden.has(c.id));
   const searchCols = shown.filter((c) => c.searchable ?? (c.cell === undefined || ["text", "badge", "status", "select"].includes(c.cell as string)));
 
@@ -320,6 +364,98 @@ export function DataTable<T>(props: DataTableProps<T>) {
   useEffect(() => {
     if (page.pageIndex !== pageIndex) setPageIndex(page.pageIndex);
   }, [page.pageIndex, pageIndex]);
+
+  const canReorder = !!props.onReorder && sort === null && query.trim() === "";
+  const pageRows = drag ? moveRow(page.rows, drag.from, drag.over) : page.rows;
+  const pageTotal = page.rows.length;
+
+  const drop = (d: Drag) => {
+    setDrag(null);
+    setAnnounce(L.dragDropped(d.over + 1, pageTotal));
+    if (d.over === d.from) return;
+    const offset = page.pageIndex * pageSize;
+    props.onReorder?.(moveRow(props.rows.map(props.getRowId), offset + d.from, offset + d.over));
+  };
+  const cancel = () => {
+    setDrag(null);
+    setAnnounce(L.dragCancelled);
+  };
+  // Where the pointer would insert the row: how many OTHER rows have their middle above it.
+  const overFromPointer = (id: string, y: number): number => {
+    const els = [...(rowsRef.current?.querySelectorAll<HTMLElement>("[data-reorder-id]") ?? [])];
+    return els.filter((el) => {
+      if (el.dataset.reorderId === id) return false;
+      const r = el.getBoundingClientRect();
+      return r.top + r.height / 2 < y;
+    }).length;
+  };
+
+  // Move/up/cancel are heard on the window, not the handle: the preview re-inserts
+  // row nodes as the pointer moves, and a re-inserted node loses its pointer
+  // capture — measured in Chromium via Lens, where the drop then never arrived
+  // and the row stayed lifted. happy-dom does not model capture, so only a real
+  // browser shows it.
+  useEffect(() => {
+    if (drag?.via !== "pointer") return;
+    const move = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const over = overFromPointer(d.id, e.clientY);
+      if (over !== d.over) setDrag({ ...d, over });
+    };
+    const up = () => { if (dragRef.current) drop(dragRef.current); };
+    const stop = () => cancel();
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", stop);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }, [drag?.via]);
+
+  const dragHandle = (id: string, index: number) => (
+    <button
+      type="button"
+      class={`bdt-drag-handle${drag?.id === id ? " is-lifted" : ""}`}
+      data-testid={`row-drag-${id}`}
+      aria-label={canReorder ? L.dragHandle : L.dragDisabled}
+      title={canReorder ? undefined : L.dragDisabled}
+      aria-disabled={canReorder ? undefined : "true"}
+      aria-pressed={drag?.id === id && drag.via === "keyboard" ? "true" : undefined}
+      onPointerDown={(e) => {
+        if (!canReorder || dragRef.current || e.button > 0) return;
+        e.preventDefault();
+        setDrag({ id, from: index, over: index, via: "pointer" });
+      }}
+      onKeyDown={(e) => {
+        if (!canReorder) return;
+        const drag = dragRef.current;
+        const lift = e.key === " " || e.key === "Enter" || e.key === "Spacebar";
+        if (!drag) {
+          if (!lift) return;
+          e.preventDefault();
+          setDrag({ id, from: index, over: index, via: "keyboard" });
+          setAnnounce(L.dragLifted(index + 1, pageTotal));
+          return;
+        }
+        if (drag.id !== id || drag.via !== "keyboard") return;
+        if (lift) { e.preventDefault(); drop(drag); return; }
+        if (e.key === "Escape") { e.preventDefault(); cancel(); return; }
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          const over = Math.max(0, Math.min(pageTotal - 1, drag.over + (e.key === "ArrowUp" ? -1 : 1)));
+          setDrag({ ...drag, over });
+          setAnnounce(L.dragMoved(over + 1, pageTotal));
+        }
+      }}
+      // Tabbing away ends the move. A blur with no next element is the re-insert above, not the user leaving.
+      onBlur={(e) => { const d = dragRef.current; if (d?.via === "keyboard" && d.id === id && e.relatedTarget) cancel(); }}
+    >
+      <Icon d={ICON.grip} />
+    </button>
+  );
 
   const filteredIds = filtered.map(props.getRowId);
   const pageIds = page.rows.map(props.getRowId);
@@ -379,7 +515,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
 
   const alignOf = (c: Column<T>) => c.align ?? (c.cell === "number" ? "right" : "left");
   const actions = props.rowActions ?? [];
-  const colSpan = shown.length + (props.selectable ? 1 : 0) + (actions.length ? 1 : 0);
+  const colSpan = shown.length + (props.selectable ? 1 : 0) + (actions.length ? 1 : 0) + (props.onReorder ? 1 : 0);
 
   const rowMenu = (row: T, id: string) => (
     <Dropdown
@@ -440,7 +576,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
       </div>
 
       {isMobile ? (
-        <div class="bdt-cards" data-testid={`${p}-cards`}>
+        <div class="bdt-cards" data-testid={`${p}-cards`} ref={setRowsEl}>
           {props.selectable && page.rows.length > 0 && (
             <label class="bdt-cards-head">
               <Checkbox state={selectionState(pageIds, selected)} label={L.selectAll} testId={`${p}-select-all`}
@@ -451,12 +587,14 @@ export function DataTable<T>(props: DataTableProps<T>) {
           {page.rows.length === 0 ? (
             <div class="bdt-empty" data-testid={`${p}-empty`}>{L.empty}</div>
           ) : (
-            page.rows.map((row) => {
+            pageRows.map((row, index) => {
               const id = props.getRowId(row);
               const rest = shown.slice(1);
               return (
-                <article key={id} class={`bdt-card${selected.has(id) ? " is-selected" : ""}`} data-testid={`row-card-${id}`}>
+                <article key={id} class={`bdt-card${selected.has(id) ? " is-selected" : ""}${drag?.id === id ? " is-dragging" : ""}`}
+                  data-testid={`row-card-${id}`} data-reorder-id={props.onReorder ? id : undefined}>
                   <div class="bdt-card-top">
+                    {props.onReorder && dragHandle(id, index)}
                     {props.selectable && (
                       <Checkbox state={selected.has(id) ? "all" : "none"} label={L.selectRow} testId={`${p}-select-${id}`}
                         onToggle={() => updateSelection(toggleOne(id, selected))} />
@@ -486,6 +624,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
         <table class="bdt-table">
           <thead>
             <tr>
+              {props.onReorder && <th class="bdt-th bdt-col-drag"><span class="bdt-sr">{L.dragHandle}</span></th>}
               {props.selectable && (
                 <th class="bdt-th bdt-col-select">
                   <Checkbox state={selectionState(pageIds, selected)} label={L.selectAll} testId={`${p}-select-all`}
@@ -516,14 +655,16 @@ export function DataTable<T>(props: DataTableProps<T>) {
               {actions.length > 0 && <th class="bdt-th bdt-col-actions"><span class="bdt-sr">{L.rowActions}</span></th>}
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={setRowsEl}>
             {page.rows.length === 0 ? (
               <tr><td class="bdt-empty" colSpan={colSpan} data-testid={`${p}-empty`}>{L.empty}</td></tr>
             ) : (
-              page.rows.map((row) => {
+              pageRows.map((row, index) => {
                 const id = props.getRowId(row);
+                const cls = [selected.has(id) ? "is-selected" : "", drag?.id === id ? "is-dragging" : ""].filter(Boolean).join(" ");
                 return (
-                  <tr key={id} class={selected.has(id) ? "is-selected" : undefined} data-testid={`${p}-row-${id}`}>
+                  <tr key={id} class={cls || undefined} data-testid={`${p}-row-${id}`} data-reorder-id={props.onReorder ? id : undefined}>
+                    {props.onReorder && <td class="bdt-td bdt-col-drag">{dragHandle(id, index)}</td>}
                     {props.selectable && (
                       <td class="bdt-td bdt-col-select">
                         <Checkbox state={selected.has(id) ? "all" : "none"} label={L.selectRow} testId={`${p}-select-${id}`}
@@ -549,6 +690,8 @@ export function DataTable<T>(props: DataTableProps<T>) {
         </table>
       </div>
       )}
+
+      {props.onReorder && <div class="bdt-sr" aria-live="assertive" data-testid={`${p}-live`}>{announce}</div>}
 
       <div class="bdt-footer">
         <div class="bdt-selected" data-testid={`${p}-selected-label`}>

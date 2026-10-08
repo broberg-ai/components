@@ -101,6 +101,19 @@ export function toggleOne(id: string, selected: ReadonlySet<string>): Set<string
   return next;
 }
 
+/**
+ * F094.2 — the order after moving the item at `from` to `to`. Indices outside
+ * the list are clamped; the input is never mutated.
+ */
+export function moveRow<T>(items: readonly T[], from: number, to: number): T[] {
+  const out = [...items];
+  if (from < 0 || from >= out.length) return out;
+  const target = Math.max(0, Math.min(out.length - 1, to));
+  const [moved] = out.splice(from, 1);
+  out.splice(target, 0, moved);
+  return out;
+}
+
 /** The subset of `storage` this package uses, so a test or an SSR caller can pass its own. */
 export interface ColumnStorage {
   getItem(key: string): string | null;

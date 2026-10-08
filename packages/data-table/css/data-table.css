@@ -131,3 +131,16 @@
 .bdt-card-field dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .bdt-card .bdt-cell-select { min-width: 0; max-width: 100%; }
 .bdt-root.is-mobile .bdt-empty { padding: 24px 12px; border: 1px solid var(--border); border-radius: var(--bdt-radius); }
+
+/* F094.2 — drag handle. touch-action:none so a finger drags the row instead of scrolling the page. */
+.bdt-col-drag { width: 32px; padding-right: 0; }
+.bdt-drag-handle {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: var(--bdt-radius); background: transparent; color: var(--fg-muted);
+  cursor: grab; touch-action: none;
+}
+.bdt-drag-handle:hover:not([aria-disabled="true"]) { background: var(--hover); color: var(--fg); }
+.bdt-drag-handle:active:not([aria-disabled="true"]), .bdt-drag-handle.is-lifted { cursor: grabbing; background: var(--active); color: var(--fg); }
+.bdt-drag-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bdt-drag-handle[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+tr.is-dragging, .bdt-card.is-dragging { background: var(--accent-soft); }

@@ -115,6 +115,15 @@ function App() {
           "separator",
           { label: "Delete", onSelect: (r) => setRows((all) => all.filter((x) => x.id !== r.id)), destructive: true },
         ]}
+        onReorder={(ids) =>
+          setRows((all) => {
+            // The table reorders this tab's rows; the other tabs keep their places.
+            const byId = new Map(all.map((r) => [r.id, r]));
+            const moved = ids.map((id) => byId.get(id)!);
+            let i = 0;
+            return all.map((r) => (r.tab === tab ? moved[i++] : r));
+          })
+        }
         columnStorageKey="example-data-table-columns"
       />
       </div>
