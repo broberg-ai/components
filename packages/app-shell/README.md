@@ -53,7 +53,11 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
-## 0.9.1 — ConfirmDialog listens from the first frame (F092.14)
+## 0.9.2 — ConfirmDialog listens from the first frame (F092.14)
+
+0.9.1 carried the same change but never reached npm: its publish run was stopped by a flaky test in this package (happy-dom followed an external link to the live site; now switched off). 0.9.2 is the first published version with the fix.
+
+### What changed
 
 Focus on Cancel and the Escape listener are now set in `useLayoutEffect`, at commit, not in `useEffect` after paint. appkit measured (Lens, real Chromium) that focus reached Cancel 153 ms after the window appeared; an Escape inside that gap went to the ⋮ trigger that still had focus and did nothing. No API change.
 
