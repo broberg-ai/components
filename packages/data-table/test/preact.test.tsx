@@ -238,3 +238,15 @@ describe("AC6 — no native controls, testids on everything interactive", () => 
     expect(missing.map((el) => el.outerHTML.slice(0, 80))).toEqual([]);
   });
 });
+
+describe("menus escape the table's scrolling frame", () => {
+  it("an open panel is position:fixed at its trigger, so .bdt-scroll's overflow cannot clip it", () => {
+    render(<DataTable columns={columns} rows={DOCS} getRowId={(r) => r.id} rowActions={[{ label: "Slet", onSelect: () => {} }]} />);
+    const btn = tid("data-table-actions-4");
+    btn.getBoundingClientRect = () => ({ top: 500, bottom: 532, left: 900, right: 932, width: 32, height: 32, x: 900, y: 500, toJSON() {} }) as DOMRect;
+    fireEvent.click(btn);
+    const panel = tid("data-table-actions-4-panel");
+    expect([panel.style.position, panel.style.top]).toEqual(["fixed", "536px"]);
+    expect(panel.style.right).toBe(`${window.innerWidth - 932}px`);
+  });
+});

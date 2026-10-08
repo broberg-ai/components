@@ -46,8 +46,11 @@
 
 /* ── dropdown panel (menu + listbox) ── */
 .bdt-dropdown { position: relative; display: inline-block; }
+/* position:fixed + top/left/right are set inline at open (see Dropdown in
+ * preact.tsx): an absolute panel was clipped by .bdt-scroll's overflow. The
+ * absolute values below are only the first frame before the trigger is measured. */
 .bdt-panel {
-  position: absolute; top: calc(100% + 4px); z-index: 40; min-width: 180px; max-height: 320px; overflow-y: auto;
+  position: absolute; top: calc(100% + 4px); z-index: 60; min-width: 180px; max-height: 320px; overflow-y: auto;
   padding: 4px; background: var(--bg-card, var(--bg)); border: 1px solid var(--border); border-radius: var(--bdt-radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
 }

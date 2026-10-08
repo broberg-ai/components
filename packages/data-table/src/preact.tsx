@@ -161,11 +161,25 @@ function Dropdown(props: {
   onChoose: (key: string) => void;
 }) {
   const [state, setState] = useState<SelectState>({ open: false, highlighted: -1 });
+  const [pos, setPos] = useState<JSX.CSSProperties | undefined>(undefined);
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
+  // The panel is position:fixed at the trigger, not absolute inside it. The
+  // table sits in a frame that scrolls sideways (overflow-x), and an overflow
+  // other than visible clips EVERY descendant — so an absolute ⋮-menu or cell
+  // dropdown in the last rows opened cut off inside the frame. Fixed escapes
+  // it; makeOutsideClickHandler already closes on scroll and resize, which is
+  // what keeps a fixed panel from drifting away from its trigger.
   useEffect(() => {
     if (!state.open) return;
+    const r = trigger.current?.getBoundingClientRect();
+    if (r) {
+      const vw = (globalThis as { innerWidth?: number }).innerWidth ?? r.right;
+      setPos(props.align === "end"
+        ? { position: "fixed", top: `${r.bottom + 4}px`, right: `${Math.max(0, vw - r.right)}px` }
+        : { position: "fixed", top: `${r.bottom + 4}px`, left: `${r.left}px` });
+    }
     const h = makeOutsideClickHandler(() => [wrap.current], () => setState((s) => ({ ...s, open: false })));
     h.attach();
     return () => h.detach();
@@ -211,7 +225,7 @@ function Dropdown(props: {
         {props.triggerLabel}
       </button>
       {state.open && (
-        <div class={`bdt-panel bdt-panel-${props.align ?? "start"}`} role={props.role} data-testid={`${base}-panel`}>
+        <div class={`bdt-panel bdt-panel-${props.align ?? "start"}`} style={pos} role={props.role} data-testid={`${base}-panel`}>
           {props.items.map((item, i) => [
             item.separatorBefore ? <div class="bdt-separator" role="separator" key={`sep-${item.key}`} /> : null,
             <div
