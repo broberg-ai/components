@@ -1,0 +1,32 @@
+# F084.154 — LIVE PROOF of @broberg/sso fetchTicket from GitHub Actions: the job
+# gets a Broberg ID ticket with no key at all (GitHub OIDC → RFC 8693 exchange),
+# then reads Discovery's fleet layer with it and checks the door is shut without.
+# The ticket is never written to the log — only its claims and HTTP statuses.
+#
+# Needs in Broberg ID: service svc:gh:broberg-ai/components with a rule bound to
+# THIS file (a rule must name one workflow, so a new file cannot get a ticket).
+name: ticket-probe
+on: workflow_dispatch
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: fetchTicket → Discovery
+        run: |
+          cat > probe.ts <<'TS'
+          import { fetchTicket } from "./packages/sso/src/fetch-ticket.ts";
+          const t = await fetchTicket({ audience: "discovery", scope: "discovery:read" });
+          const c = JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString());
+          const again = await fetchTicket({ audience: "discovery", scope: "discovery:read" });
+          const withT = await fetch("https://discovery.broberg.ai/api/fleet", { headers: { authorization: `Bearer ${t}` } });
+          const without = await fetch("https://discovery.broberg.ai/api/fleet");
+          const out = { sub: c.sub, aud: c.aud, scope: c.scope, principal_type: c.principal_type, lifetime: c.exp - c.iat, cachedSame: t === again, withTicket: withT.status, withoutTicket: without.status };
+          console.log(JSON.stringify(out));
+          if (withT.status !== 200 || without.status !== 401 || !out.cachedSame) process.exit(1);
+          TS
+          bun run probe.ts

@@ -552,3 +552,21 @@ try {
 - **Never accepted as a ticket:** an ID token or a logout token, even though BID signed both.
 - **BID briefly down:** a key already in the cache still verifies, with no network call. An unknown key while BID is down throws `JwksUnavailableError` — answer 503, do not reject the caller.
 - Not a login client: a service that only receives tickets needs no `client_id`, no redirect and no session.
+
+## Getting a ticket — `fetchTicket` (since 0.14.0)
+
+The sending half: a workload on **Fly** or in **GitHub Actions** gets a Broberg ID ticket with no key at all. It proves who it is with the identity its platform already gives it, and BID exchanges that (RFC 8693). Nothing secret is stored anywhere.
+
+```ts
+import { fetchTicket, NoWorkloadIdentityError, TicketExchangeError, TicketUnavailableError } from "@broberg/sso";
+
+const ticket = await fetchTicket({ audience: "discovery", scope: "discovery:read" });
+await fetch("https://discovery.broberg.ai/api/fleet", { headers: { authorization: `Bearer ${ticket}` } });
+```
+
+- **Fly:** asks the machine API (`unix:/.fly/api`, `POST /v1/tokens/oidc`, `aud` = the issuer). The ticket's subject is `svc:<fly app name>` — BID derives it from the app name, so the rule in BID must name the app exactly.
+- **GitHub Actions:** uses `ACTIONS_ID_TOKEN_REQUEST_URL` / `_TOKEN`; the workflow needs `permissions: id-token: write`. Subject `svc:gh:<owner>/<repo>`, and BID's rule names ONE workflow file (a new file cannot get a ticket).
+- **Anywhere else** (a Mac session, a laptop): `NoWorkloadIdentityError` — keep using the session key there.
+- **Cached** per audience + scope until 30 s before exp (BID issues 5 min), and concurrent calls share one exchange. `createTicketClient({...})` gives you your own cache and injectable platform/fetch for tests.
+- **Errors:** `TicketExchangeError` (BID refused — `code` is BID's name for it, `status` the HTTP status; permanent, fix the rule) · `TicketUnavailableError` (BID or the platform unreachable / 5xx; transient) · `NoWorkloadIdentityError`. BID's codes include `no_rule_for_audience`, `scope_not_allowed`, `service_not_registered`, `audience_unknown`, `workflow_not_allowed`, `fly_org_untrusted`, `fly_audience_mismatch`, `github_owner_untrusted`, `client_mismatch`, `issuer_unknown`.
+- The ticket is never logged or put in an error message.

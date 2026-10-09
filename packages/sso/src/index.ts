@@ -36,6 +36,17 @@ export {
 } from "./client.js";
 
 export {
+  fetchTicket,
+  createTicketClient,
+  NoWorkloadIdentityError,
+  TicketExchangeError,
+  TicketUnavailableError,
+  DEFAULT_ISSUER,
+  type TicketClient,
+  type TicketClientOptions,
+} from "./fetch-ticket.js";
+
+export {
   createTicketVerifier,
   type TicketVerifier,
   type TicketVerifierOptions,
