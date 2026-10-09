@@ -15,6 +15,21 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
 
+  examples/app-shell:
+    dependencies:
+      '@broberg/app-shell':
+        specifier: workspace:*
+        version: link:../../packages/app-shell
+      '@broberg/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
+      '@broberg/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      preact:
+        specifier: ^10.23.0
+        version: 10.29.2
+
   examples/data-table:
     dependencies:
       '@broberg/app-shell':

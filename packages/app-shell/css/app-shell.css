@@ -186,8 +186,12 @@
     transform: translateX(-100%); visibility: hidden;
     transition: transform var(--bas-dur) var(--bas-ease), visibility 0s linear var(--bas-dur);
   }
+  /* F092.15 — `none`, not translateX(0): ANY transform makes the open drawer the
+   * containing block for position:fixed (see the F092.12 note above), so the
+   * sidebar-footer user menu opened inside the 240px drawer and was clipped by
+   * it (Lens 3549dddc, 393px). `none` animates the same and traps nothing. */
   .bas-sidebar.is-mobile-drawer.is-open {
-    transform: translateX(0); visibility: visible; transition: transform var(--bas-dur) var(--bas-ease);
+    transform: none; visibility: visible; transition: transform var(--bas-dur) var(--bas-ease);
     box-shadow: 0 24px 56px rgba(0, 0, 0, .22);
   }
   .bas-root[data-layout="topbar"][data-mobile="drawer"] .bas-sidebar__brand { display: block; }
@@ -426,3 +430,29 @@
 }
 @keyframes bas-confirm-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .bas-confirm__spinner { animation: none; } }
+
+/* ── F092.15 — user menu at the bottom of the sidebar (KAI shell) ── */
+.bas-sidebar__user { border-top: 1px solid var(--border); padding: 8px; }
+.bas-usermenu.is-sidebar { display: block; width: 100%; }
+.bas-userbtn.is-sidebar {
+  display: flex; width: 100%; gap: 10px; padding: 6px 8px; border: 0; border-radius: var(--bas-radius); text-align: left;
+}
+.bas-userbtn__text { display: flex; flex-direction: column; min-width: 0; }
+.bas-userbtn.is-sidebar .bas-userbtn__name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bas-userbtn__sub { font-size: 11px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bas-sidebar.is-railed .bas-userbtn__text { display: none; }
+.bas-sidebar.is-railed .bas-userbtn.is-sidebar { justify-content: center; padding: 6px 0; }
+/* Positioned as position:fixed from the button by the component (the sidebar clips overflow). */
+.bas-menu.is-up { top: auto; right: auto; max-width: none; overflow-y: auto; }
+.bas-menu__sub { font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bas-menu__label { padding: 6px 14px 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--fg-muted); }
+.bas-mi__hint { margin-left: auto; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--fg-muted); }
+.bas-mi__check { width: 14px; flex: none; text-align: center; color: var(--accent); font-weight: 700; }
+.bas-mi.is-checked { font-weight: 500; }
+.bas-zoom { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
+.bas-zoom__btn {
+  width: 26px; height: 24px; border: 0; border-radius: 999px; background: transparent; color: var(--fg); cursor: pointer; font-size: 15px; line-height: 1;
+}
+.bas-zoom__btn:hover:not(:disabled) { background: var(--active); }
+.bas-zoom__btn:disabled { opacity: .4; cursor: not-allowed; }
+.bas-zoom__value { min-width: 46px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }

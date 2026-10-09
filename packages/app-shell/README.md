@@ -346,3 +346,29 @@ palette × light/dark × flat/layered works with no extra CSS. A test fails on a
 colour literal in it. Classes are prefixed `bas-` so they cannot collide with an
 app's own during a migration. Every control has a `data-testid`.
 
+
+## 0.10.0 — the user menu in the sidebar's footer, with radio groups and zoom (F092.15)
+
+For a KAI-style shell (Scout's approved design): the user sits at the bottom of the sidebar and the menu opens upward. Everything is additive — without the new props nothing changes.
+
+```tsx
+<AppShell
+  userMenuPlacement="sidebar-footer"          // default "topbar" = as before
+  user={{ name, email, picture, subtitle: "Administrator · Enhed Nord" }}
+  userMenu={{
+    items: [{ id: "search", label: "Søg", hint: "⌘K", onSelect: openSearch }],   // hint: shown right-aligned; the app owns the shortcut
+    sections: [
+      { id: "org", label: "Organisation", items: [{ id: "acme", label: "Acme A/S", checked: true }, { id: "beta", label: "Beta ApS" }] },
+      { id: "area", label: "Scout", items: [{ id: "chat", label: "Scout Chat", checked: true }, { id: "admin", label: "Scout Admin" }] },
+    ],
+    onSectionSelect: (sectionId, itemId) => …,   // radio groups; a pick closes the menu. The app owns the choice.
+    zoom: { value: 100, onChange: setZoom },      // − / % / +; min 50, max 200, step 10 by default. The app applies it.
+  }}
+  …
+/>
+```
+
+- Theme, palette, surfaces and backdrop were already in the menu (`appearance`); language too (`language`).
+- testids: `sidebar-user-menu` (the button in the footer), `sidebar-user-subtitle`, `user-menu-section-<s>` and `user-menu-section-<s>-<i>`, `user-menu-zoom-out` / `-value` / `-in`. The panel keeps `topbar-user-menu-dropdown`.
+- In the sidebar the panel is `position: fixed` at the button, so the sidebar cannot clip it. The open phone drawer now uses `transform: none` instead of `translateX(0)` — any transform makes the drawer the containing block for fixed children and cut the menu off at its edge. Same animation; nothing else moves.
+- Try it: `pnpm --filter app-shell-example dev` → http://127.0.0.1:5195.

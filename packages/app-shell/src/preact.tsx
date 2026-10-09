@@ -187,6 +187,8 @@ export interface SidebarProps {
   /** localStorage key for which items with children are open (F092.5). */
   itemsKey?: string;
   lang: Lang;
+  /** F092.15 — rendered at the very bottom of the sidebar (the user menu in "sidebar-footer"). */
+  bottom?: ComponentChildren;
 }
 
 export function Sidebar(p: SidebarProps) {
@@ -391,6 +393,7 @@ export function Sidebar(p: SidebarProps) {
           })}
         </nav>
         {p.footer?.length ? <div class="bas-sidebar__foot">{p.footer.map(item)}</div> : null}
+        {p.bottom ? <div class="bas-sidebar__user" data-testid="sidebar-user">{p.bottom}</div> : null}
       </aside>
     </>
   );
@@ -598,6 +601,8 @@ export interface ShellUser {
   email?: string;
   /** Broberg ID OIDC `picture`. Without it: initials. Never Gravatar (D-1dc849). */
   picture?: string;
+  /** F092.15 — a line under the name, e.g. «Administrator · Enhed Nord». */
+  subtitle?: string;
 }
 export interface UserMenuItem {
   id: string;
@@ -605,6 +610,14 @@ export interface UserMenuItem {
   icon?: Icon;
   href?: string;
   onSelect?: () => void;
+  /** F092.15 — right-aligned hint, e.g. a shortcut «⌘K». The app owns the shortcut itself. */
+  hint?: string;
+}
+/** F092.15 — a radio group in the user menu (organisation, unit, area …). The app owns the choice. */
+export interface UserMenuSection {
+  id: string;
+  label: string;
+  items: { id: string; label: string; hint?: string; checked?: boolean }[];
 }
 export interface UserMenuProps {
   user: ShellUser;
@@ -620,6 +633,13 @@ export interface UserMenuProps {
    * appearance rows. The app owns the language; the shell shows and reports it.
    */
   language?: { value: string; options: { id: string; label: string }[]; onChange: (id: string) => void };
+  /** F092.15 — radio groups shown after your items; a pick calls onSectionSelect and closes the menu. */
+  sections?: UserMenuSection[];
+  onSectionSelect?: (sectionId: string, itemId: string) => void;
+  /** F092.15 — a «Zoom» row: − / value % / +. The app owns the value (percent). */
+  zoom?: { value: number; onChange: (value: number) => void; min?: number; max?: number; step?: number };
+  /** F092.15 — where the shell put the menu. "sidebar-footer" opens upward. Set by AppShell. */
+  placement?: "topbar" | "sidebar-footer";
   lang: Lang;
 }
 
@@ -704,26 +724,54 @@ export function UserMenu(p: UserMenuProps) {
     }
   };
 
+  const inSidebar = p.placement === "sidebar-footer";
+  // F092.15 — in the sidebar the panel is position:fixed at the button: the
+  // sidebar clips its overflow, and an absolute 320px panel inside a 240px column
+  // was cut off at the column's edge (Lens 200c1950: hint, theme rows and zoom
+  // hidden). Fixed escapes the clip; a phone gets the full width minus a gutter.
+  const btn = useRef<HTMLButtonElement>(null);
+  const [upPos, setUpPos] = useState<Record<string, string> | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!open || !inSidebar || !btn.current) return;
+    const r = btn.current.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const railed = !!btn.current.closest(".is-railed");
+    const width = Math.min(320, vw - 16);
+    const left = railed ? r.right + 8 : Math.max(8, Math.min(r.left, vw - width - 8));
+    const bottom = railed ? Math.max(8, vh - r.bottom) : vh - r.top + 8;
+    setUpPos({ position: "fixed", left: `${left}px`, bottom: `${bottom}px`, width: `${width}px`, maxHeight: `${vh - bottom - 8}px` });
+  }, [open, inSidebar]);
+  const zoom = p.zoom;
+  const zMin = zoom?.min ?? 50, zMax = zoom?.max ?? 200, zStep = zoom?.step ?? 10;
   return (
-    <div class="bas-usermenu" ref={root}>
+    <div class={"bas-usermenu" + (inSidebar ? " is-sidebar" : "")} ref={root}>
       <button
+        ref={btn}
         type="button"
-        class={"bas-userbtn" + (open ? " is-open" : "")}
-        data-testid="topbar-user-menu"
+        class={"bas-userbtn" + (open ? " is-open" : "") + (inSidebar ? " is-sidebar" : "")}
+        data-testid={inSidebar ? "sidebar-user-menu" : "topbar-user-menu"}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={p.user.email ?? p.user.name ?? t.account}
         onClick={() => setOpen((v) => !v)}
       >
-        <Avatar user={p.user} />
-        <span class="bas-userbtn__name">{firstName}</span>
+        <Avatar user={p.user} size={inSidebar ? 32 : 28} />
+        {inSidebar ? (
+          <span class="bas-userbtn__text">
+            <span class="bas-userbtn__name">{p.user.name ?? firstName}</span>
+            {p.user.subtitle ? <span class="bas-userbtn__sub" data-testid="sidebar-user-subtitle">{p.user.subtitle}</span> : null}
+          </span>
+        ) : (
+          <span class="bas-userbtn__name">{firstName}</span>
+        )}
       </button>
       {open ? (
-        <div class="bas-menu" role="menu" data-testid="topbar-user-menu-dropdown">
+        <div class={"bas-menu" + (inSidebar ? " is-up" : "")} style={inSidebar ? upPos : undefined} role="menu" data-testid="topbar-user-menu-dropdown">
           <div class="bas-menu__who">
             <Avatar user={p.user} size={36} />
             <div class="bas-menu__whotext">
               {p.user.name ? <div class="bas-menu__name">{p.user.name}</div> : null}
+              {p.user.subtitle ? <div class="bas-menu__sub">{p.user.subtitle}</div> : null}
               {p.user.email ? <div class="bas-menu__email">{p.user.email}</div> : null}
             </div>
           </div>
@@ -739,6 +787,7 @@ export function UserMenu(p: UserMenuProps) {
               <NavLink key={it.id} href={it.href} onNavigate={p.onNavigate} onAfter={() => setOpen(false)} class="bas-mi" data-testid={`user-menu-${it.id}`}>
                 {it.icon ?? null}
                 <span>{it.label}</span>
+                {it.hint ? <span class="bas-mi__hint">{it.hint}</span> : null}
               </NavLink>
             ) : (
               <button
@@ -754,9 +803,34 @@ export function UserMenu(p: UserMenuProps) {
               >
                 {it.icon ?? null}
                 <span>{it.label}</span>
+                {it.hint ? <span class="bas-mi__hint">{it.hint}</span> : null}
               </button>
             ),
           )}
+          {(p.sections ?? []).map((sec) => (
+            <div class="bas-menu__section" role="group" aria-label={sec.label} key={sec.id} data-testid={`user-menu-section-${sec.id}`}>
+              <div class="bas-sep" />
+              <div class="bas-menu__label">{sec.label}</div>
+              {sec.items.map((it) => (
+                <button
+                  key={it.id}
+                  type="button"
+                  class={"bas-mi" + (it.checked ? " is-checked" : "")}
+                  role="menuitemradio"
+                  aria-checked={it.checked ? "true" : "false"}
+                  data-testid={`user-menu-section-${sec.id}-${it.id}`}
+                  onClick={() => {
+                    setOpen(false);
+                    p.onSectionSelect?.(sec.id, it.id);
+                  }}
+                >
+                  <span class="bas-mi__check" aria-hidden="true">{it.checked ? "✓" : ""}</span>
+                  <span>{it.label}</span>
+                  {it.hint ? <span class="bas-mi__hint">{it.hint}</span> : null}
+                </button>
+              ))}
+            </div>
+          ))}
           {p.appearance !== false ? (
             <>
               <div class="bas-sep" />
@@ -801,6 +875,23 @@ export function UserMenu(p: UserMenuProps) {
                     options={p.language.options.map((o) => [o.id, o.label] as const)}
                     onChange={p.language.onChange}
                   />
+                </div>
+              </div>
+            </>
+          ) : null}
+          {zoom ? (
+            <>
+              {p.appearance === false && !p.language ? <div class="bas-sep" /> : null}
+              <div class="bas-prefs">
+                <div class="bas-pref">
+                  <span>{t.zoom}</span>
+                  <div class="bas-zoom" role="group" aria-label={t.zoom}>
+                    <button type="button" class="bas-zoom__btn" data-testid="user-menu-zoom-out" aria-label={t.zoomOut}
+                      disabled={zoom.value - zStep < zMin} onClick={() => zoom.onChange(Math.max(zMin, zoom.value - zStep))}>−</button>
+                    <span class="bas-zoom__value" data-testid="user-menu-zoom-value">{zoom.value} %</span>
+                    <button type="button" class="bas-zoom__btn" data-testid="user-menu-zoom-in" aria-label={t.zoomIn}
+                      disabled={zoom.value + zStep > zMax} onClick={() => zoom.onChange(Math.min(zMax, zoom.value + zStep))}>+</button>
+                  </div>
                 </div>
               </div>
             </>
@@ -940,7 +1031,12 @@ export interface AppShellProps {
   /** The notification centre's source. The bell is shown either way. */
   notifications?: NotificationSource;
   user?: ShellUser;
-  userMenu?: Omit<UserMenuProps, "user" | "lang" | "onNavigate">;
+  userMenu?: Omit<UserMenuProps, "user" | "lang" | "onNavigate" | "placement">;
+  /**
+   * F092.15 — where the user menu sits. "topbar" (default): the content's top row
+   * (or the full-width bar). "sidebar-footer": the bottom of the sidebar, opening upward.
+   */
+  userMenuPlacement?: "topbar" | "sidebar-footer";
   /** Phone behaviour: a slide-in drawer, or a 60px icon rail. */
   mobile?: "drawer" | "rail";
   /**
@@ -993,6 +1089,11 @@ export function AppShell(p: AppShellProps) {
   const expanded = drawerMode ? drawer : !collapsed;
   const triggerLabel = drawerMode ? (drawer ? t.closeMenu : t.openMenu) : collapsed ? t.expand : t.collapse;
   const heading = p.title ?? activeNavLabel(p.groups, p.footer, p.currentPath);
+  const userInSidebar = p.userMenuPlacement === "sidebar-footer";
+  const sidebarUser =
+    userInSidebar && p.user ? (
+      <UserMenu user={p.user} {...p.userMenu} placement="sidebar-footer" onNavigate={p.onNavigate} lang={p.lang} />
+    ) : null;
   return (
     <div class="bas-root" data-testid="app-shell" data-mobile={mode} data-layout={layout}>
       {inset ? null : (
@@ -1002,7 +1103,7 @@ export function AppShell(p: AppShellProps) {
         onHome={() => setDrawer(false)}
         actions={p.actions}
         notifications={p.notifications}
-        user={p.user}
+        user={userInSidebar ? undefined : p.user}
         userMenu={p.userMenu}
         onNavigate={p.onNavigate}
         lang={p.lang}
@@ -1026,6 +1127,7 @@ export function AppShell(p: AppShellProps) {
           brandTestId={inset ? "brand-home" : undefined}
           groupsKey={`${prefix}.groups`}
           itemsKey={`${prefix}.items`}
+          bottom={sidebarUser}
           lang={p.lang}
         />
         <main class="bas-main" data-testid="app-content">
@@ -1054,7 +1156,7 @@ export function AppShell(p: AppShellProps) {
                 <div class="bas-spacer" />
                 {p.actions ? <div class="bas-contenthead__actions">{p.actions}</div> : null}
                 <NotificationBell source={p.notifications} onNavigate={p.onNavigate} lang={p.lang} />
-                {p.user ? <UserMenu user={p.user} {...p.userMenu} onNavigate={p.onNavigate} lang={p.lang} /> : null}
+                {p.user && !userInSidebar ? <UserMenu user={p.user} {...p.userMenu} onNavigate={p.onNavigate} lang={p.lang} /> : null}
               </>
             ) : null}
           </div>

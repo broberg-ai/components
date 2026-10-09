@@ -1,0 +1,12 @@
+{
+  "name": "app-shell-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "bun run server.ts" },
+  "dependencies": {
+    "@broberg/app-shell": "workspace:*",
+    "@broberg/notifications": "workspace:*",
+    "@broberg/theme": "workspace:*",
+    "preact": "^10.23.0"
+  }
+}
