@@ -553,7 +553,7 @@ try {
 - **BID briefly down:** a key already in the cache still verifies, with no network call. An unknown key while BID is down throws `JwksUnavailableError` — answer 503, do not reject the caller.
 - Not a login client: a service that only receives tickets needs no `client_id`, no redirect and no session.
 
-## Getting a ticket — `fetchTicket` (since 0.14.0)
+## Getting a ticket — `fetchTicket` (since 0.14.1 — 0.14.0 was tagged but never reached npm)
 
 The sending half: a workload on **Fly** or in **GitHub Actions** gets a Broberg ID ticket with no key at all. It proves who it is with the identity its platform already gives it, and BID exchanges that (RFC 8693). Nothing secret is stored anywhere.
 

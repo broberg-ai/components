@@ -29,8 +29,8 @@ describe("AC0 — finds the workload identity and exchanges it", () => {
     expect(t.split(".").length).toBe(3);
     expect(flyAud).toEqual([ISS]);
     expect(bid.calls.map((x) => [x.method, x.url])).toEqual([["POST", `${ISS}/oauth2/token`]]);
-    expect(bid.calls[0].headers["content-type"]).toBe("application/x-www-form-urlencoded");
-    expect(Object.fromEntries(new URLSearchParams(bid.calls[0].body))).toEqual({
+    expect(bid.calls[0]!.headers["content-type"]).toBe("application/x-www-form-urlencoded");
+    expect(Object.fromEntries(new URLSearchParams(bid.calls[0]!.body))).toEqual({
       grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
       subject_token: "fly-oidc-token",
       subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
@@ -47,9 +47,9 @@ describe("AC0 — finds the workload identity and exchanges it", () => {
       fetchImpl: bid.fetchImpl,
     });
     await c.get({ audience: "discovery" });
-    expect(bid.calls[0].url).toBe(`https://gh.example/token?api-version=2.0&audience=${encodeURIComponent(ISS)}`);
-    expect(bid.calls[0].headers.authorization).toBe("Bearer rt");
-    const form = Object.fromEntries(new URLSearchParams(bid.calls[1].body));
+    expect(bid.calls[0]!.url).toBe(`https://gh.example/token?api-version=2.0&audience=${encodeURIComponent(ISS)}`);
+    expect(bid.calls[0]!.headers.authorization).toBe("Bearer rt");
+    const form = Object.fromEntries(new URLSearchParams(bid.calls[1]!.body));
     expect([form.subject_token, form.audience, "scope" in form]).toEqual(["gh-oidc-token", "discovery", false]);
   });
 
