@@ -68,7 +68,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/speech-dictionary** v0.1.3 — Fleet STT vocabulary + correction primitive. `npm i @broberg/speech-dictionary`
 - **@broberg/sms** v0.12.0 — One SMS send primitive for the fleet. `npm i @broberg/sms`
 - **@broberg/notifications** v0.4.0 — The fleet's in-app notification list core: ONE counting rule shared by every app, so the list, the bell and the OS badge cannot disagree. `npm i @broberg/notifications`
-- **@broberg/app-shell** v0.9.2 — The fleet's app shell for Stack B (Preact; React later): a collapsible sidebar from data (groups/items/footer, active item from currentPath, state …. `npm i @broberg/app-shell`
+- **@broberg/app-shell** v0.10.0 — The fleet's app shell for Stack B (Preact; React later): a collapsible sidebar from data (groups/items/footer, active item from currentPath, state …. `npm i @broberg/app-shell`
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
 - **@broberg/lens-engine** v0.10.0 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
 - **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
