@@ -5,6 +5,7 @@
 //   node scripts/build-onboarding.mjs   → writes docs/onboarding.html
 import { DATA, INFRA, npmUrl, oneLiner } from "./inventory-data.mjs";
 import { writeFileSync } from "node:fs";
+import { FAVICON_LINK } from "./favicon.mjs";
 
 const esc = (s) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -172,6 +173,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>@broberg — Onboarding</title>
+${FAVICON_LINK}
 <style>
 ${tokens}
 *{box-sizing:border-box}html{scroll-behavior:smooth}

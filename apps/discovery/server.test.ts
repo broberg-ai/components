@@ -42,6 +42,15 @@ describe("Discovery API", () => {
     expect((await req("/consent/..%2Fpackage.json")).status).toBe(404);
   });
 
+  it("F038.25: / and /onboarding carry the SAME favicon, from one shared module", async () => {
+    const { FAVICON_LINK } = await import("../../scripts/favicon.mjs");
+    const icon = (html: string) => html.match(/<link rel="icon" href="[^"]+">/)?.[0] ?? null;
+    const home = icon(await (await req("/", { headers: { accept: "text/html" } })).text());
+    const onboarding = icon(await (await req("/onboarding")).text());
+    expect(home).toBe(FAVICON_LINK);
+    expect(onboarding).toBe(FAVICON_LINK);
+  });
+
   it("GET /health → ok", async () => {
     const res = await req("/health");
     expect(res.status).toBe(200);
