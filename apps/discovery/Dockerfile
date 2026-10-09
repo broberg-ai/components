@@ -6,6 +6,7 @@ WORKDIR /app
 # Single source of truth + the generators that render every served surface from it.
 COPY scripts/inventory-data.mjs ./scripts/inventory-data.mjs
 COPY scripts/npm-latest.mjs ./scripts/npm-latest.mjs
+COPY scripts/favicon.mjs ./scripts/favicon.mjs
 COPY scripts/build-inventory.mjs ./scripts/build-inventory.mjs
 COPY scripts/build-onboarding.mjs ./scripts/build-onboarding.mjs
 # F083 — the FLEET section is derived from the scanned manifests, so the image

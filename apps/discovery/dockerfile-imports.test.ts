@@ -36,6 +36,26 @@ describe("Dockerfile ships every module server.ts needs", () => {
     expect(missing).toEqual([]);
   });
 
+  // F038.25: the build step (RUN bun scripts/<x>.mjs) imports sibling modules too.
+  // A new one built locally and failed only in the image build ("Cannot find
+  // module './favicon.mjs'") — this walk covers that half of the graph.
+  it("has a COPY for every scripts/ module the image's build step imports", () => {
+    const repoScripts = new URL("../../scripts/", dir);
+    const entries = [...dockerfile.matchAll(/bun scripts\/([\w.-]+\.mjs)/g)].map((m) => m[1]);
+    expect(entries.length).toBeGreaterThan(0);
+    const seen = new Set<string>();
+    const queue = [...entries];
+    while (queue.length) {
+      const f = queue.pop()!;
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const src = readFileSync(new URL(f, repoScripts), "utf8");
+      queue.push(...[...src.matchAll(/^\s*(?:import|export)\b[^;]*?from\s+["']\.\/([^"']+\.mjs)["']/gm)].map((m) => m[1]));
+    }
+    const missing = [...seen].filter((f) => !dockerfile.includes(`COPY scripts/${f} ./scripts/${f}`));
+    expect(missing).toEqual([]);
+  });
+
   it("the walk actually finds the imports (control)", () => {
     expect(shippedGraph("server.ts")).toEqual(
       expect.arrayContaining(["server.ts", "enroll.ts", "speech-dictionary.ts", "webmcp-lab.ts"]),
