@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { ssoRoutes, getSession } from "@broberg/sso/hono";
-import { loadSsoConfig } from "@broberg/sso";
+import { loadSsoConfig, createTicketVerifier, JwksUnavailableError, type TicketVerifier, type TicketPrincipal } from "@broberg/sso";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createLogger } from "@broberg/logger";
@@ -283,7 +283,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
     { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
-    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = trust-on-first-use: generate your OWN key (openssl rand -hex 32) into your repo's .env, send it as header x-enroll-key — the first enroll binds it to your session, later enrolls must match. Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
+    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a Broberg ID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
     { method: "GET", path: "/api/speech-dictionary", description: "@broberg/speech-dictionary's current terms + corrections, always the latest committed state (F044.1)", example: "/api/speech-dictionary" },
     { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff. REGISTERED EDITORS ONLY (F044.3): an edit commits and auto-publishes a new npm patch version, so a session is registered by components (ask_peer components), never by its own first call; send the key components registered as header x-speech-dict-key + body.session. An unknown session gets 401 session_not_registered. Body {session,addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
   ],
@@ -354,10 +354,45 @@ if (sso) {
 }
 const wantsHtml = (accept: string | undefined) => !!accept && accept.includes("text/html");
 
+// F038.24 — the THIRD door: a Broberg ID ticket (broberg-id-F087.5). A service
+// sends `Authorization: Bearer <ticket>`; we check it locally against BID's public
+// keys (@broberg/sso createTicketVerifier). It sits BESIDE the BID login and the
+// session-key allowlist — neither is removed until tickets are proven live.
+// Ship dark: no BID_ISSUER, no ticket door.
+let tickets: TicketVerifier | null = process.env.BID_ISSUER
+  ? createTicketVerifier({
+      issuer: process.env.BID_ISSUER,
+      audience: process.env.DISCOVERY_TICKET_AUDIENCE ?? "https://discovery.broberg.ai",
+    })
+  : null;
+/** Tests swap in a verifier whose key set they control. */
+export const setTicketVerifierForTests = (v: TicketVerifier | null) => { tickets = v; };
+
+type TicketCheck = { ok: true; principal: TicketPrincipal } | { ok: false; res: Response };
+/**
+ * null = no ticket was sent (try the other doors). A ticket that IS sent but
+ * fails is answered here and never falls through: the caller meant this door.
+ */
+async function checkTicket(c: { req: { header(n: string): string | undefined }; json: (b: unknown, s: 401 | 503) => Response }, scope: string): Promise<TicketCheck | null> {
+  const auth = c.req.header("authorization") ?? "";
+  if (!/^Bearer\s+/i.test(auth)) return null;
+  if (!tickets) return { ok: false, res: c.json({ error: "ticket_not_accepted — this Discovery does not take Broberg ID tickets" }, 401) };
+  try {
+    return { ok: true, principal: await tickets.verify(auth.replace(/^Bearer\s+/i, "").trim(), { scope }) };
+  } catch (e) {
+    if (e instanceof JwksUnavailableError) {
+      return { ok: false, res: c.json({ error: "ticket_unverifiable_now — Broberg ID's keys could not be fetched; retry shortly" }, 503) };
+    }
+    return { ok: false, res: c.json({ error: `ticket_rejected — ${e instanceof Error ? e.message : String(e)}` }, 401) };
+  }
+}
+
 app.use("*", async (c, next) => {
   if (c.req.path.startsWith("/auth/")) return next();
   if (!isFleetPath(c.req.path, c.req.method)) return next();
   c.header("X-Robots-Tag", "noindex, nofollow");
+  const ticket = await checkTicket(c, "discovery:read");
+  if (ticket) return ticket.ok ? next() : ticket.res;
   const person = sso ? getSession(c) : null;
   if (person) {
     if (ALLOWED_SUBS.has(person.sub)) return next();
@@ -372,7 +407,7 @@ app.use("*", async (c, next) => {
     if (sso && !session && wantsHtml(c.req.header("accept"))) {
       return c.redirect(`/auth/login?returnTo=${encodeURIComponent(c.req.path + (new URL(c.req.url).search || ""))}`, 302);
     }
-    return c.json({ error: "login_required — Discovery is not public. A fleet session sends headers x-discovery-session (its session name) and x-enroll-key (its DISCOVERY_ENROLL_KEY); a person signs in with Broberg ID (coming). No key yet? ask components to register your session." }, 401);
+    return c.json({ error: "login_required — Discovery is not public. A fleet session sends headers x-discovery-session (its session name) and x-enroll-key (its DISCOVERY_ENROLL_KEY); a service may instead send Authorization: Bearer <Broberg ID ticket, scope discovery:read>; a person signs in with Broberg ID. No key yet? ask components to register your session." }, 401);
   }
   return next();
 });
@@ -580,7 +615,15 @@ app.post("/api/enroll", async (c) => {
   } catch {
     return c.json({ error: "invalid_json" }, 400);
   }
-  const session = typeof body.session === "string" ? body.session : "";
+  // F038.24 — with a ticket, the ticket's subject IS the session: a ticket can
+  // enroll itself and nobody else. Without one, the registered-key path below.
+  const ticket = await checkTicket(c, "discovery:enroll");
+  if (ticket && !ticket.ok) return ticket.res;
+  const ticketSession = ticket?.ok ? ticket.principal.principal : null;
+  if (ticketSession && typeof body.session === "string" && body.session !== ticketSession) {
+    return c.json({ error: `session_mismatch — this ticket is for ${ticketSession} and can only enroll that session` }, 403);
+  }
+  const session = ticketSession ?? (typeof body.session === "string" ? body.session : "");
   const pkg = typeof body.pkg === "string" ? body.pkg : "";
   const version = typeof body.version === "string" ? body.version : "";
   if (!session || !pkg || !version) return c.json({ error: "session, pkg and version are required" }, 400);
@@ -588,6 +631,10 @@ app.post("/api/enroll", async (c) => {
     return c.json({ error: `unknown package "${pkg}" — must be a published @broberg package`, packages: [...packageNames] }, 400);
   }
 
+  let keyStatus: "matched" | "ticket";
+  if (ticketSession) {
+    keyStatus = "ticket";
+  } else {
   // TOFU per-session key. Require a reasonably strong self-generated key.
   const presented = c.req.header("x-enroll-key") ?? "";
   if (presented.length < 32) {
@@ -595,7 +642,6 @@ app.post("/api/enroll", async (c) => {
   }
   const keyHash = createHash("sha256").update(presented).digest("hex");
   const bound = await store.sessionKeyHash(session);
-  let keyStatus: "matched";
   if (!bound) {
     // F038.21 — known sessions only (Christian 8/10, until BID login is ready).
     // This used to bind an unknown session's first key (trust-on-first-use), so
@@ -605,6 +651,7 @@ app.post("/api/enroll", async (c) => {
     keyStatus = "matched";
   } else {
     return c.json({ error: "session_key_mismatch — this session is already bound to a different key (use the one in your .env, or ask components to reset it)" }, 401);
+  }
   }
 
   const role: Role = body.role === "src" ? "src" : "uses";
