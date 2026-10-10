@@ -75,6 +75,20 @@ describe("F017.1 — the dirty-bus lifecycle", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
+  test("an edit made WHILE saving keeps the form unsaved after the save finishes", async () => {
+    // The save wrote what the panels had when Save was pressed; a keystroke after
+    // that is not in it, and calling the form clean would hide it.
+    const bus = createDirtyBus();
+    let release!: () => void;
+    bus.onDirtyBus({ onSave: () => new Promise<void>((r) => (release = r)) });
+    bus.markDirty();
+    const done = bus.requestSave();
+    bus.markDirty();
+    release();
+    expect(await done).toBe(true);
+    expect([bus.getState().dirty, bus.getState().saving]).toEqual([true, false]);
+  });
+
   test("the module-level functions drive the shared settingsBus", async () => {
     const seen: string[] = [];
     const off = onDirtyBus({ onDirty: () => seen.push("dirty"), onSaved: () => seen.push("saved") });

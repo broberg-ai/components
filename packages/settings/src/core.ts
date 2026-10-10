@@ -52,12 +52,16 @@ export interface DirtyBus {
 export function createDirtyBus(): DirtyBus {
   const subs = new Set<DirtyBusHandlers>();
   let state: DirtyState = { dirty: false, saving: false, error: undefined };
+  // An edit made while a save runs is not in that save (the panels wrote what they
+  // had when Save was pressed), so the form must stay unsaved after it finishes.
+  let editedWhileSaving = false;
   const set = (next: Partial<DirtyState>) => {
     state = { ...state, ...next };
     for (const s of [...subs]) s.onChange?.(state);
   };
   const bus: DirtyBus = {
     markDirty() {
+      if (state.saving) editedWhileSaving = true;
       set({ dirty: true, error: undefined });
       for (const s of [...subs]) s.onDirty?.();
     },
@@ -67,6 +71,7 @@ export function createDirtyBus(): DirtyBus {
     },
     async requestSave() {
       if (state.saving) return false;
+      editedWhileSaving = false;
       set({ saving: true, error: undefined });
       const results = await Promise.allSettled([...subs].map(async (s) => s.onSave?.()));
       const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
@@ -76,6 +81,7 @@ export function createDirtyBus(): DirtyBus {
         return false;
       }
       bus.markSaved();
+      if (editedWhileSaving) bus.markDirty();
       return true;
     },
     onDirtyBus(handlers) {
