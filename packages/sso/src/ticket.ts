@@ -28,6 +28,21 @@ import { createJwksCache, JwksUnavailableError, type JwksCache } from "./jwks.js
 export type PrincipalType = "human" | "service" | "agent";
 const PRINCIPAL_TYPES: readonly PrincipalType[] = ["human", "service", "agent"];
 
+/**
+ * F084.156 — one link of an RFC 8693 delegation chain. `act` is the next link
+ * outward: agent-b acting for agent-a acting for user-1 reads
+ * `{ sub: "agent-a", act: { sub: "user-1" } }`. `act.sub` alone is the old shape.
+ */
+export interface TicketActor {
+  sub: string;
+  act?: TicketActor;
+}
+
+/** The newest ticket format version this package understands (BID sets `ver`). */
+export const TICKET_FORMAT_VERSION = 1;
+/** Delegation deeper than this is refused rather than shortened. */
+export const MAX_ACT_DEPTH = 5;
+
 /** What a verified ticket tells the receiver — a small, typed principal, never the raw payload. */
 export interface TicketPrincipal {
   /** Who is calling: the ticket's `sub` (a client id such as `svc-trail`). */
@@ -37,8 +52,16 @@ export interface TicketPrincipal {
   clientId: string;
   /** The organisation, when BID stated one. */
   org: string | null;
-  /** On delegation: who the caller is acting for (RFC 8693 `act.sub`). */
-  act: { sub: string } | null;
+  /** On delegation: who the caller is acting for (RFC 8693 `act`), the WHOLE chain. */
+  act: TicketActor | null;
+  /** The ticket format version (`ver`); 0 for a ticket issued before BID set one. */
+  version: number;
+  /**
+   * F084.156 — the DPoP key thumbprint when the ticket is sender-constrained.
+   * NOT checked here: until the receiver verifies a DPoP proof against it
+   * (F087.16), a bound ticket is accepted exactly like a bearer ticket.
+   */
+  cnf: { jkt: string } | null;
   scopes: string[];
   /** Seconds since the epoch. */
   exp: number;
@@ -164,18 +187,42 @@ export function createTicketVerifier(options: TicketVerifierOptions): TicketVeri
       const missing = required.filter((s) => !scopes.includes(s));
       if (missing.length) throw new SsoError(`ticket lacks scope ${missing.join(", ")}`);
 
-      const actRaw = payload.act as { sub?: unknown } | undefined;
-      const act = actRaw && typeof actRaw.sub === "string" && actRaw.sub ? { sub: actRaw.sub } : null;
+      // F084.156 — ver: unknown future formats are refused by name, never read
+      // with today's rules.
+      const ver = payload.ver === undefined ? 0 : payload.ver;
+      if (typeof ver !== "number" || !Number.isInteger(ver) || ver < 0) {
+        throw new SsoError(`ticket has an invalid ver (got ${JSON.stringify(payload.ver)})`);
+      }
+      if (ver > TICKET_FORMAT_VERSION) {
+        throw new SsoError(`ticket format version ${ver} is newer than this @broberg/sso understands (${TICKET_FORMAT_VERSION}) — upgrade @broberg/sso`);
+      }
+      // The whole chain, or a refusal. 0.14.2 kept only act.sub, cutting a chain
+      // to its first link, and read a malformed act as "no delegation" — both in
+      // the direction where the caller looks like it acts for fewer people.
+      const act = payload.act === undefined ? null : readActor(payload.act, 1);
+      const cnfRaw = payload.cnf as { jkt?: unknown } | undefined;
+      const cnf = cnfRaw && typeof cnfRaw.jkt === "string" && cnfRaw.jkt ? { jkt: cnfRaw.jkt } : null;
       return {
         principal: payload.sub,
         type: type as PrincipalType,
         clientId: typeof payload.client_id === "string" && payload.client_id ? payload.client_id : payload.sub,
         org: typeof payload.org === "string" && payload.org ? payload.org : null,
         act,
+        version: ver,
+        cnf,
         scopes,
         exp: payload.exp!,
         jti: String(payload.jti),
       };
     },
   };
+}
+
+function readActor(raw: unknown, depth: number): TicketActor {
+  if (depth > MAX_ACT_DEPTH) throw new SsoError(`ticket's delegation chain is deeper than ${MAX_ACT_DEPTH}`);
+  const link = raw as { sub?: unknown; act?: unknown } | null;
+  if (!link || typeof link !== "object" || typeof link.sub !== "string" || link.sub === "") {
+    throw new SsoError(`ticket's act (link ${depth}) has no string sub`);
+  }
+  return link.act === undefined ? { sub: link.sub } : { sub: link.sub, act: readActor(link.act, depth + 1) };
 }

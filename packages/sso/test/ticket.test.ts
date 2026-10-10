@@ -65,6 +65,9 @@ describe("AC0 — a valid ticket gives a typed principal", () => {
       clientId: "svc-trail",
       org: "broberg",
       act: null,
+      // F084.156 — a ticket without ver/cnf reads exactly as in 0.14.2 plus these two defaults.
+      version: 0,
+      cnf: null,
       scopes: ["discovery:read-fleet", "discovery:enroll"],
       exp: p.exp,
       jti: "t-1",

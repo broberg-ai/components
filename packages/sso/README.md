@@ -540,7 +540,7 @@ const tickets = createTicketVerifier({
 
 try {
   const who = await tickets.verify(bearer, { scope: "discovery:read-fleet" });
-  // { principal: "svc-trail", type: "service", clientId, org, act, scopes, exp, jti }
+  // { principal: "svc-trail", type: "service", clientId, org, act, version, cnf, scopes, exp, jti }
 } catch (e) {
   if (e instanceof JwksUnavailableError) return c.text("try again", 503); // could not ask BID
   if (e instanceof SsoError) return c.text("forbidden", 401);            // the ticket is not acceptable
@@ -552,6 +552,12 @@ try {
 - **Never accepted as a ticket:** an ID token or a logout token, even though BID signed both.
 - **BID briefly down:** a key already in the cache still verifies, with no network call. An unknown key while BID is down throws `JwksUnavailableError` — answer 503, do not reject the caller.
 - Not a login client: a service that only receives tickets needs no `client_id`, no redirect and no session.
+
+**Since 0.15.0 (F084.156, broberg-id-F087.15) — read for the future, never shortened:**
+
+- `act` is the **whole delegation chain** (RFC 8693): agent-b acting for agent-a acting for user-1 is `{ sub: "agent-a", act: { sub: "user-1" } }`. `act.sub` is the same as before. A chain deeper than 5 links, or a link without a string `sub`, is **rejected** — 0.14.x kept only the first link and read a malformed `act` as "no delegation", both in the direction where the caller looks like it acts for fewer people.
+- `version` is the ticket format (`ver`): 0 for a ticket from before BID set one, 1 today. A `ver` newer than this package understands is **rejected by name** ("upgrade @broberg/sso"), never read with today's rules.
+- `cnf` is `{ jkt }` for a DPoP-bound ticket, else `null`. **It is not checked here**: until your service verifies a DPoP proof against it (F087.16), a bound ticket is accepted exactly like a bearer ticket, and a stolen one works. Do not treat `cnf` as protection yet.
 
 ## Getting a ticket — `fetchTicket` (since 0.14.1 — 0.14.0 was tagged but never reached npm)
 

@@ -51,7 +51,10 @@ export {
   type TicketVerifier,
   type TicketVerifierOptions,
   type TicketPrincipal,
+  type TicketActor,
   type PrincipalType,
+  TICKET_FORMAT_VERSION,
+  MAX_ACT_DEPTH,
 } from "./ticket.js";
 
 export {
