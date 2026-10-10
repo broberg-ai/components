@@ -23,6 +23,8 @@ const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REACT = join(HERE, 'src/react.tsx');
 const PREACT = join(HERE, 'src/preact.tsx');
 const CORE = join(HERE, 'src/index.ts');
+const RASTER = join(HERE, 'src/raster.ts');
+const CLI = join(HERE, 'src/cli.ts');
 
 /** The 0.2.2 shape, verbatim: four names, and the two that mattered missing. */
 const OLD_LIST = `    const updater = createPwaUpdater({
@@ -33,6 +35,24 @@ const OLD_LIST = `    const updater = createPwaUpdater({
     });`;
 
 const MUTATIONS = [
+  {
+    name: 'F021.9 the manifest icons[] keep pointing at the SVGs (iOS shows a screenshot again)',
+    file: RASTER,
+    from: '  const icons = set.icons.map((i) => ({ ...i, src: toPng(i.src), type: "image/png" }));',
+    to: '  const icons = set.icons;',
+  },
+  {
+    name: 'F021.9 no fonts loaded (a monogram icon renders as a blank square)',
+    file: RASTER,
+    from: 'font: { loadSystemFonts: true,',
+    to: 'font: { loadSystemFonts: false,',
+  },
+  {
+    name: 'F021.9 the CLI writes only the SVGs (the PNGs it prints are never on disk)',
+    file: CLI,
+    from: '  for (const f of raster.files) writeFileSync(join(out, basename(f.path)), f.content);\n',
+    to: '',
+  },
   {
     name: 'the react adapter keeps its own option list again (the 0.2.2 defect)',
     file: REACT,

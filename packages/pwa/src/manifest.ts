@@ -7,9 +7,8 @@
  * Everything here is PURE string/object generation — no filesystem, no
  * rasteriser, no runtime deps — so it runs in Node, Bun, edge, a build script,
  * or the browser, and every piece is offline-unit-testable. Icons are emitted
- * as self-contained SVG documents (modern manifests + apple-touch accept SVG);
- * a consumer that specifically needs PNG can rasterise the SVGs with `sharp`
- * on their side — the package stays dep-free.
+ * as self-contained SVG documents. iOS does NOT use an SVG apple-touch-icon —
+ * rasterise with `@broberg/pwa/raster` / the `pwa-icons` bin (F021.9).
  */
 
 // ---------------------------------------------------------------------------

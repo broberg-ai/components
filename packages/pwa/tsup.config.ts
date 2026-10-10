@@ -14,6 +14,18 @@ export default defineConfig([
     treeshake: true,
   },
   {
+    // F021.9 — PNG icons: the raster subpath + the `pwa-icons` bin. Kept apart
+    // so the core entries stay dependency-free; @resvg/resvg-js is an optional
+    // peer, loaded only when this runs.
+    entry: { raster: "src/raster.ts", bin: "src/bin.ts" },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    treeshake: true,
+    platform: "node",
+    external: ["@resvg/resvg-js"],
+  },
+  {
     // React adapter — react stays external (optional peer).
     entry: { react: "src/react.tsx" },
     format: ["esm", "cjs"],

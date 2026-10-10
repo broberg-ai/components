@@ -8,6 +8,11 @@ as one small, framework- and bundler-agnostic package instead of a fifth copy.
 npm i @broberg/pwa
 ```
 
+## 0.5.0 — PNG icons, so «Add to Home Screen» on an iPhone shows the logo (F021.9)
+
+New `pwa-icons` bin + `@broberg/pwa/raster` — see «PNG icons» below. Additive:
+nothing existing changed output, and the core entries are still dependency-free.
+
 ## 0.4.1 — «Update now» now always updates (F054.9)
 
 **Take 0.4.1 if you show an update button.** In 0.4.0 a press could do nothing,
@@ -226,8 +231,8 @@ new Serwist({ /* … */, skipWaiting: false, clientsClaim: true });
 The *other* half of a PWA: the `manifest.webmanifest`, the icon set, and the
 apple-touch `<meta>` tags — all as **pure, zero-dep** factories so you stop
 hand-rolling `app/manifest.ts`, a `gen-pwa-icons.cjs` script, and a wall of
-`<meta>` tags. Icons are emitted as self-contained **SVG** (modern manifests +
-apple-touch accept SVG); no rasteriser is bundled.
+`<meta>` tags. Icons are emitted as self-contained **SVG**; for the PNGs an
+iPhone needs, see «PNG icons» below (0.5.0).
 
 ```ts
 import { defineManifest, serializeManifest, buildIconSet, pwaMetaTags } from "@broberg/pwa/manifest";
@@ -251,8 +256,38 @@ pwaMetaTags({ themeColor: "#141969", title: "AK" });
   apple-touch `<link>`, not the manifest `icons[]`.
 - **Everything is a pure return value** — you own the filesystem write and the head
   render. Runs in a build script, a Route Handler, or the browser.
-- Need PNG? Rasterise the returned SVGs with `sharp` on your side — the package
-  stays dependency-free.
+- **iOS needs PNG.** Safari does not use an SVG `apple-touch-icon`: with only SVG
+  icons, «Add to Home Screen» on an iPhone shows a screenshot of the page instead
+  of the logo. (This README said the opposite until 0.5.0 — it was wrong.)
+
+## PNG icons — `pwa-icons` and `@broberg/pwa/raster` (0.5.0, F021.9)
+
+One command, run at build time; no sharp script per app:
+
+```sh
+npm i -D @resvg/resvg-js            # the renderer — an optional peer, prebuilt binaries
+npx pwa-icons --svg logo.svg --background "#141969" --out public/icons
+#   or: --monogram AK --color "#fff"     (also --base-path /icons)
+```
+
+It writes `icon-180/192/512.{svg,png}` + `icon-maskable-512.{svg,png}` and prints
+the manifest `icons[]` (PNG) and `appleTouchIcon`. Point the head tags at the PNG:
+
+```ts
+pwaMetaTags({ themeColor: "#141969", appleTouchIcon: "/icons/icon-180.png" });
+```
+
+Or in code:
+
+```ts
+import { buildIconSet } from "@broberg/pwa/manifest";
+import { rasterizeIconSet } from "@broberg/pwa/raster";
+const { files, icons, appleTouchIcon } = await rasterizeIconSet(buildIconSet({ svg, background: "#141969" }));
+// files → [{ path: "/icons/icon-180.png", content: Uint8Array, … }] — you write them
+```
+
+`@broberg/pwa` and `/manifest` stay dependency-free; only `/raster` and the bin
+need `@resvg/resvg-js`, and without it they fail with the install command.
 
 ## Gotchas (baked into this package so you don't rediscover them)
 
