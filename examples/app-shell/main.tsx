@@ -42,7 +42,7 @@ function App() {
         homeLabel="Scout"
         currentPath="/"
         user={{ name: "Example User", email: "user@example.com", subtitle: `Administrator · ${unit === "nord" ? "Enhed Nord" : "Enhed Syd"}` }}
-        userMenuPlacement="sidebar-footer"
+        userMenuPlacement={new URLSearchParams(location.search).get("placement") === "topbar" ? "topbar" : "sidebar-footer"}
         userMenu={{
           accountHref: "#",
           onSignOut: () => {},
