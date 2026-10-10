@@ -46,12 +46,35 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `Sidebar` | Groups (foldable, remembered) + footer, from data. Items can have `children` (one level) that open and close. Active item from `currentPath`. Badges, 99+. |
 | `TopBar` | Brand left, `actions` slot, then **the bell and the user menu, always last, in that order**. |
 | `NotificationBell` | Unread count, panel (dropdown on desktop, bottom sheet on a phone), mark one / all read. |
-| `UserMenu` | Avatar, name + email, **Konto** → Broberg ID, your items, Theme · Palette · Surfaces · Backdrop, sign out. |
+| `UserMenu` | Avatar, name + email, **Konto** → Broberg ID, your items, Theme · Palette · Surfaces (· Backdrop, opt-in), sign out. |
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
 | `AccountPage` | The user's own name and picture, edited inside the app (0.4.0). |
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
+
+## 0.11.0 — the user menu's Appearance, tidied (F001.23)
+
+Christian 10/10, via appkit: «Neuroner … er reelt set kun til trail og cardmem» and «Paletten er ikke pæn».
+
+- **Backdrop (Neurons · Plain) is opt-in.** It only means something in an app
+  that draws the neuron canvas (`mountConstellation` from `@broberg/theme`).
+  **trail and cardmem: add one line to keep it:**
+  ```tsx
+  <AppShell userMenu={{ appearance: { backdrop: true } }} … />
+  ```
+  `appearance: false` still hides the whole block; `true`/omitted shows Theme ·
+  Palette · Surfaces.
+- **Palette is a dropdown**, not four wrapping buttons. Custom, not a native
+  `<select>` (D-4cd764): arrows open and move, Enter/Space choose, Escape closes
+  the list without choosing and leaves the menu open; a second Escape closes the
+  menu. It opens in flow under its row, so the menu never clips it.
+  testids: `user-menu-palette` (the button), `user-menu-palette-list`,
+  `user-menu-palette-<id>` (each option). **A Lens flow that clicked
+  `user-menu-palette-<id>` directly must click `user-menu-palette` first.**
+- New dependency: `@broberg/ui-controls-core` (its keyboard reducer — pure, no DOM).
+- Pairs with `@broberg/theme` 0.13.0, where Layered is the default. Works with
+  ≥ 0.11.0 too; then the old default (Flat) applies.
 
 ## 0.9.2 — ConfirmDialog listens from the first frame (F092.14)
 

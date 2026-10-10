@@ -665,19 +665,62 @@ describe("UserMenu (F092.3)", () => {
   it("appearance writes through @broberg/theme to <html>", () => {
     initTheme({ storageKey: "t.theme", defaultPreference: "dark" });
     initPalette({ paletteKey: "t.p", surfacesKey: "t.s", backdropKey: "t.b" });
-    render(<UserMenu lang="da" user={{ name: "A" }} />);
+    render(<UserMenu lang="da" user={{ name: "A" }} appearance={{ backdrop: true }} />);
     fireEvent.click(screen.getByTestId("topbar-user-menu"));
     const html = document.documentElement;
     fireEvent.click(screen.getByTestId("user-menu-theme-light"));
     expect(html.getAttribute("data-theme")).toBe("light");
+    fireEvent.click(screen.getByTestId("user-menu-palette"));
     fireEvent.click(screen.getByTestId("user-menu-palette-broberg"));
     expect(html.getAttribute("data-palette")).toBe("broberg");
-    expect(screen.getByTestId("user-menu-palette-broberg").getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(screen.getByTestId("user-menu-surfaces-layered"));
-    expect(html.getAttribute("data-surfaces")).toBe("layered");
+    expect(screen.getByTestId("user-menu-palette").textContent).toBe("Fjord▾");
+    expect(html.getAttribute("data-surfaces")).toBe("layered"); // F001.23 — the default
+    fireEvent.click(screen.getByTestId("user-menu-surfaces-flat"));
+    expect([html.getAttribute("data-surfaces"), localStorage.getItem("t.s")]).toEqual([null, "flat"]);
     fireEvent.click(screen.getByTestId("user-menu-backdrop-plain"));
     expect(html.getAttribute("data-backdrop")).toBe("plain");
-    expect(screen.getByTestId("user-menu-palette-broberg").textContent).toBe("Fjord");
+  });
+
+  it("F001.23 — the Backdrop row is opt-in; appearance:false still hides the whole block", () => {
+    const { unmount } = render(<UserMenu lang="da" user={{ name: "A" }} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    expect([!!screen.queryByTestId("user-menu-palette"), !!screen.queryByTestId("user-menu-surfaces"), screen.queryByTestId("user-menu-backdrop")]).toEqual([true, true, null]);
+    unmount();
+    const second = render(<UserMenu lang="da" user={{ name: "A" }} appearance={{ backdrop: true }} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    expect(!!screen.queryByTestId("user-menu-backdrop")).toBe(true);
+    second.unmount();
+    render(<UserMenu lang="da" user={{ name: "A" }} appearance={false} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    expect([screen.queryByTestId("user-menu-palette"), screen.queryByTestId("user-menu-backdrop")]).toEqual([null, null]);
+  });
+
+  it("F001.23 — the palette is a custom dropdown: arrows move, Enter chooses, Escape closes without choosing and keeps the menu", () => {
+    initPalette({ paletteKey: "t.p", surfacesKey: "t.s", backdropKey: "t.b" });
+    render(<UserMenu lang="da" user={{ name: "A" }} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    const btn = screen.getByTestId("user-menu-palette");
+    const html = document.documentElement;
+    expect([btn.tagName, btn.getAttribute("aria-haspopup"), document.querySelector(".bas-menu select")]).toEqual(["BUTTON", "listbox", null]);
+    btn.focus();
+    fireEvent.keyDown(btn, { key: "ArrowDown" }); // opens on the current (classic)
+    expect(btn.getAttribute("aria-expanded")).toBe("true");
+    expect(btn.getAttribute("aria-activedescendant")).toBe("user-menu-palette-opt-classic");
+    fireEvent.keyDown(btn, { key: "ArrowDown" });
+    fireEvent.keyDown(btn, { key: "ArrowDown" });
+    expect(btn.getAttribute("aria-activedescendant")).toBe("user-menu-palette-opt-warm");
+    fireEvent.keyDown(btn, { key: "Escape" });
+    expect([btn.getAttribute("aria-expanded"), html.hasAttribute("data-palette"), !!screen.queryByTestId("topbar-user-menu-dropdown"), document.activeElement === btn]).toEqual(["false", false, true, true]);
+    fireEvent.keyDown(btn, { key: "ArrowDown" });
+    fireEvent.keyDown(btn, { key: "ArrowUp" }); // wraps to the last
+    fireEvent.keyDown(btn, { key: "Enter" });
+    expect([html.getAttribute("data-palette"), localStorage.getItem("t.p"), btn.getAttribute("aria-expanded")]).toEqual(["broberg", "broberg", "false"]);
+    // A reload reads it back.
+    html.removeAttribute("data-palette");
+    expect(initPalette({ paletteKey: "t.p", surfacesKey: "t.s", backdropKey: "t.b" }).palette).toBe("broberg");
+    // A second Escape, with the list closed, closes the menu as before.
+    fireEvent.keyDown(btn, { key: "Escape" });
+    expect(screen.queryByTestId("topbar-user-menu-dropdown")).toBeNull();
   });
 
   it("closes on Escape and on a click outside", () => {

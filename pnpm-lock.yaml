@@ -94,6 +94,10 @@ importers:
         version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)
 
   packages/app-shell:
+    dependencies:
+      '@broberg/ui-controls-core':
+        specifier: ^0.2.3
+        version: 0.2.3
     devDependencies:
       '@broberg/notifications':
         specifier: workspace:*

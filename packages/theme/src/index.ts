@@ -407,9 +407,9 @@ function paletteSnippet(options: PrePaintOptions): string {
   if (options.surfacesKey) {
     const key = JSON.stringify(options.surfacesKey);
     out +=
-      `try{if(localStorage.getItem(${key})==="layered")` +
-      `document.documentElement.setAttribute("data-surfaces","layered")` +
-      `}catch(e){}`;
+      // F001.23 — layered unless "flat" was stored; a blocked localStorage is layered too.
+      `try{var f=localStorage.getItem(${key})==="flat"}catch(e){}` +
+      `if(!f)document.documentElement.setAttribute("data-surfaces","layered");`;
   }
   if (options.backdropKey) {
     const key = JSON.stringify(options.backdropKey);

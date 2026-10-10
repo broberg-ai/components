@@ -16,6 +16,7 @@
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { createBellShell } from "@broberg/notifications/shell";
+import { selectKeyReducer, type SelectState } from "@broberg/ui-controls-core";
 import {
   getBackdrop,
   getPalette,
@@ -627,8 +628,13 @@ export interface UserMenuProps {
   items?: UserMenuItem[];
   onSignOut?: () => void | Promise<void>;
   onNavigate?: Navigate;
-  /** Show Theme · Palette · Surfaces · Backdrop. Default true. */
-  appearance?: boolean;
+  /**
+   * Show Theme · Palette · Surfaces. Default true; false hides the block.
+   * F001.23 — the Backdrop row (Neurons · Plain) is opt-in: pass
+   * `{ backdrop: true }`. Only apps that draw the neuron canvas
+   * (mountConstellation — trail, cardmem) have anything for it to switch.
+   */
+  appearance?: boolean | { backdrop?: boolean };
   /**
    * F092.11 — a «Sprog»/«Language» row with a segmented control, like the
    * appearance rows. The app owns the language; the shell shows and reports it.
@@ -676,6 +682,71 @@ function Segmented<T extends string>(props: { testid: string; value: T; options:
           {label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * F001.23 — a custom dropdown for a one-of-many choice (D-4cd764: no native
+ * <select>). Focus stays on the button; the highlighted option is announced
+ * via aria-activedescendant. Keys come from @broberg/ui-controls-core's
+ * selectKeyReducer: arrows open/move, Enter/Space choose, Escape closes without
+ * choosing — and does not close the menu around it.
+ */
+function Dropdown<T extends string>(props: { testid: string; value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; label?: string }) {
+  const [state, setState] = useState<SelectState>({ open: false, highlighted: -1 });
+  const current = Math.max(0, props.options.findIndex(([v]) => v === props.value));
+  const choose = (i: number) => {
+    setState({ open: false, highlighted: i });
+    props.onChange(props.options[i]![0]);
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Tab") return setState((st) => ({ ...st, open: false }));
+    const from = state.open ? state : { open: false, highlighted: current };
+    const { state: next, intent } = selectKeyReducer(from, e.key, props.options.length);
+    if (intent.type === "none" && next === from) return;
+    e.preventDefault();
+    if (state.open || intent.type !== "close") e.stopPropagation();
+    if (intent.type === "select") return choose(intent.index);
+    setState(next);
+  };
+  const optId = (v: string) => `${props.testid}-opt-${v}`;
+  return (
+    <div class="bas-dd" onFocusOut={(e) => !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node) && setState((st) => ({ ...st, open: false }))}>
+      <button
+        type="button"
+        class="bas-dd__btn"
+        data-testid={props.testid}
+        aria-haspopup="listbox"
+        aria-expanded={state.open}
+        aria-label={props.label}
+        aria-activedescendant={state.open && state.highlighted >= 0 ? optId(props.options[state.highlighted]![0]) : undefined}
+        onClick={() => setState((st) => ({ open: !st.open, highlighted: current }))}
+        onKeyDown={onKeyDown}
+      >
+        <span>{props.options[current]?.[1]}</span>
+        <span class="bas-dd__caret" aria-hidden="true">▾</span>
+      </button>
+      {state.open ? (
+        <ul class="bas-dd__list" role="listbox" aria-label={props.label} data-testid={`${props.testid}-list`}>
+          {props.options.map(([v, label], i) => (
+            <li
+              key={v}
+              id={optId(v)}
+              role="option"
+              aria-selected={props.value === v}
+              class={"bas-dd__opt" + (i === state.highlighted ? " is-active" : "")}
+              data-testid={`${props.testid}-${v}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setState((st) => ({ ...st, highlighted: i }))}
+              onClick={() => choose(i)}
+            >
+              <span class="bas-mi__check" aria-hidden="true">{props.value === v ? "✓" : ""}</span>
+              {label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -850,16 +921,18 @@ export function UserMenu(p: UserMenuProps) {
                 </div>
                 <div class="bas-pref">
                   <span>{t.palette}</span>
-                  <Segmented testid="user-menu-palette" value={palette} options={PALETTES.map((x) => [x, PALETTE_LABELS[x]] as const)} onChange={setPalette} />
+                  <Dropdown testid="user-menu-palette" label={t.palette} value={palette} options={PALETTES.map((x) => [x, PALETTE_LABELS[x]] as const)} onChange={setPalette} />
                 </div>
                 <div class="bas-pref">
                   <span>{t.surfaces}</span>
                   <Segmented testid="user-menu-surfaces" value={surfaces} options={[["flat", t.flat], ["layered", t.layered]] as const} onChange={setSurfaces} />
                 </div>
-                <div class="bas-pref">
-                  <span>{t.backdrop}</span>
-                  <Segmented testid="user-menu-backdrop" value={backdrop} options={[["neurons", t.neurons], ["plain", t.plain]] as const} onChange={setBackdrop} />
-                </div>
+                {typeof p.appearance === "object" && p.appearance.backdrop ? (
+                  <div class="bas-pref">
+                    <span>{t.backdrop}</span>
+                    <Segmented testid="user-menu-backdrop" value={backdrop} options={[["neurons", t.neurons], ["plain", t.plain]] as const} onChange={setBackdrop} />
+                  </div>
+                ) : null}
               </div>
             </>
           ) : null}

@@ -10,9 +10,16 @@
 // cannot without resetting everyone's choice.
 //
 // ── THE DEFAULT IS "NO ATTRIBUTE" ───────────────────────────────────────────
-// classic and flat REMOVE the attribute (and the stored key), exactly as
-// cardmem does: the CSS treats "absent" as the default, so a user who never
-// picks sees the base palette with no extra selector involved.
+// classic REMOVES the attribute (and the stored key), exactly as cardmem does:
+// the CSS treats "absent" as the default, so a user who never picks sees the
+// base palette with no extra selector involved.
+//
+// ── SURFACES DEFAULT TO LAYERED (F001.23) ───────────────────────────────────
+// Christian 10/10: «Lag skal altid være default». So flat is now the choice
+// that must be REMEMBERED: it is stored as "flat", and only a stored "flat"
+// reads as flat. Before 0.13.0 flat was stored by deleting the key, so a user
+// who chose flat then cannot be told from one who never chose — both get
+// layered once. The attribute is unchanged: data-surfaces="layered" or absent.
 
 export type Palette = "classic" | "cool" | "warm" | "broberg";
 export const PALETTES: readonly Palette[] = ["classic", "cool", "warm", "broberg"];
@@ -50,7 +57,7 @@ let backdropKey = DEFAULT_BACKDROP_KEY;
 let backdrop: Backdrop = "neurons";
 const backdropListeners = new Set<(b: Backdrop) => void>();
 let palette: Palette = "classic";
-let surfaces: Surfaces = "flat";
+let surfaces: Surfaces = "layered";
 const paletteListeners = new Set<(p: Palette) => void>();
 const surfacesListeners = new Set<(s: Surfaces) => void>();
 
@@ -90,7 +97,7 @@ export function initPalette(options: InitPaletteOptions = {}): { palette: Palett
   attr("data-backdrop", backdrop === "plain" ? "plain" : null);
   const p = stored(paletteKey);
   palette = isPalette(p) ? p : "classic";
-  surfaces = stored(surfacesKey) === "layered" ? "layered" : "flat";
+  surfaces = stored(surfacesKey) === "flat" ? "flat" : "layered";
   attr("data-palette", palette === "classic" ? null : palette);
   attr("data-surfaces", surfaces === "layered" ? "layered" : null);
   return { palette, surfaces, backdrop };
@@ -124,9 +131,8 @@ export function getSurfaces(): Surfaces {
 export function setSurfaces(next: Surfaces): void {
   if (next !== "flat" && next !== "layered") return;
   surfaces = next;
-  const v = next === "layered" ? "layered" : null;
-  attr("data-surfaces", v);
-  store(surfacesKey, v);
+  attr("data-surfaces", next === "layered" ? "layered" : null);
+  store(surfacesKey, next);
   for (const l of surfacesListeners) l(next);
 }
 

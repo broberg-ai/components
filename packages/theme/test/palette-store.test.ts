@@ -54,22 +54,33 @@ describe("store", () => {
     expect(getPalette()).toBe("classic");
   });
 
-  it("setSurfaces: layered sets, flat removes", () => {
+  it("setSurfaces: layered sets the attribute, flat removes it and is STORED as flat (F001.23)", () => {
     initPalette({ paletteKey: "k.p", surfacesKey: "k.s" });
     setSurfaces("layered");
     expect(html().getAttribute("data-surfaces")).toBe("layered");
     expect(localStorage.getItem("k.s")).toBe("layered");
     setSurfaces("flat");
     expect(html().hasAttribute("data-surfaces")).toBe(false);
-    expect(localStorage.getItem("k.s")).toBeNull();
+    expect(localStorage.getItem("k.s")).toBe("flat");
     expect(getSurfaces()).toBe("flat");
   });
 
-  it("an unknown stored or passed value is classic/flat, never written", () => {
+  it("F001.23 — nothing stored → layered; a stored flat survives a reload; a stored layered is unchanged", () => {
+    expect(initPalette({ paletteKey: "k.p", surfacesKey: "k.s" }).surfaces).toBe("layered");
+    expect(html().getAttribute("data-surfaces")).toBe("layered");
+    setSurfaces("flat");
+    html().setAttribute("data-surfaces", "layered"); // a fresh page, before init
+    expect([initPalette({ paletteKey: "k.p", surfacesKey: "k.s" }).surfaces, html().getAttribute("data-surfaces"), localStorage.getItem("k.s")]).toEqual(["flat", null, "flat"]);
+    localStorage.setItem("k.s", "layered");
+    expect([initPalette({ paletteKey: "k.p", surfacesKey: "k.s" }).surfaces, html().getAttribute("data-surfaces")]).toEqual(["layered", "layered"]);
+  });
+
+  it("an unknown stored or passed value is classic/layered, never written", () => {
     localStorage.setItem("k.p", "ember"); // the LABEL, not an id
     localStorage.setItem("k.s", "yes");
-    expect(initPalette({ paletteKey: "k.p", surfacesKey: "k.s" })).toEqual({ palette: "classic", surfaces: "flat", backdrop: "neurons" });
+    expect(initPalette({ paletteKey: "k.p", surfacesKey: "k.s" })).toEqual({ palette: "classic", surfaces: "layered", backdrop: "neurons" });
     expect(html().hasAttribute("data-palette")).toBe(false);
+    expect(localStorage.getItem("k.s")).toBe("yes");
     setPalette("fjord" as never);
     expect(getPalette()).toBe("classic");
   });

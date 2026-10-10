@@ -13,6 +13,22 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
+## 0.13.0 — Layered is the default (F001.23)
+
+Christian 10/10: «Lag skal altid være default».
+
+- **No stored choice → `layered`**, in `initPalette()`, `getSurfaces()` and
+  `prePaintScript({ surfacesKey })` alike. `<html data-surfaces="layered">` is
+  set from the first paint.
+- **Flat is now stored as `"flat"`** (it used to delete the key), so a user who
+  picks Flat keeps it after a reload. Only a stored `"flat"` reads as flat.
+- **One-time switch, by design:** before 0.13.0 «Flat» and «never chose» were the
+  same empty key, so a user who chose Flat earlier sees Layered once after the
+  bump. There is no way to tell them apart.
+- The attribute and CSS are unchanged (`layered` or absent). A test asserting
+  `initPalette()` with strict equality and nothing stored now gets
+  `surfaces: "layered"`.
+
 ## 0.12.0 — a brand accent: the app's own colour from one hex (F001.20)
 
 A palette is a **surface tone**, not a brand: `classic`, `cool` and `warm` share one
@@ -72,7 +88,7 @@ from this package instead of three copies:
 |---|---|---|
 | Theme | `data-theme` | `light` · `dark` (+ `system` as a preference) |
 | Palette | `data-palette` | none = `classic` **Ember** · `cool` **Graphite** · `warm` **Sandstone** · `broberg` **Fjord** |
-| Surfaces | `data-surfaces` | none = `flat` · `layered` |
+| Surfaces | `data-surfaces` | none = `flat` · `layered` (the default since 0.13.0) |
 
 **CSS** — plain, so it imports straight from node_modules:
 
@@ -96,7 +112,7 @@ import { initPalette, setPalette, setSurfaces, PALETTES, PALETTE_LABELS, prePain
 
 initPalette({ paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" }); // your existing keys: nobody loses a choice
 setPalette("broberg");      // classic REMOVES the attribute and the key
-setSurfaces("layered");     // flat removes them
+setSurfaces("flat");        // removes the attribute, stores "flat" (layered is the default)
 // <head>, before the bundle — same keys:
 prePaintScript({ storageKey: "cardmem.theme-pref", paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" });
 ```
