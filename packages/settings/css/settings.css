@@ -1,0 +1,87 @@
+/* @broberg/settings — css/settings.css (F017.3)
+ *
+ *   @import "@broberg/theme/css/palettes.css";
+ *   @import "@broberg/settings/css/settings.css";
+ *
+ * Every colour is a @broberg/theme token; the only literals are the knob shadow
+ * and the spinner's transparent edge. Prefix bst- so it cannot collide with an
+ * app's own classes during a migration (app-shell uses bas-).
+ */
+
+.bst-card {
+  --bst-radius: var(--radius, 8px);
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  padding: 20px; background: var(--bg-card); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--bst-radius);
+}
+.bst-card + .bst-card { margin-top: 16px; }
+.bst-card__body { display: flex; flex-direction: column; }
+
+.bst-heading { margin-bottom: 8px; }
+.bst-heading__title { margin: 0; font-size: 15px; font-weight: 600; }
+.bst-heading__desc { margin: 4px 0 0; font-size: 13px; color: var(--fg-muted); }
+
+/* The two-column row (trail's settings-account shape): 180px label, the control beside it. */
+.bst-field {
+  display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; align-items: start;
+  padding: 12px 0; border-top: 1px solid var(--border);
+}
+.bst-heading + .bst-card__body > .bst-field:first-child { border-top: 0; }
+.bst-field__label { font-size: 13.5px; font-weight: 500; padding-top: 7px; }
+.bst-field__hint { margin: 2px 0 0; font-size: 12px; font-weight: 400; color: var(--fg-muted); }
+.bst-field__control { min-width: 0; }
+@media (max-width: 639px) {
+  .bst-card { padding: 16px; }
+  .bst-field { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .bst-field__label { padding-top: 0; }
+}
+
+.bst-input { display: flex; gap: 8px; min-width: 0; }
+.bst-input__field {
+  flex: 1 1 auto; min-width: 0; padding: 8px 10px; font: inherit; font-size: 14px;
+  color: var(--fg); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius, 8px);
+}
+.bst-input__field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bst-input__field[readonly] { color: var(--fg-muted); background: var(--bg-sunk); }
+
+.bst-btn {
+  flex: none; display: inline-flex; align-items: center; padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 500;
+  color: var(--fg); background: transparent; border: 1px solid var(--border); border-radius: var(--radius, 8px); cursor: pointer;
+}
+.bst-btn:hover { background: var(--hover); }
+.bst-btn:active { background: var(--active); }
+.bst-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.bst-switch {
+  position: relative; flex: none; width: 40px; height: 22px; margin-top: 4px; padding: 0;
+  background: var(--border-strong, var(--border)); border: 0; border-radius: 999px; cursor: pointer;
+  transition: background 140ms;
+}
+.bst-switch.is-on { background: var(--olive-btn, var(--accent)); }
+.bst-switch__knob {
+  position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--paper, var(--bg-card)); box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform 140ms;
+}
+.bst-switch.is-on .bst-switch__knob { transform: translateX(18px); }
+.bst-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bst-switch:disabled { opacity: .5; cursor: not-allowed; }
+
+.bst-save {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 500;
+  color: var(--paper, var(--bg-card)); background: var(--olive-btn, var(--accent)); border: 1px solid transparent;
+  border-radius: var(--radius, 8px); cursor: pointer; white-space: nowrap; transition: opacity 140ms, filter 140ms;
+}
+.bst-save:hover:not(:disabled) { filter: brightness(1.08); }
+.bst-save:active:not(:disabled) { filter: brightness(.95); }
+.bst-save:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bst-save.is-clean { opacity: .45; cursor: default; }
+.bst-save.is-saved { color: var(--success, var(--fg)); background: transparent; border-color: var(--border); cursor: default; }
+.bst-save.is-saving { cursor: wait; }
+.bst-save.is-failed { background: var(--danger, var(--olive-btn)); }
+
+.bst-spinner {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; animation: bst-spin .7s linear infinite;
+}
+@keyframes bst-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bst-spinner { animation: none; } }

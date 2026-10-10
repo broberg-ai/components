@@ -147,6 +147,7 @@
         "@broberg/device-stats",
         "@broberg/mail-core",
         "@broberg/secret-scan",
+        "@broberg/settings",
         "@broberg/stripe",
         "@broberg/webpush"
       ],
@@ -156,6 +157,7 @@
         "@broberg/device-stats": 55,
         "@broberg/mail-core": 70,
         "@broberg/secret-scan": 140,
+        "@broberg/settings": 10,
         "@broberg/stripe": 38,
         "@broberg/webpush": 38
       }

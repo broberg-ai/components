@@ -1,0 +1,72 @@
+{
+  "name": "@broberg/settings",
+  "version": "0.1.0",
+  "description": "The fleet's settings surface for Stack B (Preact): a dirty-bus that knows whether anything is unsaved and waits for every panel before saying «Gemt», plus Card / SectionHeading / Field / Input / Toggle / Save button on @broberg/theme tokens. Framework-free core + Preact components. Tabs come from @broberg/app-shell's PageTabs.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist",
+    "css",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
+    "./css/settings.css": "./css/settings.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsup && node verify-exports.mjs",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@broberg/theme": ">=0.11.0",
+    "preact": ">=10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "preact": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@broberg/theme": "workspace:*",
+    "@testing-library/preact": "^3.2.3",
+    "happy-dom": "^15.0.0",
+    "preact": "^10.23.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "settings",
+    "dirty-tracking",
+    "unsaved-changes",
+    "form",
+    "preact",
+    "stack-b",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/settings"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
