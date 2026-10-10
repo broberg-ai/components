@@ -10,9 +10,10 @@
 // cannot without resetting everyone's choice.
 //
 // ── THE DEFAULT IS "NO ATTRIBUTE" ───────────────────────────────────────────
-// classic REMOVES the attribute (and the stored key), exactly as cardmem does:
-// the CSS treats "absent" as the default, so a user who never picks sees the
-// base palette with no extra selector involved.
+// classic REMOVES the attribute: the CSS treats "absent" as the default, so a
+// user who never picks sees the base palette with no extra selector involved.
+// Since 0.13.1 (F001.24) classic is still STORED as "classic", so a choice of
+// Ember can be told from no choice at all.
 //
 // ── SURFACES DEFAULT TO LAYERED (F001.23) ───────────────────────────────────
 // Christian 10/10: «Lag skal altid være default». So flat is now the choice
@@ -111,9 +112,10 @@ export function getPalette(): Palette {
 export function setPalette(next: Palette): void {
   if (!isPalette(next)) return;
   palette = next;
-  const v = next === "classic" ? null : next;
-  attr("data-palette", v);
-  store(paletteKey, v);
+  attr("data-palette", next === "classic" ? null : next);
+  // F001.24 — classic is STORED, so «chose Ember» is not «chose nothing» (an
+  // app that applies its brand palette when nothing is stored kept overriding it).
+  store(paletteKey, next);
   for (const l of paletteListeners) l(next);
 }
 

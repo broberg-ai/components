@@ -39,7 +39,7 @@ describe("store", () => {
     expect(html().getAttribute("data-surfaces")).toBe("layered");
   });
 
-  it("setPalette applies, persists and notifies; classic removes attribute AND key", () => {
+  it("setPalette applies, persists and notifies; classic removes the attribute and is STORED as classic (F001.24)", () => {
     initPalette({ paletteKey: "k.p", surfacesKey: "k.s" });
     const seen = vi.fn();
     const off = onPaletteChange(seen);
@@ -48,7 +48,10 @@ describe("store", () => {
     expect(localStorage.getItem("k.p")).toBe("broberg");
     setPalette("classic");
     expect(html().hasAttribute("data-palette")).toBe(false);
-    expect(localStorage.getItem("k.p")).toBeNull();
+    expect(localStorage.getItem("k.p")).toBe("classic");
+    // A reload reads it back as a CHOICE, not as nothing.
+    html().setAttribute("data-palette", "warm");
+    expect([initPalette({ paletteKey: "k.p", surfacesKey: "k.s" }).palette, html().hasAttribute("data-palette"), localStorage.getItem("k.p")]).toEqual(["classic", false, "classic"]);
     expect(seen.mock.calls).toEqual([["broberg"], ["classic"]]);
     off();
     expect(getPalette()).toBe("classic");

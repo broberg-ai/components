@@ -13,6 +13,14 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
+## 0.13.1 — a chosen Ember is remembered (F001.24)
+
+`setPalette("classic")` now STORES `"classic"` (it used to delete the key), so
+«chose Ember» can be told from «chose nothing». An app that applies its brand
+palette only when nothing is stored (appkit) no longer overrides a user's Ember
+on reload. The attribute is unchanged (classic = no `data-palette`). One-time:
+a user who chose Ember before has no key and gets the app's default once.
+
 ## 0.13.0 — Layered is the default (F001.23)
 
 Christian 10/10: «Lag skal altid være default».
@@ -111,7 +119,7 @@ contrast for every palette × scheme (ported from cardmem's own test).
 import { initPalette, setPalette, setSurfaces, PALETTES, PALETTE_LABELS, prePaintScript } from "@broberg/theme";
 
 initPalette({ paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" }); // your existing keys: nobody loses a choice
-setPalette("broberg");      // classic REMOVES the attribute and the key
+setPalette("broberg");      // classic removes the attribute, stores "classic"
 setSurfaces("flat");        // removes the attribute, stores "flat" (layered is the default)
 // <head>, before the bundle — same keys:
 prePaintScript({ storageKey: "cardmem.theme-pref", paletteKey: "cardmem.palette", surfacesKey: "cardmem.surfaces" });
