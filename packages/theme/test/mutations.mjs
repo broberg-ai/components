@@ -178,10 +178,22 @@ const MUTATIONS = [
     to: "`if(q)document.documentElement.setAttribute(\"data-palette\",q)` +",
   },
   {
-    name: "F001.18 classic is stored instead of removed (the default stops being 'no attribute')",
+    name: "F001.18 classic sets data-palette (the default stops being 'no attribute')",
     file: PALETTE_SRC,
-    from: `  const v = next === "classic" ? null : next;`,
-    to: `  const v = next;`,
+    from: `  attr("data-palette", next === "classic" ? null : next);`,
+    to: `  attr("data-palette", next);`,
+  },
+  {
+    name: "F001.24 classic deletes the key again (a chosen Ember reads as nothing chosen)",
+    file: PALETTE_SRC,
+    from: `  store(paletteKey, next);`,
+    to: `  store(paletteKey, next === "classic" ? null : next);`,
+  },
+  {
+    name: "F001.23 flat deletes the key again (a chosen Flat turns Layered on reload)",
+    file: PALETTE_SRC,
+    from: `  store(surfacesKey, next);`,
+    to: `  store(surfacesKey, next === "flat" ? null : next);`,
   },
   {
     name: "F001.19 a second mount no longer disposes the first (rAF loops stack up after HMR)",

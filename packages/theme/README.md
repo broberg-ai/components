@@ -13,7 +13,9 @@ one place.
 >    **Tailwind v4** (it uses `@theme`, which cannot be `@import`ed from
 >    node_modules). Non-Tailwind apps use the raw CSS variables directly.
 
-## 0.13.1 — a chosen Ember is remembered (F001.24)
+## 0.13.2 — a chosen Ember is remembered (F001.24)
+
+(0.13.1 was tagged but never published: its own mutation suite still expected the old «classic deletes the key» behaviour. 0.13.2 is the same change with the suite updated.)
 
 `setPalette("classic")` now STORES `"classic"` (it used to delete the key), so
 «chose Ember» can be told from «chose nothing». An app that applies its brand

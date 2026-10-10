@@ -39,7 +39,7 @@ describe("store", () => {
     expect(html().getAttribute("data-surfaces")).toBe("layered");
   });
 
-  it("setPalette applies, persists and notifies; classic removes the attribute and is STORED as classic (F001.24)", () => {
+  it("setPalette applies, persists and notifies; classic removes the attribute", () => {
     initPalette({ paletteKey: "k.p", surfacesKey: "k.s" });
     const seen = vi.fn();
     const off = onPaletteChange(seen);
@@ -48,13 +48,18 @@ describe("store", () => {
     expect(localStorage.getItem("k.p")).toBe("broberg");
     setPalette("classic");
     expect(html().hasAttribute("data-palette")).toBe(false);
-    expect(localStorage.getItem("k.p")).toBe("classic");
-    // A reload reads it back as a CHOICE, not as nothing.
-    html().setAttribute("data-palette", "warm");
-    expect([initPalette({ paletteKey: "k.p", surfacesKey: "k.s" }).palette, html().hasAttribute("data-palette"), localStorage.getItem("k.p")]).toEqual(["classic", false, "classic"]);
     expect(seen.mock.calls).toEqual([["broberg"], ["classic"]]);
     off();
     expect(getPalette()).toBe("classic");
+  });
+
+  it("F001.24 — a chosen Ember is STORED as classic and read back as a choice, not as nothing", () => {
+    initPalette({ paletteKey: "k.p", surfacesKey: "k.s" });
+    setPalette("broberg");
+    setPalette("classic");
+    expect(localStorage.getItem("k.p")).toBe("classic");
+    html().setAttribute("data-palette", "warm"); // a fresh page, before init
+    expect([initPalette({ paletteKey: "k.p", surfacesKey: "k.s" }).palette, html().hasAttribute("data-palette"), localStorage.getItem("k.p")]).toEqual(["classic", false, "classic"]);
   });
 
   it("setSurfaces: layered sets the attribute, flat removes it and is STORED as flat (F001.23)", () => {
