@@ -557,7 +557,39 @@ try {
 
 - `act` is the **whole delegation chain** (RFC 8693): agent-b acting for agent-a acting for user-1 is `{ sub: "agent-a", act: { sub: "user-1" } }`. `act.sub` is the same as before. A chain deeper than 5 links, or a link without a string `sub`, is **rejected** — 0.14.x kept only the first link and read a malformed `act` as "no delegation", both in the direction where the caller looks like it acts for fewer people.
 - `version` is the ticket format (`ver`): 0 for a ticket from before BID set one, 1 today. A `ver` newer than this package understands is **rejected by name** ("upgrade @broberg/sso"), never read with today's rules.
-- `cnf` is `{ jkt }` for a DPoP-bound ticket, else `null`. **It is not checked here**: until your service verifies a DPoP proof against it (F087.16), a bound ticket is accepted exactly like a bearer ticket, and a stolen one works. Do not treat `cnf` as protection yet.
+- `cnf` is `{ jkt }` for a DPoP-bound ticket, else `null`. Since 0.16.0 it is checked — see below.
+
+## DPoP — a bound ticket works only for whoever holds the key (0.16.0, F084.157)
+
+A DPoP-bound ticket carries `cnf.jkt`, the thumbprint of the caller's public key. With each request the caller sends a short **proof** signed with the private key (method, URL, time, a hash of the ticket). A ticket copied out of a log does nothing on another machine. RFC 9449; joint design with broberg-id (broberg-id-F087.16).
+
+**Receiver** — pass the request's `DPoP` header, method and **public** URL:
+
+```ts
+const auth = c.req.header("authorization") ?? "";
+const token = auth.replace(/^(Bearer|DPoP) /, "");
+const who = await tickets.verify(token, {
+  scope: "discovery:read",
+  dpop: { proof: c.req.header("dpop"), method: c.req.method, url: `https://discovery.broberg.ai${new URL(c.req.url).pathname}` },
+});
+```
+
+- **A ticket WITH `cnf.jkt` needs a valid proof — always.** Without one it is refused, also while DPoP is optional for you. (Accepting bound tickets as bearer during a rollout would let a stolen one work the whole time.)
+- **`requireDpop: true`** on `createTicketVerifier` also refuses UNBOUND tickets (and a `cnf` without a string `jkt`). Leave it off until every caller sends DPoP.
+- **Checked:** `typ: dpop+jwt`, an asymmetric `alg`, the signature with the header's `jwk` (never a private key), `jwk` thumbprint = `cnf.jkt`, `htm` = the method, `htu` = the URL (without query/fragment), `iat` within ±60 s (`dpopIatWindowSec`), `ath` = this ticket, and a `jti` not seen before.
+- **The URL must be the PUBLIC one.** Behind Fly's proxy your process sees `http://<internal>`; build the URL from your public origin, or every proof fails on `htu`.
+- **Replay store:** in-memory by default, which holds on **one machine**. A receiver on two machines must pass one shared `replayStore` (`{ seen(key, ttlMs) }`), or a proof replayed against the other machine inside the window passes.
+- Not yet: server nonces (RFC 9449 §8).
+
+**Caller** — `createTicketClient({ dpop: true })`, then one `authHeaders` per request:
+
+```ts
+const tickets = createTicketClient({ dpop: true });
+const headers = await tickets.authHeaders({ audience: "discovery", scope: "discovery:read", method: "GET", url: "https://discovery.broberg.ai/api/fleet" });
+await fetch("https://discovery.broberg.ai/api/fleet", { headers }); // { authorization: "DPoP <ticket>", dpop: "<proof>" }
+```
+
+One ES256 key per client, non-extractable, never stored; BID binds the ticket to it from the proof on the token request. A proof is for one request — call `authHeaders` each time. Without `dpop`, `authHeaders` returns `{ authorization: "Bearer <ticket>" }` and nothing else changes.
 
 ## Getting a ticket — `fetchTicket` (since 0.14.1 — 0.14.0 was tagged but never reached npm)
 

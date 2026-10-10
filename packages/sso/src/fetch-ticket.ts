@@ -15,6 +15,7 @@
  */
 import { existsSync } from "node:fs";
 import { request } from "node:http";
+import { createDpopKey, createDpopProof, type DpopKey } from "./dpop.js";
 
 export const DEFAULT_ISSUER = "https://id.broberg.ai";
 const FLY_SOCKET = "/.fly/api";
@@ -59,11 +60,29 @@ export interface TicketClientOptions {
   flyOidc?: (aud: string) => Promise<string>;
   /** Whether the Fly socket is present. Default: checks /.fly/api. */
   onFly?: () => boolean;
+  /**
+   * F084.157 — ask BID for DPoP-BOUND tickets. One ES256 key per client
+   * (non-extractable, never stored); every call then needs a proof, which
+   * `authHeaders` makes. Default false: bearer tickets, exactly as before.
+   */
+  dpop?: boolean;
+}
+
+/** Headers for one call to a receiver. With `dpop`, `authorization` is `DPoP <ticket>` and `dpop` is the proof. */
+export interface TicketAuthHeaders {
+  authorization: string;
+  dpop?: string;
 }
 
 export interface TicketClient {
   /** A ticket for `audience` (BID's short name, e.g. "discovery"), from cache while it is fresh. */
   get(opts: { audience: string; scope?: string }): Promise<string>;
+  /**
+   * F084.157 — the headers for ONE request to a receiver: a ticket plus, with
+   * `dpop`, a fresh proof bound to this method and URL (use it once). Without
+   * `dpop`: `{ authorization: "Bearer <ticket>" }`.
+   */
+  authHeaders(opts: { audience: string; scope?: string; method: string; url: string }): Promise<TicketAuthHeaders>;
 }
 
 function flyOidcOverSocket(aud: string): Promise<string> {
@@ -107,6 +126,8 @@ export function createTicketClient(options: TicketClientOptions = {}): TicketCli
 
   const cache = new Map<string, { token: string; exp: number }>();
   const inFlight = new Map<string, Promise<string>>();
+  let dpopKey: Promise<DpopKey> | null = null;
+  const ownKey = () => (dpopKey ??= createDpopKey());
 
   async function platformToken(): Promise<string> {
     if (onFly()) return flyOidc(issuer);
@@ -141,11 +162,10 @@ export function createTicketClient(options: TicketClientOptions = {}): TicketCli
     if (scope) form.set("scope", scope);
     let res: Response;
     try {
-      res = await fetchImpl(`${issuer}/oauth2/token`, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: form,
-      });
+      const tokenUrl = `${issuer}/oauth2/token`;
+      const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded" };
+      if (options.dpop) headers.dpop = await createDpopProof(await ownKey(), { method: "POST", url: tokenUrl, now });
+      res = await fetchImpl(tokenUrl, { method: "POST", headers, body: form });
     } catch (e) {
       throw new TicketUnavailableError(`${issuer} unreachable: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -166,7 +186,12 @@ export function createTicketClient(options: TicketClientOptions = {}): TicketCli
     return { token: body.access_token, exp };
   }
 
-  return {
+  const client: TicketClient = {
+    async authHeaders({ audience, scope, method, url }) {
+      const ticket = await client.get({ audience, scope });
+      if (!options.dpop) return { authorization: `Bearer ${ticket}` };
+      return { authorization: `DPoP ${ticket}`, dpop: await createDpopProof(await ownKey(), { method, url, ticket, now }) };
+    },
     async get({ audience, scope }) {
       const key = `${audience} ${scope ?? ""}`;
       const hit = cache.get(key);
@@ -183,6 +208,7 @@ export function createTicketClient(options: TicketClientOptions = {}): TicketCli
       return p;
     },
   };
+  return client;
 }
 
 let shared: TicketClient | null = null;

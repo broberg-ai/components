@@ -24,6 +24,7 @@
 import { decodeProtectedHeader, jwtVerify, type JWTPayload } from "jose";
 import { ALLOWED_ALGS, SsoError } from "./client.js";
 import { createJwksCache, JwksUnavailableError, type JwksCache } from "./jwks.js";
+import { createMemoryReplayStore, verifyDpopProof, type ReplayStore } from "./dpop.js";
 
 export type PrincipalType = "human" | "service" | "agent";
 const PRINCIPAL_TYPES: readonly PrincipalType[] = ["human", "service", "agent"];
@@ -58,8 +59,8 @@ export interface TicketPrincipal {
   version: number;
   /**
    * F084.156 — the DPoP key thumbprint when the ticket is sender-constrained.
-   * NOT checked here: until the receiver verifies a DPoP proof against it
-   * (F087.16), a bound ticket is accepted exactly like a bearer ticket.
+   * Since 0.16.0 (F084.157) a ticket with cnf.jkt is only accepted together with
+   * a valid DPoP proof for that key — see `verify(token, { dpop })`.
    */
   cnf: { jkt: string } | null;
   scopes: string[];
@@ -87,11 +88,33 @@ export interface TicketVerifierOptions {
   warmUp?: boolean;
   fetchImpl?: typeof fetch;
   minRefetchIntervalMs?: number;
+  /**
+   * F084.157 — refuse UNBOUND tickets (bearer). Off by default during the
+   * rollout. A BOUND ticket (cnf.jkt) needs a valid proof either way.
+   */
+  requireDpop?: boolean;
+  /** Where used proof ids are remembered. Default in-memory — ONE machine only; share one across machines. */
+  replayStore?: ReplayStore;
+  /** How far a proof's iat may be from now. Default 60 s. */
+  dpopIatWindowSec?: number;
+  /** Injectable clock for the DPoP checks (ms). */
+  now?: () => number;
+}
+
+/** The DPoP half of a request: the `DPoP` header, and the method + PUBLIC URL the receiver was called on. */
+export interface DpopRequest {
+  proof: string | null | undefined;
+  method: string;
+  url: string;
 }
 
 export interface TicketVerifier {
-  /** Verify a ticket; with `scope`, also require that scope to be granted. */
-  verify(token: string, options?: { scope?: string | string[] }): Promise<TicketPrincipal>;
+  /**
+   * Verify a ticket; with `scope`, also require that scope to be granted. Pass
+   * `dpop` with the request's DPoP header, method and public URL — a bound ticket
+   * is refused without it.
+   */
+  verify(token: string, options?: { scope?: string | string[]; dpop?: DpopRequest }): Promise<TicketPrincipal>;
 }
 
 export function createTicketVerifier(options: TicketVerifierOptions): TicketVerifier {
@@ -101,7 +124,11 @@ export function createTicketVerifier(options: TicketVerifierOptions): TicketVeri
     maxLifetimeSec = 15 * 60,
     clockToleranceSec = 30,
     fetchImpl = fetch,
+    requireDpop = false,
+    dpopIatWindowSec = 60,
+    now = () => Date.now(),
   } = options;
+  const replayStore = options.replayStore ?? createMemoryReplayStore(now);
   if (!issuer) throw new SsoError("createTicketVerifier needs an issuer");
   if (!audience) throw new SsoError("createTicketVerifier needs this receiver's audience");
 
@@ -202,6 +229,22 @@ export function createTicketVerifier(options: TicketVerifierOptions): TicketVeri
       const act = payload.act === undefined ? null : readActor(payload.act, 1);
       const cnfRaw = payload.cnf as { jkt?: unknown } | undefined;
       const cnf = cnfRaw && typeof cnfRaw.jkt === "string" && cnfRaw.jkt ? { jkt: cnfRaw.jkt } : null;
+      // F084.157 — a bound ticket needs its proof, always; requireDpop only
+      // decides about unbound ones (and then a cnf it cannot read is refused too).
+      if (cnf) {
+        if (!opts.dpop?.proof) throw new SsoError("ticket is DPoP-bound (cnf.jkt) but no DPoP proof was presented");
+        await verifyDpopProof(opts.dpop.proof, {
+          method: opts.dpop.method,
+          url: opts.dpop.url,
+          ticket: token,
+          jkt: cnf.jkt,
+          replay: replayStore,
+          iatWindowSec: dpopIatWindowSec,
+          now,
+        });
+      } else if (requireDpop) {
+        throw new SsoError(cnfRaw !== undefined ? "ticket has a cnf without a string jkt — DPoP is required here" : "this receiver requires DPoP; the ticket is not bound (no cnf.jkt)");
+      }
       return {
         principal: payload.sub,
         type: type as PrincipalType,

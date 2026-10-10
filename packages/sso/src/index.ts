@@ -44,7 +44,19 @@ export {
   DEFAULT_ISSUER,
   type TicketClient,
   type TicketClientOptions,
+  type TicketAuthHeaders,
 } from "./fetch-ticket.js";
+
+export {
+  createDpopKey,
+  createDpopProof,
+  verifyDpopProof,
+  createMemoryReplayStore,
+  accessTokenHash,
+  normalizeHtu,
+  type DpopKey,
+  type ReplayStore,
+} from "./dpop.js";
 
 export {
   createTicketVerifier,
@@ -52,6 +64,7 @@ export {
   type TicketVerifierOptions,
   type TicketPrincipal,
   type TicketActor,
+  type DpopRequest,
   type PrincipalType,
   TICKET_FORMAT_VERSION,
   MAX_ACT_DEPTH,

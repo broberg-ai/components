@@ -76,10 +76,9 @@ describe("F084.156 — act is the whole chain", () => {
 });
 
 describe("F084.156 — cnf", () => {
-  it("a DPoP-bound ticket is NOT rejected and carries cnf.jkt; without cnf it is null", async () => {
-    const bound = await v().verify(await ticket({ cnf: { jkt: "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I" } }));
-    const plain = await v().verify(await ticket());
-    expect([bound.cnf, plain.cnf]).toEqual([{ jkt: "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I" }, null]);
+  it("without cnf it is null; a bound ticket WITHOUT a proof is refused since 0.16.0 (F084.157 — accepted proofs: test/dpop.test.ts)", async () => {
+    expect((await v().verify(await ticket())).cnf).toBeNull();
+    await expect(v().verify(await ticket({ cnf: { jkt: "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I" } }))).rejects.toThrow(/DPoP-bound \(cnf.jkt\) but no DPoP proof/);
   });
 
   it("a cnf without a string jkt reads as null (only jkt binding is understood)", async () => {
