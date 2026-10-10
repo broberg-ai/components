@@ -53,6 +53,16 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.11.1 — the palette list floats over the menu (F001.25)
+
+Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver
+forstørret hver gang man klikker på listen?» The list is now a popover
+(`position: fixed`, placed from the button): the menu keeps its height and
+nothing below moves. It opens below the button, upward when there is no room,
+stays inside the viewport, and closes when the menu scrolls or the window
+resizes. testids and keys unchanged. Rendering moved: the open list no longer
+pushes «Flader» and the rest down.
+
 ## 0.11.0 — the user menu's Appearance, tidied (F001.23)
 
 Christian 10/10, via appkit: «Neuroner … er reelt set kun til trail og cardmem» and «Paletten er ikke pæn».
@@ -68,7 +78,7 @@ Christian 10/10, via appkit: «Neuroner … er reelt set kun til trail og cardme
 - **Palette is a dropdown**, not four wrapping buttons. Custom, not a native
   `<select>` (D-4cd764): arrows open and move, Enter/Space choose, Escape closes
   the list without choosing and leaves the menu open; a second Escape closes the
-  menu. It opens in flow under its row, so the menu never clips it.
+  menu. (0.11.1: it floats over the menu as a popover.)
   testids: `user-menu-palette` (the button), `user-menu-palette-list`,
   `user-menu-palette-<id>` (each option). **A Lens flow that clicked
   `user-menu-palette-<id>` directly must click `user-menu-palette` first.**

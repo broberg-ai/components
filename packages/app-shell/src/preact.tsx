@@ -695,6 +695,37 @@ function Segmented<T extends string>(props: { testid: string; value: T; options:
  */
 function Dropdown<T extends string>(props: { testid: string; value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; label?: string }) {
   const [state, setState] = useState<SelectState>({ open: false, highlighted: -1 });
+  // F001.25 — the list is a POPOVER: position:fixed from the button's rect, so
+  // the menu neither grows nor clips it (the menu has overflow hidden/auto).
+  // Below the button, right-aligned; upward when there is no room; clamped to
+  // the viewport. Closes on scroll/resize rather than drifting off its button.
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const [pos, setPos] = useState<Record<string, string> | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!state.open || !btnRef.current) return setPos(undefined);
+    const r = btnRef.current.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight, m = 8;
+    const h = listRef.current?.offsetHeight ?? 0;
+    const width = Math.min(Math.max(r.width, 160), vw - 2 * m);
+    const left = Math.max(m, Math.min(r.right - width, vw - width - m));
+    const below = r.bottom + 4;
+    const top = below + h <= vh - m || r.top - 4 - h < m ? Math.min(below, vh - m - h) : r.top - 4 - h;
+    setPos({ position: "fixed", left: `${left}px`, top: `${Math.max(m, top)}px`, width: `${width}px` });
+  }, [state.open]);
+  useEffect(() => {
+    if (!state.open) return;
+    const close = (e: Event) => {
+      if (e.target instanceof Node && listRef.current?.contains(e.target)) return; // scrolling the list itself
+      setState((st) => ({ ...st, open: false }));
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [state.open]);
   const current = Math.max(0, props.options.findIndex(([v]) => v === props.value));
   const choose = (i: number) => {
     setState({ open: false, highlighted: i });
@@ -714,6 +745,7 @@ function Dropdown<T extends string>(props: { testid: string; value: T; options: 
   return (
     <div class="bas-dd" onFocusOut={(e) => !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node) && setState((st) => ({ ...st, open: false }))}>
       <button
+        ref={btnRef}
         type="button"
         class="bas-dd__btn"
         data-testid={props.testid}
@@ -728,7 +760,7 @@ function Dropdown<T extends string>(props: { testid: string; value: T; options: 
         <span class="bas-dd__caret" aria-hidden="true">▾</span>
       </button>
       {state.open ? (
-        <ul class="bas-dd__list" role="listbox" aria-label={props.label} data-testid={`${props.testid}-list`}>
+        <ul ref={listRef} class="bas-dd__list" style={pos ?? { position: "fixed", visibility: "hidden" }} role="listbox" aria-label={props.label} data-testid={`${props.testid}-list`}>
           {props.options.map(([v, label], i) => (
             <li
               key={v}

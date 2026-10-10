@@ -298,11 +298,10 @@
 }
 .bas-seg > button[aria-pressed="true"] { background: var(--olive-btn); color: var(--paper, var(--bg-card)); }
 .bas-seg > button:not([aria-pressed="true"]):hover { color: var(--fg); }
-/* F001.23 — the palette dropdown. The list opens IN FLOW under its row (the
-   menu clips its overflow, so an absolute list near the bottom would be cut);
-   display:contents lets button and list wrap inside .bas-pref. */
-.bas-pref:has(> .bas-dd) { flex-wrap: wrap; }
-.bas-dd { display: contents; }
+/* F001.23/F001.25 — the palette dropdown. The list is a POPOVER (position
+   fixed, placed from the button in JS), so opening it neither grows the menu
+   nor gets clipped by its overflow. */
+.bas-dd { position: relative; display: inline-flex; }
 .bas-dd__btn {
   display: inline-flex; align-items: center; gap: 8px; min-width: 120px; justify-content: space-between;
   font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; font-weight: 500; padding: 5px 10px;
@@ -313,8 +312,9 @@
 .bas-dd__btn[aria-expanded="true"] .bas-dd__caret { transform: rotate(180deg); }
 .bas-dd__caret { color: var(--fg-muted); transition: transform .12s; }
 .bas-dd__list {
-  flex-basis: 100%; list-style: none; margin: 4px 0 0; padding: 4px;
-  border-radius: var(--bas-radius); background: var(--bg-sunk); border: 1px solid var(--border);
+  z-index: 70; list-style: none; margin: 0; padding: 4px; max-height: min(60vh, 320px); overflow-y: auto;
+  border-radius: var(--bas-radius); background: var(--bg-card); border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .22);
 }
 .bas-dd__opt { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: calc(var(--bas-radius) - 2px); font-size: 12.5px; color: var(--fg); cursor: pointer; }
 .bas-dd__opt.is-active { background: var(--hover); }

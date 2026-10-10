@@ -723,6 +723,19 @@ describe("UserMenu (F092.3)", () => {
     expect(screen.queryByTestId("topbar-user-menu-dropdown")).toBeNull();
   });
 
+  it("F001.25 — the palette list is a fixed popover (the menu does not grow) and closes on scroll", async () => {
+    initPalette({ paletteKey: "t.p", surfacesKey: "t.s", backdropKey: "t.b" });
+    render(<UserMenu lang="da" user={{ name: "A" }} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    fireEvent.click(screen.getByTestId("user-menu-palette"));
+    const list = screen.getByTestId("user-menu-palette-list");
+    expect([list.style.position, list.style.visibility, list.parentElement?.classList.contains("bas-dd")]).toEqual(["fixed", "", true]);
+    await new Promise((r) => setTimeout(r, 0)); // let the open effect attach its listeners
+    fireEvent.scroll(screen.getByTestId("topbar-user-menu-dropdown")); // the menu scrolls (sidebar footer: overflow-y auto)
+    await waitFor(() => expect(screen.queryByTestId("user-menu-palette-list")).toBeNull());
+    expect(screen.getByTestId("topbar-user-menu-dropdown")).toBeTruthy(); // the menu itself stays
+  });
+
   it("closes on Escape and on a click outside", () => {
     render(<div><span data-testid="outside">x</span><UserMenu lang="da" user={{ name: "A" }} /></div>);
     fireEvent.click(screen.getByTestId("topbar-user-menu"));
