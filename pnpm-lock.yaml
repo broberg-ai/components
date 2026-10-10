@@ -20,6 +20,9 @@ importers:
       '@broberg/app-shell':
         specifier: workspace:*
         version: link:../../packages/app-shell
+      '@broberg/consent-cookie':
+        specifier: workspace:*
+        version: link:../../packages/consent-cookie
       '@broberg/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications

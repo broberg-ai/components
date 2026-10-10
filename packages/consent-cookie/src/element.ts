@@ -130,11 +130,15 @@ const BODY: Record<"da" | "en", { lead: string; with: (list: string) => string; 
   },
 };
 
+// F014.21 — each colour reads shadcn's token first, then @broberg/theme's own
+// (palettes.css sets --bg-card/--fg/--accent, not --card/--primary), then a light
+// fallback. Without the middle link an app on our own theme got a white banner in
+// dark mode (appkit #2481).
 const STYLE = `
 :host{all:initial;font:14px/1.5 var(--font-sans,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif);
-  --bc-bg:var(--card,#fff);--bc-fg:var(--card-foreground,#1f1f1f);--bc-muted:var(--muted-foreground,#6b6b6b);
-  --bc-border:var(--border,#e5e5e5);--bc-primary:var(--primary,#1f1f1f);--bc-on-primary:var(--primary-foreground,#fafafa);
-  --bc-secondary:var(--secondary,#f2f2f2);--bc-ring:var(--ring,#a3a3a3);--bc-radius:var(--radius,0.5rem)}
+  --bc-bg:var(--card,var(--bg-card,#fff));--bc-fg:var(--card-foreground,var(--fg,#1f1f1f));--bc-muted:var(--muted-foreground,var(--fg-muted,#6b6b6b));
+  --bc-border:var(--border,#e5e5e5);--bc-primary:var(--primary,var(--accent,#1f1f1f));--bc-on-primary:var(--primary-foreground,var(--accent-fg,#fafafa));
+  --bc-secondary:var(--secondary,var(--border-strong,#f2f2f2));--bc-ring:var(--ring,var(--accent,#a3a3a3));--bc-radius:var(--radius,0.5rem)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 .banner{position:fixed;z-index:2147483000;left:var(--broberg-consent-banner-left,24px);bottom:var(--broberg-consent-banner-bottom,24px);width:440px;max-width:calc(100vw - 24px);background:var(--bc-bg);color:var(--bc-fg);
@@ -309,6 +313,8 @@ export class BrobergConsentElement extends Base {
   private draft: Record<string, boolean> = {};
   private lastFocus: HTMLElement | null = null;
   private unsubscribe: (() => void) | null = null;
+  /** F014.21 — re-renders when the APP changes <html lang>; only our own `lang` attribute was observed. */
+  private docLang: MutationObserver | null = null;
   /** Overridable for tests. Withdrawing cannot stop a script that already ran, so the page reloads. */
   reload: () => void = () => location.reload();
 
@@ -348,6 +354,12 @@ export class BrobergConsentElement extends Base {
     active = this;
     (globalThis as { brobergConsent?: ConsentManager }).brobergConsent = this.manager;
     listenForTriggers();
+    if (!this.docLang && typeof MutationObserver !== "undefined") {
+      this.docLang = new MutationObserver(() => {
+        if (!this.hasAttribute("lang")) this.render();
+      });
+      this.docLang.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+    }
     this.view = this.manager.needsBanner() ? "banner" : "closed";
     this.render();
   }
@@ -355,6 +367,8 @@ export class BrobergConsentElement extends Base {
   disconnectedCallback(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.docLang?.disconnect();
+    this.docLang = null;
     if (active === this) active = null;
   }
 

@@ -7,6 +7,8 @@ import { render } from "preact";
 import { useState } from "preact/hooks";
 import { initPalette, initTheme } from "@broberg/theme";
 import { AppShell } from "@broberg/app-shell/preact";
+// F014.21 — the cookie banner on @broberg/theme's palette, as appkit composes it.
+import "@broberg/consent-cookie/element";
 
 initTheme();
 initPalette();
@@ -58,3 +60,9 @@ function App() {
 }
 
 render(<App />, document.getElementById("app")!);
+const consent = document.createElement("broberg-consent");
+consent.setAttribute("policy-version", "example-1");
+// The user menu sits at the bottom of the sidebar here, exactly where the banner
+// would land: move the banner past the 240px sidebar on desktop (F014.17's variable).
+consent.style.setProperty("--broberg-consent-banner-left", "264px");
+document.body.appendChild(consent);
