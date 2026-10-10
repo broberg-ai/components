@@ -169,6 +169,32 @@ smoke — never a stored pixel baseline.
 > Runs on the **Node runtime** (the core uses `node:crypto`) — not Next's Edge
 > runtime. Mint endpoints hit a DB to create a session anyway, so Node is correct.
 
+## testid-gaps — the F086 check in CI (0.3.0, F036.7)
+
+Every interactive element must carry a `data-testid` (the fleet's F086 rule). The
+Cardmem daemon checks it locally (`POST /lens/testid-gaps`); CI cannot reach that
+daemon, so the same scanner ships here:
+
+```bash
+npx -p @broberg/lens testid-gaps src     # or: testid-gaps src, with the package installed
+```
+
+| exit | means |
+|---|---|
+| `0` | files were scanned, no gaps — prints how many files it read |
+| `1` | gaps — one `file:line  <tag> without data-testid  …` per gap |
+| `2` | usage error, or **zero source files scanned** (a wrong path must not pass a gate) |
+
+Files the scanner cannot see into while they carry handlers (hyperscript,
+`h('button', { onClick })`) are named on stderr as *not examined*. They are not
+gaps, and they are not clean either.
+
+In code: `import { inventoryInteractiveGaps, gapsInFile } from "@broberg/lens/testid-gaps"` (Node only).
+
+**The rules are cardmem's**, moved verbatim (cardmem `manifest.ts` @ cc3ad9e) with
+their tests. What counts as interactive is decided there; a change goes through
+cardmem first, so the daemon and CI never disagree.
+
 ## API
 
 ```ts

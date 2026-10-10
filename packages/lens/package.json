@@ -1,6 +1,6 @@
 {
   "name": "@broberg/lens",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Make any app Cardmem-Lens-compliant: a headless POST /api/lens-session mint endpoint (narrow Bearer → short-lived, read-only Playwright storageState) so Lens can log past the auth wall and screenshot the real authed surface, incl. prod. Framework-agnostic core + thin Next.js / Hono adapters. Implements the fleet F098.1 mint standard.",
   "type": "module",
   "license": "MIT",
@@ -12,6 +12,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "testid-gaps": "./dist/bin.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -32,6 +35,11 @@
       "types": "./dist/next-auth.d.ts",
       "import": "./dist/next-auth.js",
       "require": "./dist/next-auth.cjs"
+    },
+    "./testid-gaps": {
+      "types": "./dist/testid-gaps.d.ts",
+      "import": "./dist/testid-gaps.js",
+      "require": "./dist/testid-gaps.cjs"
     },
     "./package.json": "./package.json"
   },
