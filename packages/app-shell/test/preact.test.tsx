@@ -522,6 +522,14 @@ describe("F092.7 — the logo goes to the start page", () => {
     expect(nav).toHaveBeenCalledWith("/");
   });
 
+  it("F092.17 — inset brand link: aria-label = homeLabel when given, none otherwise", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" brand={brand} homeHref="/" homeLabel="Nordlys" />);
+    expect(screen.getByTestId("brand-home").getAttribute("aria-label")).toBe("Nordlys");
+    cleanup();
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" brand={brand} homeHref="/" />);
+    expect(screen.getByTestId("brand-home").getAttribute("aria-label")).toBeNull();
+  });
+
   it("phone drawer: the brand inside the drawer closes it (topbar layout)", () => {
     mockMatchMedia(true);
     render(<AppShell lang="da" layout="topbar" groups={GROUPS} currentPath="/inbox" brand={brand} homeHref="/" onNavigate={() => {}} />);

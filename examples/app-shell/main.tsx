@@ -26,7 +26,18 @@ function App() {
       <AppShell
         lang="da"
         brand={<strong>Scout</strong>}
-        groups={[{ label: "Samtaler", items: [{ id: "new", label: "Ny samtale", href: "/" }, { id: "jobs", label: "Jobs", href: "/jobs" }] }]}
+        groups={[{ label: "Samtaler", items: [
+          { id: "new", label: "Ny samtale", href: "/", icon: <span>N</span> },
+          { id: "jobs", label: "Jobs", href: "/jobs", icon: <span>J</span> },
+          // F092.16 — children open in a flyout when the sidebar is folded to the icon rail.
+          { id: "reports", label: "Rapporter", href: "/reports", icon: <span>R</span>, children: [
+            { id: "reports-revenue", label: "Omsætning", href: "/reports/revenue" },
+            { id: "reports-orders", label: "Ordrer", href: "/reports/orders" },
+          ] },
+        ] }]}
+        collapse="icon"
+        homeHref="/"
+        homeLabel="Scout"
         currentPath="/"
         user={{ name: "Example User", email: "user@example.com", subtitle: `Administrator · ${unit === "nord" ? "Enhed Nord" : "Enhed Syd"}` }}
         userMenuPlacement="sidebar-footer"

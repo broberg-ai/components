@@ -148,6 +148,13 @@
 .bas-sidebar.is-railed .bas-item__bar { left: -6px; }
 .bas-sidebar.is-railed .bas-item__count { position: absolute; top: 2px; right: 2px; padding: 0 4px; }
 .bas-sidebar.is-railed .bas-sidebar__head { justify-content: center; padding: 10px 0 4px; }
+/* F092.16 — the flyout renders INSIDE the railed sidebar, so every rail rule above
+ * hit its children too: labels hidden (0,3,0 beat the flyout's 0,2,0), items
+ * centred with no padding. An empty flyout with only a title (appkit, Lens
+ * 3aca21d1). These restore the flyout's own item layout at 0,4,0. */
+.bas-sidebar.is-railed .bas-flyout .bas-item__label { display: block; }
+.bas-sidebar.is-railed .bas-flyout .bas-item { justify-content: flex-start; padding: 6px 8px; }
+.bas-sidebar.is-railed .bas-flyout .bas-item__count { position: static; padding: 1px 6px; }
 .bas-sidebar.is-railed .bas-sidebar__mark { display: flex; align-items: center; justify-content: center; }
 
 /* Desktop fold: "offcanvas" hides the sidebar, "icon" keeps a 48px rail. */

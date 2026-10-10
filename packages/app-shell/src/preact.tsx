@@ -347,8 +347,9 @@ export function Sidebar(p: SidebarProps) {
           <div class="bas-sidebar__head">
             {p.header ? (
               <div class="bas-sidebar__brand">
+                {/* F092.17 — aria-label = the app's name when given; without it the visible header stays the name ("Forside" must not override it). */}
                 {p.homeHref ? (
-                  <NavLink href={p.homeHref} onNavigate={p.onNavigate} onAfter={close} class="bas-home" data-testid={p.brandTestId ?? "sidebar-brand-home"}>
+                  <NavLink href={p.homeHref} onNavigate={p.onNavigate} onAfter={close} class="bas-home" data-testid={p.brandTestId ?? "sidebar-brand-home"} aria-label={p.homeLabel}>
                     {p.header}
                   </NavLink>
                 ) : (
