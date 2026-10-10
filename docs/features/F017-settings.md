@@ -70,8 +70,26 @@ Graduate-candidate: no — stays in `components`.
 - Token-name divergence (--border vs --color-border) — tokens prop or required aliases?
 - Tab-strip in scope, or each app owns nav and only panel primitives shared?
 
+(Answered 10/10 2026 — see Status below.)
+
 ## Effort estimate
 **M** — owner session: `cms`. Reuse model: hybrid.
 
 ## Risks
 cms dirty-bus uses window CustomEvents as a broadcast channel between ActionBar + panels in separate React subtrees — moving to a module-level emitter changes the boundary; panels using formRef.requestSubmit() must be re-tested. React + Preact adapters need identical CSS var names but Preact repos define their own (--color-border vs --border) — token-map prop or documented aliases. cms general-settings-panel inlines its own Card/Toggle alongside shared imports — consolidate without visual change (Lens diff approval before deleting old code).
+
+## Reuse
+
+Checked 10/10 2026 before building, against what the fleet already ships:
+
+- **Tabs → `@broberg/app-shell` `PageTabs`** (mode `"query"`, `?tab=<id>`, `page-tab-<id>`, the app's `onNavigate` = pushState). Already the fleet's tab strip; a `SettingsTabs` beside it would be a duplicate. F017.5's Preact half is therefore NOT a new component (card notes).
+- **Tokens → `@broberg/theme` `palettes.css`** (`--bg-card`, `--fg`, `--border`, `--accent`, `--olive-btn` …). The June plan's `--color-border` vs `--border` question is settled by the theme package: one vocabulary, no token-map prop.
+- **Toast → not here.** `@broberg/ui-controls-core` has a headless toast queue; the Save button gives its own «Gemt» feedback, and a page-level toast stays the app's choice.
+- **No existing toggle / save button / dirty-tracking** in the inventory — built new in `@broberg/settings`.
+
+## Status 10/10 2026 (Christian: «ja, start F017 nu»)
+
+- **Built:** `@broberg/settings` 0.1.0 — F017.1 (core, `src/core.ts`) and F017.3 (Preact, `src/preact.tsx`, `css/settings.css`), `examples/settings`. Commits e8c67ac, 0ccad4d.
+- **Answers to the open questions above:** the bus is a module-level in-memory bus (not window events; loads without a DOM; `createDirtyBus()` for an independent form). The 5 s safety timeout is REMOVED: Save waits for every panel's handler, and a handler that throws/rejects leaves the form unsaved with a «Kunne ikke gemme» state. An edit made while saving keeps the form unsaved after the save. Tokens: @broberg/theme's vocabulary. Tab strip: app-shell's PageTabs.
+- **Order changed from the June rollout:** Stack B (Preact) first, for appkit F005.1; the cms pilot (F017.6) and React (F017.2) follow.
+- **Not yet:** published to npm (first publish of a new name is a local bootstrap needing the owner's npm login + OTP).
