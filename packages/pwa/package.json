@@ -1,6 +1,6 @@
 {
   "name": "@broberg/pwa",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Fleet PWA primitive: a framework-agnostic service-worker update-detection controller (new-version-available lifecycle) + a React hook and unstyled banner skeleton + a service-worker skip-waiting helper. Zero runtime deps; ship-dark.",
   "type": "module",
   "license": "MIT",
@@ -42,6 +42,9 @@
       "types": "./dist/raster.d.ts",
       "import": "./dist/raster.js",
       "require": "./dist/raster.cjs"
+    },
+    "./sw.global": {
+      "default": "./dist/pwa-sw.global.js"
     },
     "./package.json": "./package.json"
   },

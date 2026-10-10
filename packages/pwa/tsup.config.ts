@@ -26,6 +26,14 @@ export default defineConfig([
     external: ["@resvg/resvg-js"],
   },
   {
+    // F021.10 — a CLASSIC script (no import/export) for an unbundled service
+    // worker: importScripts('/pwa-sw.global.js'). IIFE, as webpush's sw.global.
+    entry: { "pwa-sw": "src/sw.global.ts" },
+    format: ["iife"],
+    dts: false,
+    sourcemap: true,
+  },
+  {
     // React adapter — react stays external (optional peer).
     entry: { react: "src/react.tsx" },
     format: ["esm", "cjs"],

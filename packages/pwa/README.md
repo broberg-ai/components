@@ -8,6 +8,26 @@ as one small, framework- and bundler-agnostic package instead of a fifth copy.
 npm i @broberg/pwa
 ```
 
+## 0.6.0 — a classic service worker can use it too: `pwa-sw.global.js` (F021.10)
+
+A service worker in `public/` is a static file and cannot `import` — so
+`@broberg/pwa/sw` (an ES module) was out of reach. Now:
+
+```sh
+cp node_modules/@broberg/pwa/dist/pwa-sw.global.js public/   # e.g. in "prebuild"
+```
+```js
+// public/sw.js
+importScripts('/sw.global.js');      // @broberg/webpush, if you use it
+importScripts('/pwa-sw.global.js');  // «Opdatér nu» works — the listener is attached for you
+```
+
+Do not call `listenForSkipWaiting` again in that worker (listeners add up).
+`self.BrobergPwa = { listenForSkipWaiting, SKIP_WAITING }` is there if you need
+the constant. The file is named `pwa-sw.global.js` so it can sit beside
+webpush's `sw.global.js` without overwriting it. Exported as
+`@broberg/pwa/sw.global`. Additive — nothing else changed.
+
 ## 0.5.0 — PNG icons, so «Add to Home Screen» on an iPhone shows the logo (F021.9)
 
 New `pwa-icons` bin + `@broberg/pwa/raster` — see «PNG icons» below. Additive:
