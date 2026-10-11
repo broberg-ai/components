@@ -65,5 +65,22 @@ New opt-in package. The pilot is on one site. Nothing changes for other sites un
 1. **Booking backend for sanneandersen.dk** (plan §6.5): the site's own, or an adapter to the system the customer already uses? This decides F098.5. Christian's decision before the pilot.
 2. **Default-on for existing customers, or opt-in per site** (§6.3): not needed until after the pilot.
 
+## Findings — F098.1 spike
+
+### Pure chat, measured 11/10 2026 (around 23:57 Danish time)
+Christian typed the same request into claude.ai and ChatGPT, both with web search on: «Book en kort behandling hos WebMCP-lab Testklinik den 20. oktober kl. 10 — siden er https://discovery.broberg.ai/webmcp-lab». The lab page's own server log (GET /webmcp-lab/hits, user-agent class only) is the evidence, not what the chats said:
+
+| client | fetched the page | fetched /book itself | what it gave the user |
+|---|---|---|---|
+| claude.ai (`claude-user`) | yes, once | **no** | the correct prefilled link `…/book?service=kort&date=2026-10-20&time=10:00`, «open it and confirm» |
+| ChatGPT (`chatgpt-user`) | yes, once | **no** | a booking card (service, price, date, 10.00–10.30) with a «Fortsæt til bookingbekræftelse» button |
+
+Both read the page and both built the right deep link from it. Neither completed or even opened the booking step itself, and neither saw WebMCP tools (Claude said so explicitly: «siden ikke stillede nogen WebMCP-tools til rådighed for mig»). That is the expected split: WebMCP tools only exist for an agent driving a live browser.
+
+**Consequence for the plan:** route 1+2 (plain HTML + Schema.org/deep link, F098.3) already takes a chat user from a question to a prefilled confirmation step in both major chats today. It is the part worth building first; the WebMCP layer (F098.4) only adds value for browser agents. Not measured: whether the chats used the JSON-LD `urlTemplate` or the plain-HTML link pattern (the log cannot tell; Claude described «tekst og et URL-mønster»).
+
+### Still open (F098.1 AC 1)
+Browser agents calling a registered WebMCP tool (Claude in Chrome, Gemini, Atlas, Copilot) — not measured yet. Lens cannot drive WebMCP today (cardmem F074.109 / F074.112).
+
 ## Effort estimate
 **L**: spike 1–2 days, format 1 day, JSON-LD/deep links 1 day, browser layer 2 days, pilot depending on the backend.
