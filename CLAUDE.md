@@ -1,7 +1,25 @@
 # components — cardmem-managed
 
-This repo is managed via [cardmem](https://cardmem.com). The canonical
-CLAUDE.md sections (`## Project layout`, `## Working with cardmem`),
+The fleet's shared `@broberg/*` npm packages, and Discovery (discovery.broberg.ai) — the roster every repo checks before building a cross-cutting capability.
+
+## Project layout
+
+| Area | Path | Notes |
+|---|---|---|
+| Packages | `packages/<name>/` | One folder per published `@broberg/<name>` (≈45). Each has its own `test` (incl. mutations) and is released by tag `<name>-v<version>`. |
+| Discovery | `apps/discovery/` | The Fly app behind discovery.broberg.ai (gate, enroll, tickets). |
+| Examples | `examples/<name>/` | Runnable demo apps for UI packages (app-shell :5195, settings :5196, data-table, sso-hono) — what Lens drives. |
+| Roster | `scripts/inventory-data.mjs` | The single source for Discovery's package rows; `build-inventory.mjs` / `build-onboarding.mjs` render `docs/inventory.html`, `docs/llms*.txt`, `docs/onboarding.html`. CI bumps `ver` on release (F038.16). |
+| Gates | `scripts/check-*.mjs`, `secret-gate/` | Repo-wide checks run in CI (roster versions, shards, secrets, lockfile, …). |
+| Plan docs | `docs/features/` | `F<n>-<slug>.md`, written in the same turn as the card. The cardmem board is the live index. `docs/MISSION-*.md` + `INVENTORY.md` are the original vision. |
+| CI | `.github/workflows/` | `publish.yml` (OIDC Trusted Publisher, one job per package), test shards, discovery. |
+| Monorepo | `pnpm-workspace.yaml`, `turbo.json` | pnpm workspaces over `packages/*` + `examples/*`. |
+| cardmem wiring | `.claude/`, `.mcp.json` | Hooks, settings, MCP declarations. |
+
+Bigger components (scaffolds, multi-tenant, podcast, mobile boilerplate) do **not** live here — they get their own repo + cardmem project.
+
+
+## Working with cardmem`),
 `.mcp.json`, `.claude/skills/`, and hooks are installed by the cardmem
 daemon scaffold on first local clone — this stub is just the seed so the
 repo is non-empty at creation. Run the daemon scaffold (or re-audit in
