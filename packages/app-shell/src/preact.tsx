@@ -319,6 +319,7 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
           ) : (
             <form
               class="bas-rowmenu__form"
+              data-testid={`sidebar-item-${id}-form`}
               onSubmit={(e) => {
                 e.preventDefault();
                 save(view.action);

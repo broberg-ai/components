@@ -53,6 +53,10 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.13.1 — the rename form has a testid (F092.21)
+
+`sidebar-item-<id>-form` on the input view's form (the F086 testid scan caught it after 0.13.0 was tagged). No behaviour change.
+
 ## 0.13.0 — row actions on a sidebar item: the «…» menu (F092.21)
 
 Additive. An item with `actions` gets a «…» button (shown on hover/focus; always
@@ -70,7 +74,7 @@ on touch / no-hover devices) that opens a popover menu:
 
 - Keys while open: ↑/↓ move, Enter picks, the action's `kbd` letter picks it, ←/Backspace goes back from a submenu, Escape closes and returns focus to «…».
 - A popover (`position: fixed`), so the sidebar's scroll frame never clips it; closes on a click outside, scroll or resize.
-- testids: `sidebar-item-<id>-more`, `-menu`, `-action-<actionId>`, `-back`, `-input`, `-save`.
+- testids: `sidebar-item-<id>-more`, `-menu`, `-action-<actionId>`, `-back`, `-form`, `-input`, `-save`.
 - Hidden on the folded icon rail (no room for a row).
 
 ## 0.12.0 — a chat history in the sidebar (F092.20)
