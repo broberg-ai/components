@@ -665,7 +665,8 @@ export function Sidebar(p: SidebarProps) {
         ) : null}
         <nav class="bas-sidebar__nav">
           {p.groups.map((g) => {
-            const open = railed || g.hideLabel || !folded.has(g.label);
+            const fixed = g.hideLabel || g.collapsible === false;
+            const open = railed || fixed || !folded.has(g.label);
             const slug = g.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (
               <div
@@ -675,7 +676,11 @@ export function Sidebar(p: SidebarProps) {
                 aria-label={g.hideLabel ? g.label : undefined}
                 data-testid={g.hideLabel ? `sidebar-group-${slug}-unlabelled` : undefined}
               >
-                {g.hideLabel ? null : (
+                {g.hideLabel ? null : g.collapsible === false ? (
+                  <div class="bas-group__label bas-group__label--static" data-testid={`sidebar-group-${slug}`}>
+                    <span>{g.label}</span>
+                  </div>
+                ) : (
                   <button type="button" class="bas-group__label" data-testid={`sidebar-group-${slug}`} aria-expanded={open} onClick={() => toggleGroup(g.label)}>
                     <IconChevron open={open} />
                     <span>{g.label}</span>

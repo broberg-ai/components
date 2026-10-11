@@ -290,3 +290,13 @@ describe("F092.23 — idle marker and a group without a heading (scout #2701)", 
     expect(!!screen.queryByTestId("sidebar-group-andet")).toBe(true); // a labelled group is unchanged
   });
 });
+
+describe("F092.26 — collapsible:false: a text heading, always open (scout #2728)", () => {
+  it("no button, no chevron, no aria-expanded — and a stored fold cannot hide it", () => {
+    store.setItem("broberg-app-shell.groups", JSON.stringify(["Historik"]));
+    render(<Sidebar lang="da" groups={[{ label: "Historik", variant: "plain", collapsible: false, items: [{ id: "h", label: "Samtale", href: "/h" }] }, { label: "Andet", items: [{ id: "o", label: "O", href: "/o" }] }]} currentPath="/" />);
+    const head = screen.getByTestId("sidebar-group-historik");
+    expect([head.tagName, head.className, head.getAttribute("aria-expanded"), head.querySelector("svg"), head.textContent, !!screen.queryByTestId("sidebar-item-h")]).toEqual(["DIV", "bas-group__label bas-group__label--static", null, null, "Historik", true]);
+    expect(screen.getByTestId("sidebar-group-andet").tagName).toBe("BUTTON"); // default unchanged
+  });
+});

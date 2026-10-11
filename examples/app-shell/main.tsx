@@ -42,7 +42,7 @@ function App() {
         // F092.23 — a group with no heading row (scout's first group in mockup v7).
         { label: "Seneste", hideLabel: true, items: [{ id: "s-1", label: "Ny samtale", href: "/c/new", marker: "idle" }] },
         // F092.20 — a chat history: plain group, a pinned item, day sub-headings, a running marker.
-        { label: "Historik", variant: "plain", items: [
+        { label: "Historik", variant: "plain", collapsible: !new URLSearchParams(location.search).has("v7"), items: [
           { id: "h-pin", label: "Budget for næste kvartal — gennemgang af alle afdelingers tal", href: "/c/pin", pinned: true },
         ], sections: [
           { label: "I dag", items: [
@@ -85,7 +85,7 @@ function App() {
 // F092.24 — an app hits its approved mockup by setting the row tokens on its OWN selector.
 if (new URLSearchParams(location.search).has("v7")) {
   const v7 = document.createElement("style");
-  v7.textContent = `.scout-v7 .bas-sidebar { --bas-item-font-size: 18px; --bas-item-padding: 9px 12px; --bas-item-gap: 10px; --bas-item-radius: .5rem; --bas-item-icon-color: var(--fg-muted); --bas-item-active-bg: var(--accent-soft); --bas-item-active-weight: 600; }`;
+  v7.textContent = `.scout-v7 .bas-sidebar { --bas-item-font-size: 18px; --bas-item-padding: 9px 12px; --bas-item-gap: 10px; --bas-item-radius: .5rem; --bas-item-icon-color: var(--fg-muted); --bas-item-active-bg: var(--accent-soft); --bas-item-active-weight: 600; --bas-group-label-font-size: 15px; --bas-group-label-color: var(--fg-muted); --bas-group-label-padding: 14px 10px 6px; --bas-section-label-font-size: 13.5px; --bas-section-label-color: var(--fg-muted); }`;
   document.head.appendChild(v7);
   document.body.classList.add("scout-v7");
 }

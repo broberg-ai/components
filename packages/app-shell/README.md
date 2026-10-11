@@ -144,6 +144,11 @@ approved mockup without overriding our rules. Fallbacks are the defaults:
 With it a row height is exact — e.g. «the same spacing as Claude Desktop», 40px rows:
 `--bas-item-font-size: 17px; --bas-item-line-height: 24px; --bas-item-padding: 8px 12px; --bas-item-gap: 14px;` (24 + 8 + 8 = 40).
 
+**0.18.0** — headings (F092.26). Group headings: `--bas-group-label-font-size`, `-color`, `-transform`,
+`-font-family`, `-padding`, `-letter-spacing`, `-font-weight`. Day headings («I dag»): `--bas-section-label-font-size`,
+`-color`, `-padding`, `-transform`, `-font-family`. Fallbacks are today's values (per variant).
+`collapsible: false` on a group: the heading is plain text (no fold button, no chevron), always open.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver

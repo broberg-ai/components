@@ -64,3 +64,36 @@ describe("F092.25 — line-height token (scout #2720: «samme afstand som i Clau
     expect(item).toContain("line-height: var(--bas-item-line-height);");
   });
 });
+
+describe("F092.26 — group/section heading tokens + collapsible:false (scout #2728)", () => {
+  const rule = (sel: string) => CSS.match(new RegExp(sel.replace(/[.*>]/g, "\\$&") + " \\{[^}]*\\}"))![0];
+  it("group headings read the tokens with today's values as fallbacks, in both variants", () => {
+    const def = rule(".bas-group__label");
+    for (const d of [
+      "padding: var(--bas-group-label-padding, 6px 4px 4px)",
+      "font-family: var(--bas-group-label-font-family, var(--font-mono, ui-monospace, monospace))",
+      "font-size: var(--bas-group-label-font-size, calc(10px * var(--bas-font-scale, 1)))",
+      "letter-spacing: var(--bas-group-label-letter-spacing, .08em)",
+      "text-transform: var(--bas-group-label-transform, uppercase)",
+      "color: var(--bas-group-label-color, var(--fg-subtle))",
+    ]) expect(def).toContain(d);
+    const plain = rule(".bas-group--plain > .bas-group__label");
+    for (const d of [
+      "font-family: var(--bas-group-label-font-family, inherit)",
+      "font-size: var(--bas-group-label-font-size, calc(12.5px * var(--bas-font-scale, 1)))",
+      "text-transform: var(--bas-group-label-transform, none)",
+      "font-weight: var(--bas-group-label-font-weight, 500)",
+      "color: var(--bas-group-label-color, var(--fg-muted))",
+    ]) expect(plain).toContain(d);
+  });
+  it("section headings read the tokens", () => {
+    const sec = rule(".bas-section__label");
+    for (const d of [
+      "padding: var(--bas-section-label-padding, 6px 10px 2px)",
+      "font-size: var(--bas-section-label-font-size, calc(11.5px * var(--bas-font-scale, 1)))",
+      "color: var(--bas-section-label-color, var(--fg-subtle))",
+      "text-transform: var(--bas-section-label-transform, none)",
+      "font-family: var(--bas-section-label-font-family, inherit)",
+    ]) expect(sec).toContain(d);
+  });
+});

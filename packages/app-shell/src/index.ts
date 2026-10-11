@@ -73,6 +73,11 @@ export interface NavGroup<Icon = unknown> {
    * it is the group's key and its accessible name.
    */
   hideLabel?: boolean;
+  /**
+   * F092.26 — false: the heading is plain text (no fold button, no chevron) and the
+   * group is always open, even with a stored fold for this label. Default true.
+   */
+  collapsible?: boolean;
 }
 
 /**

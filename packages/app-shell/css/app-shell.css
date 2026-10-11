@@ -90,13 +90,17 @@
 .bas-sidebar__nav { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 8px; }
 .bas-sidebar__foot { border-top: 1px solid var(--border); padding: 8px; }
 .bas-group { margin-bottom: 6px; }
+/* F092.26 — heading tokens (--bas-group-label-*, --bas-section-label-*); fallbacks = defaults. */
 .bas-group__label {
   display: flex; align-items: center; gap: 5px; width: 100%;
-  padding: 6px 4px 4px; border: 0; background: none; cursor: pointer; text-align: left;
-  font-family: var(--font-mono, ui-monospace, monospace); font-size: calc(10px * var(--bas-font-scale, 1)); letter-spacing: .08em;
-  text-transform: uppercase; color: var(--fg-subtle);
+  padding: var(--bas-group-label-padding, 6px 4px 4px); border: 0; background: none; cursor: pointer; text-align: left;
+  font-family: var(--bas-group-label-font-family, var(--font-mono, ui-monospace, monospace)); font-size: var(--bas-group-label-font-size, calc(10px * var(--bas-font-scale, 1))); letter-spacing: var(--bas-group-label-letter-spacing, .08em);
+  font-weight: var(--bas-group-label-font-weight, inherit);
+  text-transform: var(--bas-group-label-transform, uppercase); color: var(--bas-group-label-color, var(--fg-subtle));
 }
-.bas-group__label:hover { color: var(--fg-muted); }
+/* F092.26 — collapsible:false: a plain text heading, not a fold button. */
+.bas-group__label--static { cursor: default; }
+button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-muted)); }
 .bas-chev { display: inline-flex; transition: transform var(--bas-dur) var(--bas-ease); }
 .bas-chev.is-open { transform: rotate(90deg); }
 
@@ -122,9 +126,9 @@
 /* F092.23 — finished: the same ring, grey, so idle and working rows line up. */
 .bas-item__marker--idle { border-color: var(--border); background: transparent; }
 .bas-item__pin { display: inline-flex; flex: none; color: var(--fg-subtle); }
-.bas-group--plain > .bas-group__label { font-family: inherit; font-size: calc(12.5px * var(--bas-font-scale, 1)); letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--fg-muted); }
+.bas-group--plain > .bas-group__label { font-family: var(--bas-group-label-font-family, inherit); font-size: var(--bas-group-label-font-size, calc(12.5px * var(--bas-font-scale, 1))); letter-spacing: var(--bas-group-label-letter-spacing, 0); text-transform: var(--bas-group-label-transform, none); font-weight: var(--bas-group-label-font-weight, 500); color: var(--bas-group-label-color, var(--fg-muted)); }
 .bas-section { margin-top: 4px; }
-.bas-section__label { padding: 6px 10px 2px; font-size: calc(11.5px * var(--bas-font-scale, 1)); color: var(--fg-subtle); }
+.bas-section__label { padding: var(--bas-section-label-padding, 6px 10px 2px); font-family: var(--bas-section-label-font-family, inherit); text-transform: var(--bas-section-label-transform, none); font-size: var(--bas-section-label-font-size, calc(11.5px * var(--bas-font-scale, 1))); color: var(--bas-section-label-color, var(--fg-subtle)); }
 /* F092.21 — row actions: «…» on hover/focus (always on touch), menu as a popover. */
 .bas-itemrow { position: relative; display: flex; align-items: center; }
 .bas-itemrow > .bas-item { padding-right: 34px; }
