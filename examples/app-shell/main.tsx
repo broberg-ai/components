@@ -4,14 +4,46 @@
 import "@broberg/theme/css/palettes.css";
 import "@broberg/app-shell/css/app-shell.css";
 import { render } from "preact";
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { initPalette, initTheme } from "@broberg/theme";
-import { AppShell } from "@broberg/app-shell/preact";
+import { AppShell, ItemActionsMenu } from "@broberg/app-shell/preact";
 // F014.21 — the cookie banner on @broberg/theme's palette, as appkit composes it.
 import "@broberg/consent-cookie/element";
 
 initTheme();
 initPalette();
+
+// F092.29 — a title «⌄» opening THE SAME menu as the row «…», plus two extra items.
+function TitleMenu() {
+  const anchor = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: "12px" }}>
+      <button ref={anchor} type="button" data-testid="title-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Mødereferat ⌄
+      </button>
+      {open && anchor.current ? (
+        <ItemActionsMenu
+          actions={[
+            { id: "pin", label: "Fastgør", kbd: "P" },
+            { id: "rename", label: "Omdøb", kbd: "R", input: { value: "Mødereferat" } },
+            { id: "move", label: "Flyt til", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
+            { id: "delete", label: "Slet", kbd: "D", danger: true, confirm: { label: "Tryk igen for at slette" } },
+            { id: "share", label: "Del chat" },
+            { id: "copy", label: "Kopiér link" },
+          ]}
+          anchor={anchor.current}
+          lang="da"
+          label="Mødereferat"
+          placement="down"
+          testidPrefix="title"
+          onAction={(a, v) => { document.body.dataset.lastAction = ["title", a, v].filter((x) => x !== undefined).join(":"); }}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 function App() {
   const [org, setOrg] = useState("acme");
@@ -78,7 +110,10 @@ function App() {
         }}
         title="Ny samtale"
       >
-        <div style={{ padding: "16px 24px" }}>Indhold</div>
+        <div style={{ padding: "16px 24px" }}>
+          Indhold
+          <TitleMenu />
+        </div>
       </AppShell>
     </div>
   );

@@ -170,12 +170,47 @@ const IconBuilding = () => svg(<><rect width="16" height="20" x="4" y="2" rx="2"
 
 type RowView = { kind: "list"; actions: NavAction[]; title?: string } | { kind: "input"; action: NavAction };
 
-function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionId: string, value?: string) => void }) {
+export interface ItemActionsMenuProps {
+  /** The menu's items — the same NavAction[] a sidebar row takes (kbd, submenu, input, confirm, danger). */
+  actions: NavAction[];
+  /** What the menu opens from: positioned from it, and focus returns to it on close. */
+  anchor: HTMLElement;
+  /** An action was chosen (value = the text, for an input action). The menu has closed. */
+  onAction: (actionId: string, value?: string) => void;
+  /** The menu closed — by a pick, Escape, a click outside, scroll or resize. Unmount it here. */
+  onClose: () => void;
+  lang: Lang;
+  /** The menu's accessible name, e.g. the conversation's title. */
+  label: string;
+  /** "auto" (default): below the anchor if it fits, else above. "down": always below. */
+  placement?: "auto" | "down";
+  /** testids: `<prefix>-menu`, `<prefix>-action-<id>`, `<prefix>-back`, `<prefix>-input`, `<prefix>-save`. Default "item-actions". */
+  testidPrefix?: string;
+}
+
+/**
+ * F092.29 — the row-action menu on its own, so a title «⌄» and a sidebar row «…»
+ * open THE SAME menu (scout #2745). The sidebar's row menu is this component: one
+ * implementation, so keyboard, confirm, input and submenu cannot drift apart.
+ * Mount it while open; it closes itself through onClose.
+ *
+ * Keys (F092.21/.22): focus moves into the menu when it opens; arrows move real
+ * focus; Enter/Space act on the FOCUSED item; a kbd letter picks; ←/Backspace goes
+ * back from a submenu; Escape closes and returns focus to the anchor.
+ */
+export function ItemActionsMenu(props: ItemActionsMenuProps) {
   const t = TEXT[props.lang];
-  const id = props.item.id;
-  const btn = useRef<HTMLButtonElement>(null);
+  const pre = props.testidPrefix ?? "item-actions";
   const menu = useRef<HTMLDivElement>(null);
-  const [stack, setStack] = useState<RowView[]>([]);
+  const first: RowView[] = [{ kind: "list", actions: props.actions }];
+  const [stack, setStack] = useState<RowView[]>(first);
+  // F092.22 — the current stack in a ref as well, set the moment it changes, so a
+  // key that arrives before the next render already sees it.
+  const stackRef = useRef<RowView[]>(first);
+  const setStackNow = (next: RowView[]) => {
+    stackRef.current = next;
+    setStack(next);
+  };
   const [hi, setHiState] = useState(0);
   // F092.22 — the highlight also lives in a ref, updated at once: two keys pressed
   // before the next render must build on each other, not both start from the old value.
@@ -195,21 +230,14 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
   const onKeyDownRef = useRef<(e: KeyboardEvent) => void>(() => {});
   const [value, setValue] = useState("");
   const [pos, setPos] = useState<Record<string, string> | undefined>(undefined);
-  const view = stack[stack.length - 1];
-  const open = !!view;
-  // F092.22 — the current stack in a ref as well, set the moment it changes, so a
-  // key that arrives before the next render (Enter then ↓ in the same instant)
-  // already sees the open menu.
-  const stackRef = useRef<RowView[]>([]);
-  const setStackNow = (next: RowView[]) => {
-    stackRef.current = next;
-    setStack(next);
-  };
+  const view = stack[stack.length - 1]!;
+  const closed = useRef(false);
 
   const close = (refocus = true) => {
-    setStackNow([]);
-    setArmed(null);
-    if (refocus) btn.current?.focus();
+    if (closed.current) return;
+    closed.current = true;
+    if (refocus) props.anchor.focus();
+    props.onClose();
   };
   const show = (v: RowView) => {
     setStackNow([...stackRef.current, v]);
@@ -235,15 +263,15 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
   };
 
   useLayoutEffect(() => {
-    if (!open || !btn.current) return setPos(undefined);
-    const r = btn.current.getBoundingClientRect();
+    const r = props.anchor.getBoundingClientRect();
     const vw = window.innerWidth, vh = window.innerHeight, m = 8;
     const w = Math.min(240, vw - 2 * m);
     const h = menu.current?.offsetHeight ?? 0;
     const left = Math.max(m, Math.min(r.right - w, vw - w - m));
-    const top = r.bottom + 4 + h <= vh - m || r.top - 4 - h < m ? Math.min(r.bottom + 4, vh - m - h) : r.top - 4 - h;
+    const fitsBelow = r.bottom + 4 + h <= vh - m;
+    const top = props.placement === "down" || fitsBelow || r.top - 4 - h < m ? Math.min(r.bottom + 4, vh - m - h) : r.top - 4 - h;
     setPos({ position: "fixed", left: `${left}px`, top: `${Math.max(m, top)}px`, width: `${w}px` });
-  }, [open, stack.length]);
+  }, [stack.length]);
 
   // F092.22 — focus only once the menu is VISIBLE (pos set): an element under
   // visibility:hidden cannot take focus, which is why 0.13.1 left focus on «…».
@@ -252,24 +280,23 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
   // the opening render once ran after a fast ↓ and focused item 0 with its stale
   // value — and that focus reset the highlight, so the next ↓ landed one short.
   useLayoutEffect(() => {
-    if (!open || !pos) return;
-    if (view?.kind === "input") menu.current?.querySelector<HTMLInputElement>("input")?.focus();
+    if (!pos) return;
+    if (view.kind === "input") menu.current?.querySelector<HTMLInputElement>("input")?.focus();
     else items.current[hiRef.current]?.focus();
-  }, [open, pos, hi, stack.length]);
+  }, [pos, hi, stack.length]);
 
   // A LAYOUT effect: attached in the same task the menu appears, so no key event
   // can fall between "menu exists" and "listener exists" (a passive effect runs
   // after paint, and a fast ↓ landed in that gap).
   useLayoutEffect(() => {
-    if (!open) return;
     const outside = (e: Event) => {
       const n = e.target instanceof Node ? e.target : null;
-      if (n && (menu.current?.contains(n) || btn.current?.contains(n))) return;
+      if (n && (menu.current?.contains(n) || props.anchor.contains(n))) return; // the anchor toggles itself
       close(false);
     };
     // F092.22 — a key typed before focus has reached the menu (it moves there
     // only once the menu is visible) still belongs to the menu: arrows, shortcut
-    // letters, Escape. Enter/Space/Tab are left alone — on «…» they toggle the menu.
+    // letters, Escape. Enter/Space/Tab are left alone — on the anchor they toggle the menu.
     const early = (e: KeyboardEvent) => {
       const n = e.target instanceof Node ? e.target : null;
       if (n && menu.current?.contains(n)) return; // the menu's own handler takes it
@@ -286,9 +313,10 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
       window.removeEventListener("scroll", outside, true);
       window.removeEventListener("resize", outside);
     };
-  }, [open]);
+  }, []);
 
   const onKeyDown = (e: KeyboardEvent) => {
+    if (closed.current) return;
     const stack = stackRef.current;
     const view = stack[stack.length - 1];
     if (!view) return;
@@ -336,6 +364,82 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
   onKeyDownRef.current = onKeyDown;
 
   return (
+    <div
+      ref={menu}
+      class="bas-rowmenu"
+      role="menu"
+      tabIndex={-1}
+      aria-label={view.kind === "list" && view.title ? view.title : props.label}
+      data-testid={`${pre}-menu`}
+      style={pos ?? { position: "fixed", visibility: "hidden" }}
+      onKeyDown={onKeyDown}
+    >
+      {stack.length > 1 ? (
+        <button type="button" class="bas-rowmenu__back" data-testid={`${pre}-back`} aria-label={t.back} onClick={back}>
+          <IconChevronLeft />
+          <span>{view.kind === "list" ? view.title : view.action.label}</span>
+        </button>
+      ) : null}
+      {view.kind === "list" ? (
+        view.actions.map((a, i) => (
+          <button
+            type="button"
+            role="menuitem"
+            key={a.id}
+            ref={(el) => {
+              items.current[i] = el;
+            }}
+            tabIndex={i === hi ? 0 : -1}
+            class={"bas-rowmenu__item" + (i === hi ? " is-active" : "") + (a.danger ? " is-danger" : "") + (armed === a.id ? " is-armed" : "")}
+            data-testid={`${pre}-action-${a.id}`}
+            onMouseEnter={() => setHi(i)}
+            onFocus={() => setHi(i)}
+            onClick={() => pick(a)}
+          >
+            {a.icon ? <span class="bas-rowmenu__icon">{a.icon as ComponentChildren}</span> : null}
+            <span class="bas-rowmenu__label">{armed === a.id && a.confirm ? a.confirm.label : a.label}</span>
+            {a.submenu?.length ? <IconChevronRight /> : a.kbd ? <kbd class="bas-rowmenu__kbd">{a.kbd.toUpperCase()}</kbd> : null}
+          </button>
+        ))
+      ) : (
+        <form
+          class="bas-rowmenu__form"
+          data-testid={`${pre}-form`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            save(view.action);
+          }}
+        >
+          <input
+            class="bas-rowmenu__input"
+            data-testid={`${pre}-input`}
+            aria-label={view.action.label}
+            value={value}
+            placeholder={view.action.input!.placeholder}
+            onInput={(e) => setValue((e.currentTarget as HTMLInputElement).value)}
+          />
+          <button type="submit" class="bas-rowmenu__save" data-testid={`${pre}-save`}>
+            {view.action.input!.saveLabel ?? t.save}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// The sidebar row's «…»: a button plus ItemActionsMenu while open.
+function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionId: string, value?: string) => void }) {
+  const t = TEXT[props.lang];
+  const id = props.item.id;
+  const btn = useRef<HTMLButtonElement>(null);
+  const [open, setOpenState] = useState(false);
+  // In a ref too, so a second click before the re-render toggles correctly.
+  const openRef = useRef(false);
+  const setOpen = (v: boolean) => {
+    openRef.current = v;
+    setOpenState(v);
+  };
+  return (
     <>
       <button
         ref={btn}
@@ -345,71 +449,24 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
         aria-label={`${t.moreFor} ${props.item.label}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => (stackRef.current.length ? close() : show({ kind: "list", actions: props.item.actions! }))}
+        onClick={() => {
+          if (!openRef.current) return setOpen(true);
+          setOpen(false);
+          btn.current?.focus();
+        }}
       >
         <IconMore />
       </button>
-      {view ? (
-        <div
-          ref={menu}
-          class="bas-rowmenu"
-          role="menu"
-          tabIndex={-1}
-          aria-label={view.kind === "list" && view.title ? view.title : props.item.label}
-          data-testid={`sidebar-item-${id}-menu`}
-          style={pos ?? { position: "fixed", visibility: "hidden" }}
-          onKeyDown={onKeyDown}
-        >
-          {stack.length > 1 ? (
-            <button type="button" class="bas-rowmenu__back" data-testid={`sidebar-item-${id}-back`} aria-label={t.back} onClick={back}>
-              <IconChevronLeft />
-              <span>{view.kind === "list" ? view.title : view.action.label}</span>
-            </button>
-          ) : null}
-          {view.kind === "list" ? (
-            view.actions.map((a, i) => (
-              <button
-                type="button"
-                role="menuitem"
-                key={a.id}
-                ref={(el) => {
-                  items.current[i] = el;
-                }}
-                tabIndex={i === hi ? 0 : -1}
-                class={"bas-rowmenu__item" + (i === hi ? " is-active" : "") + (a.danger ? " is-danger" : "") + (armed === a.id ? " is-armed" : "")}
-                data-testid={`sidebar-item-${id}-action-${a.id}`}
-                onMouseEnter={() => setHi(i)}
-                onFocus={() => setHi(i)}
-                onClick={() => pick(a)}
-              >
-                {a.icon ? <span class="bas-rowmenu__icon">{a.icon as ComponentChildren}</span> : null}
-                <span class="bas-rowmenu__label">{armed === a.id && a.confirm ? a.confirm.label : a.label}</span>
-                {a.submenu?.length ? <IconChevronRight /> : a.kbd ? <kbd class="bas-rowmenu__kbd">{a.kbd.toUpperCase()}</kbd> : null}
-              </button>
-            ))
-          ) : (
-            <form
-              class="bas-rowmenu__form"
-              data-testid={`sidebar-item-${id}-form`}
-              onSubmit={(e) => {
-                e.preventDefault();
-                save(view.action);
-              }}
-            >
-              <input
-                class="bas-rowmenu__input"
-                data-testid={`sidebar-item-${id}-input`}
-                aria-label={view.action.label}
-                value={value}
-                placeholder={view.action.input!.placeholder}
-                onInput={(e) => setValue((e.currentTarget as HTMLInputElement).value)}
-              />
-              <button type="submit" class="bas-rowmenu__save" data-testid={`sidebar-item-${id}-save`}>
-                {view.action.input!.saveLabel ?? t.save}
-              </button>
-            </form>
-          )}
-        </div>
+      {open && btn.current ? (
+        <ItemActionsMenu
+          actions={props.item.actions!}
+          anchor={btn.current}
+          lang={props.lang}
+          label={props.item.label}
+          testidPrefix={`sidebar-item-${id}`}
+          onAction={props.onAction}
+          onClose={() => setOpen(false)}
+        />
       ) : null}
     </>
   );

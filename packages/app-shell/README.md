@@ -160,6 +160,22 @@ with a building icon (`user-menu-org`); the sidebar foot keeps `subtitle`.
 at the right of the heading row (`sidebar-group-<slug>-action`), also with `collapsible: false`; clicking it
 never folds the group. The app opens its own menu from the anchor.
 
+**0.20.0** — `ItemActionsMenu` (F092.29): the sidebar row menu on its own, so a title «⌄» opens THE SAME
+menu (same keys, confirm, input, submenu). The sidebar's «…» uses this component — one implementation.
+
+```tsx
+const anchor = useRef<HTMLButtonElement>(null);
+const [open, setOpen] = useState(false);
+<button ref={anchor} data-testid="title-trigger" onClick={() => setOpen(!open)}>{title} ⌄</button>
+{open && anchor.current ? (
+  <ItemActionsMenu actions={[...rowActions, { id: "share", label: "Del chat" }]} anchor={anchor.current}
+    lang="da" label={title} placement="down" testidPrefix="title"
+    onAction={(id, value) => …} onClose={() => setOpen(false)} />
+) : null}
+```
+testids: `<prefix>-menu`, `<prefix>-action-<id>`, `<prefix>-back`, `<prefix>-input`, `<prefix>-save` — so the
+anchor's own testid must not be `<prefix>-menu`.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver
