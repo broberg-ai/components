@@ -4,6 +4,8 @@
 // zoom (Scout's approved KAI shell). Everything additive: without the new props
 // the shell renders exactly as before.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { AppShell, UserMenu, type PreactNavGroup } from "../src/preact";
 
@@ -132,5 +134,26 @@ describe("F092.27 — the organisation line (scout #2740)", () => {
     render(<AppShell lang="da" groups={GROUPS} currentPath="/" user={USER} />);
     fireEvent.click(screen.getByTestId("topbar-user-menu"));
     expect(screen.queryByTestId("user-menu-org")).toBeNull();
+  });
+});
+
+describe("F092.34 — «Log ud» never scrolls out of view; the trigger's ring is keyboard-only (scout #2855)", () => {
+  const css = () => readFileSync(resolve(__dirname, "../css/app-shell.css"), "utf8");
+  it("sign-out sits in its own .bas-menu__foot block, the menu's last child", () => {
+    render(<UserMenu lang="da" placement="sidebar-footer" user={{ name: "Ada", email: "ada@example.com" }} onSignOut={() => {}} />);
+    fireEvent.click(screen.getByTestId("sidebar-user-menu"));
+    const out = screen.getByTestId("topbar-sign-out");
+    const foot = out.parentElement!;
+    expect(foot.className).toBe("bas-menu__foot");
+    expect(foot.parentElement).toBe(screen.getByTestId("topbar-user-menu-dropdown"));
+    expect(foot.parentElement!.lastElementChild).toBe(foot);
+  });
+  it("CSS: in the sidebar menu the head sticks to the top and the foot to the bottom", () => {
+    expect(css()).toMatch(/\.bas-menu\.is-up > \.bas-menu__who \{ position: sticky; top: 0;[^}]*background: var\(--bg-card\)/);
+    expect(css()).toMatch(/\.bas-menu\.is-up > \.bas-menu__foot \{ position: sticky; bottom: 0;[^}]*background: var\(--bg-card\)/);
+  });
+  it("CSS: the trigger hides the ring on mouse focus and draws it on keyboard focus", () => {
+    expect(css()).toContain(".bas-userbtn:focus:not(:focus-visible) { outline: none; }");
+    expect(css()).toMatch(/\.bas-userbtn:focus-visible \{ outline: 2px solid/);
   });
 });

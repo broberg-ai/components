@@ -344,6 +344,9 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
   transition: background var(--bas-dur) var(--bas-ease);
 }
 .bas-userbtn:hover, .bas-userbtn.is-open { background: var(--active); }
+/* F092.34 — a ring for keyboard focus only; beats an app's global button:focus rule by specificity. */
+.bas-userbtn:focus:not(:focus-visible) { outline: none; }
+.bas-userbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .bas-userbtn__name { font-size: calc(13px * var(--bas-font-scale, 1)); font-weight: 500; }
 .bas-avatar { border-radius: 50%; object-fit: cover; flex: none; }
 .bas-avatar--initials {
@@ -551,6 +554,9 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
 .bas-sidebar.is-railed .bas-userbtn.is-sidebar { justify-content: center; padding: 6px 0; }
 /* Positioned as position:fixed from the button by the component (the sidebar clips overflow). */
 .bas-menu.is-up { top: auto; right: auto; max-width: none; overflow-y: auto; }
+/* F092.34 — when the sidebar menu scrolls, only the middle does: the head and «Log ud» stay in view. */
+.bas-menu.is-up > .bas-menu__who { position: sticky; top: 0; z-index: 1; background: var(--bg-card); }
+.bas-menu.is-up > .bas-menu__foot { position: sticky; bottom: 0; z-index: 1; background: var(--bg-card); }
 .bas-menu__sub { font-size: calc(12px * var(--bas-font-scale, 1)); color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* F092.27 — the organisation line (menu top only). */
 .bas-menu__org { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: calc(13px * var(--bas-font-scale, 1)); color: var(--fg-muted); min-width: 0; }

@@ -1414,13 +1414,14 @@ export function UserMenu(p: UserMenuProps) {
             </>
           ) : null}
           {p.onSignOut ? (
-            <>
+            // F092.34 — its own block, so the sidebar menu can pin it to the bottom while the middle scrolls.
+            <div class="bas-menu__foot">
               <div class="bas-sep" />
               <button type="button" class="bas-mi is-danger" role="menuitem" data-testid="topbar-sign-out" disabled={busy} onClick={() => void signOut()}>
                 <IconLogOut />
                 <span>{t.signOut}</span>
               </button>
-            </>
+            </div>
           ) : null}
         </div>
       ) : null}

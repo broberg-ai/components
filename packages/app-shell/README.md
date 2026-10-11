@@ -191,6 +191,11 @@ with Enter from a keyboard-focused anchor, or any key in the menu, shows it. ↑
 ellipses; the label only once the value is gone. The menu now sizes to its content between 240 and 320px
 (`--bas-menu-min-width` / `--bas-menu-max-width`, never wider than the viewport − 16px) instead of a fixed 240px.
 
+**0.22.2** — sidebar user menu (F092.34, scout #2855): when the menu is taller than the space above the button and
+scrolls, only the middle scrolls — the head (name/e-mail) and «Log ud» stay pinned in view. «Log ud» now sits in its
+own `.bas-menu__foot` block. The menu button shows a focus ring only for keyboard focus, also when the app has its
+own global `button:focus` outline.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver
