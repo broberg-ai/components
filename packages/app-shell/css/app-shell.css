@@ -70,8 +70,11 @@
 .bas-sidebar {
   /* sticky makes its own stacking context, so the rail's flyout can only rise
    * as high as the sidebar does; without this <main> paints over it and takes
-   * its clicks (appkit, Lens 839394b1). Below the top bar (50). */
-  z-index: 20;
+   * its clicks (appkit, Lens 839394b1). Below the top bar (50).
+   * F092.30 — and ABOVE the inset content header (30): every popover that opens
+   * from the sidebar (user menu, row menu, flyout) lives in this context, so at
+   * 20 the header's line and blur ran over the user menu (scout #2779). */
+  z-index: 40;
   flex: 0 0 240px; width: 240px;
   position: sticky; top: var(--bas-top); align-self: flex-start;
   height: calc(100dvh - var(--bas-top));

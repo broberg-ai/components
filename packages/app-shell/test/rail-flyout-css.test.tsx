@@ -75,3 +75,18 @@ describe("F092.16 — the rail's flyout shows its children", () => {
     expect(getComputedStyle(docs).justifyContent).toBe("center");
   });
 });
+
+describe("F092.30 — stacking order: sidebar above the content header, below top bar and drawers", () => {
+  it("contenthead < sidebar < topbar < backdrop < drawer", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const css = readFileSync(resolve(__dirname, "../css/app-shell.css"), "utf8");
+    const z = (sel: RegExp) => Number(css.match(sel)![1]);
+    const head = z(/\.bas-root\[data-layout="inset"\] \.bas-contenthead \{[^}]*z-index: (\d+)/);
+    const side = z(/\n\.bas-sidebar \{[^}]*z-index: (\d+)/);
+    const top = z(/\n\.bas-topbar \{[^}]*z-index: (\d+)/);
+    const back = z(/\.bas-backdrop\.is-open \{[^}]*z-index: (\d+)/);
+    const drawer = z(/\.bas-sidebar\.is-mobile-drawer \{[^}]*z-index: (\d+)/);
+    expect([head, side, top, back, drawer]).toEqual([30, 40, 50, 55, 60]);
+  });
+});
