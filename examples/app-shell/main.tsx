@@ -89,6 +89,13 @@ if (new URLSearchParams(location.search).has("v7")) {
   document.head.appendChild(v7);
   document.body.classList.add("scout-v7");
 }
+// F092.25 — «same spacing as Claude Desktop» (scout #2720): 40px rows.
+if (new URLSearchParams(location.search).has("desktop")) {
+  const d = document.createElement("style");
+  d.textContent = `.scout-desktop .bas-sidebar { --bas-item-font-size: 17px; --bas-item-line-height: 24px; --bas-item-padding: 8px 12px; --bas-item-gap: 14px; }`;
+  document.head.appendChild(d);
+  document.body.classList.add("scout-desktop");
+}
 render(<App />, document.getElementById("app")!);
 const consent = document.createElement("broberg-consent");
 consent.setAttribute("policy-version", "example-1");

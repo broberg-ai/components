@@ -57,3 +57,10 @@ describe("F092.24 — sidebar row tokens, current values as fallbacks", () => {
     expect(rule(".bas-item__icon")).toContain("color: var(--bas-item-icon-color, var(--fg-subtle))");
   });
 });
+
+describe("F092.25 — line-height token (scout #2720: «samme afstand som i Claude Desktop»)", () => {
+  it("rows read --bas-item-line-height with NO fallback, so an unset token inherits exactly as before", () => {
+    const item = CSS.match(/\.bas-item \{[^}]*\}/)![0];
+    expect(item).toContain("line-height: var(--bas-item-line-height);");
+  });
+});

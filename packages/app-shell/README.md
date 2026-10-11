@@ -140,6 +140,10 @@ approved mockup without overriding our rules. Fallbacks are the defaults:
 @media (max-width: 640px) { .scout .bas-sidebar { --bas-item-font-size: 15.5px; --bas-item-padding: 6px; } }
 ```
 
+**0.17.0** — `--bas-item-line-height` (no default: unset, the row inherits its line height as before).
+With it a row height is exact — e.g. «the same spacing as Claude Desktop», 40px rows:
+`--bas-item-font-size: 17px; --bas-item-line-height: 24px; --bas-item-padding: 8px 12px; --bas-item-gap: 14px;` (24 + 8 + 8 = 40).
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver

@@ -106,6 +106,9 @@
   position: relative; display: flex; align-items: center; gap: var(--bas-item-gap, 10px); width: 100%;
   padding: var(--bas-item-padding, 7px 10px); border-radius: var(--bas-item-radius, 6px); text-decoration: none;
   color: var(--fg-muted); font-size: var(--bas-item-font-size, calc(13px * var(--bas-font-scale, 1)));
+  /* F092.25 — no fallback on purpose: unset, the declaration is invalid at computed
+   * time and acts as `unset`, so the row inherits its line-height exactly as before. */
+  line-height: var(--bas-item-line-height);
   transition: background var(--bas-dur) var(--bas-ease), color var(--bas-dur) var(--bas-ease);
 }
 .bas-item:hover { background: var(--hover); color: var(--fg); }
