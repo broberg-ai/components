@@ -81,6 +81,11 @@ Both read the page and both built the right deep link from it. Neither completed
 
 **Consequence for the plan:** route 1+2 (plain HTML + Schema.org/deep link, F098.3) already takes a chat user from a question to a prefilled confirmation step in both major chats today. It is the part worth building first; the WebMCP layer (F098.4) only adds value for browser agents. Not measured: whether the chats used the JSON-LD `urlTemplate` or the plain-HTML link pattern (the log cannot tell; Claude described «tekst og et URL-mønster»).
 
+### Presentation differs per chat (Christian 11–12/10)
+- **ChatGPT** rendered a rich booking card (service, price, date, time, button) — and decorated it with an image from an UNRELATED spa site («Eco-Friendly Spa Designs – MedicalSpaStay»), because the lab page offers no image of its own.
+- **Claude** showed the same correct link as plain clickable text, no card.
+The card is the chat's own UI; we cannot add it to Claude. What we control: **F098.3 must emit complete structured data — name, own image and logo, price, duration, address, opening hours** — so any chat that renders a card renders OURS, never a borrowed picture. A richer in-Claude experience would need a connector (remote MCP) the customer adds; that is a separate decision, not part of making a site readable.
+
 ### Still open (F098.1 AC 1)
 Browser agents calling a registered WebMCP tool (Claude in Chrome, Gemini, Atlas, Copilot) — not measured yet. Lens cannot drive WebMCP today (cardmem F074.109 / F074.112).
 
