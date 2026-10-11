@@ -19,27 +19,6 @@ The fleet's shared `@broberg/*` npm packages, and Discovery (discovery.broberg.a
 Bigger components (scaffolds, multi-tenant, podcast, mobile boilerplate) do **not** live here — they get their own repo + cardmem project.
 
 
-## Working with cardmem`),
-`.mcp.json`, `.claude/skills/`, and hooks are installed by the cardmem
-daemon scaffold on first local clone — this stub is just the seed so the
-repo is non-empty at creation. Run the daemon scaffold (or re-audit in
-cardmem Settings) to complete setup.
-
-## Project layout
-
-> **Phase 0 = the plan IS the product.** This repo is the incubator + home for the small core `@broberg/*` npm packages, and the home of the inventory/vision. Most components are ultimately built in their own owner-repos and LEAP'd out (see the mission docs). The layout below reflects what exists today plus the intended monorepo shape.
-
-| Area | Path | Notes |
-|---|---|---|
-| Plan docs | `docs/` | The inventory + vision. `MISSION-BRIEF.md` + `MISSION-inventory-source.md` (authoritative, Christian's `CB:` edits) + `INVENTORY.md` (scored component inventory). |
-| Feature plans | `docs/features/` | `F<n>-<slug>.md` plan-docs — one per component/epic, written in the same step as the card. The cardmem board is the live index. |
-| Packages | `packages/` | _(intended)_ reusable packages published as `@broberg/<name>` — one folder per core component (e.g. `packages/tokens` → `@broberg/tokens`). Created as each Layer-0 package is piloted/extracted. |
-| Monorepo config | `turbo.json`, `pnpm-workspace.yaml` | _(intended)_ pnpm workspaces + Turbo orchestration, added with the first package. |
-| cardmem wiring | `.claude/`, `.mcp.json` | Skills, hooks, settings + cardmem/lens MCP declarations (scaffolded by the daemon). |
-
-Bigger components (the 🏗️ scaffolds, multi-tenant, podcast, mobile boilerplate) do **not** live here — they LEAP out into their own repo + cardmem project. `components` stays a multi-package monorepo for the small, genuinely-shared core npms.
-
-
 ## Working with cardmem
 
 > **Canonical section per F057 multi-project convention.** Every cardmem-compatible repo gets this same block, copied verbatim (the URLs and F-number rules are universal). The `## Project layout` table above is what differs per repo.
