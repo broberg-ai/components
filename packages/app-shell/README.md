@@ -112,6 +112,34 @@ groups={[{
 - Row actions: see 0.13.0.
 - **0.15.0** — `marker: "idle"`: the same ring in grey for a finished conversation, so every row's label lines up (decorative, `aria-hidden`). `hideLabel: true` on a group: no heading row and no fold button; always open (a stored fold is ignored); `label` stays required as key + `aria-label`; testid `sidebar-group-<slug>-unlabelled`.
 
+### 0.16.0 — the app's default text size, and row tokens (F092.24)
+
+```tsx
+<AppShell fontScale={1.2} … />   // every shell text 20 % larger — the APP's default; the user's Zoom is separate
+```
+
+`fontScale` sets `--bas-font-scale` on the root (or set it yourself on any ancestor, e.g. `:root`); every
+font size in the stylesheet is `calc(Npx * var(--bas-font-scale, 1))`. Without it: unchanged.
+
+Sidebar rows (menu items AND history rows) read tokens — set them on your own selector to match an
+approved mockup without overriding our rules. Fallbacks are the defaults:
+
+| token | default |
+|---|---|
+| `--bas-item-font-size` | `calc(13px * var(--bas-font-scale, 1))` |
+| `--bas-item-padding` | `7px 10px` |
+| `--bas-item-gap` | `10px` |
+| `--bas-item-radius` | `6px` |
+| `--bas-item-icon-color` | `var(--fg-subtle)` |
+| `--bas-item-active-bg` | `var(--accent-soft)` |
+| `--bas-item-active-weight` | `500` |
+
+```css
+.scout .bas-sidebar { --bas-item-font-size: 18px; --bas-item-padding: 7px 12px; --bas-item-radius: .5rem;
+  --bas-item-icon-color: var(--fg-muted); --bas-item-active-weight: 600; }
+@media (max-width: 640px) { .scout .bas-sidebar { --bas-item-font-size: 15.5px; --bas-item-padding: 6px; } }
+```
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver

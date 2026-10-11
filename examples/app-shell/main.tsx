@@ -26,6 +26,8 @@ function App() {
   return (
     <div style={{ zoom: zoom / 100 }}>
       <AppShell
+        // F092.24 — ?scale=1.2 = the app's default text size; ?v7 = scout's mockup v7 row tokens.
+        fontScale={new URLSearchParams(location.search).has("scale") ? Number(new URLSearchParams(location.search).get("scale")) : undefined}
         lang="da"
         brand={<strong>Scout</strong>}
         groups={[{ label: "Samtaler", items: [
@@ -80,6 +82,13 @@ function App() {
   );
 }
 
+// F092.24 — an app hits its approved mockup by setting the row tokens on its OWN selector.
+if (new URLSearchParams(location.search).has("v7")) {
+  const v7 = document.createElement("style");
+  v7.textContent = `.scout-v7 .bas-sidebar { --bas-item-font-size: 18px; --bas-item-padding: 9px 12px; --bas-item-gap: 10px; --bas-item-radius: .5rem; --bas-item-icon-color: var(--fg-muted); --bas-item-active-bg: var(--accent-soft); --bas-item-active-weight: 600; }`;
+  document.head.appendChild(v7);
+  document.body.classList.add("scout-v7");
+}
 render(<App />, document.getElementById("app")!);
 const consent = document.createElement("broberg-consent");
 consent.setAttribute("policy-version", "example-1");

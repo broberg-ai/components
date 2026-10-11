@@ -1429,6 +1429,12 @@ export function PageTabs(p: { tabs: PageTab[]; currentUrl: string; mode?: "query
 // ── App shell ──────────────────────────────────────────────────────────────
 
 export interface AppShellProps {
+  /**
+   * F092.24 — the app's default text size: 1 = as designed, 1.2 = every shell text
+   * 20 % larger. Sets --bas-font-scale on the root. The APP's choice; the user's own
+   * Zoom (userMenu.zoom) is separate and applies on top.
+   */
+  fontScale?: number;
   /** F092.21 — passed to the sidebar: a row action was chosen. */
   onItemAction?: SidebarProps["onItemAction"];
   brand?: ComponentChildren;
@@ -1504,7 +1510,13 @@ export function AppShell(p: AppShellProps) {
       <UserMenu user={p.user} {...p.userMenu} placement="sidebar-footer" onNavigate={p.onNavigate} lang={p.lang} />
     ) : null;
   return (
-    <div class="bas-root" data-testid="app-shell" data-mobile={mode} data-layout={layout}>
+    <div
+      class="bas-root"
+      data-testid="app-shell"
+      data-mobile={mode}
+      data-layout={layout}
+      style={p.fontScale !== undefined ? { "--bas-font-scale": String(p.fontScale) } : undefined}
+    >
       {inset ? null : (
       <TopBar
         brand={p.brand}
