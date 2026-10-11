@@ -75,6 +75,8 @@ Christian typed the same request into claude.ai and ChatGPT, both with web searc
 | claude.ai (`claude-user`) | yes, once | **no** | the correct prefilled link `…/book?service=kort&date=2026-10-20&time=10:00`, «open it and confirm» |
 | ChatGPT (`chatgpt-user`) | yes, once | **no** | a booking card (service, price, date, 10.00–10.30) with a «Fortsæt til bookingbekræftelse» button |
 
+End to end, measured: Christian pressed ChatGPT's button and the lab log shows `book` · `chrome` · «kort 2026-10-20 10:00» at 21:59:05Z — the confirmation step opened in HIS browser with the right service, date and time. So one click takes a chat user from a question to a prefilled confirmation; the confirmation itself is the person's, as the plan requires (nothing is stored by the lab).
+
 Both read the page and both built the right deep link from it. Neither completed or even opened the booking step itself, and neither saw WebMCP tools (Claude said so explicitly: «siden ikke stillede nogen WebMCP-tools til rådighed for mig»). That is the expected split: WebMCP tools only exist for an agent driving a live browser.
 
 **Consequence for the plan:** route 1+2 (plain HTML + Schema.org/deep link, F098.3) already takes a chat user from a question to a prefilled confirmation step in both major chats today. It is the part worth building first; the WebMCP layer (F098.4) only adds value for browser agents. Not measured: whether the chats used the JSON-LD `urlTemplate` or the plain-HTML link pattern (the log cannot tell; Claude described «tekst og et URL-mønster»).
