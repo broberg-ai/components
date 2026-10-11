@@ -53,6 +53,26 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.12.0 — a chat history in the sidebar (F092.20)
+
+For scout's history sidebar (scout-F011.2). Additive — without the new fields the markup is unchanged.
+
+```tsx
+groups={[{
+  label: "Historik",
+  variant: "plain",                         // label in normal text, not uppercase/mono
+  items: [{ id: "c1", label: "…", href: "/c/1", pinned: true }],   // pin icon («Fastgjort»)
+  sections: [                               // sub-headings inside one group, after `items`
+    { label: "I dag", items: [{ id: "c2", label: "…", href: "/c/2", marker: "working" }] },  // ring before the label («Arbejder»)
+    { label: "I går", items: [/* … */] },
+  ],
+}]}
+```
+
+- testids: `sidebar-item-<id>-marker`, `sidebar-item-<id>-pinned`, `sidebar-section-<group>-<section>`.
+- Every item already has `title` = its full label; send the full text and let CSS truncate.
+- Row actions (the «…» menu) are F092.21, next.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver

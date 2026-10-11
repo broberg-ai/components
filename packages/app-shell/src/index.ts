@@ -27,10 +27,23 @@ export interface NavItem<Icon = unknown> {
    * it is on the current path.
    */
   children?: NavItem<Icon>[];
+  /** F092.20 — a status marker before the label; "working" = a run in progress. */
+  marker?: "working";
+  /** F092.20 — shows a pin icon after the label. */
+  pinned?: boolean;
+}
+export interface NavSection<Icon = unknown> {
+  /** A sub-heading inside one group, e.g. "I dag" / "I går". */
+  label: string;
+  items: NavItem<Icon>[];
 }
 export interface NavGroup<Icon = unknown> {
   label: string;
   items: NavItem<Icon>[];
+  /** F092.20 — "plain": the group label in normal text (not uppercase/mono). */
+  variant?: "default" | "plain";
+  /** F092.20 — sub-headed lists inside this group, shown after `items`. */
+  sections?: NavSection<Icon>[];
 }
 
 /**
@@ -556,6 +569,8 @@ export const TEXT = {
     openMenu: "Åbn menu",
     closeMenu: "Luk menu",
     home: "Forside",
+    working: "Arbejder",
+    pinned: "Fastgjort",
     language: "Sprog",
     zoom: "Zoom",
     zoomOut: "Zoom ud",
@@ -627,6 +642,8 @@ export const TEXT = {
     openMenu: "Open menu",
     closeMenu: "Close menu",
     home: "Home",
+    working: "Working",
+    pinned: "Pinned",
     language: "Language",
     zoom: "Zoom",
     zoomOut: "Zoom out",

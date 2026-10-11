@@ -36,6 +36,16 @@ function App() {
             { id: "reports-revenue", label: "Omsætning", href: "/reports/revenue" },
             { id: "reports-orders", label: "Ordrer", href: "/reports/orders" },
           ] },
+        ] },
+        // F092.20 — a chat history: plain group, a pinned item, day sub-headings, a running marker.
+        { label: "Historik", variant: "plain", items: [
+          { id: "h-pin", label: "Budget for næste kvartal — gennemgang af alle afdelingers tal", href: "/c/pin", pinned: true },
+        ], sections: [
+          { label: "I dag", items: [
+            { id: "h-run", label: "Leverandøranalyse kører", href: "/c/run", marker: "working" },
+            { id: "h-1", label: "Mødereferat", href: "/c/1" },
+          ] },
+          { label: "I går", items: [{ id: "h-2", label: "Kontraktudkast", href: "/c/2" }] },
         ] }]}
         collapse="icon"
         homeHref="/"
