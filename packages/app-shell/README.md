@@ -53,6 +53,20 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.14.0 — the «…» menu from the keyboard, fixed; «Slet» confirms in the menu (F092.22)
+
+**Upgrade from 0.13.x — a keyboard user could trigger the wrong action.** In
+0.13.x, Enter in the «…» menu picked the *highlighted* item, not the *focused*
+one, and opening the menu left focus on «…» (so P/R/D did nothing). Measured by
+scout on prod: Enter on «Tilføj til projekt» pinned the conversation. Now:
+
+- Opening moves focus to the first item; ↑/↓ move real focus; Enter/Space act on
+  the item that has focus. Keys typed in the instant before focus arrives still
+  belong to the menu (two fast ↓ land two items down, measured in Lens).
+- `NavAction.confirm: { label }` — the first pick shows the label («Tryk igen for
+  at slette») and keeps the menu open; the second runs `onItemAction`. Escape or
+  closing resets it.
+
 ## 0.13.1 — the rename form has a testid (F092.21)
 
 `sidebar-item-<id>-form` on the input view's form (the F086 testid scan caught it after 0.13.0 was tagged). No behaviour change. **0.13.0 was tagged but never published** — its run was cancelled so it could not land after 0.13.1 and take `latest`. Install 0.13.1.

@@ -48,7 +48,7 @@ function App() {
               { id: "pin", label: "Fastgør", kbd: "P" },
               { id: "rename", label: "Omdøb", kbd: "R", input: { value: "Mødereferat" } },
               { id: "move", label: "Flyt til", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
-              { id: "delete", label: "Slet", kbd: "D", danger: true },
+              { id: "delete", label: "Slet", kbd: "D", danger: true, confirm: { label: "Tryk igen for at slette" } },
             ] },
           ] },
           { label: "I går", items: [{ id: "h-2", label: "Kontraktudkast", href: "/c/2" }] },

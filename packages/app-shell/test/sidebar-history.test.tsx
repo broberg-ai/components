@@ -158,3 +158,110 @@ describe("F092.21 — row actions", () => {
     expect(screen.queryByTestId("sidebar-item-c3-menu")).toBeNull();
   });
 });
+
+describe("F092.22 — focus, Enter on the focused item, confirm", () => {
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const ACTIONS = [
+    { id: "pin", label: "Fastgør", kbd: "P" },
+    { id: "project", label: "Tilføj til projekt", submenu: [{ id: "p-a", label: "Projekt A" }] },
+    { id: "delete", label: "Slet", kbd: "D", danger: true, confirm: { label: "Tryk igen for at slette" } },
+  ];
+  const setup = () => {
+    const fn = vi.fn();
+    render(<Sidebar lang="da" groups={[{ label: "H", items: [{ id: "c", label: "Samtale", href: "/c", actions: ACTIONS }] }]} currentPath="/" onItemAction={fn} />);
+    return fn;
+  };
+  const key = (k: string) => fireEvent.keyDown(document.activeElement!, { key: k }); // where the USER's keys go
+
+  it("opening moves focus INTO the menu (first item), and a shortcut sent to the focused element works", async () => {
+    const fn = setup();
+    screen.getByTestId("sidebar-item-c-more").focus();
+    fireEvent.click(screen.getByTestId("sidebar-item-c-more"));
+    await tick();
+    expect(document.activeElement).toBe(screen.getByTestId("sidebar-item-c-action-pin"));
+    key("p");
+    expect(fn.mock.calls).toEqual([["c", "pin"]]);
+  });
+
+  it("arrows move real focus; Enter acts on the FOCUSED item — a submenu opens, nothing else fires (scout #2662)", async () => {
+    const fn = setup();
+    fireEvent.click(screen.getByTestId("sidebar-item-c-more"));
+    await tick();
+    key("ArrowDown");
+    await tick();
+    expect(document.activeElement).toBe(screen.getByTestId("sidebar-item-c-action-project"));
+    key("Enter");
+    await tick();
+    expect([fn.mock.calls.length, !!screen.queryByTestId("sidebar-item-c-action-p-a")]).toEqual([0, true]);
+  });
+
+  it("Enter after focusing an item directly (Tab/programmatic) acts on THAT item, not the highlighted first", async () => {
+    const fn = setup();
+    fireEvent.click(screen.getByTestId("sidebar-item-c-more"));
+    await tick();
+    screen.getByTestId("sidebar-item-c-action-delete").focus();
+    key("Enter"); // arms
+    expect(fn.mock.calls).toEqual([]);
+    expect(screen.getByTestId("sidebar-item-c-action-delete").textContent).toContain("Tryk igen for at slette");
+  });
+
+  it("confirm: first pick arms and keeps the menu open; second pick runs; closing resets", async () => {
+    const fn = setup();
+    fireEvent.click(screen.getByTestId("sidebar-item-c-more"));
+    await tick();
+    fireEvent.click(screen.getByTestId("sidebar-item-c-action-delete"));
+    expect([fn.mock.calls.length, !!screen.queryByTestId("sidebar-item-c-menu")]).toEqual([0, true]);
+    fireEvent.click(screen.getByTestId("sidebar-item-c-action-delete"));
+    expect(fn.mock.calls).toEqual([["c", "delete"]]);
+    // reset: arm, Escape, reopen → label is back to «Slet»
+    fireEvent.click(screen.getByTestId("sidebar-item-c-more"));
+    await tick();
+    fireEvent.click(screen.getByTestId("sidebar-item-c-action-delete"));
+    key("Escape");
+    fireEvent.click(screen.getByTestId("sidebar-item-c-more"));
+    await tick();
+    expect(screen.getByTestId("sidebar-item-c-action-delete").querySelector(".bas-rowmenu__label")!.textContent).toBe("Slet");
+  });
+});
+
+describe("F092.22 — keys typed before focus reaches the menu", () => {
+  it("an ArrowDown on «…» while the menu is open moves the menu; Enter on «…» never picks an item", async () => {
+    const fn = vi.fn();
+    render(<Sidebar lang="da" groups={[{ label: "H", items: [{ id: "c", label: "S", href: "/c", actions: [{ id: "a", label: "A" }, { id: "b", label: "B", kbd: "B" }] }] }]} currentPath="/" onItemAction={fn} />);
+    const more = screen.getByTestId("sidebar-item-c-more");
+    fireEvent.click(more);
+    fireEvent.keyDown(more, { key: "ArrowDown" }); // before the focus effect has run
+    expect(screen.getByTestId("sidebar-item-c-action-b").classList.contains("is-active")).toBe(true);
+    fireEvent.keyDown(more, { key: "Enter" });
+    expect(fn.mock.calls).toEqual([]);
+    fireEvent.keyDown(more, { key: "b" });
+    expect(fn.mock.calls).toEqual([["c", "b"]]);
+  });
+});
+
+describe("F092.22 — two keys before a re-render", () => {
+  it("ArrowDown twice in the same tick lands on the third item", async () => {
+    render(<Sidebar lang="da" groups={[{ label: "H", items: [{ id: "c", label: "S", href: "/c", actions: [{ id: "a", label: "A" }, { id: "b", label: "B" }, { id: "x", label: "X" }] }] }]} currentPath="/" />);
+    fireEvent.click(screen.getByTestId("sidebar-item-c-more"));
+    await new Promise((r) => setTimeout(r, 0));
+    const menu = screen.getByTestId("sidebar-item-c-menu");
+    // dispatch two keydowns synchronously, without letting Preact re-render in between
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("sidebar-item-c-action-x").classList.contains("is-active")).toBe(true);
+  });
+});
+
+describe("F092.22 — Enter then ↓ before any re-render", () => {
+  it("the first arrow after opening is not lost (focus still on «…»)", async () => {
+    render(<Sidebar lang="da" groups={[{ label: "H", items: [{ id: "c", label: "S", href: "/c", actions: [{ id: "a", label: "A" }, { id: "b", label: "B" }, { id: "x", label: "X" }] }] }]} currentPath="/" />);
+    const more = screen.getByTestId("sidebar-item-c-more");
+    more.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0)); // rendered (layout effects ran), passive effects not necessarily — the gap a fast key fell into
+    more.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    more.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("sidebar-item-c-action-x").classList.contains("is-active")).toBe(true);
+  });
+});

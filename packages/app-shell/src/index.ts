@@ -49,6 +49,8 @@ export interface NavAction {
   danger?: boolean;
   submenu?: NavAction[];
   input?: { value: string; placeholder?: string; saveLabel?: string };
+  /** F092.22 — ask twice: the first pick shows `label` («Tryk igen for at slette») and keeps the menu open; the second runs it. */
+  confirm?: { label: string };
 }
 export interface NavSection<Icon = unknown> {
   /** A sub-heading inside one group, e.g. "I dag" / "I går". */

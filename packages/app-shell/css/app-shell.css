@@ -139,6 +139,7 @@
 .bas-rowmenu__item.is-active, .bas-rowmenu__item:hover, .bas-rowmenu__back:hover { background: var(--hover); }
 .bas-rowmenu__item:active { background: var(--active); }
 .bas-rowmenu__item.is-danger { color: var(--danger); }
+.bas-rowmenu__item.is-armed { background: var(--danger-soft, var(--hover)); font-weight: 500; }
 .bas-rowmenu__icon { display: inline-flex; color: var(--fg-subtle); }
 .bas-rowmenu__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bas-rowmenu__kbd { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--fg-subtle); }

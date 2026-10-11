@@ -174,28 +174,56 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [stack, setStack] = useState<RowView[]>([]);
-  const [hi, setHi] = useState(0);
+  const [hi, setHiState] = useState(0);
+  // F092.22 — the highlight also lives in a ref, updated at once: two keys pressed
+  // before the next render must build on each other, not both start from the old value.
+  const hiRef = useRef(0);
+  const setHi = (n: number) => {
+    hiRef.current = n;
+    setHiState(n);
+  };
+  // F092.22 — a confirm action is "armed" by the first pick and runs on the second.
+  const [armed, setArmedState] = useState<string | null>(null);
+  const armedRef = useRef<string | null>(null);
+  const setArmed = (v: string | null) => {
+    armedRef.current = v;
+    setArmedState(v);
+  };
+  const items = useRef<(HTMLButtonElement | null)[]>([]);
+  const onKeyDownRef = useRef<(e: KeyboardEvent) => void>(() => {});
   const [value, setValue] = useState("");
   const [pos, setPos] = useState<Record<string, string> | undefined>(undefined);
   const view = stack[stack.length - 1];
   const open = !!view;
+  // F092.22 — the current stack in a ref as well, set the moment it changes, so a
+  // key that arrives before the next render (Enter then ↓ in the same instant)
+  // already sees the open menu.
+  const stackRef = useRef<RowView[]>([]);
+  const setStackNow = (next: RowView[]) => {
+    stackRef.current = next;
+    setStack(next);
+  };
 
   const close = (refocus = true) => {
-    setStack([]);
+    setStackNow([]);
+    setArmed(null);
     if (refocus) btn.current?.focus();
   };
   const show = (v: RowView) => {
-    setStack((s) => [...s, v]);
+    setStackNow([...stackRef.current, v]);
     setHi(0);
+    setArmed(null);
     if (v.kind === "input") setValue(v.action.input!.value);
   };
   const back = () => {
-    setStack((s) => s.slice(0, -1));
+    setStackNow(stackRef.current.slice(0, -1));
     setHi(0);
+    setArmed(null);
   };
   const pick = (a: NavAction) => {
     if (a.submenu?.length) return show({ kind: "list", actions: a.submenu, title: a.label });
     if (a.input) return show({ kind: "input", action: a });
+    if (a.confirm && armedRef.current !== a.id) return setArmed(a.id); // first pick arms, the menu stays open
     close();
     props.onAction(a.id);
   };
@@ -213,21 +241,45 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
     const left = Math.max(m, Math.min(r.right - w, vw - w - m));
     const top = r.bottom + 4 + h <= vh - m || r.top - 4 - h < m ? Math.min(r.bottom + 4, vh - m - h) : r.top - 4 - h;
     setPos({ position: "fixed", left: `${left}px`, top: `${Math.max(m, top)}px`, width: `${w}px` });
-    if (view?.kind === "input") menu.current?.querySelector<HTMLInputElement>("input")?.focus();
-    else menu.current?.focus();
   }, [open, stack.length]);
 
-  useEffect(() => {
+  // F092.22 — focus only once the menu is VISIBLE (pos set): an element under
+  // visibility:hidden cannot take focus, which is why 0.13.1 left focus on «…».
+  // Real DOM focus follows the highlight, so Enter acts on what the user sees focused.
+  // A layout effect reading the CURRENT highlight (the ref): a passive effect from
+  // the opening render once ran after a fast ↓ and focused item 0 with its stale
+  // value — and that focus reset the highlight, so the next ↓ landed one short.
+  useLayoutEffect(() => {
+    if (!open || !pos) return;
+    if (view?.kind === "input") menu.current?.querySelector<HTMLInputElement>("input")?.focus();
+    else items.current[hiRef.current]?.focus();
+  }, [open, pos, hi, stack.length]);
+
+  // A LAYOUT effect: attached in the same task the menu appears, so no key event
+  // can fall between "menu exists" and "listener exists" (a passive effect runs
+  // after paint, and a fast ↓ landed in that gap).
+  useLayoutEffect(() => {
     if (!open) return;
     const outside = (e: Event) => {
       const n = e.target instanceof Node ? e.target : null;
       if (n && (menu.current?.contains(n) || btn.current?.contains(n))) return;
       close(false);
     };
+    // F092.22 — a key typed before focus has reached the menu (it moves there
+    // only once the menu is visible) still belongs to the menu: arrows, shortcut
+    // letters, Escape. Enter/Space/Tab are left alone — on «…» they toggle the menu.
+    const early = (e: KeyboardEvent) => {
+      const n = e.target instanceof Node ? e.target : null;
+      if (n && menu.current?.contains(n)) return; // the menu's own handler takes it
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar" || e.key === "Tab") return;
+      onKeyDownRef.current(e);
+    };
+    document.addEventListener("keydown", early, true);
     document.addEventListener("mousedown", outside);
     window.addEventListener("scroll", outside, true);
     window.addEventListener("resize", outside);
     return () => {
+      document.removeEventListener("keydown", early, true);
       document.removeEventListener("mousedown", outside);
       window.removeEventListener("scroll", outside, true);
       window.removeEventListener("resize", outside);
@@ -235,6 +287,8 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
   }, [open]);
 
   const onKeyDown = (e: KeyboardEvent) => {
+    const stack = stackRef.current;
+    const view = stack[stack.length - 1];
     if (!view) return;
     e.stopPropagation(); // the user menu / app must not also act on these keys
     if (e.key === "Escape") {
@@ -253,12 +307,20 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
       return back();
     }
     const list = view.actions;
-    const { state, intent } = selectKeyReducer({ open: true, highlighted: hi }, e.key, list.length);
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      // The item that HAS focus — never a different highlighted one (scout #2662:
+      // Enter on «Tilføj til projekt» pinned the conversation instead).
+      e.preventDefault();
+      const at = items.current.findIndex((b) => b === document.activeElement);
+      const idx = at >= 0 ? at : hiRef.current;
+      return list[idx] ? pick(list[idx]!) : undefined;
+    }
+    const { state, intent } = selectKeyReducer({ open: true, highlighted: hiRef.current }, e.key, list.length);
     if (intent.type === "select") {
       e.preventDefault();
       return pick(list[intent.index]!);
     }
-    if (state.highlighted !== hi) {
+    if (state.highlighted !== hiRef.current) {
       e.preventDefault();
       return setHi(state.highlighted);
     }
@@ -268,6 +330,8 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
       pick(byKbd);
     }
   };
+
+  onKeyDownRef.current = onKeyDown;
 
   return (
     <>
@@ -279,7 +343,7 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
         aria-label={`${t.moreFor} ${props.item.label}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => (open ? close() : show({ kind: "list", actions: props.item.actions! }))}
+        onClick={() => (stackRef.current.length ? close() : show({ kind: "list", actions: props.item.actions! }))}
       >
         <IconMore />
       </button>
@@ -306,13 +370,18 @@ function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionI
                 type="button"
                 role="menuitem"
                 key={a.id}
-                class={"bas-rowmenu__item" + (i === hi ? " is-active" : "") + (a.danger ? " is-danger" : "")}
+                ref={(el) => {
+                  items.current[i] = el;
+                }}
+                tabIndex={i === hi ? 0 : -1}
+                class={"bas-rowmenu__item" + (i === hi ? " is-active" : "") + (a.danger ? " is-danger" : "") + (armed === a.id ? " is-armed" : "")}
                 data-testid={`sidebar-item-${id}-action-${a.id}`}
                 onMouseEnter={() => setHi(i)}
+                onFocus={() => setHi(i)}
                 onClick={() => pick(a)}
               >
                 {a.icon ? <span class="bas-rowmenu__icon">{a.icon as ComponentChildren}</span> : null}
-                <span class="bas-rowmenu__label">{a.label}</span>
+                <span class="bas-rowmenu__label">{armed === a.id && a.confirm ? a.confirm.label : a.label}</span>
                 {a.submenu?.length ? <IconChevronRight /> : a.kbd ? <kbd class="bas-rowmenu__kbd">{a.kbd.toUpperCase()}</kbd> : null}
               </button>
             ))
