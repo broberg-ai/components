@@ -36,7 +36,8 @@
         "@broberg/notify",
         "@broberg/speech-dictionary",
         "@broberg/sso",
-        "@broberg/tenant"
+        "@broberg/tenant",
+        "@broberg/webmcp"
       ],
       "min_tests": {
         "@broberg/app-shell": 24,
@@ -47,7 +48,8 @@
         "@broberg/notify": 4,
         "@broberg/speech-dictionary": 7,
         "@broberg/sso": 78,
-        "@broberg/tenant": 27
+        "@broberg/tenant": 27,
+        "@broberg/webmcp": 5
       }
     },
     {
