@@ -37,6 +37,8 @@ function App() {
             { id: "reports-orders", label: "Ordrer", href: "/reports/orders" },
           ] },
         ] },
+        // F092.23 — a group with no heading row (scout's first group in mockup v7).
+        { label: "Seneste", hideLabel: true, items: [{ id: "s-1", label: "Ny samtale", href: "/c/new", marker: "idle" }] },
         // F092.20 — a chat history: plain group, a pinned item, day sub-headings, a running marker.
         { label: "Historik", variant: "plain", items: [
           { id: "h-pin", label: "Budget for næste kvartal — gennemgang af alle afdelingers tal", href: "/c/pin", pinned: true },
@@ -44,14 +46,14 @@ function App() {
           { label: "I dag", items: [
             { id: "h-run", label: "Leverandøranalyse kører", href: "/c/run", marker: "working" },
             // F092.21 — row actions: «…» → menu, shortcuts, a submenu and a rename field.
-            { id: "h-1", label: "Mødereferat", href: "/c/1", actions: [
+            { id: "h-1", label: "Mødereferat", href: "/c/1", marker: "idle", actions: [
               { id: "pin", label: "Fastgør", kbd: "P" },
               { id: "rename", label: "Omdøb", kbd: "R", input: { value: "Mødereferat" } },
               { id: "move", label: "Flyt til", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
               { id: "delete", label: "Slet", kbd: "D", danger: true, confirm: { label: "Tryk igen for at slette" } },
             ] },
           ] },
-          { label: "I går", items: [{ id: "h-2", label: "Kontraktudkast", href: "/c/2" }] },
+          { label: "I går", items: [{ id: "h-2", label: "Kontraktudkast", href: "/c/2", marker: "idle" }] },
         ] }]}
         onItemAction={(item, action, value) => {
           document.body.dataset.lastAction = [item, action, value].filter((x) => x !== undefined).join(":");

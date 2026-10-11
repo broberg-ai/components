@@ -110,6 +110,7 @@ groups={[{
 - testids: `sidebar-item-<id>-marker`, `sidebar-item-<id>-pinned`, `sidebar-section-<group>-<section>`.
 - Every item already has `title` = its full label; send the full text and let CSS truncate.
 - Row actions: see 0.13.0.
+- **0.15.0** — `marker: "idle"`: the same ring in grey for a finished conversation, so every row's label lines up (decorative, `aria-hidden`). `hideLabel: true` on a group: no heading row and no fold button; always open (a stored fold is ignored); `label` stays required as key + `aria-label`; testid `sidebar-group-<slug>-unlabelled`.
 
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 

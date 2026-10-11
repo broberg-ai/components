@@ -539,6 +539,8 @@ export function Sidebar(p: SidebarProps) {
         {it.icon ? <span class="bas-item__icon">{it.icon}</span> : null}
         {it.marker === "working" ? (
           <span class="bas-item__marker" data-testid={`sidebar-item-${it.id}-marker`} role="img" aria-label={TEXT[p.lang].working} />
+        ) : it.marker === "idle" ? (
+          <span class="bas-item__marker bas-item__marker--idle" data-testid={`sidebar-item-${it.id}-marker`} aria-hidden="true" />
         ) : null}
         <span class="bas-item__label">{it.label}</span>
         {it.pinned ? (
@@ -663,14 +665,22 @@ export function Sidebar(p: SidebarProps) {
         ) : null}
         <nav class="bas-sidebar__nav">
           {p.groups.map((g) => {
-            const open = railed || !folded.has(g.label);
+            const open = railed || g.hideLabel || !folded.has(g.label);
             const slug = g.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (
-              <div class={"bas-group" + (g.variant === "plain" ? " bas-group--plain" : "")} key={g.label}>
-                <button type="button" class="bas-group__label" data-testid={`sidebar-group-${slug}`} aria-expanded={open} onClick={() => toggleGroup(g.label)}>
-                  <IconChevron open={open} />
-                  <span>{g.label}</span>
-                </button>
+              <div
+                class={"bas-group" + (g.variant === "plain" ? " bas-group--plain" : "")}
+                key={g.label}
+                role={g.hideLabel ? "group" : undefined}
+                aria-label={g.hideLabel ? g.label : undefined}
+                data-testid={g.hideLabel ? `sidebar-group-${slug}-unlabelled` : undefined}
+              >
+                {g.hideLabel ? null : (
+                  <button type="button" class="bas-group__label" data-testid={`sidebar-group-${slug}`} aria-expanded={open} onClick={() => toggleGroup(g.label)}>
+                    <IconChevron open={open} />
+                    <span>{g.label}</span>
+                  </button>
+                )}
                 {open ? g.items.map(item) : null}
                 {/* F092.20 — sub-headings inside one group ("I dag", "I går"). */}
                 {open

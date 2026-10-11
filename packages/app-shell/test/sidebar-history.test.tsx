@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { Sidebar, type PreactNavGroup } from "../src/preact";
 import { vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 afterEach(cleanup);
 // Node 25's global localStorage has no .clear(); give the shell a real store (as preact.test.tsx).
@@ -263,5 +265,28 @@ describe("F092.22 — Enter then ↓ before any re-render", () => {
     more.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.getByTestId("sidebar-item-c-action-x").classList.contains("is-active")).toBe(true);
+  });
+});
+
+describe("F092.23 — idle marker and a group without a heading (scout #2701)", () => {
+  it("idle is the same marker element in grey, decorative; working keeps its label", () => {
+    render(<Sidebar lang="da" groups={[{ label: "H", items: [{ id: "a", label: "Kører", href: "/a", marker: "working" }, { id: "b", label: "Færdig", href: "/b", marker: "idle" }] }]} currentPath="/" />);
+    const w = screen.getByTestId("sidebar-item-a-marker");
+    const i = screen.getByTestId("sidebar-item-b-marker");
+    expect([w.className, w.getAttribute("aria-label"), w.getAttribute("aria-hidden")]).toEqual(["bas-item__marker", "Arbejder", null]);
+    expect([i.className, i.getAttribute("aria-label"), i.getAttribute("aria-hidden"), i.getAttribute("role")]).toEqual(["bas-item__marker bas-item__marker--idle", null, "true", null]);
+  });
+
+  it("the idle ring is grey, not the accent", () => {
+    const css = readFileSync(resolve(__dirname, "../css/app-shell.css"), "utf8");
+    expect(css).toMatch(/\.bas-item__marker--idle \{ border-color: var\(--border\); background: transparent; \}/);
+  });
+
+  it("hideLabel: no heading row, no fold button, always open — even with a stored fold for that label", () => {
+    store.setItem("broberg-app-shell.groups", JSON.stringify(["Scout chat"])); // a fold stored for this label
+    render(<Sidebar lang="da" groups={[{ label: "Scout chat", hideLabel: true, items: [{ id: "c1", label: "Samtale", href: "/c/1", marker: "idle" }] }, { label: "Andet", items: [] }]} currentPath="/" />);
+    const g = screen.getByTestId("sidebar-group-scout-chat-unlabelled");
+    expect([g.getAttribute("role"), g.getAttribute("aria-label"), !!screen.queryByTestId("sidebar-group-scout-chat"), !!screen.queryByTestId("sidebar-item-c1"), g.querySelector(".bas-group__label")]).toEqual(["group", "Scout chat", false, true, null]);
+    expect(!!screen.queryByTestId("sidebar-group-andet")).toBe(true); // a labelled group is unchanged
   });
 });

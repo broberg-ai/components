@@ -27,8 +27,11 @@ export interface NavItem<Icon = unknown> {
    * it is on the current path.
    */
   children?: NavItem<Icon>[];
-  /** F092.20 — a status marker before the label; "working" = a run in progress. */
-  marker?: "working";
+  /**
+   * F092.20 — a status marker before the label; "working" = a run in progress.
+   * F092.23 — "idle" = the same ring in grey (finished), so every row lines up.
+   */
+  marker?: "working" | "idle";
   /** F092.20 — shows a pin icon after the label. */
   pinned?: boolean;
   /** F092.21 — row actions: a «…» button opens a menu with these. */
@@ -64,6 +67,12 @@ export interface NavGroup<Icon = unknown> {
   variant?: "default" | "plain";
   /** F092.20 — sub-headed lists inside this group, shown after `items`. */
   sections?: NavSection<Icon>[];
+  /**
+   * F092.23 — no heading row: the items show directly, always open (it cannot be
+   * folded, so a stored fold for this label is ignored). `label` stays required —
+   * it is the group's key and its accessible name.
+   */
+  hideLabel?: boolean;
 }
 
 /**
