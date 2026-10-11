@@ -78,6 +78,12 @@ export interface NavGroup<Icon = unknown> {
    * group is always open, even with a stored fold for this label. Default true.
    */
   collapsible?: boolean;
+  /**
+   * F092.28 — a small icon button at the right of the heading row (e.g. «Filtrér og
+   * sortér»). The app opens its own menu from `onClick(anchor)`. Clicking it never
+   * folds the group. Not shown with `hideLabel` (there is no heading row).
+   */
+  action?: { icon: Icon; label: string; expanded?: boolean; onClick: (anchor: HTMLElement) => void; testid?: string };
 }
 
 /**

@@ -100,6 +100,17 @@
 }
 /* F092.26 — collapsible:false: a plain text heading, not a fold button. */
 .bas-group__label--static { cursor: default; }
+/* F092.28 — heading row with an icon button at the right (e.g. «Filtrér og sortér»). */
+.bas-group__head { display: flex; align-items: center; gap: 4px; }
+.bas-group__head > .bas-group__label { flex: 1; min-width: 0; }
+.bas-group__action {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 0; border-radius: var(--bas-radius); background: transparent; color: var(--fg-muted); cursor: pointer;
+  transition: background var(--bas-dur) var(--bas-ease), color var(--bas-dur) var(--bas-ease);
+}
+.bas-group__action:hover, .bas-group__action[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
+.bas-group__action:active { background: var(--active); }
+.bas-group__action > svg { width: 16px; height: 16px; }
 button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-muted)); }
 .bas-chev { display: inline-flex; transition: transform var(--bas-dur) var(--bas-ease); }
 .bas-chev.is-open { transform: rotate(90deg); }
@@ -195,6 +206,7 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
 .bas-sidebar.is-railed .bas-item__label,
 .bas-sidebar.is-railed .bas-item__chev,
 .bas-sidebar.is-railed .bas-group__label,
+.bas-sidebar.is-railed .bas-group__action,
 .bas-sidebar.is-railed .bas-sidebar__brand { display: none; }
 .bas-sidebar.is-railed .bas-sidebar__nav { padding: 4px 6px 8px; }
 .bas-sidebar.is-railed .bas-sidebar__foot { padding: 8px 6px; }
@@ -268,7 +280,7 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
   .bas-userbtn__name { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bas-sidebar, .bas-sidebar.is-mobile-drawer, .bas-chev, .bas-item, .bas-iconbtn { transition: none; }
+  .bas-sidebar, .bas-sidebar.is-mobile-drawer, .bas-chev, .bas-item, .bas-iconbtn, .bas-group__action { transition: none; }
 }
 
 /* ── notification bell ── */
@@ -527,6 +539,10 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
 /* Positioned as position:fixed from the button by the component (the sidebar clips overflow). */
 .bas-menu.is-up { top: auto; right: auto; max-width: none; overflow-y: auto; }
 .bas-menu__sub { font-size: calc(12px * var(--bas-font-scale, 1)); color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* F092.27 — the organisation line (menu top only). */
+.bas-menu__org { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: calc(13px * var(--bas-font-scale, 1)); color: var(--fg-muted); min-width: 0; }
+.bas-menu__org > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bas-menu__org > svg { flex: none; }
 .bas-menu__label { padding: 6px 14px 2px; font-size: calc(11px * var(--bas-font-scale, 1)); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--fg-muted); }
 .bas-mi__hint { margin-left: auto; font-family: var(--font-mono, ui-monospace, monospace); font-size: calc(11px * var(--bas-font-scale, 1)); color: var(--fg-muted); }
 .bas-mi__check { width: 14px; flex: none; text-align: center; color: var(--accent); font-weight: 700; }

@@ -156,6 +156,8 @@ const IconLogOut = () => svg(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
 // lucide "pin" (ISC).
 const IconPin = () => svg(<><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></>, 12);
 const IconUser = () => svg(<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>, 14);
+// F092.27 — lucide «building», for the organisation line in the user menu.
+const IconBuilding = () => svg(<><rect width="16" height="20" x="4" y="2" rx="2" /><path d="M9 22v-4h6v4" /><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01" /></>, 15);
 
 // ── Row actions (F092.21) ──────────────────────────────────────────────────
 //
@@ -676,16 +678,40 @@ export function Sidebar(p: SidebarProps) {
                 aria-label={g.hideLabel ? g.label : undefined}
                 data-testid={g.hideLabel ? `sidebar-group-${slug}-unlabelled` : undefined}
               >
-                {g.hideLabel ? null : g.collapsible === false ? (
-                  <div class="bas-group__label bas-group__label--static" data-testid={`sidebar-group-${slug}`}>
-                    <span>{g.label}</span>
-                  </div>
-                ) : (
-                  <button type="button" class="bas-group__label" data-testid={`sidebar-group-${slug}`} aria-expanded={open} onClick={() => toggleGroup(g.label)}>
-                    <IconChevron open={open} />
-                    <span>{g.label}</span>
-                  </button>
-                )}
+                {(() => {
+                  if (g.hideLabel) return null;
+                  const heading =
+                    g.collapsible === false ? (
+                      <div class="bas-group__label bas-group__label--static" data-testid={`sidebar-group-${slug}`}>
+                        <span>{g.label}</span>
+                      </div>
+                    ) : (
+                      <button type="button" class="bas-group__label" data-testid={`sidebar-group-${slug}`} aria-expanded={open} onClick={() => toggleGroup(g.label)}>
+                        <IconChevron open={open} />
+                        <span>{g.label}</span>
+                      </button>
+                    );
+                  if (!g.action) return heading;
+                  // F092.28 — heading + an icon button at the right; a sibling, so clicking it never folds.
+                  const a = g.action;
+                  return (
+                    <div class="bas-group__head">
+                      {heading}
+                      <button
+                        type="button"
+                        class="bas-group__action"
+                        data-testid={a.testid ?? `sidebar-group-${slug}-action`}
+                        aria-label={a.label}
+                        title={a.label}
+                        aria-haspopup="menu"
+                        aria-expanded={a.expanded ?? false}
+                        onClick={(e) => a.onClick(e.currentTarget as HTMLElement)}
+                      >
+                        {a.icon}
+                      </button>
+                    </div>
+                  );
+                })()}
                 {open ? g.items.map(item) : null}
                 {/* F092.20 — sub-headings inside one group ("I dag", "I går"). */}
                 {open
@@ -911,6 +937,8 @@ export interface ShellUser {
   picture?: string;
   /** F092.15 — a line under the name, e.g. «Administrator · Enhed Nord». */
   subtitle?: string;
+  /** F092.27 — the organisation, e.g. «broberg.ai». Shown ONLY in the menu's top, with a building icon. */
+  org?: string;
 }
 export interface UserMenuItem {
   id: string;
@@ -1183,6 +1211,12 @@ export function UserMenu(p: UserMenuProps) {
               {p.user.name ? <div class="bas-menu__name">{p.user.name}</div> : null}
               {p.user.subtitle ? <div class="bas-menu__sub">{p.user.subtitle}</div> : null}
               {p.user.email ? <div class="bas-menu__email">{p.user.email}</div> : null}
+              {p.user.org ? (
+                <div class="bas-menu__org" data-testid="user-menu-org">
+                  <IconBuilding />
+                  <span>{p.user.org}</span>
+                </div>
+              ) : null}
             </div>
           </div>
           <div class="bas-sep" />

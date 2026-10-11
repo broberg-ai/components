@@ -300,3 +300,25 @@ describe("F092.26 — collapsible:false: a text heading, always open (scout #272
     expect(screen.getByTestId("sidebar-group-andet").tagName).toBe("BUTTON"); // default unchanged
   });
 });
+
+describe("F092.28 — an icon button in the group heading (scout #2742)", () => {
+  const groups = (onClick: (a: HTMLElement) => void, extra: Partial<PreactNavGroup> = {}): PreactNavGroup[] => [
+    { label: "Historik", items: [{ id: "h", label: "Samtale", href: "/h" }], action: { icon: <svg data-x="1" />, label: "Filtrér og sortér", expanded: false, onClick }, ...extra },
+  ];
+  it("renders at the right of the heading; click passes the button and does NOT fold the group", () => {
+    const fn = vi.fn();
+    render(<Sidebar lang="da" groups={groups(fn)} currentPath="/" />);
+    const b = screen.getByTestId("sidebar-group-historik-action");
+    expect([b.tagName, b.getAttribute("aria-label"), b.getAttribute("aria-haspopup"), b.getAttribute("aria-expanded"), b.parentElement!.className, b.previousElementSibling!.getAttribute("data-testid")]).toEqual(["BUTTON", "Filtrér og sortér", "menu", "false", "bas-group__head", "sidebar-group-historik"]);
+    fireEvent.click(b);
+    expect([fn.mock.calls.length, fn.mock.calls[0]![0], !!screen.queryByTestId("sidebar-item-h"), screen.getByTestId("sidebar-group-historik").getAttribute("aria-expanded")]).toEqual([1, b, true, "true"]);
+  });
+  it("also with collapsible:false; a custom testid wins; expanded is reflected", () => {
+    render(<Sidebar lang="da" groups={[{ label: "Historik", collapsible: false, items: [], action: { icon: null, label: "F", expanded: true, onClick: () => {}, testid: "history-filter" } }]} currentPath="/" />);
+    expect([screen.getByTestId("history-filter").getAttribute("aria-expanded"), screen.getByTestId("sidebar-group-historik").tagName]).toEqual(["true", "DIV"]);
+  });
+  it("without action: no head wrapper (markup unchanged)", () => {
+    const { container } = render(<Sidebar lang="da" groups={[{ label: "Historik", items: [] }]} currentPath="/" />);
+    expect(container.querySelector(".bas-group__head")).toBeNull();
+  });
+});

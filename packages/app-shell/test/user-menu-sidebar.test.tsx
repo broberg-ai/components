@@ -116,3 +116,21 @@ describe("the open drawer traps no position:fixed descendant (F092.15)", () => {
     expect(block.match(/transform:\s*([^;]+);/)?.[1]?.trim()).toBe("none");
   });
 });
+
+describe("F092.27 — the organisation line (scout #2740)", () => {
+  it("org shows ONLY in the menu's top, with a building icon; the sidebar foot keeps the subtitle", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" user={{ ...USER, org: "broberg.ai" }} userMenuPlacement="sidebar-footer" />);
+    const foot = screen.getByTestId("sidebar-user");
+    expect([foot.textContent!.includes("broberg.ai"), screen.queryByTestId("user-menu-org")]).toEqual([false, null]); // closed: nowhere
+    fireEvent.click(screen.getByTestId("sidebar-user-menu"));
+    const org = screen.getByTestId("user-menu-org");
+    expect([org.textContent, !!org.querySelector("svg"), !!org.closest('[data-testid="topbar-user-menu-dropdown"]'), foot.querySelector('[data-testid="sidebar-user-subtitle"]')!.textContent]).toEqual(["broberg.ai", true, true, "Administrator · Enhed Nord"]);
+    expect(screen.getByTestId("sidebar-user-menu").textContent!.includes("broberg.ai")).toBe(false); // not on the foot button
+  });
+
+  it("without org: no org line anywhere", () => {
+    render(<AppShell lang="da" groups={GROUPS} currentPath="/" user={USER} />);
+    fireEvent.click(screen.getByTestId("topbar-user-menu"));
+    expect(screen.queryByTestId("user-menu-org")).toBeNull();
+  });
+});

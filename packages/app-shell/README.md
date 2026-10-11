@@ -149,6 +149,17 @@ With it a row height is exact — e.g. «the same spacing as Claude Desktop», 4
 `-color`, `-padding`, `-transform`, `-font-family`. Fallbacks are today's values (per variant).
 `collapsible: false` on a group: the heading is plain text (no fold button, no chevron), always open.
 
+**Tokens take real values, never `inherit` / `initial` / `unset`.** A CSS-wide keyword as a custom
+property's value applies to the VARIABLE itself (it inherits the variable from the parent, where it is
+unset), so `var()` falls back to our default — e.g. the mono heading font. Pass the value you mean:
+`--bas-group-label-font-family: var(--font-sans)`.
+
+**0.19.0** — `ShellUser.org` (F092.27): the organisation, shown only in the user menu's top as a line
+with a building icon (`user-menu-org`); the sidebar foot keeps `subtitle`.
+`NavGroup.action` (F092.28): `{ icon, label, expanded?, onClick(anchor), testid? }` — a 28px icon button
+at the right of the heading row (`sidebar-group-<slug>-action`), also with `collapsible: false`; clicking it
+never folds the group. The app opens its own menu from the anchor.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver

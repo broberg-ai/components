@@ -42,7 +42,9 @@ function App() {
         // F092.23 — a group with no heading row (scout's first group in mockup v7).
         { label: "Seneste", hideLabel: true, items: [{ id: "s-1", label: "Ny samtale", href: "/c/new", marker: "idle" }] },
         // F092.20 — a chat history: plain group, a pinned item, day sub-headings, a running marker.
-        { label: "Historik", variant: "plain", collapsible: !new URLSearchParams(location.search).has("v7"), items: [
+        { label: "Historik", variant: "plain", collapsible: !new URLSearchParams(location.search).has("v7"),
+          // F092.28 — an icon button at the right of the heading; the app opens its own menu.
+          action: { icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" /></svg>, label: "Filtrér og sortér", onClick: (a) => { document.body.dataset.filterAnchor = a.dataset.testid ?? ""; } }, items: [
           { id: "h-pin", label: "Budget for næste kvartal — gennemgang af alle afdelingers tal", href: "/c/pin", pinned: true },
         ], sections: [
           { label: "I dag", items: [
@@ -64,7 +66,7 @@ function App() {
         homeHref="/"
         homeLabel="Scout"
         currentPath="/"
-        user={{ name: "Example User", email: "user@example.com", subtitle: `Administrator · ${unit === "nord" ? "Enhed Nord" : "Enhed Syd"}` }}
+        user={{ name: "Example User", email: "user@example.com", org: "broberg.ai", subtitle: `Administrator · ${unit === "nord" ? "Enhed Nord" : "Enhed Syd"}` }}
         userMenuPlacement={new URLSearchParams(location.search).get("placement") === "topbar" ? "topbar" : "sidebar-footer"}
         userMenu={{
           accountHref: "#",
@@ -95,6 +97,13 @@ if (new URLSearchParams(location.search).has("desktop")) {
   d.textContent = `.scout-desktop .bas-sidebar { --bas-item-font-size: 17px; --bas-item-line-height: 24px; --bas-item-padding: 8px 12px; --bas-item-gap: 14px; }`;
   document.head.appendChild(d);
   document.body.classList.add("scout-desktop");
+}
+// F092.27 — token values must be real values: ?inherit shows the trap, ?sans the fix.
+const q = new URLSearchParams(location.search);
+if (q.has("inherit") || q.has("sans")) {
+  const st = document.createElement("style");
+  st.textContent = `.bas-sidebar { --bas-group-label-font-family: ${q.has("inherit") ? "inherit" : "system-ui, sans-serif"}; }`;
+  document.head.appendChild(st);
 }
 render(<App />, document.getElementById("app")!);
 const consent = document.createElement("broberg-consent");
