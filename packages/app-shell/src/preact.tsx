@@ -272,7 +272,8 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
   useLayoutEffect(() => {
     const r = props.anchor.getBoundingClientRect();
     const vw = window.innerWidth, vh = window.innerHeight, m = 8;
-    const w = Math.min(240, vw - 2 * m);
+    // F092.33 — the menu sizes to its content (CSS min/max width); place it by the MEASURED width.
+    const w = Math.min(Math.max(240, menu.current?.offsetWidth ?? 0), vw - 2 * m);
     const h = menu.current?.offsetHeight ?? 0;
     const start = props.placement === "up-start";
     const left = Math.max(m, Math.min(start ? r.left : r.right - w, vw - w - m));
@@ -280,7 +281,7 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
     const fitsAbove = r.top - 4 - h >= m;
     const below = start ? !fitsAbove : props.placement === "down" || fitsBelow || !fitsAbove;
     const top = below ? Math.min(r.bottom + 4, vh - m - h) : r.top - 4 - h;
-    setPos({ position: "fixed", left: `${left}px`, top: `${Math.max(m, top)}px`, width: `${w}px` });
+    setPos({ position: "fixed", left: `${left}px`, top: `${Math.max(m, top)}px` });
   }, [stack.length]);
 
   // F092.22 — focus only once the menu is VISIBLE (pos set): an element under
@@ -382,7 +383,7 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
       tabIndex={-1}
       aria-label={view.kind === "list" && view.title ? view.title : props.label}
       data-testid={`${pre}-menu`}
-      style={pos ?? { position: "fixed", visibility: "hidden" }}
+      style={pos ?? { position: "fixed", left: "0px", top: "0px", visibility: "hidden" }}
       onKeyDown={onKeyDown}
     >
       {stack.length > 1 ? (

@@ -54,6 +54,8 @@ function TitleMenu() {
             { id: "delete", label: "Slet", kbd: "D", danger: true, confirm: { label: "Tryk igen for at slette" } },
             { id: "share", label: "Del chat", separator: true },
             { id: "copy", label: "Kopiér link" },
+            { id: "sort", label: "Sortér efter", value: "Seneste aktivitet", separator: true, submenu: [{ id: "sort-recent", label: "Seneste aktivitet" }] },
+            { id: "scope", label: "Projekt", value: "Leverandøranalyse for næste kvartal", submenu: [{ id: "scope-all", label: "Alle" }] },
           ]}
           anchor={anchor.current}
           lang="da"

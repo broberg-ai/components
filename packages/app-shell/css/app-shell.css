@@ -158,6 +158,7 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
 /* F092.32 — sized as tokens (scout's measurement of Claude Desktop at 1×). Not
    declared here, only read with a fallback, so an app's :root value wins. */
 .bas-rowmenu {
+  min-width: var(--bas-menu-min-width, 240px); max-width: min(var(--bas-menu-max-width, 320px), calc(100vw - 16px)); box-sizing: border-box;
   z-index: 70; padding: var(--bas-menu-padding, 6px); outline: none; border-radius: var(--bas-menu-radius, 14px); background: var(--bg-card);
   border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(0, 0, 0, .22);
 }
@@ -169,7 +170,8 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
 /* Focus ring for keyboard use only; a mouse open shows the highlight alone. */
 .bas-rowmenu__item:focus, .bas-rowmenu__back:focus { outline: none; }
 .bas-rowmenu.is-kbd .bas-rowmenu__item:focus, .bas-rowmenu.is-kbd .bas-rowmenu__back:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
-.bas-rowmenu__value { flex: none; color: var(--fg-muted); }
+/* F092.33 — the value gives way first; the label only once the value is gone. */
+.bas-rowmenu__value { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); }
 .bas-rowmenu__sep { height: 1px; margin: 6px 4px; background: var(--border); }
 .bas-rowmenu__back { color: var(--fg-muted); font-weight: 500; border-bottom: 1px solid var(--border); border-radius: 0; margin-bottom: 4px; }
 .bas-rowmenu__item.is-active, .bas-rowmenu__item:hover, .bas-rowmenu__back:hover { background: var(--hover); }
@@ -177,7 +179,7 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
 .bas-rowmenu__item.is-danger { color: var(--danger); }
 .bas-rowmenu__item.is-armed { background: var(--danger-soft, var(--hover)); font-weight: 500; }
 .bas-rowmenu__icon { display: inline-flex; color: var(--fg-subtle); }
-.bas-rowmenu__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bas-rowmenu__label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bas-rowmenu__kbd { font-family: var(--font-mono, ui-monospace, monospace); font-size: calc(11px * var(--bas-font-scale, 1)); color: var(--fg-subtle); }
 .bas-rowmenu__form { display: flex; gap: 6px; padding: 4px; }
 .bas-rowmenu__input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: calc(var(--bas-radius) - 2px); background: var(--bg-sunk); color: var(--fg); font: inherit; font-size: calc(13px * var(--bas-font-scale, 1)); }

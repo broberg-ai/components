@@ -190,3 +190,25 @@ describe("F092.32 — a robust menu (scout #2801: value, separator, size, keyboa
     expect(css).toMatch(/\.bas-rowmenu__value \{[^}]*color: var\(--fg-muted\)/);
   });
 });
+
+describe("F092.33 — a long value clips the value, never the label (scout #2830)", () => {
+  const css = () => readFileSync(resolve(__dirname, "../css/app-shell.css"), "utf8");
+  it("the label keeps its content width; the value shrinks first and ellipses", () => {
+    const label = css().match(/\.bas-rowmenu__label \{[^}]*\}/)![0];
+    const value = css().match(/\.bas-rowmenu__value \{[^}]*\}/)![0];
+    expect(label).toContain("flex: 1 1 auto");
+    expect(value).toContain("flex: 0 1000 auto");
+    expect(value).toContain("min-width: 0");
+    expect(value).toContain("text-overflow: ellipsis");
+  });
+  it("the menu sizes to its content between 240 and 320px; JS sets no fixed width", async () => {
+    const panel = css().match(/\.bas-rowmenu \{[^}]*\}/)![0];
+    expect(panel).toContain("min-width: var(--bas-menu-min-width, 240px)");
+    expect(panel).toContain("max-width: min(var(--bas-menu-max-width, 320px), calc(100vw - 16px))");
+    const a = document.createElement("button");
+    document.body.appendChild(a);
+    render(<ItemActionsMenu actions={ACTIONS} anchor={a} lang="da" label="W" testidPrefix="w" onAction={() => {}} onClose={() => {}} />);
+    await tick();
+    expect(screen.getByTestId("w-menu").style.width).toBe("");
+  });
+});

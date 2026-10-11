@@ -187,6 +187,10 @@ right-aligned before the chevron — «Type …… All ›», testid `<prefix>-a
 The focus ring now shows only for keyboard use: after a mouse open the first item has focus but no ring; opening
 with Enter from a keyboard-focused anchor, or any key in the menu, shows it. ↑↓/Enter/Escape are unchanged.
 
+**0.22.1** — a long `value` no longer clips the label (F092.33, scout #2830): the value gives way first and
+ellipses; the label only once the value is gone. The menu now sizes to its content between 240 and 320px
+(`--bas-menu-min-width` / `--bas-menu-max-width`, never wider than the viewport − 16px) instead of a fixed 240px.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver
