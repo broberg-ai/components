@@ -55,7 +55,7 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 
 ## 0.13.1 — the rename form has a testid (F092.21)
 
-`sidebar-item-<id>-form` on the input view's form (the F086 testid scan caught it after 0.13.0 was tagged). No behaviour change.
+`sidebar-item-<id>-form` on the input view's form (the F086 testid scan caught it after 0.13.0 was tagged). No behaviour change. **0.13.0 was tagged but never published** — its run was cancelled so it could not land after 0.13.1 and take `latest`. Install 0.13.1.
 
 ## 0.13.0 — row actions on a sidebar item: the «…» menu (F092.21)
 
