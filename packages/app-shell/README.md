@@ -176,6 +176,9 @@ const [open, setOpen] = useState(false);
 testids: `<prefix>-menu`, `<prefix>-action-<id>`, `<prefix>-back`, `<prefix>-input`, `<prefix>-save` — so the
 anchor's own testid must not be `<prefix>-menu`.
 
+**0.21.0** — `placement: "up-start"` (F092.31): above the anchor, left edge = the anchor's left edge (clamped
+8px inside the viewport); below if there is no room above. For a «+» in a composer. `auto`/`down` unchanged.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver

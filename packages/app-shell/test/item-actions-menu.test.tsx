@@ -89,3 +89,37 @@ describe("F092.29 — ItemActionsMenu used freely (a title anchor)", () => {
     expect([onClose.mock.calls.length, !!screen.queryByTestId("title-menu")]).toEqual([2, false]);
   });
 });
+
+describe("F092.31 — placement up-start (scout #2790: «+» in a composer)", () => {
+  const at = (rect: Partial<DOMRect>) => {
+    const a = document.createElement("button");
+    document.body.appendChild(a);
+    a.getBoundingClientRect = () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON() {}, ...rect }) as DOMRect;
+    return a;
+  };
+  const menuStyle = () => screen.getByTestId("plus-menu").style;
+  const open = async (anchor: HTMLElement, placement?: "auto" | "down" | "up-start") => {
+    render(<ItemActionsMenu actions={ACTIONS} anchor={anchor} lang="da" label="Plus" testidPrefix="plus" placement={placement} onAction={() => {}} onClose={() => {}} />);
+    await tick();
+  };
+  it("opens ABOVE the anchor, left edge = anchor.left", async () => {
+    Object.assign(window, { innerWidth: 1440, innerHeight: 900 });
+    await open(at({ top: 800, bottom: 836, left: 260, right: 296 }), "up-start");
+    expect([menuStyle().left, menuStyle().top]).toEqual(["260px", "796px"]); // h=0 in happy-dom: bottom edge = anchor.top - 4
+  });
+  it("clamps inside the viewport (8px margin)", async () => {
+    Object.assign(window, { innerWidth: 1440, innerHeight: 900 });
+    await open(at({ top: 800, bottom: 836, left: 1400, right: 1436 }), "up-start");
+    expect(menuStyle().left).toBe(`${1440 - 240 - 8}px`);
+  });
+  it("falls back below when there is no room above", async () => {
+    Object.assign(window, { innerWidth: 1440, innerHeight: 900 });
+    await open(at({ top: 2, bottom: 38, left: 260, right: 296 }), "up-start");
+    expect(menuStyle().top).toBe("42px");
+  });
+  it("auto is unchanged: right-aligned to the anchor's right edge", async () => {
+    Object.assign(window, { innerWidth: 1440, innerHeight: 900 });
+    await open(at({ top: 100, bottom: 136, left: 260, right: 296 }));
+    expect([menuStyle().left, menuStyle().top]).toEqual([`${296 - 240}px`, "140px"]);
+  });
+});

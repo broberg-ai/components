@@ -182,8 +182,12 @@ export interface ItemActionsMenuProps {
   lang: Lang;
   /** The menu's accessible name, e.g. the conversation's title. */
   label: string;
-  /** "auto" (default): below the anchor if it fits, else above. "down": always below. */
-  placement?: "auto" | "down";
+  /**
+   * "auto" (default): right-aligned to the anchor, below it if it fits, else above.
+   * "down": right-aligned, always below. "up-start" (F092.31): ABOVE the anchor and
+   * left-aligned to its left edge (e.g. a «+» in a composer); below if there is no room above.
+   */
+  placement?: "auto" | "down" | "up-start";
   /** testids: `<prefix>-menu`, `<prefix>-action-<id>`, `<prefix>-back`, `<prefix>-input`, `<prefix>-save`. Default "item-actions". */
   testidPrefix?: string;
 }
@@ -267,9 +271,12 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
     const vw = window.innerWidth, vh = window.innerHeight, m = 8;
     const w = Math.min(240, vw - 2 * m);
     const h = menu.current?.offsetHeight ?? 0;
-    const left = Math.max(m, Math.min(r.right - w, vw - w - m));
+    const start = props.placement === "up-start";
+    const left = Math.max(m, Math.min(start ? r.left : r.right - w, vw - w - m));
     const fitsBelow = r.bottom + 4 + h <= vh - m;
-    const top = props.placement === "down" || fitsBelow || r.top - 4 - h < m ? Math.min(r.bottom + 4, vh - m - h) : r.top - 4 - h;
+    const fitsAbove = r.top - 4 - h >= m;
+    const below = start ? !fitsAbove : props.placement === "down" || fitsBelow || !fitsAbove;
+    const top = below ? Math.min(r.bottom + 4, vh - m - h) : r.top - 4 - h;
     setPos({ position: "fixed", left: `${left}px`, top: `${Math.max(m, top)}px`, width: `${w}px` });
   }, [stack.length]);
 

@@ -13,6 +13,29 @@ import "@broberg/consent-cookie/element";
 initTheme();
 initPalette();
 
+// F092.31 — a composer «+» opening ABOVE itself, left-aligned (placement "up-start").
+function PlusMenu() {
+  const anchor = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "fixed", bottom: "24px", left: "260px" }}>
+      <button ref={anchor} type="button" data-testid="plus-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>+</button>
+      {open && anchor.current ? (
+        <ItemActionsMenu
+          actions={[{ id: "file", label: "Vedhæft fil" }, { id: "photo", label: "Tag billede" }]}
+          anchor={anchor.current}
+          lang="da"
+          label="Tilføj"
+          placement="up-start"
+          testidPrefix="plus"
+          onAction={(a) => { document.body.dataset.lastAction = `plus:${a}`; }}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 // F092.29 — a title «⌄» opening THE SAME menu as the row «…», plus two extra items.
 function TitleMenu() {
   const anchor = useRef<HTMLButtonElement>(null);
@@ -113,6 +136,7 @@ function App() {
         <div style={{ padding: "16px 24px" }}>
           Indhold
           <TitleMenu />
+          <PlusMenu />
         </div>
       </AppShell>
     </div>
