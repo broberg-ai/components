@@ -31,6 +31,24 @@ export interface NavItem<Icon = unknown> {
   marker?: "working";
   /** F092.20 — shows a pin icon after the label. */
   pinned?: boolean;
+  /** F092.21 — row actions: a «…» button opens a menu with these. */
+  actions?: NavAction[];
+}
+/**
+ * F092.21 — one row action. `submenu` switches the menu to a sub-list (with a
+ * back arrow); `input` switches it to a field + save (e.g. rename). A plain
+ * action, a submenu leaf and a saved input all call `onItemAction`.
+ */
+export interface NavAction {
+  id: string;
+  label: string;
+  icon?: unknown;
+  /** A single letter that picks this action while the menu is open (e.g. "P"). */
+  kbd?: string;
+  /** Shown in the danger colour (delete). */
+  danger?: boolean;
+  submenu?: NavAction[];
+  input?: { value: string; placeholder?: string; saveLabel?: string };
 }
 export interface NavSection<Icon = unknown> {
   /** A sub-heading inside one group, e.g. "I dag" / "I går". */
@@ -570,6 +588,8 @@ export const TEXT = {
     closeMenu: "Luk menu",
     home: "Forside",
     working: "Arbejder",
+    moreFor: "Mere for",
+    back: "Tilbage",
     pinned: "Fastgjort",
     language: "Sprog",
     zoom: "Zoom",
@@ -643,6 +663,8 @@ export const TEXT = {
     closeMenu: "Close menu",
     home: "Home",
     working: "Working",
+    moreFor: "More for",
+    back: "Back",
     pinned: "Pinned",
     language: "Language",
     zoom: "Zoom",

@@ -43,10 +43,19 @@ function App() {
         ], sections: [
           { label: "I dag", items: [
             { id: "h-run", label: "Leverandøranalyse kører", href: "/c/run", marker: "working" },
-            { id: "h-1", label: "Mødereferat", href: "/c/1" },
+            // F092.21 — row actions: «…» → menu, shortcuts, a submenu and a rename field.
+            { id: "h-1", label: "Mødereferat", href: "/c/1", actions: [
+              { id: "pin", label: "Fastgør", kbd: "P" },
+              { id: "rename", label: "Omdøb", kbd: "R", input: { value: "Mødereferat" } },
+              { id: "move", label: "Flyt til", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
+              { id: "delete", label: "Slet", kbd: "D", danger: true },
+            ] },
           ] },
           { label: "I går", items: [{ id: "h-2", label: "Kontraktudkast", href: "/c/2" }] },
         ] }]}
+        onItemAction={(item, action, value) => {
+          document.body.dataset.lastAction = [item, action, value].filter((x) => x !== undefined).join(":");
+        }}
         collapse="icon"
         homeHref="/"
         homeLabel="Scout"

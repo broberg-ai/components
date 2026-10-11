@@ -67,6 +67,7 @@ import {
   writeFlag,
   writeSet,
   type Lang,
+  type NavAction,
   type NavGroup,
   type NavItem,
   type NotificationRow,
@@ -156,6 +157,197 @@ const IconLogOut = () => svg(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
 const IconPin = () => svg(<><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></>, 12);
 const IconUser = () => svg(<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>, 14);
 
+// ── Row actions (F092.21) ──────────────────────────────────────────────────
+//
+// A «…» per sidebar item, opening a popover menu (position:fixed from the
+// button, like the palette list in F001.25, so the sidebar's scroll frame cannot
+// clip it). Three views in one popover: the list, a submenu with a back arrow,
+// and an input with «Gem» (rename). Keys: arrows move, Enter picks, an action's
+// kbd letter picks it, ←/Backspace-on-empty goes back, Escape closes and puts
+// focus back on «…».
+
+type RowView = { kind: "list"; actions: NavAction[]; title?: string } | { kind: "input"; action: NavAction };
+
+function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionId: string, value?: string) => void }) {
+  const t = TEXT[props.lang];
+  const id = props.item.id;
+  const btn = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [stack, setStack] = useState<RowView[]>([]);
+  const [hi, setHi] = useState(0);
+  const [value, setValue] = useState("");
+  const [pos, setPos] = useState<Record<string, string> | undefined>(undefined);
+  const view = stack[stack.length - 1];
+  const open = !!view;
+
+  const close = (refocus = true) => {
+    setStack([]);
+    if (refocus) btn.current?.focus();
+  };
+  const show = (v: RowView) => {
+    setStack((s) => [...s, v]);
+    setHi(0);
+    if (v.kind === "input") setValue(v.action.input!.value);
+  };
+  const back = () => {
+    setStack((s) => s.slice(0, -1));
+    setHi(0);
+  };
+  const pick = (a: NavAction) => {
+    if (a.submenu?.length) return show({ kind: "list", actions: a.submenu, title: a.label });
+    if (a.input) return show({ kind: "input", action: a });
+    close();
+    props.onAction(a.id);
+  };
+  const save = (a: NavAction) => {
+    close();
+    props.onAction(a.id, value);
+  };
+
+  useLayoutEffect(() => {
+    if (!open || !btn.current) return setPos(undefined);
+    const r = btn.current.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight, m = 8;
+    const w = Math.min(240, vw - 2 * m);
+    const h = menu.current?.offsetHeight ?? 0;
+    const left = Math.max(m, Math.min(r.right - w, vw - w - m));
+    const top = r.bottom + 4 + h <= vh - m || r.top - 4 - h < m ? Math.min(r.bottom + 4, vh - m - h) : r.top - 4 - h;
+    setPos({ position: "fixed", left: `${left}px`, top: `${Math.max(m, top)}px`, width: `${w}px` });
+    if (view?.kind === "input") menu.current?.querySelector<HTMLInputElement>("input")?.focus();
+    else menu.current?.focus();
+  }, [open, stack.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e: Event) => {
+      const n = e.target instanceof Node ? e.target : null;
+      if (n && (menu.current?.contains(n) || btn.current?.contains(n))) return;
+      close(false);
+    };
+    document.addEventListener("mousedown", outside);
+    window.addEventListener("scroll", outside, true);
+    window.addEventListener("resize", outside);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      window.removeEventListener("scroll", outside, true);
+      window.removeEventListener("resize", outside);
+    };
+  }, [open]);
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (!view) return;
+    e.stopPropagation(); // the user menu / app must not also act on these keys
+    if (e.key === "Escape") {
+      e.preventDefault();
+      return close();
+    }
+    if (view.kind === "input") {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        save(view.action);
+      }
+      return;
+    }
+    if ((e.key === "ArrowLeft" || e.key === "Backspace") && stack.length > 1) {
+      e.preventDefault();
+      return back();
+    }
+    const list = view.actions;
+    const { state, intent } = selectKeyReducer({ open: true, highlighted: hi }, e.key, list.length);
+    if (intent.type === "select") {
+      e.preventDefault();
+      return pick(list[intent.index]!);
+    }
+    if (state.highlighted !== hi) {
+      e.preventDefault();
+      return setHi(state.highlighted);
+    }
+    const byKbd = e.key.length === 1 ? list.find((a) => a.kbd?.toLowerCase() === e.key.toLowerCase()) : undefined;
+    if (byKbd) {
+      e.preventDefault();
+      pick(byKbd);
+    }
+  };
+
+  return (
+    <>
+      <button
+        ref={btn}
+        type="button"
+        class={"bas-item__more" + (open ? " is-open" : "")}
+        data-testid={`sidebar-item-${id}-more`}
+        aria-label={`${t.moreFor} ${props.item.label}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => (open ? close() : show({ kind: "list", actions: props.item.actions! }))}
+      >
+        <IconMore />
+      </button>
+      {view ? (
+        <div
+          ref={menu}
+          class="bas-rowmenu"
+          role="menu"
+          tabIndex={-1}
+          aria-label={view.kind === "list" && view.title ? view.title : props.item.label}
+          data-testid={`sidebar-item-${id}-menu`}
+          style={pos ?? { position: "fixed", visibility: "hidden" }}
+          onKeyDown={onKeyDown}
+        >
+          {stack.length > 1 ? (
+            <button type="button" class="bas-rowmenu__back" data-testid={`sidebar-item-${id}-back`} aria-label={t.back} onClick={back}>
+              <IconChevronLeft />
+              <span>{view.kind === "list" ? view.title : view.action.label}</span>
+            </button>
+          ) : null}
+          {view.kind === "list" ? (
+            view.actions.map((a, i) => (
+              <button
+                type="button"
+                role="menuitem"
+                key={a.id}
+                class={"bas-rowmenu__item" + (i === hi ? " is-active" : "") + (a.danger ? " is-danger" : "")}
+                data-testid={`sidebar-item-${id}-action-${a.id}`}
+                onMouseEnter={() => setHi(i)}
+                onClick={() => pick(a)}
+              >
+                {a.icon ? <span class="bas-rowmenu__icon">{a.icon as ComponentChildren}</span> : null}
+                <span class="bas-rowmenu__label">{a.label}</span>
+                {a.submenu?.length ? <IconChevronRight /> : a.kbd ? <kbd class="bas-rowmenu__kbd">{a.kbd.toUpperCase()}</kbd> : null}
+              </button>
+            ))
+          ) : (
+            <form
+              class="bas-rowmenu__form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                save(view.action);
+              }}
+            >
+              <input
+                class="bas-rowmenu__input"
+                data-testid={`sidebar-item-${id}-input`}
+                aria-label={view.action.label}
+                value={value}
+                placeholder={view.action.input!.placeholder}
+                onInput={(e) => setValue((e.currentTarget as HTMLInputElement).value)}
+              />
+              <button type="submit" class="bas-rowmenu__save" data-testid={`sidebar-item-${id}-save`}>
+                {view.action.input!.saveLabel ?? t.save}
+              </button>
+            </form>
+          )}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+// lucide "ellipsis", "chevron-left/right" (ISC).
+const IconMore = () => svg(<><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></>, 16);
+const IconChevronLeft = () => svg(<path d="m15 18-6-6 6-6" />, 14);
+const IconChevronRight = () => svg(<path d="m9 18 6-6-6-6" />, 14);
+
 // ── Sidebar ────────────────────────────────────────────────────────────────
 
 export interface SidebarProps {
@@ -192,6 +384,8 @@ export interface SidebarProps {
   lang: Lang;
   /** F092.15 — rendered at the very bottom of the sidebar (the user menu in "sidebar-footer"). */
   bottom?: ComponentChildren;
+  /** F092.21 — a row action was chosen (value: the saved text of an `input` action). */
+  onItemAction?: (navItemId: string, actionId: string, value?: string) => void;
 }
 
 export function Sidebar(p: SidebarProps) {
@@ -259,7 +453,7 @@ export function Sidebar(p: SidebarProps) {
   const leaf = (it: PreactNavItem, sub = false) => {
     const active = isActivePath(it.href, p.currentPath);
     const badge = badgeLabel(it.badge);
-    return (
+    const link = (
       <NavLink
         key={it.id}
         href={it.href}
@@ -284,6 +478,14 @@ export function Sidebar(p: SidebarProps) {
         ) : null}
         {badge ? <span class="bas-item__count" data-testid={`sidebar-badge-${it.id}`}>{badge}</span> : null}
       </NavLink>
+    );
+    // F092.21 — a link cannot contain a button, so an item with actions is a row: link + «…».
+    if (!it.actions?.length || railed) return link;
+    return (
+      <div class="bas-itemrow" key={it.id}>
+        {link}
+        <RowActions item={it} lang={p.lang} onAction={(a, v) => (v === undefined ? p.onItemAction?.(it.id, a) : p.onItemAction?.(it.id, a, v))} />
+      </div>
     );
   };
 
@@ -1147,6 +1349,8 @@ export function PageTabs(p: { tabs: PageTab[]; currentUrl: string; mode?: "query
 // ── App shell ──────────────────────────────────────────────────────────────
 
 export interface AppShellProps {
+  /** F092.21 — passed to the sidebar: a row action was chosen. */
+  onItemAction?: SidebarProps["onItemAction"];
   brand?: ComponentChildren;
   actions?: ComponentChildren;
   groups: PreactNavGroup[];
@@ -1238,6 +1442,7 @@ export function AppShell(p: AppShellProps) {
         <Sidebar
           groups={p.groups}
           footer={p.footer}
+          onItemAction={p.onItemAction}
           currentPath={p.currentPath}
           onNavigate={p.onNavigate}
           collapsed={collapsed}

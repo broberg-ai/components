@@ -53,6 +53,26 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.13.0 — row actions on a sidebar item: the «…» menu (F092.21)
+
+Additive. An item with `actions` gets a «…» button (shown on hover/focus; always
+on touch / no-hover devices) that opens a popover menu:
+
+```tsx
+{ id: "c3", label: "Rapport", href: "/c/3", actions: [
+  { id: "pin", label: "Fastgør", kbd: "P" },
+  { id: "rename", label: "Omdøb", kbd: "R", input: { value: "Rapport" } },          // field + «Gem»
+  { id: "move", label: "Flyt til", submenu: [{ id: "a", label: "Projekt A" }] },  // sub-list + back arrow
+  { id: "delete", label: "Slet", kbd: "D", danger: true },
+] }
+// <AppShell onItemAction={(itemId, actionId, value) => …} />   (value only for an input action)
+```
+
+- Keys while open: ↑/↓ move, Enter picks, the action's `kbd` letter picks it, ←/Backspace goes back from a submenu, Escape closes and returns focus to «…».
+- A popover (`position: fixed`), so the sidebar's scroll frame never clips it; closes on a click outside, scroll or resize.
+- testids: `sidebar-item-<id>-more`, `-menu`, `-action-<actionId>`, `-back`, `-input`, `-save`.
+- Hidden on the folded icon rail (no room for a row).
+
 ## 0.12.0 — a chat history in the sidebar (F092.20)
 
 For scout's history sidebar (scout-F011.2). Additive — without the new fields the markup is unchanged.
@@ -71,7 +91,7 @@ groups={[{
 
 - testids: `sidebar-item-<id>-marker`, `sidebar-item-<id>-pinned`, `sidebar-section-<group>-<section>`.
 - Every item already has `title` = its full label; send the full text and let CSS truncate.
-- Row actions (the «…» menu) are F092.21, next.
+- Row actions: see 0.13.0.
 
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
