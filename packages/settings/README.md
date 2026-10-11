@@ -59,6 +59,19 @@ unsaved and shows the failure. (cms's version reset its button after a fixed 5 s
 saved or not.) The button carries `data-status` (`clean|dirty|saving|saved|failed`)
 for Lens and tests.
 
+### A «Gemt» toast of your own: `onSaveSucceeded`, not `onSaved`
+
+`onSaved` means *the form is clean again* — it also fires when you call
+`markSaved()` yourself, e.g. after loading the stored values. A toast on it says
+«Gemt» on every visit. `onSaveSucceeded` fires only when `requestSave()` went
+through on every panel, once per save, never on a failure (the Save button uses it
+too):
+
+```ts
+import { onDirtyBus } from "@broberg/settings";
+useEffect(() => onDirtyBus({ onSaveSucceeded: () => toast("Gemt") }), []);
+```
+
 ## The pieces
 
 | from `@broberg/settings/preact` | what |

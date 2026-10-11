@@ -1,6 +1,6 @@
 {
   "name": "@broberg/settings",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The fleet's settings surface for Stack B (Preact): a dirty-bus that knows whether anything is unsaved and waits for every panel before saying «Gemt», plus Card / SectionHeading / Field / Input / Toggle / Save button on @broberg/theme tokens. Framework-free core + Preact components. Tabs come from @broberg/app-shell's PageTabs.",
   "type": "module",
   "license": "MIT",

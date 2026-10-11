@@ -183,7 +183,8 @@ export function SettingsSaveButton(p: { lang?: Lang; testid?: string; bus?: Dirt
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const off = bus.onDirtyBus({
-      onSaved: () => {
+      // Not onSaved: a page that calls markSaved() after loading would say «Gemt» on every visit (F017.7).
+      onSaveSucceeded: () => {
         setJustSaved(true);
         clearTimeout(timer);
         timer = setTimeout(() => setJustSaved(false), 2000);

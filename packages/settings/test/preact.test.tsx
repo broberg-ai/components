@@ -62,6 +62,15 @@ describe("F017.3 — the save flow a user sees", () => {
     expect([btn.disabled, btn.textContent, bus.getState().dirty]).toEqual([false, "Kunne ikke gemme · Gem", true]);
   });
 
+  test("F017.7 — markSaved() after loading does NOT make the button say «Gemt»", () => {
+    const bus = createDirtyBus();
+    render(<SettingsSaveButton bus={bus} />);
+    act(() => bus.markDirty());
+    act(() => bus.markSaved()); // the page reset itself after fetching its values
+    const btn = screen.getByTestId("settings-save-button") as HTMLButtonElement;
+    expect([btn.dataset.status, btn.textContent]).toEqual(["clean", "Gem"]);
+  });
+
   test("English texts with lang=en", () => {
     const bus = createDirtyBus();
     render(<SettingsSaveButton bus={bus} lang="en" />);

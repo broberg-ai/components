@@ -24,8 +24,14 @@ export interface DirtyBusHandlers {
   onDirty?: () => void;
   /** Save was requested: write your part. Throw or reject to fail the save. */
   onSave?: SaveHandler;
-  /** Every panel saved; the form is clean again. */
+  /** The form is clean again — after a save, OR after a manual markSaved() (e.g. on load). */
   onSaved?: () => void;
+  /**
+   * The user's save went through: requestSave() finished and every panel saved.
+   * Once per successful save — never on markSaved(), never on a failed save.
+   * This is the hook for a «Gemt» toast; onSaved would also fire on page load.
+   */
+  onSaveSucceeded?: () => void;
   /** A save handler failed; the form stays dirty. */
   onSaveFailed?: (error: unknown) => void;
   /** Any state change — the hook for a UI that renders `getState()`. */
@@ -81,6 +87,7 @@ export function createDirtyBus(): DirtyBus {
         return false;
       }
       bus.markSaved();
+      for (const s of [...subs]) s.onSaveSucceeded?.();
       if (editedWhileSaving) bus.markDirty();
       return true;
     },

@@ -146,3 +146,34 @@ describe("F017.1 — copyToClipboard", () => {
     expect(await copyToClipboard("abc")).toBe(false);
   });
 });
+
+describe("F017.7 — onSaveSucceeded: only when the user's save went through", () => {
+  test("fires once per successful requestSave — and never on markSaved()", async () => {
+    const bus = createDirtyBus();
+    const ok = vi.fn();
+    const saved = vi.fn();
+    bus.onDirtyBus({ onSaveSucceeded: ok, onSaved: saved, onSave: () => undefined });
+    bus.markSaved(); // what a page does after loading its values
+    expect([ok.mock.calls.length, saved.mock.calls.length]).toEqual([0, 1]);
+    bus.markDirty();
+    expect(await bus.requestSave()).toBe(true);
+    expect([ok.mock.calls.length, saved.mock.calls.length]).toEqual([1, 2]);
+  });
+
+  test("does not fire when a panel fails", async () => {
+    const bus = createDirtyBus();
+    const ok = vi.fn();
+    bus.onDirtyBus({ onSaveSucceeded: ok, onSave: async () => { throw new Error("db down"); } });
+    bus.markDirty();
+    expect([await bus.requestSave(), ok.mock.calls.length]).toEqual([false, 0]);
+  });
+
+  test("fires after the form is clean — a listener reads dirty:false", async () => {
+    const bus = createDirtyBus();
+    let seen: boolean | undefined;
+    bus.onDirtyBus({ onSaveSucceeded: () => (seen = bus.getState().dirty), onSave: () => undefined });
+    bus.markDirty();
+    await bus.requestSave();
+    expect(seen).toBe(false);
+  });
+});
