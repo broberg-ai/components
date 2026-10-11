@@ -564,7 +564,17 @@ describe("F038.22 / F038.24 — the fleet part needs a registered session and is
     }
     expect((await app.request("/health")).status).toBe(200);
   });
-  it("robots.txt disallows everything", async () => {
-    expect(await (await app.request("/robots.txt")).text()).toBe("User-agent: *\nDisallow: /\n");
+  it("robots.txt disallows everything except the fictional WebMCP lab (F098.1.1)", async () => {
+    expect(await (await app.request("/robots.txt")).text()).toBe("User-agent: *\nAllow: /webmcp-lab\nDisallow: /\n");
+  });
+  it("F098.1.1: only the WebMCP lab page, its booking URL and its tool beacon are open — its LOG and the rest stay closed", async () => {
+    for (const p of ["/webmcp-lab", "/webmcp-lab/book?service=kort&date=2026-10-20&time=10:00"]) {
+      expect([p, (await app.request(p)).status]).toEqual([p, 200]);
+    }
+    const beacon = await app.request("/webmcp-lab/hits", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ detail: "list_services" }) });
+    expect(beacon.status).toBe(204);
+    for (const p of ["/webmcp-lab/hits", "/webmcp-lab/other", "/webmcp-labx", "/", "/ai", "/api/packages", "/onboarding"]) {
+      expect([p, (await app.request(p)).status]).toEqual([p, 401]);
+    }
   });
 });

@@ -335,7 +335,13 @@ const OPEN_PATHS = new Set(["/health", "/robots.txt"]);
 // The two write routes authenticate themselves (registered session key in the
 // body + header), so the read gate does not double-check them.
 const OWN_AUTH = new Set(["POST /api/enroll", "POST /api/speech-dictionary/edit"]);
-export const isFleetPath = (path: string, method = "GET") => !OPEN_PATHS.has(path) && !OWN_AUTH.has(`${method} ${path}`) && method !== "OPTIONS";
+// F098.1.1 — the ONE exception, Christian 11/10 («ja, genstart den»): the FICTIONAL
+// WebMCP test clinic must be reachable by outside AIs (Claude, ChatGPT) or F098.1
+// cannot be measured. Its page, its booking URL and its tool-call beacon are open;
+// the hit LOG (GET /webmcp-lab/hits) and everything else stay behind login.
+const LAB_OPEN = new Set(["GET /webmcp-lab", "GET /webmcp-lab/book", "POST /webmcp-lab/hits"]);
+export const isFleetPath = (path: string, method = "GET") =>
+  !OPEN_PATHS.has(path) && !OWN_AUTH.has(`${method} ${path}`) && !LAB_OPEN.has(`${method} ${path}`) && method !== "OPTIONS";
 // F038.23 — people sign in with Broberg ID (OIDC, client "discovery", public +
 // PKCE). Only the subjects in DISCOVERY_ALLOWED_SUBS get in: a BID account alone
 // is not a fleet member. Ship dark: no BID_ISSUER → no sso, sessions-only.
@@ -411,7 +417,7 @@ app.use("*", async (c, next) => {
   }
   return next();
 });
-app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /\n"));
+app.get("/robots.txt", (c) => c.text("User-agent: *\nAllow: /webmcp-lab\nDisallow: /\n"));
 
 app.get("/", (c) => {
   if ((c.req.header("accept") ?? "").includes("application/json")) return c.json(manifest());
