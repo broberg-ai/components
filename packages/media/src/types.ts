@@ -57,6 +57,33 @@ export interface MediaStore {
    * the bucket public is your infra.
    */
   publicUrl(key: string): string;
+  /**
+   * F006.8 — the keys under a FOLDER (`"kunder/1"` means everything under
+   * `kunder/1/`, never `kunder/10/…`). Logical keys (keyPrefix stripped), sorted,
+   * at most `limit` (default and cap 1000); `cursor` is set only when there is more.
+   * `""` lists everything under keyPrefix.
+   */
+  list(prefix: string, opts?: ListOptions): Promise<ListResult>;
+  /**
+   * F006.8 — delete everything under a folder (same folder rule as {@link MediaStore.list})
+   * and say how many objects went. An empty prefix is refused: it would empty the store.
+   */
+  deletePrefix(prefix: string): Promise<{ deleted: number }>;
+}
+
+/** Options for {@link MediaStore.list}. */
+export interface ListOptions {
+  /** From the previous page's `cursor`. */
+  cursor?: string;
+  /** Page size, 1–1000 (default 1000). */
+  limit?: number;
+}
+
+/** One page of {@link MediaStore.list}. */
+export interface ListResult {
+  keys: string[];
+  /** Present only when there are more keys; pass it back to get the next page. */
+  cursor?: string;
 }
 
 /** Cloudflare R2 provider config (S3-compatible). */

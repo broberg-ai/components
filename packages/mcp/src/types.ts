@@ -3,6 +3,19 @@ import type { z } from "zod";
 export type ToolKind = "read" | "write";
 
 /**
+ * F007.15 — MCP tool annotations a tool may add. `readOnlyHint` is deliberately
+ * NOT here: it is derived from `kind`, the thing the write-guard enforces, so a
+ * write tool can never advertise itself as read-only to a client that trusts
+ * the hint to decide (Scout attaches only readOnlyHint === true tools).
+ */
+export interface ToolAnnotationHints {
+  title?: string;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+/**
  * The resolved caller identity that auth gates read. Every auth model in the
  * estate (static Bearer, hashed 3-tier, OAuth 2.1, stdio env-injected) resolves
  * to this one shape. Hosts may attach extra fields (e.g. siteId, tenant).
@@ -92,6 +105,8 @@ export interface ToolDef<Shape extends RawShape = RawShape, Ctx = unknown> {
   kind?: ToolKind;
   /** optional per-tool required scopes (AND) */
   scopes?: string[];
+  /** F007.15 — extra MCP annotations; readOnlyHint always follows `kind`. */
+  annotations?: ToolAnnotationHints;
   inputSchema: Shape;
   /**
    * Escape hatch: a ready-made JSON Schema for this tool's input. When set, the
@@ -117,6 +132,7 @@ export interface AnyToolDef<Ctx = unknown> {
   description: string;
   kind?: ToolKind;
   scopes?: string[];
+  annotations?: ToolAnnotationHints;
   inputSchema: RawShape;
   inputJsonSchema?: Record<string, unknown>;
   handler: (

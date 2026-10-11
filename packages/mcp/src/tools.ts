@@ -5,6 +5,7 @@ import type {
   HandlerReturn,
   Principal,
   RawShape,
+  ToolAnnotationHints,
   ToolContext,
   ToolDef,
   ToolResult,
@@ -79,16 +80,26 @@ function toInputJsonSchema(shape: RawShape, toolName: string): Record<string, un
   return schema;
 }
 
+/**
+ * F007.15 — the MCP annotations for a tool. readOnlyHint comes from `kind` and is
+ * applied LAST, so nothing in `annotations` can make a write tool look read-only.
+ */
+export function toolAnnotations(tool: AnyToolDef<any>): ToolAnnotationHints & { readOnlyHint: boolean } {
+  return { ...tool.annotations, readOnlyHint: (tool.kind ?? "read") === "read" };
+}
+
 /** Low-level ListTools entry — the raw shape converted to JSON Schema. */
 export function toToolListEntry(tool: AnyToolDef<any>): {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  annotations: ToolAnnotationHints & { readOnlyHint: boolean };
 } {
   return {
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputJsonSchema ?? toInputJsonSchema(tool.inputSchema, tool.name),
+    annotations: toolAnnotations(tool),
   };
 }
 

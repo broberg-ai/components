@@ -2,6 +2,8 @@
 // over aws4fetch (tiny, zero-dep, runs in Node/Bun/edge/Workers). No AWS SDK.
 import { AwsClient } from "aws4fetch";
 import type {
+  ListOptions,
+  ListResult,
   MediaBody,
   MediaObject,
   MediaStore,
@@ -10,6 +12,13 @@ import type {
   UploadOptions,
 } from "../types";
 import { safeKey } from "../safe-key";
+import { clampLimit, deleteUnder, folderPrefix } from "../list";
+
+const XML_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const decodeXml = (s: string) =>
+  s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e: string) =>
+    e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : XML_ENTITIES[e.toLowerCase()]!,
+  );
 
 // R2's S3 endpoint host. The EU jurisdiction pins data-residency and MUST match
 // how the bucket was created (jurisdiction is immutable at creation).
@@ -96,6 +105,26 @@ export function createR2Store(cfg: R2Config): MediaStore {
         bytes: new Uint8Array(await res.arrayBuffer()),
         contentType: res.headers.get("content-type") ?? undefined,
       };
+    },
+
+    // S3 ListObjectsV2. The XML is small and flat; three fields are read
+    // without pulling in a parser.
+    async list(folder: string, opts: ListOptions = {}): Promise<ListResult> {
+      const q = new URLSearchParams({ "list-type": "2", prefix: prefix + folderPrefix(folder, "r2", true), "max-keys": String(clampLimit(opts.limit)) });
+      if (opts.cursor) q.set("continuation-token", opts.cursor);
+      const res = await aws.fetch(`${base}?${q.toString()}`, { method: "GET" });
+      if (!res.ok) {
+        throw new Error(`media(r2): list failed ${res.status} ${await res.text().catch(() => "")}`.trim());
+      }
+      const xml = await res.text();
+      const keys = [...xml.matchAll(/<Key>([\s\S]*?)<\/Key>/g)].map((m) => decodeXml(m[1]!).slice(prefix.length)).sort();
+      const truncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/i.test(xml);
+      const next = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1];
+      return truncated && next ? { keys, cursor: decodeXml(next) } : { keys };
+    },
+
+    async deletePrefix(folder: string) {
+      return deleteUnder(this, folder, "r2");
     },
 
     publicUrl(key: string): string {

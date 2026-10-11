@@ -27,6 +27,7 @@ export {
   mayCall,
   toolDenial,
   toToolListEntry,
+  toolAnnotations,
   ToolNotFoundError,
   EmptyInputSchemaError,
 } from "./tools";

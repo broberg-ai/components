@@ -77,6 +77,16 @@ defineTool({
 > `ToolResult.content` is a typed union (0.3.0+); reading `.text` off a block now
 > needs a narrow (`block.type === "text"`). Returning blocks is unaffected.
 
+### Annotations: `readOnlyHint` follows `kind` (0.8.0, F007.15)
+
+`tools/list` now sends MCP `annotations` on every tool. `readOnlyHint` is **derived from `kind`** (read, the default → `true`; write → `false`) and cannot be set by hand, so a write tool can never advertise itself as read-only to a client that trusts the hint (Scout attaches only `readOnlyHint === true` tools). Add the other hints yourself:
+
+```ts
+defineTool({ name: "delete_note", kind: "write", annotations: { destructiveHint: true, idempotentHint: true }, … })
+```
+
+Both registration paths (`registerTools` on a `Server`, `registerMcpServerTools` on an `McpServer`) send the same annotations.
+
 ## Pick a transport
 
 **stdio** (trail / buddy shape — `.mcp.json` subprocess):

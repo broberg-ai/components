@@ -6,7 +6,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { dispatchTool, mayCall, toToolListEntry, ToolNotFoundError } from "./tools";
+import { dispatchTool, mayCall, toolAnnotations, toToolListEntry, ToolNotFoundError } from "./tools";
 import type { AnyToolDef, ToolContext, ToolResult } from "./types";
 import type { AuditFn } from "./audit";
 
@@ -128,6 +128,7 @@ export function registerMcpServerTools<Ctx = unknown>(
       tool.name,
       tool.description,
       tool.inputSchema,
+      toolAnnotations(tool),
       async (args: unknown, extra: unknown) => {
         const context = await getContext(extra);
         return dispatchTool(tools, tool.name, args, context, { audit: opts.audit });

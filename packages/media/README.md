@@ -105,6 +105,18 @@ return new Response(obj!.bytes, { headers: attachmentHeaders(row.contentType, ro
 - **Not here:** the HTTP route and the database table (yours), PDF thumbnails,
   virus scanning, image re-encoding (`@broberg/media-transform`).
 
+## List and delete a folder (v0.5.0, F006.8)
+
+```ts
+const { keys, cursor } = await media.list("kunder/42", { limit: 1000 }); // logical keys, sorted
+const { deleted } = await media.deletePrefix("kunder/42");              // e.g. a GDPR erasure
+```
+
+- **A prefix is a folder.** `"kunder/1"` means everything under `kunder/1/`, never `kunder/10/…` — as a plain string match, a GDPR delete would take another customer's files.
+- Keys come back **logical** (keyPrefix stripped), like `upload()` returns them. Page size 1–1000 (default 1000); `cursor` is set only when there is more.
+- `deletePrefix("")` is refused: it would empty the store. If a delete reports success but the object stays, `deletePrefix` stops with an error instead of looping.
+- r2 uses S3 ListObjectsV2; volume walks the folder. **The r2 half is tested against a fake S3 that answers real ListObjectsV2 XML, not yet against a live bucket.**
+
 ## Provisioning the bucket
 
 This package **consumes** an existing bucket + S3 creds. To create an

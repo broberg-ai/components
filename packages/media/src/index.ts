@@ -7,6 +7,8 @@ import { createVolumeStore } from "./providers/volume";
 import type { MediaConfig, MediaStore } from "./types";
 
 export type {
+  ListOptions,
+  ListResult,
   MediaBody,
   MediaConfig,
   MediaObject,

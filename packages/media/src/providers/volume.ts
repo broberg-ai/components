@@ -16,9 +16,11 @@
 // route YOUR app must serve, and `get()` is what it serves from. That asymmetry
 // is real and is stated rather than hidden — a provider that returned a URL
 // nothing answered would be the worst kind of green.
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
 import type {
+  ListOptions,
+  ListResult,
   MediaBody,
   MediaObject,
   MediaStore,
@@ -27,6 +29,7 @@ import type {
   VolumeConfig,
 } from "../types";
 import { assertSafeKey } from "../safe-key";
+import { clampLimit, deleteUnder, folderPrefix } from "../list";
 
 /** Objects and their metadata live in two sibling trees, so a key can never
  *  collide with the file describing another key. */
@@ -110,6 +113,24 @@ export function createVolumeStore(cfg: VolumeConfig): MediaStore {
       };
     },
 
+    // A walk of objects/<keyPrefix><folder>, sorted; the cursor is the last
+    // key returned, so the next page starts after it.
+    async list(folder: string, opts: ListOptions = {}): Promise<ListResult> {
+      const under = folderPrefix(folder, "volume", true);
+      const start = join(root, OBJECTS, ...(prefix + under).split("/").filter(Boolean));
+      const all: string[] = [];
+      await walk(start, under, all);
+      all.sort();
+      const after = opts.cursor ? all.filter((k) => k > opts.cursor!) : all;
+      const limit = clampLimit(opts.limit);
+      const keys = after.slice(0, limit);
+      return after.length > limit ? { keys, cursor: keys[keys.length - 1] } : { keys };
+    },
+
+    async deletePrefix(folder: string) {
+      return deleteUnder(this, folder, "volume");
+    },
+
     publicUrl(key: string): string {
       if (!publicBase) {
         throw new Error(
@@ -120,6 +141,21 @@ export function createVolumeStore(cfg: VolumeConfig): MediaStore {
       return `${publicBase}/${encodeKey(logical(key))}`;
     },
   };
+}
+
+/** Collect the logical keys of every file under `dir` (whose logical path is `logicalDir`). */
+async function walk(dir: string, logicalDir: string, out: string[]): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return; // nothing stored under it yet
+    throw err;
+  }
+  for (const e of entries) {
+    if (e.isDirectory()) await walk(join(dir, e.name), `${logicalDir}${e.name}/`, out);
+    else if (e.isFile()) out.push(`${logicalDir}${e.name}`);
+  }
 }
 
 /** Normalise any accepted body to bytes. A ReadableStream is drained here so
