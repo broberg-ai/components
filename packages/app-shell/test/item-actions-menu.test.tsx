@@ -2,6 +2,8 @@
 /** @jsxImportSource preact */
 // F092.29 — ItemActionsMenu on its own: a title «⌄» opens THE SAME menu as a row «…» (scout #2745).
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { useRef, useState } from "preact/hooks";
 import { ItemActionsMenu } from "../src/preact";
@@ -121,5 +123,70 @@ describe("F092.31 — placement up-start (scout #2790: «+» in a composer)", ()
     Object.assign(window, { innerWidth: 1440, innerHeight: 900 });
     await open(at({ top: 100, bottom: 136, left: 260, right: 296 }));
     expect([menuStyle().left, menuStyle().top]).toEqual([`${296 - 240}px`, "140px"]);
+  });
+});
+
+describe("F092.32 — a robust menu (scout #2801: value, separator, size, keyboard-only ring)", () => {
+  const FILTERS: NavAction[] = [
+    { id: "type", label: "Type", value: "All", submenu: [{ id: "t-all", label: "All" }] },
+    { id: "status", label: "Status", value: "Active" },
+    { id: "group", label: "Group by", value: "Project", separator: true },
+  ];
+  const open = async (keyboardAnchor: boolean) => {
+    const a = document.createElement("button");
+    document.body.appendChild(a);
+    a.matches = (s: string) => (s === ":focus-visible" ? keyboardAnchor : Element.prototype.matches.call(a, s));
+    render(<ItemActionsMenu actions={FILTERS} anchor={a} lang="da" label="Filter" testidPrefix="filter" onAction={() => {}} onClose={() => {}} />);
+    await tick();
+    return screen.getByTestId("filter-menu");
+  };
+
+  it("value: shown after the label, before the chevron; absent when not set", async () => {
+    await open(false);
+    const row = screen.getByTestId("filter-action-type");
+    const value = screen.getByTestId("filter-action-type-value");
+    expect(value.textContent).toBe("All");
+    expect(value.previousElementSibling?.className).toBe("bas-rowmenu__label");
+    expect(value.nextElementSibling?.tagName.toLowerCase()).toBe("svg");
+    expect(row.querySelectorAll(".bas-rowmenu__value").length).toBe(1);
+    expect(screen.getByTestId("filter-action-status-value").textContent).toBe("Active");
+  });
+
+  it("separator: a role=separator line right BEFORE the item, and ↓ steps over it", async () => {
+    const menu = await open(false);
+    const group = screen.getByTestId("filter-action-group");
+    expect(group.previousElementSibling?.getAttribute("role")).toBe("separator");
+    expect(menu.querySelectorAll('[role="separator"]').length).toBe(1);
+    screen.getByTestId("filter-action-status").focus();
+    key("ArrowDown");
+    await tick();
+    expect(document.activeElement).toBe(group);
+  });
+
+  it("focus ring: off after a mouse open, on after a key in the menu", async () => {
+    const menu = await open(false);
+    expect(document.activeElement).toBe(screen.getByTestId("filter-action-type")); // focus still moves in
+    expect(menu.classList.contains("is-kbd")).toBe(false);
+    key("ArrowDown");
+    await tick();
+    expect(menu.classList.contains("is-kbd")).toBe(true);
+  });
+
+  it("focus ring: on at open when the anchor was keyboard-focused (Tab + Enter)", async () => {
+    const menu = await open(true);
+    expect(menu.classList.contains("is-kbd")).toBe(true);
+  });
+
+  it("CSS: the outline is drawn only under .is-kbd; size tokens default to scout's measurement", () => {
+    const css = readFileSync(resolve(__dirname, "../css/app-shell.css"), "utf8");
+    expect(css).toMatch(/\.bas-rowmenu__item:focus, \.bas-rowmenu__back:focus \{ outline: none; \}/);
+    expect(css).toMatch(/\.bas-rowmenu\.is-kbd \.bas-rowmenu__item:focus[^{]*\{ outline: 2px solid/);
+    const item = css.match(/\.bas-rowmenu__item, \.bas-rowmenu__back \{[^}]*\}/)![0];
+    expect(item).toContain("min-height: var(--bas-menu-row-height, 44px)");
+    expect(item).toContain("font-size: var(--bas-menu-font-size, calc(17px * var(--bas-font-scale, 1)))");
+    const panel = css.match(/\.bas-rowmenu \{[^}]*\}/)![0];
+    expect(panel).toContain("border-radius: var(--bas-menu-radius, 14px)");
+    expect(panel).toContain("padding: var(--bas-menu-padding, 6px)");
+    expect(css).toMatch(/\.bas-rowmenu__value \{[^}]*color: var\(--fg-muted\)/);
   });
 });

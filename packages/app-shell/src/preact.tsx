@@ -236,6 +236,9 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
   const [pos, setPos] = useState<Record<string, string> | undefined>(undefined);
   const view = stack[stack.length - 1]!;
   const closed = useRef(false);
+  // F092.32 — the focus ring is for keyboard use only: on when the anchor was
+  // keyboard-focused at open (Tab + Enter), or from the first key in the menu.
+  const [kbd, setKbd] = useState(() => props.anchor.matches(":focus-visible"));
 
   const close = (refocus = true) => {
     if (closed.current) return;
@@ -328,6 +331,7 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
     const view = stack[stack.length - 1];
     if (!view) return;
     e.stopPropagation(); // the user menu / app must not also act on these keys
+    setKbd(true);
     if (e.key === "Escape") {
       e.preventDefault();
       return close();
@@ -373,7 +377,7 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
   return (
     <div
       ref={menu}
-      class="bas-rowmenu"
+      class={"bas-rowmenu" + (kbd ? " is-kbd" : "")}
       role="menu"
       tabIndex={-1}
       aria-label={view.kind === "list" && view.title ? view.title : props.label}
@@ -388,7 +392,8 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
         </button>
       ) : null}
       {view.kind === "list" ? (
-        view.actions.map((a, i) => (
+        view.actions.map((a, i) => [
+          a.separator ? <div key={`${a.id}-sep`} class="bas-rowmenu__sep" role="separator" /> : null,
           <button
             type="button"
             role="menuitem"
@@ -405,9 +410,10 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
           >
             {a.icon ? <span class="bas-rowmenu__icon">{a.icon as ComponentChildren}</span> : null}
             <span class="bas-rowmenu__label">{armed === a.id && a.confirm ? a.confirm.label : a.label}</span>
+            {a.value ? <span class="bas-rowmenu__value" data-testid={`${pre}-action-${a.id}-value`}>{a.value}</span> : null}
             {a.submenu?.length ? <IconChevronRight /> : a.kbd ? <kbd class="bas-rowmenu__kbd">{a.kbd.toUpperCase()}</kbd> : null}
-          </button>
-        ))
+          </button>,
+        ])
       ) : (
         <form
           class="bas-rowmenu__form"

@@ -50,9 +50,9 @@ function TitleMenu() {
           actions={[
             { id: "pin", label: "Fastgør", kbd: "P" },
             { id: "rename", label: "Omdøb", kbd: "R", input: { value: "Mødereferat" } },
-            { id: "move", label: "Flyt til", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
+            { id: "move", label: "Flyt til", value: "Projekt A", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
             { id: "delete", label: "Slet", kbd: "D", danger: true, confirm: { label: "Tryk igen for at slette" } },
-            { id: "share", label: "Del chat" },
+            { id: "share", label: "Del chat", separator: true },
             { id: "copy", label: "Kopiér link" },
           ]}
           anchor={anchor.current}
@@ -108,7 +108,7 @@ function App() {
             { id: "h-1", label: "Mødereferat", href: "/c/1", marker: "idle", actions: [
               { id: "pin", label: "Fastgør", kbd: "P" },
               { id: "rename", label: "Omdøb", kbd: "R", input: { value: "Mødereferat" } },
-              { id: "move", label: "Flyt til", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
+              { id: "move", label: "Flyt til", value: "Projekt A", submenu: [{ id: "move-a", label: "Projekt A" }, { id: "move-b", label: "Projekt B" }] },
               { id: "delete", label: "Slet", kbd: "D", danger: true, confirm: { label: "Tryk igen for at slette" } },
             ] },
           ] },

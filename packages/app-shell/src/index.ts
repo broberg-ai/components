@@ -54,6 +54,10 @@ export interface NavAction {
   input?: { value: string; placeholder?: string; saveLabel?: string };
   /** F092.22 — ask twice: the first pick shows `label` («Tryk igen for at slette») and keeps the menu open; the second runs it. */
   confirm?: { label: string };
+  /** F092.32 — a dimmed value right-aligned before the chevron («Type …… All ›»). */
+  value?: string;
+  /** F092.32 — a divider line before this item, to separate groups. */
+  separator?: boolean;
 }
 export interface NavSection<Icon = unknown> {
   /** A sub-heading inside one group, e.g. "I dag" / "I går". */

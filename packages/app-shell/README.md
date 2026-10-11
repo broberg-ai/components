@@ -179,6 +179,14 @@ anchor's own testid must not be `<prefix>-menu`.
 **0.21.0** — `placement: "up-start"` (F092.31): above the anchor, left edge = the anchor's left edge (clamped
 8px inside the viewport); below if there is no room above. For a «+» in a composer. `auto`/`down` unchanged.
 
+**0.22.0** — a sturdier menu (F092.32, scout #2801). New optional `NavAction` fields: `value` (dimmed,
+right-aligned before the chevron — «Type …… All ›», testid `<prefix>-action-<id>-value`) and `separator: true`
+(a line before the item; ↑↓ skip it). **Rendered output moved for every menu:** rows are now at least 44px with
+17px text, the panel has 14px radius and 6px padding. Tune with `--bas-menu-row-height`, `--bas-menu-font-size`,
+`--bas-menu-radius`, `--bas-menu-padding`, `--bas-menu-item-radius` on your `:root` (the package only reads them).
+The focus ring now shows only for keyboard use: after a mouse open the first item has focus but no ring; opening
+with Enter from a keyboard-focused anchor, or any key in the menu, shows it. ↑↓/Enter/Escape are unchanged.
+
 ## 0.11.1 — the palette list floats over the menu (F001.25)
 
 Christian 10/10: «Kunne denne ikke være en pop-over ting så dialogen ikke bliver
