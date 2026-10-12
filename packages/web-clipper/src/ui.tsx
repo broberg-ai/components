@@ -19,7 +19,7 @@ import type { KeyValueStorage } from "./auth";
 export type Lang = "da" | "en";
 export const TEXT = {
   da: {
-    login: "Log ind med Broberg ID", loggingIn: "Logger ind…", logout: "Log ud", loginAgain: "Log ind igen",
+    login: "Log ind med BrobergID", loggingIn: "Logger ind…", logout: "Log ud", loginAgain: "Log ind igen",
     target: "Gem i", chooseTarget: "Vælg hvor", noTargets: "Ingen steder at gemme",
     clip: "Klip siden", clipping: "Klipper…", clipped: "Klippet", nothingNew: "Intet nyt at sende",
     consent: "Optag denne samtale", consentHint: "Optagelse er slået fra for denne samtale.",
@@ -27,7 +27,7 @@ export const TEXT = {
     loginFailed: "Login blev ikke gennemført",
   },
   en: {
-    login: "Sign in with Broberg ID", loggingIn: "Signing in…", logout: "Sign out", loginAgain: "Sign in again",
+    login: "Sign in with BrobergID", loggingIn: "Signing in…", logout: "Sign out", loginAgain: "Sign in again",
     target: "Save to", chooseTarget: "Choose where", noTargets: "Nowhere to save",
     clip: "Clip the page", clipping: "Clipping…", clipped: "Clipped", nothingNew: "Nothing new to send",
     consent: "Record this conversation", consentHint: "Recording is off for this conversation.",

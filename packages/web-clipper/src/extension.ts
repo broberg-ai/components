@@ -25,6 +25,13 @@ export interface ClipperManifestOptions {
   geckoId?: string;
   /** Hosts the BACKGROUND may call (your destination's API), e.g. ["https://app.trailmem.com/*"]. Never page hosts. */
   apiHosts?: string[];
+  /**
+   * BrobergID's issuer — the same value you give createBidAuth, e.g. "https://id.broberg.ai".
+   * Its origin is added to host_permissions: BID's token endpoint sends no CORS
+   * headers, so without it the browser blocks the login's code and ticket
+   * exchange («BID did not answer: Failed to fetch», measured in Trail 12/10).
+   */
+  bidIssuer: string;
   /** Extra permissions on top of the base set. */
   permissions?: string[];
 }
@@ -38,6 +45,13 @@ export const BASE_PERMISSIONS = ["activeTab", "scripting", "identity", "storage"
 export function defineClipperManifest(o: ClipperManifestOptions): Record<string, unknown> {
   if (!/^\d+(\.\d+){0,3}$/.test(o.version)) throw new Error(`web-clipper: manifest version "${o.version}" is not 1–4 dot-separated integers`);
   const permissions = [...new Set([...BASE_PERMISSIONS, ...(o.permissions ?? [])])];
+  let bidOrigin: string;
+  try {
+    bidOrigin = new URL(o.bidIssuer).origin;
+  } catch {
+    throw new Error(`web-clipper: bidIssuer "${o.bidIssuer}" is not a URL — pass BrobergID's issuer, the same as createBidAuth's`);
+  }
+  const hosts = [...new Set([...(o.apiHosts ?? []), `${bidOrigin}/*`])];
   return {
     manifest_version: 3,
     name: o.name,
@@ -47,7 +61,7 @@ export function defineClipperManifest(o: ClipperManifestOptions): Record<string,
     action: { default_popup: o.popup ?? "popup.html", ...(o.icons ? { default_icon: o.icons } : {}) },
     background: { service_worker: o.background ?? "src/background.ts", type: "module" },
     permissions,
-    ...(o.apiHosts?.length ? { host_permissions: o.apiHosts } : {}),
+    host_permissions: hosts,
     ...(o.key ? { key: o.key } : {}),
     ...(o.geckoId ? { browser_specific_settings: { gecko: { id: o.geckoId } } } : {}),
   };

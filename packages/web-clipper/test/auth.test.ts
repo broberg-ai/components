@@ -1,4 +1,4 @@
-// F099.5 — Broberg ID login from an extension, against a fake BID and a fake chrome.identity.
+// F099.5 — BrobergID login from an extension, against a fake BID and a fake chrome.identity.
 import { describe, expect, it } from "vitest";
 import { createBidAuth, BidLoginError, BidUnavailableError, BidTicketRefusedError, type IdentityApi, type KeyValueStorage } from "../src/auth";
 import { sendClip, DestinationError, type Destination } from "../src/transport";

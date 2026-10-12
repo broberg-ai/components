@@ -1,4 +1,4 @@
-// @broberg/web-clipper/auth — F099.5. Broberg ID login from a browser
+// @broberg/web-clipper/auth — F099.5. BrobergID login from a browser
 // extension (contract F099.1 v1.1, docs/features/F099-web-clipper.md).
 //
 //  - OAuth 2.1 authorization code + PKCE (S256) + state, through

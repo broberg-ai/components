@@ -4,9 +4,10 @@
 import { defineConfig } from "vite";
 import { defineClipperManifest } from "@broberg/web-clipper/extension";
 import { clipperViteConfig } from "@broberg/web-clipper/vite";
+import { BID_ISSUER } from "./src/bid";
 
 export default defineConfig(
   clipperViteConfig({
-    manifest: defineClipperManifest({ name: "Web Clipper Example", version: "0.1.0", description: "@broberg/web-clipper example — invented destination." }),
+    manifest: defineClipperManifest({ name: "Web Clipper Example", version: "0.1.0", bidIssuer: BID_ISSUER, description: "@broberg/web-clipper example — invented destination." }),
   }),
 );

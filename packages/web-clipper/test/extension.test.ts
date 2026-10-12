@@ -7,20 +7,26 @@ import { contentScriptStandsAlone, CONTENT_SCRIPT_PATH } from "../src/vite";
 
 describe("F099.6 — defineClipperManifest", () => {
   it("a few lines → an MV3 manifest with the clipper's permissions and no page hosts", () => {
-    expect(defineClipperManifest({ name: "Trail Web Clipper", version: "0.3.0", apiHosts: ["https://app.trailmem.com/*"], geckoId: "trail-clipper@broberg.ai", key: "MIIB" })).toStrictEqual({
+    expect(defineClipperManifest({ name: "Trail Web Clipper", version: "0.3.0", apiHosts: ["https://app.trailmem.com/*"], bidIssuer: "https://id.broberg.ai", geckoId: "trail-clipper@broberg.ai", key: "MIIB" })).toStrictEqual({
       manifest_version: 3,
       name: "Trail Web Clipper",
       version: "0.3.0",
       action: { default_popup: "popup.html" },
       background: { service_worker: "src/background.ts", type: "module" },
       permissions: ["activeTab", "scripting", "identity", "storage"],
-      host_permissions: ["https://app.trailmem.com/*"],
+      host_permissions: ["https://app.trailmem.com/*", "https://id.broberg.ai/*"],
       key: "MIIB",
       browser_specific_settings: { gecko: { id: "trail-clipper@broberg.ai" } },
     });
   });
   it("refuses a version Chrome would refuse", () => {
-    expect(() => defineClipperManifest({ name: "x", version: "1.0.0-beta" })).toThrow(/dot-separated integers/);
+    expect(() => defineClipperManifest({ name: "x", version: "1.0.0-beta", bidIssuer: "https://id.broberg.ai" })).toThrow(/dot-separated integers/);
+  });
+  it("BrobergID's origin is always a host permission — its token endpoint sends no CORS headers (Trail 12/10: «Failed to fetch»)", () => {
+    // Issuer with a trailing slash and a path still yields the bare origin; a consumer who already listed it is not duplicated.
+    expect(defineClipperManifest({ name: "x", version: "1", bidIssuer: "https://id.broberg.ai/" }).host_permissions).toStrictEqual(["https://id.broberg.ai/*"]);
+    expect(defineClipperManifest({ name: "x", version: "1", bidIssuer: "https://id.broberg.ai", apiHosts: ["https://id.broberg.ai/*"] }).host_permissions).toStrictEqual(["https://id.broberg.ai/*"]);
+    expect(() => defineClipperManifest({ name: "x", version: "1", bidIssuer: "id.broberg.ai" })).toThrow(/bidIssuer/);
   });
 });
 

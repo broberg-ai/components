@@ -55,7 +55,7 @@ const r = await sendClip({ destination: trail, target, clip, auth });
 - **401** → one forced session refresh and a resend; no session or 401 again → `login_required`. **5xx / network** → backoff (500 ms, doubling, 4 attempts) → `unavailable`. Never confused. **Other 4xx** → `refused`, not retried.
 - A destination with `requiresConsent` gets nothing until `consented: true` for that anchor.
 
-## `@broberg/web-clipper/auth` — Broberg ID login from the extension (F099.5)
+## `@broberg/web-clipper/auth` — BrobergID login from the extension (F099.5)
 
 ```ts
 import { createBidAuth } from "@broberg/web-clipper/auth";
@@ -83,7 +83,7 @@ import { defineConfig } from "vite";
 import { defineClipperManifest } from "@broberg/web-clipper/extension";
 import { clipperViteConfig } from "@broberg/web-clipper/vite";
 export default defineConfig(clipperViteConfig({
-  manifest: defineClipperManifest({ name: "Trail Web Clipper", version: "0.3.0", apiHosts: ["https://app.trailmem.com/*"], geckoId: "trail-clipper@broberg.ai" }),
+  manifest: defineClipperManifest({ name: "Trail Web Clipper", version: "0.3.0", apiHosts: ["https://app.trailmem.com/*"], bidIssuer: "https://id.broberg.ai", geckoId: "trail-clipper@broberg.ai" }),
 }));
 
 // src/content.ts — import ONLY /content and your extractors here
@@ -100,7 +100,7 @@ render(<ClipperPopup title="Trail" auth={createBidAuth({ issuer, clientId: "trai
   destination={trail} getClip={() => clipActiveTab(CONTENT_SCRIPT_PATH)} storage={extensionStorage()} />, root);
 ```
 
-- **Permissions:** `activeTab`, `scripting`, `identity`, `storage` — and `apiHosts` for your backend only. No page hosts: the content script is injected on click, never declared.
+- **Permissions:** `activeTab`, `scripting`, `identity`, `storage`, your `apiHosts` (backend only) and BrobergID's origin from `bidIssuer` (0.3.0, required — its token endpoint sends no CORS headers, so login fails without it). No page hosts: the content script is injected on click, never declared.
 - **The content script must stand alone.** It runs as a classic script, so it cannot `import`; the build fails (naming the shared chunk) if it shares a module with the popup.
 - **Your own fields** (0.2.0, F099.8): `ClipperPopup({ fields: [{ id: "tags", label: "Emneord", placeholder: "kommasepareret" }] })` — a text input per field (`clipper-field-<id>`); the values reach your `send()` as `ctx.fields` (`{ tags: "…" }`). Never stored: a new popup starts empty. Without `fields`, `ctx.fields` is absent.
 - **The popup** (Preact, `@broberg/theme` tokens, no native controls): log in, pick a target (custom listbox, keyboard included, remembered per destination), clip, and a status line that tells «log ind igen», «kunne ikke nå frem» and «afvist» apart. Every interactive element has a `clipper-*` data-testid.
