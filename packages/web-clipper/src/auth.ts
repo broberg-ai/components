@@ -111,7 +111,11 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
 
   async function call(url: string, init: RequestInit): Promise<Response> {
     try {
-      return await doFetch(url, init);
+      // NEVER the user's BrobergID cookie: the extension's host access lets fetch
+      // send it, and then BID's CSRF guard answers 403 «Invalid origin:
+      // chrome-extension://…» (measured by broberg-id in production 12/10).
+      // These calls authenticate with the code/token in the body, not a session.
+      return await doFetch(url, { ...init, credentials: "omit" });
     } catch (e) {
       throw new BidUnavailableError(`BID did not answer: ${e instanceof Error ? e.message : String(e)}`, null);
     }
@@ -125,8 +129,25 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
       body: new URLSearchParams(params).toString(),
     });
     if (res.status >= 500) throw new BidUnavailableError(`BID's token endpoint answered ${res.status}`, res.status);
+    if (!res.ok) {
+      // A refusal must be readable in production: when BID's body has no OAuth
+      // `error`, the HTTP status and a short, scrubbed excerpt say what happened.
+      const text = await res.text();
+      let body: Record<string, unknown> = {};
+      try {
+        body = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        // not JSON — the excerpt below carries it
+      }
+      // OAuth's `error`/`error_description` first; Better Auth's own `code`/`message` (e.g. INVALID_ORIGIN) next; then the raw excerpt.
+      const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+      // A `code` counts only if it looks like an error name — never echo a value that could be a credential.
+      const code = str(body.code) && /^[A-Z][A-Z0-9_]{1,63}$/.test(body.code as string) ? (body.code as string) : null;
+      const error = str(body.error) ?? code ?? `http_${res.status}`;
+      const description = str(body.error_description) ?? (str(body.message) ? excerpt(str(body.message)!) : str(body.error) || code ? "" : excerpt(text));
+      return { ok: false, status: res.status, error, description };
+    }
     const body = (await readJson(res)) as Record<string, unknown>;
-    if (!res.ok) return { ok: false, status: res.status, error: String(body.error ?? "unknown"), description: String(body.error_description ?? "") };
     if (typeof body.access_token !== "string") throw new BidUnavailableError("BID's token answer has no access_token", res.status);
     return { ok: true, body: body as unknown as TokenResponse };
   }
@@ -219,7 +240,7 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
       if (!code) throw new BidLoginError("no_code", "the login answer carries no code");
 
       const r = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirectUri, client_id: opts.clientId, code_verifier: verifier });
-      if (!r.ok) throw new BidLoginError("token_refused", `BID refused the code: ${r.error} ${r.description}`.trim());
+      if (!r.ok) throw new BidLoginError("token_refused", `BID refused the code (HTTP ${r.status}): ${r.error} ${r.description}`.trim());
       ticket = null;
       await save(r.body, null);
       const session = await this.session();
@@ -260,6 +281,16 @@ function subOf(idToken: string): string | null {
   }
 }
 
+/**
+ * At most 200 characters of a response body for an error message, with every
+ * long token-like run (a code, a token, a JWT) replaced by «…» — an error that
+ * lands in a log must not carry a credential.
+ */
+export function excerpt(text: string): string {
+  const scrubbed = text.replace(/[A-Za-z0-9._~+/=-]{20,}/g, "…").replace(/\s+/g, " ").trim();
+  return scrubbed.length > 200 ? `${scrubbed.slice(0, 200)}…` : scrubbed;
+}
+
 async function readJson(res: Response): Promise<unknown> {
   const text = await res.text();
   try {
@@ -282,7 +313,62 @@ function base64url(b: Uint8Array): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// ── login from the BACKGROUND (trail 12/10, Christian's first real login) ──
+// Chrome closes an extension's popup the moment it loses focus — and the login
+// window takes focus. A login run in the popup therefore dies between BID's
+// answer and storing the tokens: BID says yes, nothing is saved, the button
+// still says «Log ind». The background service worker does not die with the
+// popup, so it runs the login; the popup only asks, and then reads the session
+// from the storage both share.
+
+/** The message the popup sends and serveLogin answers. */
+export const LOGIN_MESSAGE = "broberg-web-clipper:login";
+
+/** The slice of chrome.runtime this uses — injectable for tests and Firefox's browser.runtime. */
+export interface RuntimeApi {
+  sendMessage(message: unknown): Promise<unknown>;
+  onMessage: { addListener(fn: (message: unknown, sender: unknown, sendResponse: (response: unknown) => void) => boolean | void): void };
+}
+
+type LoginReply = { ok: true } | { ok: false; kind: "login"; reason: BidLoginError["reason"]; message: string } | { ok: false; kind: "unavailable"; message: string; status: number | null };
+
+/** In the background script: run logins the popup asks for. Use the SAME createBidAuth options as the popup. */
+export function serveLogin(auth: BidAuth, runtime: RuntimeApi = chromeRuntime()): void {
+  runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if ((message as { type?: unknown } | null)?.type !== LOGIN_MESSAGE) return; // not ours — let other listeners answer
+    auth.login().then(
+      (): void => sendResponse({ ok: true } satisfies LoginReply),
+      (e: unknown): void => {
+        if (e instanceof BidLoginError) sendResponse({ ok: false, kind: "login", reason: e.reason, message: e.message } satisfies LoginReply);
+        else sendResponse({ ok: false, kind: "unavailable", message: e instanceof Error ? e.message : String(e), status: e instanceof BidUnavailableError ? e.status : null } satisfies LoginReply);
+      },
+    );
+    return true; // the answer comes later
+  });
+}
+
+/**
+ * In the popup: the same BidAuth, except login() is run by the background
+ * (serveLogin). If the popup is closed while the login window is open, the
+ * login still completes — the next popup finds the session in storage.
+ */
+export function popupAuth(auth: BidAuth, runtime: RuntimeApi = chromeRuntime()): BidAuth {
+  return {
+    async login() {
+      const r = (await runtime.sendMessage({ type: LOGIN_MESSAGE })) as LoginReply | undefined;
+      if (!r) throw new BidUnavailableError("the background did not answer the login — is serveLogin(auth) running in the background script?", null);
+      if (!r.ok) throw r.kind === "login" ? new BidLoginError(r.reason, r.message) : new BidUnavailableError(r.message, r.status);
+      const session = await auth.session();
+      if (!session) throw new BidLoginError("token_refused", "the background logged in, but no session is stored — do popup and background use the same clientId?");
+      return session;
+    },
+    session: (options) => auth.session(options),
+    logout: () => auth.logout(),
+  };
+}
+
 type ChromeLike = {
+  runtime?: RuntimeApi;
   identity?: IdentityApi & { launchWebAuthFlow(d: { url: string; interactive: boolean }): Promise<string | undefined> };
   storage?: { local: { get(k: string): Promise<Record<string, unknown>>; set(v: Record<string, unknown>): Promise<void>; remove(k: string): Promise<void> } };
 };
@@ -294,6 +380,11 @@ function chromeIdentity(): IdentityApi {
   const id = ext().identity;
   if (!id) throw new Error("web-clipper/auth: no chrome.identity — add the \"identity\" permission, or pass `identity`");
   return id;
+}
+function chromeRuntime(): RuntimeApi {
+  const rt = ext().runtime;
+  if (!rt) throw new Error("web-clipper/auth: no chrome.runtime — run this inside the extension, or pass `runtime`");
+  return rt;
 }
 /** chrome.storage.local (or Firefox's browser.storage.local) as a KeyValueStorage — for the popup's own memory too. */
 export function extensionStorage(): KeyValueStorage {

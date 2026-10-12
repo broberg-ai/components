@@ -6,11 +6,11 @@ import "@broberg/theme/css/palettes.css";
 import "@broberg/web-clipper/css/clipper.css";
 import { render } from "preact";
 import { initPalette, initTheme } from "@broberg/theme";
-import { createBidAuth, extensionStorage } from "@broberg/web-clipper/auth";
+import { createBidAuth, extensionStorage, popupAuth } from "@broberg/web-clipper/auth";
 import { clipActiveTab, CONTENT_SCRIPT_PATH } from "@broberg/web-clipper/extension";
 import { ClipperPopup } from "@broberg/web-clipper/ui";
 import { demoDestination } from "./demo";
-import { BID_ISSUER } from "./bid";
+import { BID_OPTIONS } from "./bid";
 
 initTheme();
 initPalette();
@@ -20,7 +20,7 @@ const storage = extensionStorage();
 render(
   <ClipperPopup
     title="Web Clipper Example"
-    auth={createBidAuth({ issuer: BID_ISSUER, clientId: "web-clipper-example" })}
+    auth={popupAuth(createBidAuth(BID_OPTIONS))}
     destination={demoDestination(storage)}
     getClip={() => clipActiveTab(CONTENT_SCRIPT_PATH)}
     storage={storage}

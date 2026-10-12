@@ -70,6 +70,17 @@ await auth.login();                          // chrome.identity.launchWebAuthFlo
 const r = await sendClip({ destination, target, clip, auth });   // auth IS the sender's session source
 ```
 
+- **Run the login in the BACKGROUND (0.4.0).** Chrome closes a popup the moment it loses focus, and the login window takes focus — a login started in the popup dies before the tokens are stored (BrobergID says yes, the button still says «Log ind»; measured in Trail 12/10). So:
+  ```ts
+  // background.ts
+  import { createBidAuth, serveLogin } from "@broberg/web-clipper/auth";
+  serveLogin(createBidAuth(bidOptions));
+  // popup.tsx — same bidOptions
+  import { createBidAuth, popupAuth } from "@broberg/web-clipper/auth";
+  <ClipperPopup auth={popupAuth(createBidAuth(bidOptions))} … />
+  ```
+  The popup asks, the background logs in and stores; closing the popup mid-login loses nothing, the next popup finds the session.
+- A refused code exchange says the HTTP status and a short excerpt of BrobergID's answer (codes and tokens scrubbed), e.g. `BID refused the code (HTTP 400): http_400 redirect_uri mismatch…`.
 - Needs the `identity` and `storage` permissions. Tokens live in `chrome.storage.local`, keyed by client id — two extensions never share a login.
 - `session()` renews ahead of expiry. **Refused refresh** (the user's BID login ended) → `null` and the login is cleared → show «log ind igen». **BID not answering** → `BidUnavailableError`, the login is kept, and the sender reports `unavailable`, not a logout.
 - With `audience`: the BID token is swapped for a 5-minute user ticket (BID F087.37), reused while valid, fetched anew when the sender forces a refresh after a 401. `session_ended` → `null`; a setup refusal (`no_rule_for_audience`, `scope_not_allowed`) → `BidTicketRefusedError` (the sender reports `refused`).
@@ -93,10 +104,10 @@ runContentScript([myChatReader]);
 // src/popup.tsx
 import "@broberg/theme/css/palettes.css";
 import "@broberg/web-clipper/css/clipper.css";
-import { createBidAuth, extensionStorage } from "@broberg/web-clipper/auth";
+import { createBidAuth, popupAuth, extensionStorage } from "@broberg/web-clipper/auth";
 import { clipActiveTab, CONTENT_SCRIPT_PATH } from "@broberg/web-clipper/extension";
 import { ClipperPopup } from "@broberg/web-clipper/ui";
-render(<ClipperPopup title="Trail" auth={createBidAuth({ issuer, clientId: "trail-clipper", audience, ticketScope })}
+render(<ClipperPopup title="Trail" auth={popupAuth(createBidAuth({ issuer, clientId: "trail-clipper", audience, ticketScope }))}
   destination={trail} getClip={() => clipActiveTab(CONTENT_SCRIPT_PATH)} storage={extensionStorage()} />, root);
 ```
 
