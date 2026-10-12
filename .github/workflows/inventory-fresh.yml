@@ -176,6 +176,9 @@ jobs:
       # Wired HERE rather than by adding apps/* to the workspace: this is the job
       # the Discovery deploy `needs`, so the gate sits on the thing it guards, and
       # the install topology of 39 published packages does not move for it.
+      - name: The Discovery login order is ticket → key → none (F038.26)
+        run: node scripts/test-discovery-auth.mjs
+
       - name: The Discovery app typechecks and its own tests pass
         working-directory: apps/discovery
         run: |
@@ -285,6 +288,9 @@ jobs:
     needs: [changes, deploy]
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    permissions: # F038.26 — the OIDC token BID exchanges for a Discovery ticket
+      id-token: write
+      contents: read
     env: # F038.22 — Discovery is behind login; CI reads it as a registered session
       DISCOVERY_SESSION: ${{ secrets.DISCOVERY_SESSION }}
       DISCOVERY_KEY: ${{ secrets.DISCOVERY_KEY }}
