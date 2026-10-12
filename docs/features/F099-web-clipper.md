@@ -52,6 +52,60 @@ Trail's and Jam's own destinations, data models and server-side logic; compile-a
 2. Login via BID works in both.
 3. The fingerprint engine has tests for: only-new, resend without duplicates, chain integrity, branching.
 
+## Contract (F099.1 — draft v1, 12/10; for trail and jam to confirm)
+
+```ts
+// ── units and clips ──────────────────────────────────────────────────────────
+interface Unit {
+  kind: string;              // "page" | "turn" | "artifact" | a consumer's own
+  role?: string;             // turns: "user" | "assistant"
+  content: string;           // markdown — the ONLY field (with kind/role/position) in the fingerprint
+  position: number;          // 0..n-1 in clip order
+  parent?: number;           // an artifact/canvas unit points at the turn it belongs to (jam 4)
+  html?: string;             // formatted snapshot beside the markdown (jam 1) — not fingerprinted
+  blocks?: Block[];          // code blocks and tables kept structured (jam 2) — not fingerprinted
+  assets?: Asset[];          // images as references (jam 3)
+  links?: string[];          // (jam 5)
+}
+type Block = { type: "code"; lang?: string; text: string } | { type: "table"; head: string[]; rows: string[][] };
+interface Asset { type: "image" | "file"; url: string; alt?: string }
+interface Clip {
+  url: string; title: string;
+  anchor?: string;           // conversation id from the URL (jam); absent for a plain page
+  shareUrl?: string;         // anchor-level reference (jam 6)
+  units: Unit[];
+}
+
+// ── extraction (plug-in) ─────────────────────────────────────────────────────
+interface Extractor { id: string; matches(url: URL): boolean; extract(doc: Document, url: URL): Promise<Clip> }
+// base ships articleExtractor (Trail's Readability + turndown, lifted unchanged); consumers register their own first
+
+// ── auth (Broberg ID, OAuth 2.1 + PKCE from the extension) ───────────────────
+interface Session { accessToken: string; sub: string; expiresAt: number }
+// createBidAuth({ issuer, clientId, scopes }) → { login(), session(): Promise<Session | null>, logout() }
+// refresh via offline_access; a refused refresh (user logged out of BID) → session() returns null → the UI shows «log ind igen»
+// one BID client per extension (trail-clipper, jam-clipper); redirect https://<fixed-id>.chromiumapp.org/ (+ Firefox's allizom redirect)
+// receivers verify with @broberg/sso introspectToken(token, { requireClientId }) — BID user tokens carry no per-app audience (broberg-id #2972)
+
+// ── destinations (plug-in) ───────────────────────────────────────────────────
+interface Target { id: string; label: string; group?: string }        // trail a): tenant × brain
+interface Destination {
+  id: string; label: string;
+  appendOnly?: boolean;      // default false: the whole clip every time (Trail: one source per URL)
+  requiresConsent?: boolean; // jam 7: recording switched on PER ANCHOR before anything is sent
+  targets(session: Session): Promise<Target[]>;                         // the base shows the picker and remembers the choice
+  lastSeen?(anchor: string, target: Target, session: Session): Promise<string[]>;  // chain fps already held (appendOnly only)
+  send(units: Unit[], ctx: { idempotencyKeys: string[]; target: Target; session: Session; clip: Clip;
+                            branch?: { forkAt: number; parentChainFp: string } }): Promise<void>;   // trail b)
+  uploadAsset?(asset: Asset, ctx: { target: Target; session: Session }): Promise<{ url: string }>; // jam 3, EU storage is the destination's
+}
+// the base owns: diff (core), retry with backoff on network/5xx, give up with a named error on 4xx, consent gate, target memory
+```
+
+**trail c) (token per audience)** is replaced by introspection: BID cannot put a per-app audience on a user token today, so the receiver requires `client_id = <its clipper>` via `introspectToken` (@broberg/sso 0.17.0). If BID later adds resource scopes, `createBidAuth` gets an `audience` option without breaking this contract.
+
+**UI:** Preact + Tailwind v4 + @broberg/theme, no shadcn (owner decision D-7598d1).
+
 ## Saved 12/10 (Christian: «Gem de 4 spørgsmål straks»)
 
 ### Jam's four reuse questions (jam #2965) — measured against Discovery 12/10
