@@ -113,6 +113,9 @@ export function createLivesync(options: LivesyncOptions = {}): Livesync {
     if (p) return p;
     p = (async () => {
       await lastStore.get(docId);
+      // That store failed, so the unload put its room back: use it, never a stale load.
+      const kept = rooms.get(docId);
+      if (kept) return kept;
       const saved = await persistence.load(docId);
       const fresh = newRoom(docId);
       if (saved && saved.length) Y.applyUpdate(fresh.doc, saved, LOADED);

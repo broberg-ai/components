@@ -153,6 +153,34 @@ describe("F100.3 — a failing database never loses or fakes a document", () => 
     expect((await readBack(store, "fl2")).getMap("mindmap").get("v")).toBe("gem mig");
   });
 
+  it("someone reopening while the unload's store FAILS gets the unsaved edit, and it is stored later", async () => {
+    const store = memoryStore();
+    let down = true;
+    const flaky: Persistence = {
+      load: store.load,
+      async store(id, s) {
+        await tick(40);
+        if (down) throw new Error("db down");
+        return store.store(id, s);
+      },
+    };
+    const server = createLivesync({ insecureNoAuth: true, persistence: flaky, storeDebounceMs: 1000, unloadAfterIdleMs: 10, onError: () => {} });
+    const net = network(server);
+    const a = connect({ url: "ws://x/sync/race2", socket: net.factory });
+    await settle();
+    a.doc.getMap("mindmap").set("v", "ikke gemt endnu");
+    await settle(2);
+    a.destroy();
+    await tick(25); // unload started, its store will fail
+    const b = connect({ url: "ws://x/sync/race2", socket: net.factory });
+    await settle(20);
+    expect(b.doc.getMap("mindmap").get("v")).toBe("ikke gemt endnu");
+    down = false;
+    await server.flush();
+    expect((await readBack(store, "race2")).getMap("mindmap").get("v")).toBe("ikke gemt endnu");
+    b.destroy();
+  });
+
   it("a failed load closes the connection and sends no document (an empty one would overwrite the real one)", async () => {
     const errors: unknown[] = [];
     const server = createLivesync({
