@@ -178,7 +178,17 @@ export function ClipperPopup(p: ClipperPopupProps) {
   const enter = async (session: Session | null) => {
     if (!session) return setPhase({ kind: "logged_out" });
     setPhase({ kind: "ready" });
-    await loadTargets(session).catch((e: unknown) => setClip({ kind: "error", message: errorText(e) }));
+    try {
+      await loadTargets(session);
+    } catch (e) {
+      // The same rule as sending: a 401 is the login, refreshed once; anything else is an error to show.
+      if (e instanceof Error && (e as { status?: number }).status === 401) {
+        const fresh = await p.auth.session({ refresh: true }).catch(() => null);
+        if (fresh) return loadTargets(fresh).catch((e2: unknown) => setClip({ kind: "error", message: errorText(e2) }));
+        return setPhase({ kind: "logged_out", error: TEXT[p.lang ?? "da"].loginAgain });
+      }
+      setClip({ kind: "error", message: errorText(e) });
+    }
   };
 
   useEffect(() => {

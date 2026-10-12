@@ -90,6 +90,14 @@ describe("F099.6 — ClipperPopup", () => {
     expect(store.data.get("broberg-web-clipper:consent:trail:abc")).toBe(true);
   });
 
+  it("the target list answers 401 and the refresh fails → login button with «Log ind igen», not a raw error", async () => {
+    const d = { ...dest(), targets: async () => { throw new DestinationError(401); } };
+    const auth = { ...fakeAuth(S), session: async (o?: { refresh?: boolean }) => (o?.refresh ? null : S) };
+    render(<ClipperPopup title="Trail" auth={auth} destination={d} getClip={async () => page} storage={memory()} />);
+    await screen.findByTestId("clipper-login");
+    expect(screen.getByTestId("clipper-status").textContent).toBe("Log ind igen");
+  });
+
   it("every interactive element carries a data-testid", async () => {
     render(<ClipperPopup title="Trail" auth={fakeAuth(S)} destination={dest()} getClip={async () => page} storage={memory()} />);
     fireEvent.click(await screen.findByTestId("clipper-target-button"));
