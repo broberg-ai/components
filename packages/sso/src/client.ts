@@ -22,7 +22,7 @@
  * in two places and drift.
  */
 import { decodeProtectedHeader, jwtVerify, type JWTPayload } from "jose";
-import type { SsoConfig } from "./config.js";
+import { SsoConfigError, type SsoConfig } from "./config.js";
 import { createJwksCache, type JwksCache } from "./jwks.js";
 
 /* ── discovery ───────────────────────────────────────────────────────────── */
@@ -772,6 +772,11 @@ export function createSsoClient(
   // never holds a usable credential; an inactive answer is never cached.
   const introspectCache = new Map<string, { result: IntrospectedToken; until: number }>();
   async function introspectToken(token: string, options: IntrospectOptions): Promise<IntrospectedToken> {
+    // F084.160 — a missing secret is a SETUP fault that never goes away. Reported as
+    // "BID unavailable" (0.17.0) it sent callers down the retry path forever.
+    if (!config.clientSecret) {
+      throw new SsoConfigError("introspection needs this app's client secret (SSO_CLIENT_SECRET) — a public client cannot introspect");
+    }
     const now = options.now ?? Date.now;
     const key = Array.from(
       new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))),
@@ -786,9 +791,6 @@ export function createSsoClient(
       endpoint = (await discovery()).introspection_endpoint ?? new URL("/oauth2/introspect", config.issuer).toString();
     } catch (e) {
       throw new SsoIntrospectionUnavailableError(`could not read ${config.issuer}'s discovery document: ${e instanceof Error ? e.message : String(e)}`, null);
-    }
-    if (!config.clientSecret) {
-      throw new SsoIntrospectionUnavailableError("introspection needs this app's client secret (SSO_CLIENT_SECRET) — a public client cannot introspect", null);
     }
     const basic = btoa(`${encodeURIComponent(config.clientId)}:${encodeURIComponent(config.clientSecret)}`);
     const ctrl = new AbortController();

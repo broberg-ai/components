@@ -8,6 +8,9 @@
  * Format: broberg-id docs/features/F087.1-identitetsmodel.md §3 (draft, 8/10).
  *   iss = the issuer · aud = the receiver's URL · scope = space-separated
  *   sub = client_id = the caller · principal_type = human | service | agent
+ *   F084.159 — a USER ticket (BID F087.37): an app swapped its user's BID login
+ *   for a ticket to one receiver. sub = the USER, client_id/azp = the app,
+ *   principal_type = user. The app is mandatory there and never read from sub.
  *   org · act {sub} only on delegation (RFC 8693) · exp/iat/jti
  *
  * This is deliberately NOT a method on createSsoClient: a service that only
@@ -26,8 +29,8 @@ import { ALLOWED_ALGS, SsoError } from "./client.js";
 import { createJwksCache, JwksUnavailableError, type JwksCache } from "./jwks.js";
 import { createMemoryReplayStore, verifyDpopProof, type ReplayStore } from "./dpop.js";
 
-export type PrincipalType = "human" | "service" | "agent";
-const PRINCIPAL_TYPES: readonly PrincipalType[] = ["human", "service", "agent"];
+export type PrincipalType = "human" | "service" | "agent" | "user";
+const PRINCIPAL_TYPES: readonly PrincipalType[] = ["human", "service", "agent", "user"];
 
 /**
  * F084.156 — one link of an RFC 8693 delegation chain. `act` is the next link
@@ -46,10 +49,13 @@ export const MAX_ACT_DEPTH = 5;
 
 /** What a verified ticket tells the receiver — a small, typed principal, never the raw payload. */
 export interface TicketPrincipal {
-  /** Who is calling: the ticket's `sub` (a client id such as `svc-trail`). */
+  /** Who is calling: the ticket's `sub` — a client id such as `svc-trail`, or on a user ticket the USER's id. */
   principal: string;
   type: PrincipalType;
-  /** The client the ticket was issued to (`client_id`, falling back to `sub`). */
+  /**
+   * The client the ticket was issued to. Machine tickets: `client_id`, falling back to `sub`.
+   * User tickets: `client_id`, falling back to `azp` — never `sub`, which is the user.
+   */
   clientId: string;
   /** The organisation, when BID stated one. */
   org: string | null;
@@ -245,10 +251,19 @@ export function createTicketVerifier(options: TicketVerifierOptions): TicketVeri
       } else if (requireDpop) {
         throw new SsoError(cnfRaw !== undefined ? "ticket has a cnf without a string jkt — DPoP is required here" : "this receiver requires DPoP; the ticket is not bound (no cnf.jkt)");
       }
+      // F084.159 — on a user ticket sub is the USER. Falling back to it would turn a
+      // user id into an app id, so a receiver that requires clientId === "trail-clipper"
+      // could be satisfied by a user who happens to be called that.
+      const named = (v: unknown) => (typeof v === "string" && v ? v : null);
+      const clientId =
+        type === "user"
+          ? named(payload.client_id) ?? named(payload.azp)
+          : named(payload.client_id) ?? payload.sub;
+      if (clientId === null) throw new SsoError("a user ticket names no app (no client_id or azp)");
       return {
         principal: payload.sub,
         type: type as PrincipalType,
-        clientId: typeof payload.client_id === "string" && payload.client_id ? payload.client_id : payload.sub,
+        clientId,
         org: typeof payload.org === "string" && payload.org ? payload.org : null,
         act,
         version: ver,

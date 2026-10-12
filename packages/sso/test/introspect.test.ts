@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { loadSsoConfig } from "../src/config.js";
+import { loadSsoConfig, SsoConfigError } from "../src/config.js";
 import { createSsoClient, SsoIntrospectionUnavailableError, SsoTokenInactiveError } from "../src/client.js";
 
 // F084.158 — introspectToken (trail #2976). A receiver (Trail's admin server,
@@ -88,11 +88,18 @@ describe("F084.158 — introspectToken", () => {
     await expect(sso.introspectToken(TOKEN, opts)).rejects.toBeInstanceOf(SsoIntrospectionUnavailableError);
   });
 
-  test("a public client (no secret) cannot introspect — unavailable, not inactive", async () => {
+  test("F084.160 — a public client (no secret) is a SETUP error, not «BID is down»: no retry path, zero calls to BID", async () => {
     const { SSO_CLIENT_SECRET: _drop, ...pub } = ENV;
-    const { sso, bid } = client([{ body: ACTIVE }], pub as typeof ENV);
-    await expect(sso.introspectToken(TOKEN, opts)).rejects.toBeInstanceOf(SsoIntrospectionUnavailableError);
-    expect(bid.calls).toHaveLength(0);
+    // Count EVERY request, discovery included — fakeBid's own list skips discovery.
+    let requests = 0;
+    const bid = fakeBid([{ body: ACTIVE }]);
+    const counting = ((input: unknown, init?: RequestInit) => (requests++, bid.fetchImpl(input as string, init))) as typeof fetch;
+    const sso = createSsoClient(loadSsoConfig(pub as typeof ENV), { fetchImpl: counting, timeoutMs: 200 });
+    const err = await sso.introspectToken(TOKEN, opts).catch((e) => e);
+    expect(err).toBeInstanceOf(SsoConfigError);
+    expect(err).not.toBeInstanceOf(SsoIntrospectionUnavailableError);
+    expect(err).not.toBeInstanceOf(SsoTokenInactiveError);
+    expect(requests).toBe(0);
   });
 
   test("the token never appears in an error message", async () => {

@@ -237,7 +237,7 @@ try {
 
 - **Two failures, never confused.** A BID hiccup must not log a user out, and an expired login must not be retried as if BID were down.
 - **`requireClientId`** is the check that matters: BID user tokens carry no per-app audience today, so "issued to the clipper client" is what proves the call came from your clipper.
-- **Needs `SSO_CLIENT_SECRET`** — a public client cannot introspect (you get `SsoIntrospectionUnavailableError` without a request being sent). A wrong secret is reported as unavailable with "client id/secret was refused" — measured against id.broberg.ai.
+- **Needs `SSO_CLIENT_SECRET`** — a public client cannot introspect. Since 0.18.0 (F084.160) that is `SsoConfigError`, thrown before any request (0.17.0 called it `SsoIntrospectionUnavailableError`, which sent callers down the 503-and-retry path for a fault that never goes away). Answer 500 and fix the setup; never retry. A wrong secret is reported as unavailable with "client id/secret was refused" — measured against id.broberg.ai.
 - **Cache** (optional, `cacheMs`): an active answer is reused up to that long and never past the token's `exp`; an inactive answer is never cached. The token itself never appears in an error message.
 
 ## What it will never do
@@ -569,7 +569,7 @@ try {
 }
 ```
 
-- **Checked:** signature against BID's key set (same algorithm allowlist as ID tokens, EdDSA first), `iss`, `aud` = your audience, `exp`/`iat` with 30 s skew, a `jti`, a known `principal_type` (human | service | agent), every scope you ask for, and a lifetime no longer than 15 minutes (BID issues 5 min for services, 15 for agents).
+- **Checked:** signature against BID's key set (same algorithm allowlist as ID tokens, EdDSA first), `iss`, `aud` = your audience, `exp`/`iat` with 30 s skew, a `jti`, a known `principal_type` (human | service | agent | user), every scope you ask for, and a lifetime no longer than 15 minutes (BID issues 5 min for services, 15 for agents).
 - **Never accepted as a ticket:** an ID token or a logout token, even though BID signed both.
 - **BID briefly down:** a key already in the cache still verifies, with no network call. An unknown key while BID is down throws `JwksUnavailableError` — answer 503, do not reject the caller.
 - Not a login client: a service that only receives tickets needs no `client_id`, no redirect and no session.
@@ -579,6 +579,17 @@ try {
 - `act` is the **whole delegation chain** (RFC 8693): agent-b acting for agent-a acting for user-1 is `{ sub: "agent-a", act: { sub: "user-1" } }`. `act.sub` is the same as before. A chain deeper than 5 links, or a link without a string `sub`, is **rejected** — 0.14.x kept only the first link and read a malformed `act` as "no delegation", both in the direction where the caller looks like it acts for fewer people.
 - `version` is the ticket format (`ver`): 0 for a ticket from before BID set one, 1 today. A `ver` newer than this package understands is **rejected by name** ("upgrade @broberg/sso"), never read with today's rules.
 - `cnf` is `{ jkt }` for a DPoP-bound ticket, else `null`. Since 0.16.0 it is checked — see below.
+
+**Since 0.18.0 (F084.159, broberg-id-F087.37) — user tickets.** An app where a user is logged in with BID (a browser extension, say) swaps the user's access token for a ticket to ONE receiver. The receiver checks it with the same verifier:
+
+```ts
+const who = await tickets.verify(bearer, { scope: "trail:clip" });
+// { type: "user", principal: "<the user's id>", clientId: "trail-clipper", … }
+if (who.type !== "user" || who.clientId !== "trail-clipper") return c.text("forbidden", 403);
+```
+
+- `principal` is the **user**; `clientId` is the **app that swapped** (`client_id`, else `azp`). A user ticket that names neither is **rejected** — `clientId` is never read from `sub` on a user ticket, because that would let a user id stand in for an app id.
+- BID decides only that the login may be used HERE. What the user may do is the receiver's call.
 
 ## DPoP — a bound ticket works only for whoever holds the key (0.16.0, F084.157)
 
