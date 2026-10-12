@@ -1,16 +1,24 @@
 {
   "name": "@broberg/web-clipper",
   "version": "0.1.0",
-  "description": "The fleet's one web-clipper base (Trail Web Clipper, Jam Clipper). First piece: @broberg/web-clipper/core — the fingerprint engine: a fingerprint per unit (role + content + position), a chain fingerprint that includes the previous one, send-only-new, idempotent resend keys, and branches when an earlier unit changes (nothing is overwritten). No browser dependency.",
+  "description": "The fleet's one web-clipper base (Trail Web Clipper, Jam Clipper). First piece: @broberg/web-clipper/core \u2014 the fingerprint engine: a fingerprint per unit (role + content + position), a chain fingerprint that includes the previous one, send-only-new, idempotent resend keys, and branches when an earlier unit changes (nothing is overwritten). No browser dependency.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     "./core": {
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js",
       "require": "./dist/core.cjs"
+    },
+    "./extract": {
+      "types": "./dist/extract.d.ts",
+      "import": "./dist/extract.js",
+      "require": "./dist/extract.cjs"
     },
     "./package.json": "./package.json"
   },
@@ -22,9 +30,30 @@
   "devDependencies": {
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "@types/turndown": "^5.0.6",
+    "@types/jsdom": "^21.1.7",
+    "jsdom": "^25.0.1"
   },
-  "keywords": ["web-clipper", "clipper", "browser-extension", "fingerprint", "dedupe", "idempotent", "broberg"],
-  "repository": { "type": "git", "url": "git+https://github.com/broberg-ai/components.git", "directory": "packages/web-clipper" },
-  "publishConfig": { "access": "public" }
+  "keywords": [
+    "web-clipper",
+    "clipper",
+    "browser-extension",
+    "fingerprint",
+    "dedupe",
+    "idempotent",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/web-clipper"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "turndown": "^7.2.4"
+  }
 }
