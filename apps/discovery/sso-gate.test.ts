@@ -29,6 +29,8 @@ describe("F038.23 — BrobergID login on Discovery", () => {
   it("a BrobergID account NOT on the list is refused with 403 — an account alone is not access", async () => {
     const res = await app.request("/api/packages", { headers: { cookie: await cookieFor("someone-else") } });
     expect(res.status).toBe(403);
+    // The words the person reads — the owner's spelling, «BrobergID» (F084.162).
+    expect(await res.text()).toBe("Din BrobergID-konto har ikke adgang til Discovery. Bed components om adgang.");
   });
   it("a forged cookie (wrong secret) is no login at all", async () => {
     const forged = `bid_session=${await signSession({ sub: "owner-sub-1", exp: Math.floor(Date.now() / 1000) + 3600 }, "x".repeat(64))}`;
