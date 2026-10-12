@@ -45,7 +45,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/webpush** v0.5.0 — The fleet's storage-agnostic Web Push primitive. `npm i @broberg/webpush`
 - **@broberg/mcp** v0.8.0 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp`
 - **@broberg/secret-scan** v0.14.0 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan`
-- **@broberg/lens** v0.3.0 — A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem…. `npm i @broberg/lens`
+- **@broberg/lens** v0.3.2 — A headless POST /api/lens-session mint endpoint (+ thin Next.js / Hono adapters) that issues a short-lived, read-only Playwright session so Cardmem…. `npm i @broberg/lens`
 
 ### L1 — Identity (who the user is)
 - **@broberg/auth** v0.6.2 — Email+password, magic-link, six social providers, passkeys and 2FA by authenticator app. `npm i @broberg/auth`
@@ -72,7 +72,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/app-shell** v0.22.2 — The fleet's app shell for Stack B (Preact; React later): a collapsible sidebar from data (groups/items/footer, active item from currentPath, state …. `npm i @broberg/app-shell`
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
 - **@broberg/lens-engine** v0.10.0 — The shared Playwright capture + flow engine for the cardmem-lens fleet. `npm i @broberg/lens-engine`
-- **@broberg/lens-client** v0.1.0 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
+- **@broberg/lens-client** v0.1.2 — Thin, typed client for the HOSTED Lens (lens.cardmem.com). `npm i @broberg/lens-client`
 - **@broberg/webmcp** v0.1.0 — WebMCP for the fleet (epic F098): letting a customer's own AI find and use a site's booking, shop or order tools. `npm i @broberg/webmcp`
 - **@broberg/bodymap** v0.12.0 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.4.1 — The fleet's one Stripe chokepoint, and the one place that knows where Stripe MOVED a field to (invoice.subscription is gone, so is the period). `npm i @broberg/stripe`
