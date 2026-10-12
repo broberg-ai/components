@@ -52,7 +52,7 @@ Trail's and Jam's own destinations, data models and server-side logic; compile-a
 2. Login via BID works in both.
 3. The fingerprint engine has tests for: only-new, resend without duplicates, chain integrity, branching.
 
-## Contract (F099.1 — v1 LOCKED 12/10; confirmed by trail #2984 and jam #2983)
+## Contract (F099.1 — v1 LOCKED 12/10; confirmed by trail #2984 and jam #2983 · v1.1 additive: user tickets, trail #2996)
 
 ```ts
 // ── units and clips ──────────────────────────────────────────────────────────
@@ -84,10 +84,14 @@ interface Extractor { id: string; matches(url: URL): boolean; extract(doc: Docum
 
 // ── auth (Broberg ID, OAuth 2.1 + PKCE from the extension) ───────────────────
 interface Session { accessToken: string; sub: string; expiresAt: number }
-// createBidAuth({ issuer, clientId, scopes }) → { login(), session(): Promise<Session | null>, logout() }
+// createBidAuth({ issuer, clientId, scopes, audience?, ticketScope? }) → { login(), session(): Promise<Session | null>, logout() }
+// v1.1 (trail #2996, 12/10): with `audience`, session() swaps the BID access token for a USER TICKET to that one
+// receiver (BID F087.37 token exchange; 5 min) and Session.accessToken IS the ticket, not the BID token.
+// Trail: audience https://app.trailmem.com, ticketScope trail:clip. A fresh ticket is fetched before each send;
+// a 401 follows the locked rule — fetch a new ticket ONCE, else «log ind igen». BID's session_ended → session() null.
 // refresh via offline_access; a refused refresh (user logged out of BID) → session() returns null → the UI shows «log ind igen»
 // one BID client per extension (trail-clipper, jam-clipper); redirect https://<fixed-id>.chromiumapp.org/ (+ Firefox's allizom redirect)
-// receivers verify with @broberg/sso introspectToken(token, { requireClientId }) — BID user tokens carry no per-app audience (broberg-id #2972)
+// receivers verify the ticket with @broberg/sso createTicketVerifier (0.18.0+): aud = their own URL, scope, type "user", clientId = their clipper
 
 // ── destinations (plug-in) ───────────────────────────────────────────────────
 interface Target { id: string; label: string; group?: string }        // trail a): tenant × brain
@@ -114,7 +118,7 @@ interface Destination {
 - The chain fp includes the PREVIOUS unit's chain fp, not only its identity (jam #2983) — `chain()` in `packages/web-clipper/src/core.ts` already does this (F099.2).
 - Trail does not use `idempotencyKeys`: a resent page is updated in place on `clip.url` (sourceUrl), so retry is safe. The field stays for Jam. Trail's `send()` reads only `clip.url` and `clip.title` (trail #2984).
 
-**trail c) (token per audience)** is replaced by introspection: BID cannot put a per-app audience on a user token today, so the receiver requires `client_id = <its clipper>` via `introspectToken` (@broberg/sso 0.17.0). If BID later adds resource scopes, `createBidAuth` gets an `audience` option without breaking this contract.
+**trail c) (token per audience)** — v1 said introspection; **superseded by v1.1 (12/10):** BID answers introspection only to the client the token was issued to (broberg-id #38659, via trail #2996), so a receiver cannot introspect a clipper's token. BID F087.37 user tickets give exactly the per-receiver audience trail asked for, and `createBidAuth` gains the `audience` option v1 foresaw — additive, nothing else in the contract moves. `introspectToken` stays in @broberg/sso for a client checking its OWN tokens.
 
 **UI:** Preact + Tailwind v4 + @broberg/theme, no shadcn (owner decision D-7598d1).
 
