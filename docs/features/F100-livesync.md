@@ -95,6 +95,8 @@ connect({ url, docId, getToken: () => Promise<string>, offline?: boolean })
 - `createTicketVerifier` accepting user tickets (BID F087.37; broberg-id asked components 12/10, #2988) — only if the consumer authenticates with tickets rather than access tokens.
 
 ## Rollout
+**Name and release pipeline are ready (12/10):** `@broberg/livesync` 0.0.1 is on npm as an empty placeholder (owner's OTP), Trusted Publisher is set up by Christian, and `publish.yml` has the `livesync-v*` job. The job runs `typecheck`, `build` and `test` in `packages/livesync` — those scripts arrive with F100.1, and no tag is pushed before then. 0.1.0 is the first usable version.
+
 Single package, versioned. 0.x until the first consumer runs it in production. The server runs inside the consumer's own app on Fly `arn`, so there is nothing fleet-wide to roll back — a consumer pins the previous version.
 
 ## Effort estimate
