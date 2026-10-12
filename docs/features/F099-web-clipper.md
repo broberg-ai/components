@@ -52,7 +52,7 @@ Trail's and Jam's own destinations, data models and server-side logic; compile-a
 2. Login via BID works in both.
 3. The fingerprint engine has tests for: only-new, resend without duplicates, chain integrity, branching.
 
-## Contract (F099.1 — draft v1, 12/10; for trail and jam to confirm)
+## Contract (F099.1 — v1 LOCKED 12/10; confirmed by trail #2984 and jam #2983)
 
 ```ts
 // ── units and clips ──────────────────────────────────────────────────────────
@@ -79,6 +79,8 @@ interface Clip {
 // ── extraction (plug-in) ─────────────────────────────────────────────────────
 interface Extractor { id: string; matches(url: URL): boolean; extract(doc: Document, url: URL): Promise<Clip> }
 // base ships articleExtractor (Trail's Readability + turndown, lifted unchanged); consumers register their own first
+// DETERMINISTIC (jam #2983): the same DOM must give byte-identical markdown (whitespace normalised),
+// or a plain reload of a chat becomes a false branch. Every extractor, base or consumer, is held to this.
 
 // ── auth (Broberg ID, OAuth 2.1 + PKCE from the extension) ───────────────────
 interface Session { accessToken: string; sub: string; expiresAt: number }
@@ -99,8 +101,17 @@ interface Destination {
                             branch?: { forkAt: number; parentChainFp: string } }): Promise<void>;   // trail b)
   uploadAsset?(asset: Asset, ctx: { target: Target; session: Session }): Promise<{ url: string }>; // jam 3, EU storage is the destination's
 }
-// the base owns: diff (core), retry with backoff on network/5xx, give up with a named error on 4xx, consent gate, target memory
+// the base owns: diff (core), retry, error states, consent gate, target memory. Response rules (trail #2984):
+//   401        → the login ended or the token is not this clipper's: call session() ONCE (refresh) and resend;
+//                session() null, or 401 again → the UI shows «log ind igen» — NOT a generic error
+//   503 / 5xx  → the receiver (or BID behind it) is down: retry with backoff — NEVER treated as a login failure
+//   other 4xx  → give up with a named error
+//   network    → retry with backoff
 ```
+
+**Confirmed details:**
+- The chain fp includes the PREVIOUS unit's chain fp, not only its identity (jam #2983) — `chain()` in `packages/web-clipper/src/core.ts` already does this (F099.2).
+- Trail does not use `idempotencyKeys`: a resent page is updated in place on `clip.url` (sourceUrl), so retry is safe. The field stays for Jam. Trail's `send()` reads only `clip.url` and `clip.title` (trail #2984).
 
 **trail c) (token per audience)** is replaced by introspection: BID cannot put a per-app audience on a user token today, so the receiver requires `client_id = <its clipper>` via `introspectToken` (@broberg/sso 0.17.0). If BID later adds resource scopes, `createBidAuth` gets an `audience` option without breaking this contract.
 
