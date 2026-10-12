@@ -57,7 +57,6 @@
         "@broberg/apikey",
         "@broberg/event-log",
         "@broberg/http",
-        "@broberg/lens-engine",
         "@broberg/mail-identity",
         "@broberg/seti-client",
         "@broberg/theme"
@@ -66,7 +65,6 @@
         "@broberg/apikey": 40,
         "@broberg/event-log": 6,
         "@broberg/http": 2,
-        "@broberg/lens-engine": 147,
         "@broberg/mail-identity": 35,
         "@broberg/seti-client": 18,
         "@broberg/theme": 83

@@ -10,11 +10,15 @@
 import { readFileSync } from "node:fs";
 import { DATA } from "./inventory-data.mjs";
 import { fetchLatestReleases } from "./npm-latest.mjs";
+import { discoveryAuth } from "./discovery-auth.mjs";
 // F038.22 — Discovery is behind login. CI reads it as a registered session:
-// DISCOVERY_SESSION + DISCOVERY_KEY (GitHub secrets). Absent → no headers.
-const DISCOVERY_AUTH = process.env.DISCOVERY_SESSION && process.env.DISCOVERY_KEY
-  ? { headers: { "x-discovery-session": process.env.DISCOVERY_SESSION, "x-enroll-key": process.env.DISCOVERY_KEY } }
-  : {};
+// F038.26: a Broberg ID ticket (GitHub OIDC, no stored key) — see discovery-auth.mjs.
+const auth = await discoveryAuth({
+  env: process.env,
+  getTicket: async () => (await import("../packages/sso/src/fetch-ticket.ts")).fetchTicket({ audience: "discovery", scope: "discovery:read" }),
+});
+console.log(`  door: ${auth.door}${auth.note ? ` (${auth.note})` : ""}`);
+const DISCOVERY_AUTH = auth.init;
 
 
 const target = process.argv[2] ?? new URL("../docs/inventory.html", import.meta.url);

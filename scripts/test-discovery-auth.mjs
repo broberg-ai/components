@@ -16,11 +16,10 @@ const refused = async () => { throw new Error("no rule for this workflow"); };
 
 check("ticket when the job has an id-token", await discoveryAuth({ env: { ...OIDC, ...KEYS }, getTicket: ok }),
   { door: "ticket", init: { headers: { authorization: "Bearer T" } } });
-check("key when the ticket is refused, and says why", await discoveryAuth({ env: { ...OIDC, ...KEYS }, getTicket: refused }),
-  { door: "key", init: { headers: { "x-discovery-session": "components", "x-enroll-key": "k" } }, note: "ticket refused, falling back: no rule for this workflow" });
-check("key when there is no id-token at all (the ticket is never tried)", await discoveryAuth({ env: { ...KEYS }, getTicket: ok }),
-  { door: "key", init: { headers: { "x-discovery-session": "components", "x-enroll-key": "k" } } });
-check("none when neither", await discoveryAuth({ env: {}, getTicket: ok }), { door: "none", init: {} });
+check("a refused ticket is NOT papered over with a key — none, and says why", await discoveryAuth({ env: { ...OIDC, ...KEYS }, getTicket: refused }),
+  { door: "none", init: {}, note: "ticket refused: no rule for this workflow" });
+check("no id-token: none, even with keys in the env", await discoveryAuth({ env: { ...KEYS }, getTicket: ok }),
+  { door: "none", init: {}, note: "no OIDC token in this job" });
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log("\nall passed");

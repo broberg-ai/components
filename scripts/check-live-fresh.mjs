@@ -25,9 +25,7 @@
 import { DATA } from "./inventory-data.mjs";
 import { discoveryAuth } from "./discovery-auth.mjs";
 // F038.22 — Discovery is behind login. F038.26: CI logs in with a Broberg ID
-// ticket (GitHub OIDC, no stored key); the DISCOVERY_SESSION/DISCOVERY_KEY secrets
-// are only a fallback until the ticket door is proven on main. The log names the
-// door, never the credential.
+// ticket (GitHub OIDC, no stored key). The log names the door, never the credential.
 const auth = await discoveryAuth({
   env: process.env,
   getTicket: async () => (await import("../packages/sso/src/fetch-ticket.ts")).fetchTicket({ audience: "discovery", scope: "discovery:read" }),
