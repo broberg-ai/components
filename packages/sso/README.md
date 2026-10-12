@@ -219,6 +219,27 @@ the only thing that throws `SsoConfigError` on a missing or blank value, naming
 the variable. Hand-build the object from your own env schema and a blank string
 is a valid, empty config that fails much later and somewhere else.
 
+## Checking a token someone else holds — `introspectToken` (0.17.0, F084.158)
+
+When a client app (a browser extension, a native app) logs in with BID and calls YOUR backend with its access token, your backend asks BID whether that token is good — RFC 7662 introspection, with your app's own client id and secret:
+
+```ts
+const sso = createSsoClient(loadSsoConfig());
+try {
+  const t = await sso.introspectToken(bearer, { requireClientId: "trail-clipper", cacheMs: 30_000 });
+  // t = { active: true, sub, clientId, scope, exp } — serve t.sub's own data only
+} catch (e) {
+  if (e instanceof SsoTokenInactiveError) return c.json({ error: "login_required" }, 401);          // inactive, wrong client, expired
+  if (e instanceof SsoIntrospectionUnavailableError) return c.json({ error: "bid_unavailable" }, 503); // BID down / timeout / our credentials refused
+  throw e;
+}
+```
+
+- **Two failures, never confused.** A BID hiccup must not log a user out, and an expired login must not be retried as if BID were down.
+- **`requireClientId`** is the check that matters: BID user tokens carry no per-app audience today, so "issued to the clipper client" is what proves the call came from your clipper.
+- **Needs `SSO_CLIENT_SECRET`** — a public client cannot introspect (you get `SsoIntrospectionUnavailableError` without a request being sent). A wrong secret is reported as unavailable with "client id/secret was refused" — measured against id.broberg.ai.
+- **Cache** (optional, `cacheMs`): an active answer is reused up to that long and never past the token's `exp`; an inactive answer is never cached. The token itself never appears in an error message.
+
 ## What it will never do
 
 No passwords. No passkey registration. No social-provider keys. No email

@@ -36,6 +36,8 @@ export interface Discovery {
   jwks_uri: string;
   userinfo_endpoint?: string;
   end_session_endpoint?: string;
+  /** RFC 7662 — where a resource server checks an access token (F084.158). */
+  introspection_endpoint?: string;
 }
 
 export class SsoError extends Error {
@@ -92,6 +94,52 @@ export class SsoInsufficientScopeError extends SsoAppApiError {
 }
 
 /** F095.2 — an avatar refused BEFORE it was sent: too big, or not PNG/JPEG/WebP. */
+/**
+ * F084.158 — the token is not usable HERE: inactive, expired, or issued to a
+ * different client than the one required. Answer 401 — the user has to log in
+ * again. Never thrown because BID could not be asked.
+ */
+export class SsoTokenInactiveError extends SsoError {
+  constructor(
+    message: string,
+    /** "inactive" | "wrong_client" | "expired" */
+    public readonly reason: "inactive" | "wrong_client" | "expired",
+  ) {
+    super(message);
+    this.name = "SsoTokenInactiveError";
+  }
+}
+
+/**
+ * F084.158 — BID could not answer whether the token is active (network, timeout,
+ * 5xx, an unreadable body, or our own client credentials refused). Answer 503 —
+ * a BID hiccup must never look like an expired login.
+ */
+export class SsoIntrospectionUnavailableError extends SsoError {
+  constructor(message: string, public readonly status: number | null) {
+    super(message);
+    this.name = "SsoIntrospectionUnavailableError";
+  }
+}
+
+export interface IntrospectOptions {
+  /** The client the token must have been issued to (e.g. "trail-clipper"). */
+  requireClientId: string;
+  /** Reuse an ACTIVE answer for up to this long, never past the token's exp. Off by default. */
+  cacheMs?: number;
+  /** For tests. */
+  now?: () => number;
+}
+
+export interface IntrospectedToken {
+  active: true;
+  sub: string;
+  clientId: string;
+  scope: string;
+  /** Seconds since epoch. */
+  exp: number;
+}
+
 export class SsoAvatarRejectedError extends SsoError {
   constructor(message: string, readonly reason: "too_large" | "unsupported_type") {
     super(message);
@@ -251,6 +299,13 @@ export interface SsoClient {
   uploadAvatar(accessToken: string, bytes: Uint8Array | ArrayBuffer, contentType: string): Promise<BidProfile>;
   /** F095.2 — remove the user's picture (scope `profile:write`). */
   removeAvatar(accessToken: string): Promise<BidProfile>;
+  /**
+   * F084.158 — ask BID (RFC 7662) whether an access token is active, with THIS
+   * app's client credentials, and require it was issued to `requireClientId`.
+   * Throws SsoTokenInactiveError (→ 401) or SsoIntrospectionUnavailableError
+   * (→ 503). The token never appears in an error message.
+   */
+  introspectToken(token: string, options: IntrospectOptions): Promise<IntrospectedToken>;
   /** Exposed for tests and for a health check; not needed in normal use. */
   readonly jwks: JwksCache;
 }
@@ -713,8 +768,84 @@ export function createSsoClient(
     return { claims: { ...info, ...claims, sub: claims.sub }, unverifiedClaims };
   }
 
+  // F084.158 — introspection. The cache key is a hash of the token, so the map
+  // never holds a usable credential; an inactive answer is never cached.
+  const introspectCache = new Map<string, { result: IntrospectedToken; until: number }>();
+  async function introspectToken(token: string, options: IntrospectOptions): Promise<IntrospectedToken> {
+    const now = options.now ?? Date.now;
+    const key = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))),
+      (b) => b.toString(16).padStart(2, "0"),
+    ).join("");
+    const hit = introspectCache.get(key);
+    if (hit && now() < hit.until) return hit.result;
+    introspectCache.delete(key);
+
+    let endpoint: string;
+    try {
+      endpoint = (await discovery()).introspection_endpoint ?? new URL("/oauth2/introspect", config.issuer).toString();
+    } catch (e) {
+      throw new SsoIntrospectionUnavailableError(`could not read ${config.issuer}'s discovery document: ${e instanceof Error ? e.message : String(e)}`, null);
+    }
+    if (!config.clientSecret) {
+      throw new SsoIntrospectionUnavailableError("introspection needs this app's client secret (SSO_CLIENT_SECRET) — a public client cannot introspect", null);
+    }
+    const basic = btoa(`${encodeURIComponent(config.clientId)}:${encodeURIComponent(config.clientSecret)}`);
+    const ctrl = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new SsoIntrospectionUnavailableError(`${endpoint} did not answer within ${timeoutMs} ms`, null));
+        ctrl.abort();
+      }, timeoutMs);
+    });
+    let body: Record<string, unknown>;
+    try {
+      const res = await Promise.race([
+        fetchImpl(endpoint, {
+          method: "POST",
+          headers: { authorization: `Basic ${basic}`, "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+          body: new URLSearchParams({ token, token_type_hint: "access_token" }),
+          signal: ctrl.signal,
+        }),
+        timedOut,
+      ]);
+      if (!res.ok) {
+        // 401 here is OUR credentials being refused, not the token: that is a
+        // configuration fault the app must see, not a user to log out.
+        throw new SsoIntrospectionUnavailableError(
+          `${endpoint} answered ${res.status}${res.status === 401 ? " — this app's client id/secret was refused for introspection" : ""}`,
+          res.status,
+        );
+      }
+      const parsed = await Promise.race([res.json().catch(() => null), timedOut]);
+      if (!parsed || typeof parsed !== "object") throw new SsoIntrospectionUnavailableError(`${endpoint} answered ${res.status} with a body that is not a JSON object`, res.status);
+      body = parsed as Record<string, unknown>;
+    } catch (e) {
+      if (e instanceof SsoIntrospectionUnavailableError) throw e;
+      throw new SsoIntrospectionUnavailableError(`${endpoint} could not be reached: ${e instanceof Error ? e.message : String(e)}`, null);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (body.active !== true) throw new SsoTokenInactiveError("the token is not active at BID", "inactive");
+    const clientId = typeof body.client_id === "string" ? body.client_id : "";
+    if (clientId !== options.requireClientId) {
+      throw new SsoTokenInactiveError(`the token was issued to client «${clientId || "(none)"}», not «${options.requireClientId}»`, "wrong_client");
+    }
+    const exp = typeof body.exp === "number" ? body.exp : 0;
+    if (exp * 1000 <= now()) throw new SsoTokenInactiveError("the token has expired", "expired");
+    if (typeof body.sub !== "string" || body.sub === "") {
+      throw new SsoIntrospectionUnavailableError(`${endpoint} said active but named no subject`, 200);
+    }
+    const result: IntrospectedToken = { active: true, sub: body.sub, clientId, scope: typeof body.scope === "string" ? body.scope : "", exp };
+    if (options.cacheMs && options.cacheMs > 0) introspectCache.set(key, { result, until: Math.min(now() + options.cacheMs, exp * 1000) });
+    return result;
+  }
+
   return {
     discovery,
+    introspectToken,
     get jwks() {
       if (!jwksCache) throw new SsoError("the key cache is created on first verification");
       return jwksCache;
