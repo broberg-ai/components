@@ -149,3 +149,23 @@ describe("F100.1 — offline and back (owner 12/10: «ja offline»)", () => {
     b.destroy();
   });
 });
+
+describe("F100.1 — a broken client cannot take the server down", () => {
+  it("a malformed message closes THAT connection; the room and the other editors carry on", async () => {
+    const server = createLivesync();
+    let closed = 0;
+    const bad = server.connect("r", { send: () => {}, close: () => { closed++; } });
+    expect(() => bad.message(new Uint8Array([9, 1, 2, 3]))).not.toThrow();      // unknown type
+    expect(() => bad.message(new Uint8Array([0, 0, 255, 255, 255]))).not.toThrow(); // truncated sync
+    expect(closed).toBe(2);
+    const net = network(server);
+    const a = connect({ url: "ws://x/sync/r", socket: net.factory });
+    const b = connect({ url: "ws://x/sync/r", socket: net.factory });
+    await settle();
+    a.doc.getMap("mindmap").set("ok", 1);
+    await settle();
+    expect(b.doc.getMap("mindmap").get("ok")).toBe(1);
+    a.destroy();
+    b.destroy();
+  });
+});

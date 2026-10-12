@@ -81,7 +81,15 @@ export function createLivesync(): Livesync {
       if (states.length) safeSend(conn, encodeAwareness(r.awareness, states));
       return {
         message(data) {
-          const { reply } = handleMessage(data, r.doc, r.awareness, conn);
+          // A malformed or unknown message must not throw into the app's socket
+          // handler (one bad client would take the server down): drop that client.
+          let reply: Uint8Array | null;
+          try {
+            ({ reply } = handleMessage(data, r.doc, r.awareness, conn));
+          } catch {
+            conn.close();
+            return;
+          }
           if (reply) safeSend(conn, reply);
         },
         closed() {
