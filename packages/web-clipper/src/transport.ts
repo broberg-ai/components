@@ -105,7 +105,12 @@ export async function sendClip(opts: SendOptions): Promise<SendResult> {
 
   if (destination.requiresConsent && !opts.consented) return { state: "consent_required" };
 
-  let session = await auth.session();
+  let session: Session | null;
+  try {
+    session = await auth.session();
+  } catch (e) {
+    return sessionFailure(e, 0);
+  }
   if (!session) return { state: "login_required" };
 
   // What does the destination already hold? Only an appendOnly destination
@@ -150,7 +155,12 @@ export async function sendClip(opts: SendOptions): Promise<SendResult> {
         if (status === 401) {
           if (refreshed) return { kind: "stop", result: () => ({ state: "login_required" }) };
           refreshed = true;
-          const fresh = await auth.session({ refresh: true });
+          let fresh: Session | null;
+          try {
+            fresh = await auth.session({ refresh: true });
+          } catch (err) {
+            return { kind: "stop", result: (sent) => sessionFailure(err, sent) };
+          }
           if (!fresh) return { kind: "stop", result: () => ({ state: "login_required" }) };
           session = fresh;
           continue; // the refresh retry does not spend a backoff attempt
@@ -165,6 +175,19 @@ export async function sendClip(opts: SendOptions): Promise<SendResult> {
     }
     return { kind: "stop", result: (sent) => ({ state: "unavailable", status: last.status, message: last.message, sent }) };
   }
+}
+
+/**
+ * auth.session() threw. BID not answering is "unavailable" — retry later, never
+ * a logout. BID refusing the ticket for a setup reason (no rule for this
+ * receiver, scope not allowed) is "refused": retrying cannot fix it. Matched by
+ * name, not instanceof, so the check holds across separately bundled entries.
+ */
+function sessionFailure(e: unknown, sent: number): SendResult {
+  const message = e instanceof Error ? e.message : String(e);
+  if (e instanceof Error && e.name === "BidTicketRefusedError") return { state: "refused", status: 403, message };
+  const status = typeof (e as { status?: unknown })?.status === "number" ? (e as { status: number }).status : null;
+  return { state: "unavailable", status, message, sent };
 }
 
 /** The chain fingerprints of a clip, in order — what an appendOnly destination stores. */

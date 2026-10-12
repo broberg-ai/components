@@ -25,6 +25,11 @@
       "import": "./dist/transport.js",
       "require": "./dist/transport.cjs"
     },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "import": "./dist/auth.js",
+      "require": "./dist/auth.cjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

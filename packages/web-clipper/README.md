@@ -55,4 +55,24 @@ const r = await sendClip({ destination: trail, target, clip, auth });
 - **401** → one forced session refresh and a resend; no session or 401 again → `login_required`. **5xx / network** → backoff (500 ms, doubling, 4 attempts) → `unavailable`. Never confused. **Other 4xx** → `refused`, not retried.
 - A destination with `requiresConsent` gets nothing until `consented: true` for that anchor.
 
+## `@broberg/web-clipper/auth` — Broberg ID login from the extension (F099.5)
+
+```ts
+import { createBidAuth } from "@broberg/web-clipper/auth";
+
+const auth = createBidAuth({
+  issuer: "https://id.broberg.ai",
+  clientId: "trail-clipper",                 // this extension's PUBLIC BID client — no secret anywhere
+  audience: "https://app.trailmem.com",      // optional: session() then returns a user TICKET for that receiver
+  ticketScope: "trail:clip",
+});
+await auth.login();                          // chrome.identity.launchWebAuthFlow, PKCE (S256) + state
+const r = await sendClip({ destination, target, clip, auth });   // auth IS the sender's session source
+```
+
+- Needs the `identity` and `storage` permissions. Tokens live in `chrome.storage.local`, keyed by client id — two extensions never share a login.
+- `session()` renews ahead of expiry. **Refused refresh** (the user's BID login ended) → `null` and the login is cleared → show «log ind igen». **BID not answering** → `BidUnavailableError`, the login is kept, and the sender reports `unavailable`, not a logout.
+- With `audience`: the BID token is swapped for a 5-minute user ticket (BID F087.37), reused while valid, fetched anew when the sender forces a refresh after a 401. `session_ended` → `null`; a setup refusal (`no_rule_for_audience`, `scope_not_allowed`) → `BidTicketRefusedError` (the sender reports `refused`).
+- The redirect is `chrome.identity.getRedirectURL()` = `https://<extension-id>.chromiumapp.org/` — BID matches it character for character, so the extension needs a FIXED id (manifest `key`).
+
 Coming in the next stories: the extraction and destination plug-in points, Broberg ID login from the extension, the extension skeleton and UI (Preact + Tailwind v4 + @broberg/theme, per D-7598d1).
