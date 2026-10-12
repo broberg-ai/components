@@ -6,8 +6,8 @@
 
 1. **Who is first, and what do they edit?** jam asked (#2965 b) for "a Yjs/CRDT sync primitive" without saying what is edited (a shared transcript? notes on a clip? a live session doc?). cms has F71 v2 ("Google Docs-style", Yjs) parked as "Large, aspirational". The first consumer's document shape decides story F100.3. Asked jam 12/10.
 2. **Text only, or structured documents?** Yjs carries both (Y.Text, Y.Map, Y.Array, Y.XmlFragment for rich text). A rich-text editor binding (TipTap/ProseMirror, CodeMirror) is a separate story per editor — which editor does the first consumer use?
-3. **Offline editing?** IndexedDB persistence on the client (y-indexeddb) makes edits survive a closed tab and merge later. Cheap to add, but it means data sits in the browser — does the first consumer want that?
-4. **One shared sync server, or one per app?** Recommendation: one package, each app runs its own server (its data stays in its own database). A single fleet-wide sync service would be one more thing that holds everyone's data. Owner call.
+3. **ANSWERED (Christian 12/10: «ja offline»): offline editing is in.** Edits are kept in the browser (IndexedDB) and merge on reconnect. Was: IndexedDB persistence on the client (y-indexeddb) makes edits survive a closed tab and merge later. Cheap to add, but it means data sits in the browser — does the first consumer want that?
+4. **ANSWERED (Christian 12/10: «egen server pr. app»): one server per app**, each app's data in its own database; no fleet-wide sync service. Was: Recommendation: one package, each app runs its own server (its data stays in its own database). A single fleet-wide sync service would be one more thing that holds everyone's data. Owner call.
 
 ### jam's answers (#2989, 12/10)
 - **(1)** The main shared document is **the mind map per Jam** (nodes, edges, types idea/question/decision/rejected/risk/source, a provenance link to a turn, collapsing) plus the Jam's title and notes. **Transcript turns are NEVER edited** (append-only, a change = a new branch) and do not go in Yjs. Possible 2nd client: cardmem, if Christian picks Yjs for Jam↔cardmem conflicts (his open question).
@@ -44,13 +44,13 @@ None for the package core (server + protocol). The presence UI (who is here, col
 ### In scope
 - `packages/livesync/` → `@broberg/livesync` with exports `./server`, `./client`, `./core`.
 - Server: WebSocket upgrade handler for Hono/Bun, one room per document id, Yjs sync + awareness protocol, auth hook (reject before the first sync message), persistence hook (`load(docId)` / `store(docId, update)`, debounced), idle-room unload.
-- Client: provider that connects, reconnects with backoff, exposes connection state (`connecting | synced | offline`) and awareness; optional IndexedDB offline store (open question 3).
+- Client: provider that connects, reconnects with backoff, exposes connection state (`connecting | synced | offline`) and awareness; IndexedDB offline store, ON for the first consumer (owner 12/10: offline is in).
 - Access per document: the auth hook returns `read | write | none` for (user, docId); a read-only user receives updates but the server drops their writes.
 - Tests: two simulated clients edit concurrently and converge; offline edits merge on reconnect; a token that fails auth gets no document; a read-only client cannot change the document (measured on the server copy).
 - One example app in `examples/livesync/` that Lens can drive with two browser contexts.
 
 ### Out of scope
-- Any hosted, fleet-wide sync service (open question 4 — default is each app runs its own).
+- Any hosted, fleet-wide sync service — rejected by the owner 12/10 (one server per app).
 - Consumer document models, storage tables and migrations (the consumer's).
 - Editor bindings beyond the first consumer's editor.
 - cms F71 v1 (locking) — cms's own card.
