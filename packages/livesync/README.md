@@ -26,7 +26,7 @@ ws.onmessage = (e) => h.message(new Uint8Array(e.data));
 ws.onclose = () => h.closed();
 ```
 
-**Login (F100.2):** the client's first message is its token (never in the URL, so never in an access log). Until your `authorize` answers, the connection receives nothing — not even what the document contains. Refused (or a check that throws) → one `DENIED` message, then close. `access: "read"` users receive every change; anything they would change is dropped on the server.
+**Login (F100.2):** the client's first message is its token (never in the URL, so never in an access log). Until your `authorize` answers, the connection receives nothing — not even what the document contains. Refused (or a check that throws) → one `DENIED` message, then close. `access: "read"` users receive every change; anything they would change is dropped on the server. **Access is decided when the connection opens:** a user logged out of BID keeps an already-open connection until it reconnects (the client reconnects on every network blip, and re-asks `getToken`). Close the socket yourself when you learn of a logout (e.g. from @broberg/sso's back-channel logout) to cut it at once.
 
 One room per document id. Every editor's changes merge into the room's copy and go out to everyone else. The standard Yjs sync + awareness messages, framed like y-websocket, so existing Yjs editor bindings work unchanged. Storage in your database (F100.3) and presence UI (F100.4) come next — until F100.3 the room lives in memory only.
 
