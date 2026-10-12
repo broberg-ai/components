@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 process.env.ENROLL_DB_URL = ":memory:";
 
 import { app } from "./server";
-import { getEnrollStore } from "./enroll";
+import { getEnrollStore, registerSession } from "./enroll";
 import { DATA, SESSION_ALIASES } from "../../scripts/inventory-data.mjs";
 import { createHash } from "node:crypto";
 
@@ -440,6 +440,24 @@ describe("auto-enrollment (F039) — registered sessions only (F038.21)", () => 
 
     // Resetting an unbound session is a safe no-op (0 rows) — never throws.
     expect(await store!.resetSessionKey("never-bound-session")).toBe(0);
+  });
+
+  it("F038.28 — registerSession: a new session can read; an already-bound one is refused and keeps its old key", async () => {
+    const sess = "f03828-new";
+    const k1 = "a".repeat(64);
+    const k2 = "b".repeat(64);
+    // Before: unregistered → 401 on a fleet read.
+    expect((await app.request(`/api/sessions/${sess}`, { headers: { "x-discovery-session": sess, "x-enroll-key": k1 } })).status).toBe(401);
+    expect(await registerSession(sess, k1)).toEqual({ ok: true });
+    expect((await app.request(`/api/sessions/${sess}`, { headers: { "x-discovery-session": sess, "x-enroll-key": k1 } })).status).toBe(200);
+    // A second registration is REFUSED, and the stored hash is still k1's — read back from the store.
+    const again = await registerSession(sess, k2);
+    expect(again.ok).toBe(false);
+    expect(again.error).toMatch(/already registered/);
+    expect(await (await getEnrollStore())!.sessionKeyHash(sess)).toBe(sha(k1));
+    // Guards: short key, bad name.
+    expect((await registerSession("f03828-short", "x".repeat(31))).ok).toBe(false);
+    expect((await registerSession("Bad Name", k1)).ok).toBe(false);
   });
 
   // ── F039.7 ────────────────────────────────────────────────────────────────

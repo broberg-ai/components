@@ -2,6 +2,7 @@
 // fleet's shared edge DB, multi-machine-safe across Discovery's machines). A
 // `file:`/`:memory:` URL works for dev + tests; disabled (null) when no URL is
 // configured, so reads still work and writes 503 (ship-dark).
+import { createHash } from "node:crypto";
 import { createClient, type Client, type Row } from "@libsql/client";
 
 export type Role = "uses" | "src";
@@ -134,4 +135,21 @@ export function getEnrollStore(): Promise<EnrollStore | null> {
     })();
   }
   return _init;
+}
+
+/**
+ * F038.28 — register a new session (scripts/register-session.ts). Ops only; no
+ * HTTP route, same reasoning as the reset. Refuses a session that is already
+ * bound: a second key would silently do nothing (bindSessionKey is
+ * ON CONFLICT DO NOTHING) while the operator believed it worked. Rotation is
+ * reset-session-key.mjs first.
+ */
+export async function registerSession(session: string, key: string): Promise<{ ok: boolean; error?: string }> {
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(session)) return { ok: false, error: "session must be a lowercase session name" };
+  if (key.length < 32) return { ok: false, error: "the key must be at least 32 characters" };
+  const store = await getEnrollStore();
+  if (!store) return { ok: false, error: "enroll store not configured (no TURSO_DATABASE_URL / ENROLL_DB_URL)" };
+  if (await store.sessionKeyHash(session)) return { ok: false, error: `"${session}" is already registered — reset it first (scripts/reset-session-key.mjs)` };
+  await store.bindSessionKey(session, createHash("sha256").update(key).digest("hex"));
+  return { ok: true };
 }
