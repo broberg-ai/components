@@ -20,6 +20,11 @@
       "import": "./dist/extract.js",
       "require": "./dist/extract.cjs"
     },
+    "./transport": {
+      "types": "./dist/transport.d.ts",
+      "import": "./dist/transport.js",
+      "require": "./dist/transport.cjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

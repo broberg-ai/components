@@ -33,4 +33,26 @@ const clip = await extractClip(document, new URL(location.href), [chatgpt]);  //
 - **Deterministic, always:** the same DOM must give byte-identical markdown, or a reload looks like an edit and the fingerprint engine opens a false branch. That rule binds your extractors too.
 - A page with nothing to clip throws `NothingToClipError` — never an empty clip.
 
+## `@broberg/web-clipper/transport` — destinations and the sender (F099.4)
+
+```ts
+import { sendClip, DestinationError, type Destination } from "@broberg/web-clipper/transport";
+
+const trail: Destination = {
+  id: "trail", label: "Trail",
+  targets: async (s) => /* tenant × brain */ [],
+  async send(units, { target, session, clip }) {
+    const res = await fetch(url, { method: "POST", headers: { authorization: `Bearer ${session.accessToken}` }, body });
+    if (!res.ok) throw new DestinationError(res.status);   // report the HTTP answer — the base decides what it means
+  },
+};
+const r = await sendClip({ destination: trail, target, clip, auth });
+// r.state: "sent" | "login_required" («log ind igen») | "consent_required" | "refused" (4xx) | "unavailable" (5xx/network, retries spent)
+```
+
+- **Only new units** for an `appendOnly` destination (it answers `lastSeen(anchor)` with the chain fingerprints it holds); every other destination gets the whole clip each time.
+- **Idempotency key = chain fingerprint.** Batches (`batchSize`, default 50) are committed one by one, so an interrupted run resumes where it stopped: nothing twice, nothing lost.
+- **401** → one forced session refresh and a resend; no session or 401 again → `login_required`. **5xx / network** → backoff (500 ms, doubling, 4 attempts) → `unavailable`. Never confused. **Other 4xx** → `refused`, not retried.
+- A destination with `requiresConsent` gets nothing until `consented: true` for that anchor.
+
 Coming in the next stories: the extraction and destination plug-in points, Broberg ID login from the extension, the extension skeleton and UI (Preact + Tailwind v4 + @broberg/theme, per D-7598d1).
