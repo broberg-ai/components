@@ -107,6 +107,7 @@ interface Destination {
 //   503 / 5xx  → the receiver (or BID behind it) is down: retry with backoff — NEVER treated as a login failure
 //   other 4xx  → give up with a named error
 //   network    → retry with backoff
+// Each extension is built with its own destinations; the base never sends a clip to a destination that build did not register, and keeps no store, queue or target memory shared across extensions (Trail Clipper and Jam Clipper are separate extensions with separate BID clients).
 ```
 
 **Confirmed details:**
