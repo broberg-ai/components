@@ -1,9 +1,9 @@
 # F084.154 — LIVE PROOF of @broberg/sso fetchTicket from GitHub Actions: the job
-# gets a Broberg ID ticket with no key at all (GitHub OIDC → RFC 8693 exchange),
+# gets a BrobergID ticket with no key at all (GitHub OIDC → RFC 8693 exchange),
 # then reads Discovery's fleet layer with it and checks the door is shut without.
 # The ticket is never written to the log — only its claims and HTTP statuses.
 #
-# Needs in Broberg ID: service svc:gh:broberg-ai/components with a rule bound to
+# Needs in BrobergID: service svc:gh:broberg-ai/components with a rule bound to
 # THIS file (a rule must name one workflow, so a new file cannot get a ticket).
 name: ticket-probe
 on: workflow_dispatch

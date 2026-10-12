@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-// F038.24 — Broberg ID tickets as a THIRD door (broberg-id-F087.5). Real EdDSA
+// F038.24 — BrobergID tickets as a THIRD door (broberg-id-F087.5). Real EdDSA
 // tickets, verified by the real @broberg/sso verifier against a key set this test
 // serves; only the network is faked.
 process.env.ENROLL_DB_URL = ":memory:";

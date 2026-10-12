@@ -10,7 +10,7 @@
 // and never the storage: the app implements `TenantStore` against its own
 // database, whatever shape that is.
 //
-// Organisations and memberships never live in Broberg ID (D-5345a2): BID says
+// Organisations and memberships never live in BrobergID (D-5345a2): BID says
 // who the user is, the app says which organisations she belongs to.
 
 // ── Types ──────────────────────────────────────────────────────────────────

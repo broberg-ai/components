@@ -3,10 +3,10 @@
 > Epic · runtime package (headless core + Hono adapter) + switcher in app-shell · effort M · status: **revised 6 Oct 2026 after the survey F029.7, awaiting Christian's decision before code**
 
 ## Summary
-Six apps each handle «which organisation am I in, with what role, and who may join» in their own way, and four of them get the same thing wrong: they silently pick an organisation the user did not ask for. `@broberg/tenant` gives every app the same strict rules for memberships, choosing the active organisation and invitations, while each app keeps its data in its own database however it likes. Organisations are never stored in Broberg ID.
+Six apps each handle «which organisation am I in, with what role, and who may join» in their own way, and four of them get the same thing wrong: they silently pick an organisation the user did not ask for. `@broberg/tenant` gives every app the same strict rules for memberships, choosing the active organisation and invitations, while each app keeps its data in its own database however it likes. Organisations are never stored in BrobergID.
 
 ## Motivation
-Christian, 6 Oct 2026: «Burde vi have et modul til Tenant styring … er der nogle fordele ved at have et /tenant npm modul?» He also decided (D-5345a2) that organisations and memberships do **not** live in Broberg ID.
+Christian, 6 Oct 2026: «Burde vi have et modul til Tenant styring … er der nogle fordele ved at have et /tenant npm modul?» He also decided (D-5345a2) that organisations and memberships do **not** live in BrobergID.
 
 The survey F029.7 read the code in xrt81, cms, cardmem, trail and helpdesk, plus Scout's plan (table in `F029.7-tenant-survey.md`). Four findings decide the design:
 1. **Six implementations, and none of them is shared.** Scout is about to write the seventh.
@@ -63,7 +63,7 @@ The switcher belongs in the user menu in app-shell and is designed in its own st
 - **Plans, limits, billing:** stored in four apps and enforced in none, so there is no common pattern to lift.
 - **Levels under the organisation** (site, project, unit): the app's own.
 - **Migrating existing apps:** each app's own decision, after a pilot.
-- **Organisations in Broberg ID:** D-5345a2.
+- **Organisations in BrobergID:** D-5345a2.
 
 ## Stories
 - **F029.7** — Survey before code (done).

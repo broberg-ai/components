@@ -12,7 +12,7 @@ import { DATA } from "./inventory-data.mjs";
 import { fetchLatestReleases } from "./npm-latest.mjs";
 import { discoveryAuth } from "./discovery-auth.mjs";
 // F038.22 — Discovery is behind login. CI reads it as a registered session:
-// F038.26: a Broberg ID ticket (GitHub OIDC, no stored key) — see discovery-auth.mjs.
+// F038.26: a BrobergID ticket (GitHub OIDC, no stored key) — see discovery-auth.mjs.
 const auth = await discoveryAuth({
   env: process.env,
   getTicket: async () => (await import("../packages/sso/src/fetch-ticket.ts")).fetchTicket({ audience: "discovery", scope: "discovery:read" }),

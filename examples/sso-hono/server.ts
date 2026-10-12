@@ -1,5 +1,5 @@
 /**
- * A Bun + Hono app that signs in through the LIVE Broberg ID.
+ * A Bun + Hono app that signs in through the LIVE BrobergID.
  *
  * This file is the evidence for F084.4 AC#5: every identity decision is an
  * environment variable, and the only identity CODE is the three mounting lines
@@ -58,8 +58,8 @@ app.get("/", (c) => {
     return c.html(
       page(`
         <h1>Ikke logget ind</h1>
-        <p>Denne app har ingen egen brugerdatabase. Den spørger Broberg ID.</p>
-        <a class="btn" href="/auth/login" data-testid="example-login">Log ind med Broberg ID</a>
+        <p>Denne app har ingen egen brugerdatabase. Den spørger BrobergID.</p>
+        <a class="btn" href="/auth/login" data-testid="example-login">Log ind med BrobergID</a>
       `),
     );
   }
@@ -73,7 +73,7 @@ app.get("/", (c) => {
   return c.html(
     page(`
       <h1>Logget ind</h1>
-      <p>Identiteten er et ID-token Broberg ID signerede. Navnet er hentet fra
+      <p>Identiteten er et ID-token BrobergID signerede. Navnet er hentet fra
          dens profil-endepunkt og bundet til samme bruger.</p>
       ${session.picture
         ? `<img class="pic" src="${escape(session.picture)}" alt="" data-testid="example-picture">`

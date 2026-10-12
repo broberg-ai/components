@@ -283,7 +283,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
     { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
-    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a Broberg ID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
+    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a BrobergID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
     { method: "GET", path: "/api/speech-dictionary", description: "@broberg/speech-dictionary's current terms + corrections, always the latest committed state (F044.1)", example: "/api/speech-dictionary" },
     { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff. REGISTERED EDITORS ONLY (F044.3): an edit commits and auto-publishes a new npm patch version, so a session is registered by components (ask_peer components), never by its own first call; send the key components registered as header x-speech-dict-key + body.session. An unknown session gets 401 session_not_registered. Body {session,addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
   ],
@@ -322,13 +322,13 @@ app.use("/api/*", async (c, next) => {
 // ---- F038.22 / F038.24 — the fleet part is not public ----
 // /api/fleet, /api/enrollments, /api/sessions/* and /llms-full.txt describe the
 // fleet itself (who runs what, what each repo uses). Christian 8/10: behind login
-// until the OIDC (Broberg ID) login is ready. Interim login = the session's OWN
+// until the OIDC (BrobergID) login is ready. Interim login = the session's OWN
 // registered enroll key, which every enrolled repo already holds as
 // DISCOVERY_ENROLL_KEY — no new secret is handed out:
 //   x-discovery-session: <session name>   x-enroll-key: <that session's key>
 // Every fleet response, allowed or refused, carries X-Robots-Tag: noindex.
 // Christian 8/10, later the same evening: «discovery.broberg.ai skal bag BID NU» —
-// the WHOLE site, not only the fleet part. Until the Broberg ID client is wired,
+// the WHOLE site, not only the fleet part. Until the BrobergID client is wired,
 // only /health and /robots.txt are open; everything else needs a registered
 // session's key. Humans get BID login as soon as the OIDC client exists.
 const OPEN_PATHS = new Set(["/health", "/robots.txt"]);
@@ -342,7 +342,7 @@ const OWN_AUTH = new Set(["POST /api/enroll", "POST /api/speech-dictionary/edit"
 const LAB_OPEN = new Set(["GET /webmcp-lab", "GET /webmcp-lab/book", "POST /webmcp-lab/hits"]);
 export const isFleetPath = (path: string, method = "GET") =>
   !OPEN_PATHS.has(path) && !OWN_AUTH.has(`${method} ${path}`) && !LAB_OPEN.has(`${method} ${path}`) && method !== "OPTIONS";
-// F038.23 — people sign in with Broberg ID (OIDC, client "discovery", public +
+// F038.23 — people sign in with BrobergID (OIDC, client "discovery", public +
 // PKCE). Only the subjects in DISCOVERY_ALLOWED_SUBS get in: a BID account alone
 // is not a fleet member. Ship dark: no BID_ISSUER → no sso, sessions-only.
 const sso = (() => {
@@ -360,7 +360,7 @@ if (sso) {
 }
 const wantsHtml = (accept: string | undefined) => !!accept && accept.includes("text/html");
 
-// F038.24 — the THIRD door: a Broberg ID ticket (broberg-id-F087.5). A service
+// F038.24 — the THIRD door: a BrobergID ticket (broberg-id-F087.5). A service
 // sends `Authorization: Bearer <ticket>`; we check it locally against BID's public
 // keys (@broberg/sso createTicketVerifier). It sits BESIDE the BID login and the
 // session-key allowlist — neither is removed until tickets are proven live.
@@ -382,12 +382,12 @@ type TicketCheck = { ok: true; principal: TicketPrincipal } | { ok: false; res: 
 async function checkTicket(c: { req: { header(n: string): string | undefined }; json: (b: unknown, s: 401 | 503) => Response }, scope: string): Promise<TicketCheck | null> {
   const auth = c.req.header("authorization") ?? "";
   if (!/^Bearer\s+/i.test(auth)) return null;
-  if (!tickets) return { ok: false, res: c.json({ error: "ticket_not_accepted — this Discovery does not take Broberg ID tickets" }, 401) };
+  if (!tickets) return { ok: false, res: c.json({ error: "ticket_not_accepted — this Discovery does not take BrobergID tickets" }, 401) };
   try {
     return { ok: true, principal: await tickets.verify(auth.replace(/^Bearer\s+/i, "").trim(), { scope }) };
   } catch (e) {
     if (e instanceof JwksUnavailableError) {
-      return { ok: false, res: c.json({ error: "ticket_unverifiable_now — Broberg ID's keys could not be fetched; retry shortly" }, 503) };
+      return { ok: false, res: c.json({ error: "ticket_unverifiable_now — BrobergID's keys could not be fetched; retry shortly" }, 503) };
     }
     return { ok: false, res: c.json({ error: `ticket_rejected — ${e instanceof Error ? e.message : String(e)}` }, 401) };
   }
@@ -402,18 +402,18 @@ app.use("*", async (c, next) => {
   const person = sso ? getSession(c) : null;
   if (person) {
     if (ALLOWED_SUBS.has(person.sub)) return next();
-    return c.text("Din Broberg ID-konto har ikke adgang til Discovery. Bed components om adgang.", 403);
+    return c.text("Din BrobergID-konto har ikke adgang til Discovery. Bed components om adgang.", 403);
   }
   const session = c.req.header("x-discovery-session") ?? "";
   const key = c.req.header("x-enroll-key") ?? "";
   const store = await getEnrollStore();
   const bound = store && session && key.length >= 32 ? await store.sessionKeyHash(session) : null;
   if (!bound || bound !== createHash("sha256").update(key).digest("hex")) {
-    // A person in a browser goes to Broberg ID's login; a machine gets the JSON.
+    // A person in a browser goes to BrobergID's login; a machine gets the JSON.
     if (sso && !session && wantsHtml(c.req.header("accept"))) {
       return c.redirect(`/auth/login?returnTo=${encodeURIComponent(c.req.path + (new URL(c.req.url).search || ""))}`, 302);
     }
-    return c.json({ error: "login_required — Discovery is not public. A fleet session sends headers x-discovery-session (its session name) and x-enroll-key (its DISCOVERY_ENROLL_KEY); a service may instead send Authorization: Bearer <Broberg ID ticket, scope discovery:read>; a person signs in with Broberg ID. No key yet? ask components to register your session." }, 401);
+    return c.json({ error: "login_required — Discovery is not public. A fleet session sends headers x-discovery-session (its session name) and x-enroll-key (its DISCOVERY_ENROLL_KEY); a service may instead send Authorization: Bearer <BrobergID ticket, scope discovery:read>; a person signs in with BrobergID. No key yet? ask components to register your session." }, 401);
   }
   return next();
 });

@@ -1,4 +1,4 @@
-# F084 — Broberg ID (BID)
+# F084 — BrobergID (BID)
 
 **Status:** Ready · **Skrevet:** 2026-09-16 · **Kilde:** Christians `SSO-PLAN.md` (15. sep.), efterprøvet før kortene
 

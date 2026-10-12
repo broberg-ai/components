@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Broberg ID — landingstilstande</title>
+<title>BrobergID — landingstilstande</title>
 <style>
 :root{
   --bg:oklch(0.211 0 0); --fg:oklch(0.985 0 0);
@@ -318,7 +318,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
           </button>
           <p class="swap">Er du ikke cb@webhouse.dk? <a href="#">Skift konto</a></p>
         </div>
-        <div class="auth-foot"><span class="brand">sikret af <em>Broberg ID</em></span></div>
+        <div class="auth-foot"><span class="brand">sikret af <em>BrobergID</em></span></div>
       </div>
     </section>
 
@@ -342,7 +342,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
             <button class="soc"><span class="g"><svg class="bm" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#b-apple"/></svg></span> Fortsæt med Apple</button>
           </div>
         </div>
-        <div class="auth-foot"><span class="brand">sikret af <em>Broberg ID</em></span></div>
+        <div class="auth-foot"><span class="brand">sikret af <em>BrobergID</em></span></div>
       </div>
     </section>
 
@@ -365,7 +365,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
           </div>
           <button class="btn btn-ghost" style="margin-top:14px">Brug en anden konto</button>
         </div>
-        <div class="auth-foot"><span class="brand">sikret af <em>Broberg ID</em></span></div>
+        <div class="auth-foot"><span class="brand">sikret af <em>BrobergID</em></span></div>
       </div>
     </section>
 
@@ -384,7 +384,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
           <button class="btn btn-primary">Tillad</button>
           <button class="btn btn-ghost">Annullér</button>
         </div>
-        <div class="auth-foot"><span class="brand">sikret af <em>Broberg ID</em></span></div>
+        <div class="auth-foot"><span class="brand">sikret af <em>BrobergID</em></span></div>
       </div>
     </section>
 
@@ -406,7 +406,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
             <button class="soc"><span class="g"><svg class="bm" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#b-apple"/></svg></span> Fortsæt med Apple</button>
           </div>
         </div>
-        <div class="auth-foot"><span class="brand">sikret af <em>Broberg ID</em></span></div>
+        <div class="auth-foot"><span class="brand">sikret af <em>BrobergID</em></span></div>
       </div>
     </section>
 
@@ -417,7 +417,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
       <div class="steps">
         <div class="step hit"><div class="num">1</div><div><div class="st">X RT 81 opdager: ingen lokal session</div><div class="sd">Appen har sin egen cookie. Den er tom, så appen spørger centralt i stedet for at vise en login-side.</div></div></div>
         <div class="step hit"><div class="num">2</div><div><div class="st">Browseren sendes til id.broberg.ai</div><div class="sd">Et <b>fuldt sideskift</b>, ikke en usynlig ramme. <code>prompt=none</code> betyder: svar, men vis intet.</div></div></div>
-        <div class="step hit"><div class="num">3</div><div><div class="st">Broberg ID genkender sessionen og sender straks tilbage</div><div class="sd">Ingen skærm vises. Brugeren oplever et glimt i adresselinjen — typisk under et halvt sekund.</div></div></div>
+        <div class="step hit"><div class="num">3</div><div><div class="st">BrobergID genkender sessionen og sender straks tilbage</div><div class="sd">Ingen skærm vises. Brugeren oplever et glimt i adresselinjen — typisk under et halvt sekund.</div></div></div>
         <div class="step hit"><div class="num">4</div><div><div class="st">X RT 81 sætter sin egen session</div><div class="sd">Fra nu af spørges der ikke igen, før den udløber. Ingen rundtur på hver sidevisning.</div></div></div>
         <div class="step bad"><div class="num"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></div><div><div class="st">Vejen der IKKE må vælges: usynlig ramme (iframe)</div><div class="sd">Den klassiske måde at gøre trin 2 helt usynlig på. Safari har blokeret den i årevis, og Chrome afvikler den. Den virker i test på en Mac og fejler for enhver bruger på iPhone.</div></div></div>
       </div>
@@ -429,12 +429,12 @@ body{margin:0;background:var(--bg);color:var(--fg);
       <h3>«Log ud overalt» — hvad der faktisk skal ske</h3>
       <p class="lead">Brugeren trykker ét sted. Fire apps skal miste deres session. Det kan gøres på to måder, og kun den ene er pålidelig.</p>
       <div class="steps">
-        <div class="step hit"><div class="num">1</div><div><div class="st">Broberg ID afslutter den centrale session</div><div class="sd">Standard-endepunktet <code>/oauth2/end-session</code>. Det er den nemme halvdel.</div></div></div>
-        <div class="step hit"><div class="num">2</div><div><div class="st">Broberg ID ringer til hver app, server-til-server</div><div class="sd">Et signeret logout-token sendes til hver apps <code>backchannel_logout_uri</code>. <b>Indbygget i værktøjet</b> — vi skal ikke bygge det.</div></div></div>
+        <div class="step hit"><div class="num">1</div><div><div class="st">BrobergID afslutter den centrale session</div><div class="sd">Standard-endepunktet <code>/oauth2/end-session</code>. Det er den nemme halvdel.</div></div></div>
+        <div class="step hit"><div class="num">2</div><div><div class="st">BrobergID ringer til hver app, server-til-server</div><div class="sd">Et signeret logout-token sendes til hver apps <code>backchannel_logout_uri</code>. <b>Indbygget i værktøjet</b> — vi skal ikke bygge det.</div></div></div>
         <div class="step hit"><div class="num">3</div><div><div class="st">Hver app sletter sin lokale session</div><div class="sd">Næste klik i app B sender brugeren til login. Virker også hvis appen var lukket imens.</div></div></div>
         <div class="step bad"><div class="num"><svg class="ico" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></div><div><div class="st">Vejen der IKKE må vælges: skjulte rammer i browseren</div><div class="sd">Samme spærre som ovenfor. Brugeren tror han er logget ud af alt; på iPhone er han det kun ét sted. Det er værre end ingen knap.</div></div></div>
       </div>
-      <div class="verdict"><b>Det tal der mangler i planen:</b> hvor længe en app må stole på sin egen session. Kort = «log ud overalt» virker hurtigt, men alt går ned hvis Broberg ID gør. Langt = robust, men en udlogning kan hænge ved i timevis. Det er én beslutning med to modsatrettede konsekvenser, og den skal træffes bevidst.</div>
+      <div class="verdict"><b>Det tal der mangler i planen:</b> hvor længe en app må stole på sin egen session. Kort = «log ud overalt» virker hurtigt, men alt går ned hvis BrobergID gør. Langt = robust, men en udlogning kan hænge ved i timevis. Det er én beslutning med to modsatrettede konsekvenser, og den skal træffes bevidst.</div>
     </section>
 
     <!-- 8 — KONTOSIDE -->

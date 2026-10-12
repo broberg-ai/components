@@ -19,7 +19,7 @@ const notifications = createFetchNotificationSource({ url: "/api/notifications" 
   currentPath={path}
   onNavigate={navigate}                 // SPA navigation; omit for normal links
   notifications={notifications}
-  user={{ name, email, picture }}       // picture = Broberg ID's OIDC `picture`
+  user={{ name, email, picture }}       // picture = BrobergID's OIDC `picture`
   userMenu={{ accountHref: "https://id.broberg.ai/account", onSignOut }}
   layout="inset"                        // default; "topbar" = the 0.2.x full-width bar
   mobile="drawer"                       // or "rail"
@@ -46,7 +46,7 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `Sidebar` | Groups (foldable, remembered) + footer, from data. Items can have `children` (one level) that open and close. Active item from `currentPath`. Badges, 99+. |
 | `TopBar` | Brand left, `actions` slot, then **the bell and the user menu, always last, in that order**. |
 | `NotificationBell` | Unread count, panel (dropdown on desktop, bottom sheet on a phone), mark one / all read. |
-| `UserMenu` | Avatar, name + email, **Konto** → Broberg ID, your items, Theme · Palette · Surfaces (· Backdrop, opt-in), sign out. |
+| `UserMenu` | Avatar, name + email, **Konto** → BrobergID, your items, Theme · Palette · Surfaces (· Backdrop, opt-in), sign out. |
 | `PageHeader`, `PageTabs` | Eyebrow/title/description/actions; tabs as routes (`?tab=` or one path per tab). |
 | `Avatar` | `picture` when given, otherwise initials. |
 | `AccountPage` | The user's own name and picture, edited inside the app (0.4.0). |
@@ -377,7 +377,7 @@ looks saved.
 
 **What the page shows after a save is the server's answer.** The name field
 and the shown name are set from the response, never from what was typed — if
-Broberg ID trims the name, the field shows the trimmed name. On a failed save
+BrobergID trims the name, the field shows the trimmed name. On a failed save
 the error shows and the field keeps the typed text.
 
 **Picture.** A custom button over a hidden `<input type=file
@@ -386,14 +386,14 @@ refused with a message **before** anything is sent. Remove asks inline
 (Fjern / Annuller), never `confirm()`. The avatar is round by CSS; no cropping
 in v1.
 
-**Signing in again is a normal state.** Broberg ID issues no refresh token, so
+**Signing in again is a normal state.** BrobergID issues no refresh token, so
 about an hour after login every change answers `401 reauth`. A 401 (or `403
 insufficient_scope`) shows «Log ind igen for at rette» / "Sign in again to make
 changes" with a button that does a full page load to `reauthHref` — default
 `/auth/login?returnTo=<this page>` (no `prompt=login`: BID still has the
 session and offers «Fortsæt som …») — and the fields go read-only.
 
-**«Sikkerhed i Broberg ID»** links to `account_url` in a new tab.
+**«Sikkerhed i BrobergID»** links to `account_url` in a new tab.
 
 **Test ids:** `account-page`, `account-avatar`, `account-avatar-file`,
 `account-avatar-upload`, `account-avatar-remove`,
@@ -416,7 +416,7 @@ historical — and in inset the sidebar's brand link is `brand-home`.
 
 - **External links open in a new tab** (D-d28547): every link the shell renders
   goes through one place, so an http(s) link to another origin — the account
-  page at Broberg ID, a sidebar item, a menu item, a notification — gets
+  page at BrobergID, a sidebar item, a menu item, a notification — gets
   `target="_blank" rel="noopener noreferrer"` and never reaches your router.
   Internal links (`/account` included) go through `onNavigate` as before.
   `isExternal(href)` is exported.
@@ -509,7 +509,7 @@ months in an English UI that way.
 
 ## Avatar — no Gravatar
 
-The avatar is Broberg ID's `picture`; without it, initials. There is no
+The avatar is BrobergID's `picture`; without it, initials. There is no
 Gravatar fallback (owner decision D-1dc849: no more US services than necessary —
 Gravatar receives a hash of the user's email). A test fails if Gravatar enters
 the source.

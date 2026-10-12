@@ -2,7 +2,7 @@
 
 Organisations, memberships, invitations and role checks, the same way in every app.
 
-**The storage is yours.** You implement `TenantStore` against your own database, in whatever shape it is: one shared DB with a `tenant_id`, a DB per organisation, or units below the organisation. The package never opens a tenant database, and it never decides how tenant data is isolated. Organisations never live in Broberg ID: BID says who the user is, and your app says which organisations she belongs to (D-5345a2).
+**The storage is yours.** You implement `TenantStore` against your own database, in whatever shape it is: one shared DB with a `tenant_id`, a DB per organisation, or units below the organisation. The package never opens a tenant database, and it never decides how tenant data is isolated. Organisations never live in BrobergID: BID says who the user is, and your app says which organisations she belongs to (D-5345a2).
 
 Why it exists: six apps in the fleet each built their own (survey F029.7), and four of them choose the active organisation by silently falling back to «the first membership». This package refuses to.
 

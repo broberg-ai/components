@@ -210,7 +210,7 @@ export function writeSet(key: string, value: Set<string>): void {
  * word, upper-cased. One word gives one letter; nothing gives "?".
  *
  * There is deliberately no Gravatar here (owner decision D-1dc849): the avatar
- * is the Broberg ID `picture`, and without one, initials. Gravatar would send a
+ * is the BrobergID `picture`, and without one, initials. Gravatar would send a
  * hash of the user's email to a US service on every render.
  */
 export function initials(name: string | undefined, email?: string): string {
@@ -381,7 +381,7 @@ export interface AccountProfile {
   name: string | null;
   picture: string | null;
   email: string | null;
-  /** Broberg ID's own account page (password, passkeys, sessions). */
+  /** BrobergID's own account page (password, passkeys, sessions). */
   account_url: string;
 }
 
@@ -662,7 +662,7 @@ export const TEXT = {
     pictureRemoved: "Billedet er fjernet",
     pictureTooLarge: "Billedet er for stort — højst 2 MB.",
     pictureWrongType: "Vælg et PNG-, JPEG- eller WebP-billede.",
-    bidSecurity: "Sikkerhed i Broberg ID",
+    bidSecurity: "Sikkerhed i BrobergID",
     analyticsPeriod: "Periode",
     analyticsDays: "{n} dage",
     analyticsVisitors: "Besøgende",
@@ -737,7 +737,7 @@ export const TEXT = {
     pictureRemoved: "Picture removed",
     pictureTooLarge: "The picture is too large — 2 MB at most.",
     pictureWrongType: "Choose a PNG, JPEG or WebP image.",
-    bidSecurity: "Security in Broberg ID",
+    bidSecurity: "Security in BrobergID",
     analyticsPeriod: "Period",
     analyticsDays: "{n} days",
     analyticsVisitors: "Visitors",

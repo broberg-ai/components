@@ -14,7 +14,7 @@ Christian 12/10: components builds and maintains a shared web-clipper base as an
 
 ## The base covers (shared by all clippers)
 1. **Extension skeleton** (Chrome first — Edge, Brave, Arc for free; Safari later) with a shared build (manifest + Vite config factory).
-2. **Login via Broberg ID** (https://id.broberg.ai): OAuth 2.1 + PKCE from the extension (chrome.identity.launchWebAuthFlow), token storage and refresh, access limited to the user's own data. Needs a BID public client for extensions — broberg-id.
+2. **Login via BrobergID** (https://id.broberg.ai): OAuth 2.1 + PKCE from the extension (chrome.identity.launchWebAuthFlow), token storage and refresh, access limited to the user's own data. Needs a BID public client for extensions — broberg-id.
 3. **Destinations** as a plug-in point: each clipper supplies its own send; the base owns transport, resend and error handling.
 4. **Extraction** as a plug-in point: generic page/article extraction in the base (lifted from Trail: Readability + turndown); specialised readers (chat readers) come from the consumer or as optional modules.
 5. **Fingerprint engine**: a fingerprint per unit (e.g. per chat turn: role + content + position), a **chain fingerprint** (each includes the previous), «send only new», idempotent resend, and **branches** when an earlier unit changes (edited prompt / regenerated answer) — a new branch, nothing overwritten.
@@ -43,7 +43,7 @@ Trail's and Jam's own destinations, data models and server-side logic; compile-a
 - F099.2 — Fingerprint engine: per unit, chain, send-only-new, idempotent resend, branches.
 - F099.3 — Extraction plug-in point + the generic article extractor lifted from Trail.
 - F099.4 — Destination plug-in point + transport (retry, idempotency, errors).
-- F099.5 — Broberg ID login from the extension.
+- F099.5 — BrobergID login from the extension.
 - F099.6 — Extension skeleton, shared build and UI building blocks.
 - F099.7 — Release, and Trail's clipper + a minimal Jam prototype on the package.
 
@@ -82,7 +82,7 @@ interface Extractor { id: string; matches(url: URL): boolean; extract(doc: Docum
 // DETERMINISTIC (jam #2983): the same DOM must give byte-identical markdown (whitespace normalised),
 // or a plain reload of a chat becomes a false branch. Every extractor, base or consumer, is held to this.
 
-// ── auth (Broberg ID, OAuth 2.1 + PKCE from the extension) ───────────────────
+// ── auth (BrobergID, OAuth 2.1 + PKCE from the extension) ───────────────────
 interface Session { accessToken: string; sub: string; expiresAt: number }
 // createBidAuth({ issuer, clientId, scopes, audience?, ticketScope? }) → { login(), session(): Promise<Session | null>, logout() }
 // v1.1 (trail #2996, 12/10): with `audience`, session() swaps the BID access token for a USER TICKET to that one
@@ -128,7 +128,7 @@ interface Destination {
 1. **Shared web-clipper base?** Did not exist, was not planned → now this epic (F099), Christian's build order.
 2. **Yjs/CRDT sync primitive?** Does not exist anywhere in the fleet.
 3. **PDF export primitive?** Partly: @broberg/lens-svg (owner: lens) turns a rendered page into SVG/PDF vectors. No document-to-PDF without a browser.
-4. **MCP server with BID OAuth?** Yes: @broberg/mcp 0.8.0 + /oauth-web (OAuth 2.1/PKCE for claude.ai/ChatGPT connectors); its authorize step calls the app's own login, which is Broberg ID via @broberg/sso.
+4. **MCP server with BID OAuth?** Yes: @broberg/mcp 0.8.0 + /oauth-web (OAuth 2.1/PKCE for claude.ai/ChatGPT connectors); its authorize step calls the app's own login, which is BrobergID via @broberg/sso.
 
 ### Answers that shape the contract (F099.1)
 - **trail (#2971):** nothing more in their clipper than popup/extractor/background/manifest + packaging; ambient (F201) is a Swift app, not on the base. Keep Firefox from the start (gecko id trail-clipper@broberg.ai; launchWebAuthFlow on Firefox gives a different redirect, …extensions.allizom.org). Trail migrates itself. **UI: Preact + Tailwind v4 + @broberg/theme, NO shadcn — owner decision D-7598d1 (Stack B without shadcn) overrides the order's shadcn wording.** Contract additions: Destination.targets(session) → [{id,label,group?}] (Trail picks tenant × brain; the base shows the picker and remembers the choice); send(units, {idempotencyKey, target, session}); auth must request a token for a destination-named audience + scopes (Trail checks aud=https://engine.trailmem.com, scope trail:clip). Trail does not use send-only-new: a page is one unit, updated by sourceUrl, lastSeen → null, whole page each time — the default for destinations without appendOnly.

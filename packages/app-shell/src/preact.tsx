@@ -1004,7 +1004,7 @@ export function NotificationBell({ source, onNavigate, lang }: NotificationBellP
 export interface ShellUser {
   name?: string;
   email?: string;
-  /** Broberg ID OIDC `picture`. Without it: initials. Never Gravatar (D-1dc849). */
+  /** BrobergID OIDC `picture`. Without it: initials. Never Gravatar (D-1dc849). */
   picture?: string;
   /** F092.15 — a line under the name, e.g. «Administrator · Enhed Nord». */
   subtitle?: string;
@@ -1028,7 +1028,7 @@ export interface UserMenuSection {
 }
 export interface UserMenuProps {
   user: ShellUser;
-  /** «Konto» → Broberg ID's account page. */
+  /** «Konto» → BrobergID's account page. */
   accountHref?: string;
   items?: UserMenuItem[];
   onSignOut?: () => void | Promise<void>;
@@ -1709,7 +1709,7 @@ export interface AccountPageProps {
   /**
    * Where «Log ind igen» goes — a FULL page load, so the app's login flow runs.
    * Default `/auth/login?returnTo=<current path>` (no prompt=login — that forces
-   * re-proof and is a redirect-loop trap, F084.108). Broberg ID issues
+   * re-proof and is a redirect-loop trap, F084.108). BrobergID issues
    * no refresh token, so about an hour after login every change answers 401
    * reauth: that is a normal state here, not an error.
    */
@@ -1735,7 +1735,7 @@ type Notice = { kind: "ok" | "error"; text: string } | null;
  * The user's own name and picture, edited inside the app (F095.3).
  *
  * EVERYTHING SHOWN AFTER A SAVE IS THE SERVER'S ANSWER, never what was typed
- * (CLAUDE.md «Et gem-felt SKAL bevises at gemme»): if Broberg ID trims or
+ * (CLAUDE.md «Et gem-felt SKAL bevises at gemme»): if BrobergID trims or
  * changes the name, the field shows that. On a failed save the field keeps the
  * typed text, so nothing is lost and the error says why.
  */

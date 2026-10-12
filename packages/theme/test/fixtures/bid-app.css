@@ -61,7 +61,7 @@
  *
  *  · FLADE-farve og TEKST-farve er FORSKELLIGE tokens. --accent fylder en
  *    flade; --accent-text er samme identitet justeret så den kan LÆSES.
- *    «ID» i «Secured by Broberg ID» er tekst og bruger derfor den anden.
+ *    «ID» i «Secured by BrobergID» er tekst og bruger derfor den anden.
  *
  *  · --card er rgba(255,255,255,.04) — en overflade der ligger PÅ noget og
  *    henter sin uigennemsigtighed derfra. Et element der SVÆVER (en dropdown,

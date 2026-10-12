@@ -23,7 +23,7 @@
 Consequence for this plan: F100.1 targets Y.Map/Y.Array first (not text); the client ships a React hook beside the plain provider; question 3 stays open until Christian approves jam's draft; question 4 (one server per app) is unchanged.
 
 ## Summary
-A shared npm package that lets several people (or devices) edit the same document at the same time and see each other's changes and cursors live, without anyone's work overwriting anyone else's. It gives every app the same building blocks — a sync server, a browser client, Broberg ID login and storage hooks — so jam, cms and others do not each build their own.
+A shared npm package that lets several people (or devices) edit the same document at the same time and see each other's changes and cursors live, without anyone's work overwriting anyone else's. It gives every app the same building blocks — a sync server, a browser client, BrobergID login and storage hooks — so jam, cms and others do not each build their own.
 
 ## Motivation
 Christian 12/10: «Du må nok også se på at lave en fælles npm til livesync», and picked «samtidig redigering» over the existing Fly-Live site sync (already shared in @broberg/deploy-core) and the broberg-id database copy (infra, not a package).
@@ -31,7 +31,7 @@ Christian 12/10: «Du må nok også se på at lave en fælles npm til livesync»
 The symptom today: every app that lets two people touch the same thing either has last-save-wins (silent data loss — cms F71's problem statement) or plans a lock. jam asked components directly for a CRDT primitive the same day. Without a shared package, the first app hand-rolls a WebSocket server with its own auth, the second copies it, and they drift — exactly the reuse rule's failure.
 
 ## Solution
-Wrap **Yjs** (the de-facto CRDT library: conflict-free merge, awareness/presence, editor bindings) in a thin `@broberg/livesync` package with three entry points: a **server** (Hono/Bun WebSocket, runs inside the consumer's own app), a **client** (browser provider with reconnect, awareness, optional offline store), and **plug-in points** for auth (Broberg ID) and persistence (the consumer's database). The package owns the transport and the protocol; the consumer owns the document and where it is stored.
+Wrap **Yjs** (the de-facto CRDT library: conflict-free merge, awareness/presence, editor bindings) in a thin `@broberg/livesync` package with three entry points: a **server** (Hono/Bun WebSocket, runs inside the consumer's own app), a **client** (browser provider with reconnect, awareness, optional offline store), and **plug-in points** for auth (BrobergID) and persistence (the consumer's database). The package owns the transport and the protocol; the consumer owns the document and where it is stored.
 
 ## Reuse
 - **CRDT engine**: no match in Discovery roster (scripts/inventory-data.mjs, searched yjs/crdt/collab/presence/websocket 12/10) — wrap `yjs` 13.x + `y-protocols` 1.x (open source, MIT, no hosted service).

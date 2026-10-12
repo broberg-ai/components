@@ -1,4 +1,4 @@
-// F038.26 — how a CI job logs in to Discovery: a Broberg ID ticket (GitHub OIDC →
+// F038.26 — how a CI job logs in to Discovery: a BrobergID ticket (GitHub OIDC →
 // BID token exchange, WIF). No stored key: the DISCOVERY_SESSION/DISCOVERY_KEY
 // secrets were removed once the ticket door was proven on main (run 38188055695).
 // Returns the door used so the log can say which one, never the credential.
