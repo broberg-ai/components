@@ -9,6 +9,14 @@
 3. **Offline editing?** IndexedDB persistence on the client (y-indexeddb) makes edits survive a closed tab and merge later. Cheap to add, but it means data sits in the browser — does the first consumer want that?
 4. **One shared sync server, or one per app?** Recommendation: one package, each app runs its own server (its data stays in its own database). A single fleet-wide sync service would be one more thing that holds everyone's data. Owner call.
 
+### jam's answers (#2989, 12/10)
+- **(1)** The main shared document is **the mind map per Jam** (nodes, edges, types idea/question/decision/rejected/risk/source, a provenance link to a turn, collapsing) plus the Jam's title and notes. **Transcript turns are NEVER edited** (append-only, a change = a new branch) and do not go in Yjs. Possible 2nd client: cardmem, if Christian picks Yjs for Jam↔cardmem conflicts (his open question).
+- **(2)** Mind map = structured data (Y.Map / Y.Array), rendered in React Flow (xyflow). Notes: editor not chosen; assume rich text, TipTap/ProseMirror most likely, not locked.
+- **(3)** Offline edits to the mind map merged on reconnect — in jam's draft, not yet approved by Christian.
+- **(4)** [Guessing, jam's own tag] 2–5 concurrent editors, rarely over 10. Cursors/awareness required. Stack awaits Christian (Next.js recommended) — **the client must work under React**.
+
+Consequence for this plan: F100.1 targets Y.Map/Y.Array first (not text); the client ships a React hook beside the plain provider; question 3 stays open until Christian approves jam's draft; question 4 (one server per app) is unchanged.
+
 ## Summary
 A shared npm package that lets several people (or devices) edit the same document at the same time and see each other's changes and cursors live, without anyone's work overwriting anyone else's. It gives every app the same building blocks — a sync server, a browser client, Broberg ID login and storage hooks — so jam, cms and others do not each build their own.
 
