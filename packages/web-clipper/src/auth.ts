@@ -91,7 +91,7 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
   const issuer = opts.issuer.replace(/\/+$/, "");
   const scopes = opts.scopes ?? DEFAULT_SCOPES;
   const identity = opts.identity ?? chromeIdentity();
-  const storage = opts.storage ?? chromeStorage();
+  const storage = opts.storage ?? extensionStorage();
   const doFetch = opts.fetchImpl ?? fetch;
   const now = opts.now ?? Date.now;
   const skew = opts.skewMs ?? 60_000;
@@ -295,7 +295,8 @@ function chromeIdentity(): IdentityApi {
   if (!id) throw new Error("web-clipper/auth: no chrome.identity — add the \"identity\" permission, or pass `identity`");
   return id;
 }
-function chromeStorage(): KeyValueStorage {
+/** chrome.storage.local (or Firefox's browser.storage.local) as a KeyValueStorage — for the popup's own memory too. */
+export function extensionStorage(): KeyValueStorage {
   const local = ext().storage?.local;
   if (!local) throw new Error("web-clipper/auth: no chrome.storage.local — add the \"storage\" permission, or pass `storage`");
   return {

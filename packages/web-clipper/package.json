@@ -7,6 +7,7 @@
   "sideEffects": false,
   "files": [
     "dist",
+    "css",
     "README.md"
   ],
   "exports": {
@@ -30,6 +31,27 @@
       "import": "./dist/auth.js",
       "require": "./dist/auth.cjs"
     },
+    "./content": {
+      "types": "./dist/content.d.ts",
+      "import": "./dist/content.js",
+      "require": "./dist/content.cjs"
+    },
+    "./extension": {
+      "types": "./dist/extension.d.ts",
+      "import": "./dist/extension.js",
+      "require": "./dist/extension.cjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js",
+      "require": "./dist/vite.cjs"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js",
+      "require": "./dist/ui.cjs"
+    },
+    "./css/clipper.css": "./css/clipper.css",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -43,7 +65,14 @@
     "vitest": "^2.1.0",
     "@types/turndown": "^5.0.6",
     "@types/jsdom": "^21.1.7",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "@broberg/theme": "workspace:*",
+    "@testing-library/preact": "^3.2.3",
+    "happy-dom": "^15.0.0",
+    "preact": "^10.23.0",
+    "vite": "^7.1.0",
+    "@crxjs/vite-plugin": "^2.0.0-beta.33",
+    "@preact/preset-vite": "^2.10.2"
   },
   "keywords": [
     "web-clipper",
@@ -64,6 +93,31 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "turndown": "^7.2.4"
+    "turndown": "^7.2.4",
+    "@broberg/ui-controls-core": "^0.2.3"
+  },
+  "peerDependencies": {
+    "@broberg/theme": ">=0.13.0",
+    "preact": ">=10.0.0",
+    "vite": ">=5",
+    "@crxjs/vite-plugin": ">=2.0.0-beta.28",
+    "@preact/preset-vite": ">=2.8.0"
+  },
+  "peerDependenciesMeta": {
+    "@broberg/theme": {
+      "optional": true
+    },
+    "preact": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    },
+    "@crxjs/vite-plugin": {
+      "optional": true
+    },
+    "@preact/preset-vite": {
+      "optional": true
+    }
   }
 }

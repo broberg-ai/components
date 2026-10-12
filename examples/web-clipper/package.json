@@ -1,0 +1,19 @@
+{
+  "name": "web-clipper-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "preview": "bun run server.ts"
+  },
+  "dependencies": {
+    "@broberg/theme": "workspace:*",
+    "@broberg/web-clipper": "workspace:*",
+    "preact": "^10.23.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.33",
+    "@preact/preset-vite": "^2.10.2",
+    "vite": "^7.1.0"
+  }
+}

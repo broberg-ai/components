@@ -75,4 +75,34 @@ const r = await sendClip({ destination, target, clip, auth });   // auth IS the 
 - With `audience`: the BID token is swapped for a 5-minute user ticket (BID F087.37), reused while valid, fetched anew when the sender forces a refresh after a 401. `session_ended` → `null`; a setup refusal (`no_rule_for_audience`, `scope_not_allowed`) → `BidTicketRefusedError` (the sender reports `refused`).
 - The redirect is `chrome.identity.getRedirectURL()` = `https://<extension-id>.chromiumapp.org/` — BID matches it character for character, so the extension needs a FIXED id (manifest `key`).
 
-Coming in the next stories: the extraction and destination plug-in points, Broberg ID login from the extension, the extension skeleton and UI (Preact + Tailwind v4 + @broberg/theme, per D-7598d1).
+## The extension: `/extension`, `/content`, `/vite`, `/ui` (F099.6)
+
+```ts
+// vite.config.ts — a whole clipper from the shared build
+import { defineConfig } from "vite";
+import { defineClipperManifest } from "@broberg/web-clipper/extension";
+import { clipperViteConfig } from "@broberg/web-clipper/vite";
+export default defineConfig(clipperViteConfig({
+  manifest: defineClipperManifest({ name: "Trail Web Clipper", version: "0.3.0", apiHosts: ["https://app.trailmem.com/*"], geckoId: "trail-clipper@broberg.ai" }),
+}));
+
+// src/content.ts — import ONLY /content and your extractors here
+import { runContentScript } from "@broberg/web-clipper/content";
+runContentScript([myChatReader]);
+
+// src/popup.tsx
+import "@broberg/theme/css/palettes.css";
+import "@broberg/web-clipper/css/clipper.css";
+import { createBidAuth, extensionStorage } from "@broberg/web-clipper/auth";
+import { clipActiveTab, CONTENT_SCRIPT_PATH } from "@broberg/web-clipper/extension";
+import { ClipperPopup } from "@broberg/web-clipper/ui";
+render(<ClipperPopup title="Trail" auth={createBidAuth({ issuer, clientId: "trail-clipper", audience, ticketScope })}
+  destination={trail} getClip={() => clipActiveTab(CONTENT_SCRIPT_PATH)} storage={extensionStorage()} />, root);
+```
+
+- **Permissions:** `activeTab`, `scripting`, `identity`, `storage` — and `apiHosts` for your backend only. No page hosts: the content script is injected on click, never declared.
+- **The content script must stand alone.** It runs as a classic script, so it cannot `import`; the build fails (naming the shared chunk) if it shares a module with the popup.
+- **The popup** (Preact, `@broberg/theme` tokens, no native controls): log in, pick a target (custom listbox, keyboard included, remembered per destination), clip, and a status line that tells «log ind igen», «kunne ikke nå frem» and «afvist» apart. Every interactive element has a `clipper-*` data-testid.
+- `examples/web-clipper` is a complete extension (`pnpm --filter web-clipper-example build` → `dist/`, load unpacked) plus the same popup served as a page for Lens (`preview`, :5200).
+
+Coming next: the first release (F099.7), then Trail's clipper and a Jam prototype on it.

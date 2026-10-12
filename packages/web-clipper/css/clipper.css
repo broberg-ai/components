@@ -1,0 +1,64 @@
+/* @broberg/web-clipper — css/clipper.css (F099.6)
+ *
+ *   @import "@broberg/theme/css/palettes.css";
+ *   @import "@broberg/web-clipper/css/clipper.css";
+ *
+ * Every colour is a @broberg/theme token; the only literals are sizes and the
+ * spinner's transparent edge. Prefix bwc- so it cannot collide with the
+ * consumer's classes (settings uses bst-, app-shell bas-).
+ */
+.bwc-popup {
+  box-sizing: border-box; width: 340px; max-width: 100%; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px;
+  color: var(--fg); background: var(--bg);
+}
+.bwc-popup * { box-sizing: border-box; }
+.bwc-popup__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.bwc-popup__title { margin: 0; font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bwc-popup__body { display: flex; flex-direction: column; gap: 10px; }
+
+.bwc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px;
+  font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap;
+  color: var(--fg); background: transparent; border: 1px solid var(--border); border-radius: var(--radius, 8px);
+  cursor: pointer; transition: background 140ms, filter 140ms, opacity 140ms;
+}
+.bwc-btn:hover:not(:disabled) { background: var(--hover); }
+.bwc-btn:active:not(:disabled) { background: var(--active); }
+.bwc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bwc-btn:disabled { opacity: .5; cursor: not-allowed; }
+.bwc-btn[data-busy="true"] { opacity: 1; cursor: wait; }
+/* --accent / --accent-fg is the theme's AA-checked pair (app-shell's confirm button uses it).
+   --paper on --olive-btn measured 3.80:1 in the dark palette (Lens critic, 12/10). */
+.bwc-btn--primary { width: 100%; padding: 10px 14px; color: var(--accent-fg); background: var(--accent); border-color: var(--accent); }
+.bwc-btn--primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.bwc-btn--primary:active:not(:disabled) { background: var(--accent); filter: brightness(.95); }
+
+.bwc-status { margin: 0; padding: 8px 10px; font-size: 13px; border-radius: var(--radius, 8px); background: var(--bg-sunk); color: var(--fg-muted); overflow-wrap: anywhere; }
+.bwc-status.is-ok { color: var(--success, var(--fg)); }
+.bwc-status.is-error { color: var(--danger, var(--fg)); }
+
+.bwc-picker { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bwc-picker__label { font-size: 12px; font-weight: 500; color: var(--fg-muted); }
+.bwc-picker__button {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px;
+  font: inherit; font-size: 14px; text-align: left; color: var(--fg); background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius, 8px); cursor: pointer;
+}
+.bwc-picker__button:hover { background: var(--hover); }
+.bwc-picker__button:active { background: var(--active); }
+.bwc-picker__button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bwc-picker__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bwc-picker__chevron { flex: none; color: var(--fg-muted); }
+.bwc-picker__list {
+  position: absolute; z-index: 10; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px; list-style: none;
+  max-height: 220px; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius, 8px);
+}
+.bwc-picker__option { padding: 7px 8px; border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
+.bwc-picker__option:hover, .bwc-picker__option.is-highlighted { background: var(--hover); }
+.bwc-picker__option[aria-selected="true"] { font-weight: 600; }
+
+.bwc-spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: bwc-spin .7s linear infinite; }
+@keyframes bwc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bwc-spinner { animation: none; } }
