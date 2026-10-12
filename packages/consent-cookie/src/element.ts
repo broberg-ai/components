@@ -293,7 +293,7 @@ const Base: typeof HTMLElement =
 
 export class BrobergConsentElement extends Base {
   static get observedAttributes(): string[] {
-    return ["lang", "hide-reopen"];
+    return ["lang", "hide-reopen", "reserve-space"];
   }
 
   /** The headless manager. Read consent with `el.manager.has("analytics")`. */
@@ -365,6 +365,7 @@ export class BrobergConsentElement extends Base {
   }
 
   disconnectedCallback(): void {
+    this.releaseSpace();
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.docLang?.disconnect();
@@ -378,6 +379,10 @@ export class BrobergConsentElement extends Base {
     // phones, the choice lives in the user menu). Only the handle's visibility moves;
     // a full render would rebuild the shadow DOM and take focus and the unsaved
     // switches from a panel that happens to be open when the phone is turned.
+    if (name === "reserve-space") {
+      this.syncSpace();
+      return;
+    }
     if (name === "hide-reopen") {
       const handle = this.root.querySelector<HTMLElement>('[data-testid="consent-reopen"]');
       if (handle) handle.toggleAttribute("hidden", !this.reopenVisible());
@@ -456,6 +461,47 @@ export class BrobergConsentElement extends Base {
     this.restoreFocus();
   }
 
+  // F014.22 — while the banner is shown the host says so (data-banner-open), and
+  // with `reserve-space` <html> gets padding-bottom equal to the banner's top-to-
+  // viewport-bottom distance, so a phone can scroll the page's last links clear of
+  // it. The site's own inline padding-bottom is put back exactly on a choice.
+  private spaceWatch: ResizeObserver | null = null;
+  private savedPadding: string | null = null;
+  private readonly onResize = () => this.measureSpace();
+
+  private measureSpace(): void {
+    const banner = this.root?.querySelector<HTMLElement>('[data-testid="consent-banner"]');
+    if (!banner || this.savedPadding === null) return;
+    const space = Math.max(0, Math.ceil(window.innerHeight - banner.getBoundingClientRect().top));
+    document.documentElement.style.paddingBottom = `${space}px`;
+  }
+
+  private syncSpace(): void {
+    const open = this.view === "banner";
+    this.toggleAttribute("data-banner-open", open);
+    if (!open || !this.hasAttribute("reserve-space")) return this.releaseSpace();
+    if (this.savedPadding === null) {
+      this.savedPadding = document.documentElement.style.paddingBottom;
+      window.addEventListener("resize", this.onResize);
+    }
+    this.spaceWatch?.disconnect();
+    const banner = this.root.querySelector<HTMLElement>('[data-testid="consent-banner"]');
+    if (banner && typeof ResizeObserver !== "undefined") {
+      this.spaceWatch = new ResizeObserver(() => this.measureSpace());
+      this.spaceWatch.observe(banner);
+    }
+    this.measureSpace();
+  }
+
+  private releaseSpace(): void {
+    this.spaceWatch?.disconnect();
+    this.spaceWatch = null;
+    if (this.savedPadding === null) return;
+    window.removeEventListener("resize", this.onResize);
+    document.documentElement.style.paddingBottom = this.savedPadding;
+    this.savedPadding = null;
+  }
+
   private render(): void {
     const t = this.t;
     const privacy = this.getAttribute("privacy-href");
@@ -500,6 +546,8 @@ export class BrobergConsentElement extends Base {
 <button class="reopen${reopenCorner(this.getAttribute("reopen-position"))}" data-act="open" data-testid="consent-reopen" aria-label="${esc(t.panelTitle)}" ${
       this.reopenVisible() ? "" : "hidden"
     }>${COOKIE_SVG}${esc(t.reopen)}</button>`;
+
+    this.syncSpace();
 
     this.root.querySelectorAll<HTMLElement>("[data-act]").forEach((b) => {
       b.addEventListener("click", () => {

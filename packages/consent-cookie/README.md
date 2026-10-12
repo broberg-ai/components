@@ -36,6 +36,18 @@ One element works the same in Next, Vite+Preact and plain HTML. No site copies i
 - **Styling:** the element reads your @broberg/theme tokens (`--primary`, `--radius`, `--card`, `--border`, …) through the shadow boundary, each with a neutral fallback. Move the handle with `--broberg-consent-reopen-x` / `-y`. **Move the banner itself** with `--broberg-consent-banner-bottom` and `--broberg-consent-banner-left` (since 0.5.1; default 24px, 12px on screens under 520px), e.g. `broberg-consent { --broberg-consent-banner-bottom: 72px }` when a fixed bar of your own (cms inline-edit «Rediger · Log ud») sits in the bottom-left corner. It applies on desktop and mobile.
 - **Compact on phones (since 0.6.0, the default for every site):** under 520px the banner is one row — «Tilpas» as a text link, then «Afvis alle» and «Accepter alle» as two equal buttons — and the heading is hidden visually (screen readers still get it). Measured with Lens on a 393×852 phone: 254px → 127px high with the default Danish text; 143px at 320px wide in English. The consent text is never shortened. Desktop is unchanged.
 - **Built in, not configurable** (it is the law): «Afvis alle» and «Accepter alle» have the same style and size; no optional category starts on; withdrawing clears the record.
+### The banner can reserve space at the bottom (0.7.0, F014.22)
+
+The banner is fixed at the bottom of the screen. On a phone it covers the page's last links until a choice is made. Add `reserve-space` and, while the banner is open, `<html>` gets a bottom padding equal to the banner's height plus its distance from the bottom (`--broberg-consent-banner-bottom`), kept current when it resizes. On a choice it is removed again, and any inline `padding-bottom` your site had on `<html>` is put back exactly.
+
+```html
+<broberg-consent policy-version="2026-10" reserve-space></broberg-consent>
+```
+
+Want to do it yourself? The element always carries `data-banner-open` while the banner is shown: `broberg-consent[data-banner-open] ~ footer { … }` or read it from script. Without `reserve-space` the page is never touched.
+
+**It only helps a page that scrolls as a whole document.** An app that scrolls inside its own panel has to reserve the space in that panel itself (use `data-banner-open`).
+
 ## Nothing marked runs before consent (since 0.3.0)
 
 Mark what may only run with consent. Everything unmarked (app code, login, payments, session cookies) runs as before; nothing is intercepted.
