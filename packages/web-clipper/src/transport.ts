@@ -40,6 +40,8 @@ export interface SendContext {
   session: Session;
   clip: Clip;
   branch?: { forkAt: number; parentChainFp: string };
+  /** F099.8 — what the user typed in the consumer's own popup fields (Trail's tags, Jam's note). Absent when none were given. */
+  fields?: Record<string, string>;
 }
 
 export interface Destination {
@@ -92,6 +94,8 @@ export interface SendOptions {
   backoffMs?: number;
   /** Injectable for tests. */
   sleep?: (ms: number) => Promise<void>;
+  /** F099.8 — the consumer's field values, handed to send() as ctx.fields. Metadata about this send; never fingerprinted. */
+  fields?: Record<string, string>;
 }
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -133,7 +137,7 @@ export async function sendClip(opts: SendOptions): Promise<SendResult> {
     const batch = units.slice(i, i + batchSize);
     const keys = links.slice(i, i + batchSize).map((l) => l.chainFp);
     // The branch marker belongs to the first batch only: later batches extend the new line.
-    const ctx = (): SendContext => ({ idempotencyKeys: keys, target, session: session!, clip, ...(i === 0 && branch ? { branch } : {}) });
+    const ctx = (): SendContext => ({ idempotencyKeys: keys, target, session: session!, clip, ...(i === 0 && branch ? { branch } : {}), ...(opts.fields ? { fields: opts.fields } : {}) });
     const r = await withRules(() => destination.send(batch, ctx()));
     if (r.kind !== "ok") return r.result(sent);
     sent += batch.length;

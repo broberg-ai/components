@@ -98,6 +98,28 @@ describe("F099.6 — ClipperPopup", () => {
     expect(screen.getByTestId("clipper-status").textContent).toBe("Log ind igen");
   });
 
+  it("F099.8 — a consumer field: what the user types reaches send() as ctx.fields, and is not remembered", async () => {
+    const seen: unknown[] = [];
+    const d = dest(async (_u, ctx) => { seen.push(ctx.fields); });
+    const store = memory();
+    const props = { title: "Trail", auth: fakeAuth(S), destination: d, getClip: async () => page, storage: store, fields: [{ id: "tags", label: "Emneord", placeholder: "kommasepareret" }] };
+    const first = render(<ClipperPopup {...props} />);
+    fireEvent.input(await screen.findByTestId("clipper-field-tags"), { target: { value: "ai, eu" } });
+    fireEvent.click(screen.getByTestId("clipper-clip"));
+    await waitFor(() => expect(seen).toStrictEqual([{ tags: "ai, eu" }]));
+    expect([...store.data.keys()].filter((k) => k.includes("field") || JSON.stringify(store.data.get(k)).includes("ai, eu"))).toStrictEqual([]);
+    first.unmount();
+    render(<ClipperPopup {...props} />);
+    expect((await screen.findByTestId<HTMLInputElement>("clipper-field-tags")).value).toBe("");
+  });
+
+  it("F099.8 — without fields, ctx.fields is absent (0.1.0 behaviour)", async () => {
+    const seen: unknown[] = [];
+    render(<ClipperPopup title="Trail" auth={fakeAuth(S)} destination={dest(async (_u, ctx) => { seen.push("fields" in ctx); })} getClip={async () => page} storage={memory()} />);
+    fireEvent.click(await screen.findByTestId("clipper-clip"));
+    await waitFor(() => expect(seen).toStrictEqual([false]));
+  });
+
   it("every interactive element carries a data-testid", async () => {
     render(<ClipperPopup title="Trail" auth={fakeAuth(S)} destination={dest()} getClip={async () => page} storage={memory()} />);
     fireEvent.click(await screen.findByTestId("clipper-target-button"));

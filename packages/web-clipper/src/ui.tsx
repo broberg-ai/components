@@ -137,6 +137,31 @@ export interface PopupAuth {
   logout(): Promise<void>;
 }
 
+/** F099.8 — a text field the consumer adds to the popup (Trail: tags; Jam: a note). */
+export interface ClipperField {
+  id: string;
+  label: string;
+  placeholder?: string;
+}
+
+export function ClipperFieldInput(p: { field: ClipperField; value: string; onValue: (v: string) => void }) {
+  const id = `clipper-field-${p.field.id}`;
+  return (
+    <label class="bwc-field" for={id}>
+      <span class="bwc-field__label">{p.field.label}</span>
+      <input
+        id={id}
+        type="text"
+        class="bwc-field__input"
+        data-testid={id}
+        value={p.value}
+        placeholder={p.field.placeholder}
+        onInput={(e) => p.onValue((e.currentTarget as HTMLInputElement).value)}
+      />
+    </label>
+  );
+}
+
 export interface ClipperPopupProps {
   title: string;
   auth: PopupAuth;
@@ -146,6 +171,8 @@ export interface ClipperPopupProps {
   /** Where the chosen target and per-anchor consent are remembered (chrome.storage.local). */
   storage: KeyValueStorage;
   lang?: Lang;
+  /** F099.8 — the consumer's own fields; their values reach send() as ctx.fields and are never stored. */
+  fields?: ClipperField[];
 }
 
 type Phase =
@@ -167,6 +194,8 @@ export function ClipperPopup(p: ClipperPopupProps) {
   const [target, setTarget] = useState<string | null>(null);
   const [clip, setClip] = useState<ClipState>({ kind: "idle" });
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
+  // Component state only: tags for one page are not tags for the next, so nothing here is stored.
+  const [values, setValues] = useState<Record<string, string>>({});
 
   const loadTargets = async (session: Session) => {
     const list = await p.destination.targets(session);
@@ -223,7 +252,8 @@ export function ClipperPopup(p: ClipperPopupProps) {
       const consentKey = c.anchor ? `broberg-web-clipper:consent:${p.destination.id}:${c.anchor}` : null;
       if (consentFor && consentKey) await p.storage.set(consentKey, true);
       const consented = consentKey ? (await p.storage.get(consentKey)) === true : false;
-      const result = await sendClip({ destination: p.destination, target: chosen, clip: c, auth: p.auth, consented });
+      const fields = p.fields?.length ? Object.fromEntries(p.fields.map((f) => [f.id, values[f.id] ?? ""])) : undefined;
+      const result = await sendClip({ destination: p.destination, target: chosen, clip: c, auth: p.auth, consented, ...(fields ? { fields } : {}) });
       setPendingAnchor(result.state === "consent_required" ? c.anchor ?? null : null);
       if (result.state === "login_required") setPhase({ kind: "logged_out" });
       setClip({ kind: "done", result });
@@ -257,6 +287,9 @@ export function ClipperPopup(p: ClipperPopupProps) {
           {targets && targets.length > 0 ? (
             <TargetPicker targets={targets} value={target} onChange={(id) => void choose(id)} label={t.target} placeholder={t.chooseTarget} />
           ) : null}
+          {p.fields?.map((f) => (
+            <ClipperFieldInput key={f.id} field={f} value={values[f.id] ?? ""} onValue={(v) => setValues((cur) => ({ ...cur, [f.id]: v }))} />
+          ))}
           <ClipperButton testid="clipper-clip" primary busy={clip.kind === "clipping"} disabled={!target} onClick={() => void run()}>
             {clip.kind === "clipping" ? t.clipping : t.clip}
           </ClipperButton>

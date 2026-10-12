@@ -39,6 +39,14 @@
 .bwc-status.is-ok { color: var(--success, var(--fg)); }
 .bwc-status.is-error { color: var(--danger, var(--fg)); }
 
+.bwc-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bwc-field__label { font-size: 12px; font-weight: 500; color: var(--fg-muted); }
+.bwc-field__input {
+  width: 100%; min-width: 0; padding: 8px 10px; font: inherit; font-size: 14px;
+  color: var(--fg); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius, 8px);
+}
+.bwc-field__input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .bwc-picker { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .bwc-picker__label { font-size: 12px; font-weight: 500; color: var(--fg-muted); }
 .bwc-picker__button {

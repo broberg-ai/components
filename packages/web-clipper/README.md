@@ -102,6 +102,7 @@ render(<ClipperPopup title="Trail" auth={createBidAuth({ issuer, clientId: "trai
 
 - **Permissions:** `activeTab`, `scripting`, `identity`, `storage` — and `apiHosts` for your backend only. No page hosts: the content script is injected on click, never declared.
 - **The content script must stand alone.** It runs as a classic script, so it cannot `import`; the build fails (naming the shared chunk) if it shares a module with the popup.
+- **Your own fields** (0.2.0, F099.8): `ClipperPopup({ fields: [{ id: "tags", label: "Emneord", placeholder: "kommasepareret" }] })` — a text input per field (`clipper-field-<id>`); the values reach your `send()` as `ctx.fields` (`{ tags: "…" }`). Never stored: a new popup starts empty. Without `fields`, `ctx.fields` is absent.
 - **The popup** (Preact, `@broberg/theme` tokens, no native controls): log in, pick a target (custom listbox, keyboard included, remembered per destination), clip, and a status line that tells «log ind igen», «kunne ikke nå frem» and «afvist» apart. Every interactive element has a `clipper-*` data-testid.
 - `examples/web-clipper` is a complete extension (`pnpm --filter web-clipper-example build` → `dist/`, load unpacked) plus the same popup served as a page for Lens (`preview`, :5200).
 
