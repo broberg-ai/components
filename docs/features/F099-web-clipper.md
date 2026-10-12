@@ -52,6 +52,20 @@ Trail's and Jam's own destinations, data models and server-side logic; compile-a
 2. Login via BID works in both.
 3. The fingerprint engine has tests for: only-new, resend without duplicates, chain integrity, branching.
 
+## Saved 12/10 (Christian: «Gem de 4 spørgsmål straks»)
+
+### Jam's four reuse questions (jam #2965) — measured against Discovery 12/10
+1. **Shared web-clipper base?** Did not exist, was not planned → now this epic (F099), Christian's build order.
+2. **Yjs/CRDT sync primitive?** Does not exist anywhere in the fleet.
+3. **PDF export primitive?** Partly: @broberg/lens-svg (owner: lens) turns a rendered page into SVG/PDF vectors. No document-to-PDF without a browser.
+4. **MCP server with BID OAuth?** Yes: @broberg/mcp 0.8.0 + /oauth-web (OAuth 2.1/PKCE for claude.ai/ChatGPT connectors); its authorize step calls the app's own login, which is Broberg ID via @broberg/sso.
+
+### Answers that shape the contract (F099.1)
+- **trail (#2971):** nothing more in their clipper than popup/extractor/background/manifest + packaging; ambient (F201) is a Swift app, not on the base. Keep Firefox from the start (gecko id trail-clipper@broberg.ai; launchWebAuthFlow on Firefox gives a different redirect, …extensions.allizom.org). Trail migrates itself. **UI: Preact + Tailwind v4 + @broberg/theme, NO shadcn — owner decision D-7598d1 (Stack B without shadcn) overrides the order's shadcn wording.** Contract additions: Destination.targets(session) → [{id,label,group?}] (Trail picks tenant × brain; the base shows the picker and remembers the choice); send(units, {idempotencyKey, target, session}); auth must request a token for a destination-named audience + scopes (Trail checks aud=https://engine.trailmem.com, scope trail:clip). Trail does not use send-only-new: a page is one unit, updated by sourceUrl, lastSeen → null, whole page each time — the default for destinations without appendOnly.
+- **jam (#2974, jam-F002):** chat units need more than {role, content, position}: a formatted HTML snapshot beside markdown per turn; code blocks and tables kept structured; images as references (url + optional upload hook, EU storage); artefacts (claude.ai artifacts / ChatGPT canvas) as their own units tied to the turn; links; the share link as an anchor-level reference; and a **consent gate in the base: recording is switched on PER CONVERSATION (anchor) before anything is sent** (their locked decision 17). Fingerprint = role + content + position, chain incl. previous. Jam builds the chatgpt.com/claude.ai readers on the Extractor plug-in.
+- **broberg-id (#2972, read from code, chromiumapp.org not tried live):** public clients exist (no secret, PKCE required for all); redirect is matched character for character incl. the trailing slash; one client per extension (trail-clipper, jam-clipper) registered by broberg-id — needs clientId, the FIXED extension id (manifest key; send dev and store ids if both are wanted) and a display name. **User tokens carry only openid/profile/email/offline_access (+ profile:write) — no per-destination audience/scopes today**; without new BID code the token's client (azp) IS the destination check. Real resource scopes on user tokens = a BID card (offered). offline_access gives refresh, but refresh is refused once the user's BID login ends (logout, «log ud overalt», expiry) → the extension must handle «log in again» calmly.
+- **Conflict to settle:** trail asks for a token per audience (aud=engine.trailmem.com + trail:clip); BID cannot issue that on a user token today. Either BID builds resource scopes on user tokens (their card) or Trail checks azp=trail-clipper. Decision pending between trail and broberg-id.
+
 ## Open questions
 1. **UI stack:** Trail's popup is Preact; the order says shadcn/ui + Tailwind v4 (React). Decide with trail/jam in F099.1 (preact/compat can host shadcn components; or the UI layer stays headless + tokens).
 2. **BID client for extensions:** an extension's redirect URI is https://<id>.chromiumapp.org/ — broberg-id must allow it per extension id. Agree with broberg-id in F099.5.
