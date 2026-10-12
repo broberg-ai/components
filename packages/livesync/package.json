@@ -1,0 +1,12 @@
+{
+  "name": "@broberg/livesync",
+  "version": "0.0.1",
+  "description": "PLACEHOLDER — not functional yet. Reserves the name for the fleet's shared real-time collaborative editing package (Yjs; epic F100, docs/features/F100-livesync.md in broberg-ai/components). Do not install: there is no code in this version.",
+  "type": "module",
+  "license": "MIT",
+  "files": ["README.md"],
+  "exports": { "./package.json": "./package.json" },
+  "keywords": ["livesync", "yjs", "crdt", "collaborative-editing", "broberg"],
+  "repository": { "type": "git", "url": "git+https://github.com/broberg-ai/components.git", "directory": "packages/livesync" },
+  "publishConfig": { "access": "public" }
+}
