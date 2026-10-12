@@ -1,6 +1,6 @@
 // F100.1 — two editors converge, and an editor who was offline merges without loss.
 // The network is in memory: each FakeSocket is wired to the real server through
-// createLivesync().connect(), with delivery deferred so messages genuinely interleave.
+// createLivesync({ insecureNoAuth: true }).connect(), with delivery deferred so messages genuinely interleave.
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { createLivesync, type Livesync } from "../src/server";
@@ -29,7 +29,8 @@ function network(server: Livesync) {
         this.readyState = 1;
         this.handle = server.connect(docId, {
           send: (data) => setTimeout(() => this.readyState === 1 && this.onmessage?.({ data: data.slice().buffer }), 1),
-          close: () => this.close(),
+          // Like a real WebSocket: what the server sent before closing still arrives, THEN the close.
+          close: () => setTimeout(() => this.close(), 2),
         });
         this.onopen?.({});
       }, 1);
@@ -55,7 +56,7 @@ const sv = (d: Y.Doc) => Buffer.from(Y.encodeStateVector(d)).toString("hex");
 
 describe("F100.1 — two editors at the same time", () => {
   it("concurrent edits on both sides end identical on the SERVER's copy and on both clients", async () => {
-    const server = createLivesync();
+    const server = createLivesync({ insecureNoAuth: true });
     const net = network(server);
     const a = connect({ url: "ws://x/sync/jam-1", socket: net.factory });
     const b = connect({ url: "ws://x/sync/jam-1", socket: net.factory });
@@ -83,7 +84,7 @@ describe("F100.1 — two editors at the same time", () => {
   });
 
   it("the same key edited on both sides resolves to ONE value everywhere (no split brain)", async () => {
-    const server = createLivesync();
+    const server = createLivesync({ insecureNoAuth: true });
     const net = network(server);
     const a = connect({ url: "ws://x/sync/k", socket: net.factory });
     const b = connect({ url: "ws://x/sync/k", socket: net.factory });
@@ -102,7 +103,7 @@ describe("F100.1 — two editors at the same time", () => {
 
 describe("F100.1 — offline and back (owner 12/10: «ja offline»)", () => {
   it("A edits offline while B edits online; after reconnect nothing is lost on any side", async () => {
-    const server = createLivesync();
+    const server = createLivesync({ insecureNoAuth: true });
     const net = network(server);
     const a: LiveDoc = connect({ url: "ws://x/sync/jam-2", socket: net.factory, minDelayMs: 5 });
     const b: LiveDoc = connect({ url: "ws://x/sync/jam-2", socket: net.factory, minDelayMs: 5 });
@@ -135,7 +136,7 @@ describe("F100.1 — offline and back (owner 12/10: «ja offline»)", () => {
   });
 
   it("a dropped connection (not chosen) reconnects by itself and catches up", async () => {
-    const server = createLivesync();
+    const server = createLivesync({ insecureNoAuth: true });
     const net = network(server);
     const a = connect({ url: "ws://x/sync/jam-3", socket: net.factory, minDelayMs: 5 });
     const b = connect({ url: "ws://x/sync/jam-3", socket: net.factory, minDelayMs: 5 });
@@ -152,7 +153,7 @@ describe("F100.1 — offline and back (owner 12/10: «ja offline»)", () => {
 
 describe("F100.1 — a broken client cannot take the server down", () => {
   it("a malformed message closes THAT connection; the room and the other editors carry on", async () => {
-    const server = createLivesync();
+    const server = createLivesync({ insecureNoAuth: true });
     let closed = 0;
     const bad = server.connect("r", { send: () => {}, close: () => { closed++; } });
     expect(() => bad.message(new Uint8Array([9, 1, 2, 3]))).not.toThrow();      // unknown type

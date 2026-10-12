@@ -4,6 +4,9 @@
 //
 //  0 SYNC       step 1 (my state vector) / step 2 (what you lack) / update
 //  1 AWARENESS  presence: who is here, cursors (F100.4 draws it)
+//  2 AUTH       F100.2 — the client's FIRST message: its login token. Sent in
+//               the socket, not the URL, so it never lands in an access log.
+//  3 DENIED     F100.2 — the server's only answer to a refused login, then close.
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import * as awarenessProtocol from "y-protocols/awareness";
@@ -12,6 +15,36 @@ import type * as Y from "yjs";
 
 export const MESSAGE_SYNC = 0;
 export const MESSAGE_AWARENESS = 1;
+export const MESSAGE_AUTH = 2;
+export const MESSAGE_DENIED = 3;
+
+export function encodeAuth(token: string): Uint8Array {
+  const e = encoding.createEncoder();
+  encoding.writeVarUint(e, MESSAGE_AUTH);
+  encoding.writeVarString(e, token);
+  return encoding.toUint8Array(e);
+}
+export function encodeDenied(): Uint8Array {
+  const e = encoding.createEncoder();
+  encoding.writeVarUint(e, MESSAGE_DENIED);
+  return encoding.toUint8Array(e);
+}
+/** The message type, without consuming anything. */
+export function messageType(data: Uint8Array): number {
+  return decoding.readVarUint(decoding.createDecoder(data));
+}
+/** The token in an AUTH message; null when it is not one. */
+export function readAuth(data: Uint8Array): string | null {
+  const d = decoding.createDecoder(data);
+  return decoding.readVarUint(d) === MESSAGE_AUTH ? decoding.readVarString(d) : null;
+}
+/** Is this a sync message that would CHANGE the document (step 2 or update)? Read-only users may not send those. */
+export function isWrite(data: Uint8Array): boolean {
+  const d = decoding.createDecoder(data);
+  if (decoding.readVarUint(d) !== MESSAGE_SYNC) return false;
+  const kind = decoding.readVarUint(d);
+  return kind === syncProtocol.messageYjsSyncStep2 || kind === syncProtocol.messageYjsUpdate;
+}
 
 /** Step 1: "here is what I have" — the other side answers with what I lack. */
 export function encodeSyncStep1(doc: Y.Doc): Uint8Array {

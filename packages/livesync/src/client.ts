@@ -10,9 +10,10 @@
 //  - state: "connecting" → "synced" (the server's step 2 arrived) → "offline".
 import * as Y from "yjs";
 import * as awarenessProtocol from "y-protocols/awareness";
-import { encodeAwareness, encodeSyncStep1, encodeUpdate, handleMessage } from "./protocol";
+import { encodeAuth, encodeAwareness, encodeSyncStep1, encodeUpdate, handleMessage, messageType, MESSAGE_DENIED } from "./protocol";
 
-export type SyncState = "connecting" | "synced" | "offline";
+/** "denied": the server refused the login — no automatic retry until reconnect() (with a fresh token). */
+export type SyncState = "connecting" | "synced" | "offline" | "denied";
 
 /** The slice of the WebSocket API this uses — the browser's, Bun's, or a test's. */
 export interface SocketLike {
@@ -34,6 +35,12 @@ export interface ConnectOptions {
   doc?: Y.Doc;
   /** Default: the global WebSocket. */
   socket?: SocketFactory;
+  /**
+   * F100.2 — the login token, asked for on EVERY (re)connect, so a refreshed
+   * BID session is picked up without the app doing anything. Sent as the
+   * first message on the socket, never in the URL.
+   */
+  getToken?: () => Promise<string>;
   /** Backoff bounds, ms. Default 500 → 10 000. */
   minDelayMs?: number;
   maxDelayMs?: number;
@@ -95,20 +102,36 @@ export function connect(o: ConnectOptions): LiveDoc {
     const s = factory(o.url);
     s.binaryType = "arraybuffer";
     ws = s;
-    s.onopen = () => {
+    s.onopen = async () => {
       delay = minDelay;
+      if (o.getToken) {
+        let token: string;
+        try {
+          token = await o.getToken();
+        } catch {
+          s.close(); // no token right now — offline, and retried with backoff
+          return;
+        }
+        send(encodeAuth(token));
+      }
       send(encodeSyncStep1(doc));
       if (awareness.getLocalState() !== null) send(encodeAwareness(awareness, [doc.clientID]));
     };
     s.onmessage = (ev) => {
       const data = ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : (ev.data as Uint8Array);
+      if (messageType(data) === MESSAGE_DENIED) {
+        // A refused login does not get better by retrying the same token every few seconds.
+        wanted = false;
+        setState("denied");
+        return;
+      }
       const { reply, wasStep2 } = handleMessage(data, doc, awareness, self);
       if (reply) send(reply);
       if (wasStep2) setState("synced");
     };
     s.onclose = () => {
       if (ws === s) ws = null;
-      setState("offline");
+      if (state !== "denied") setState("offline");
       if (!wanted) return;
       timer = setTimeout(open, delay);
       delay = Math.min(delay * 2, maxDelay);

@@ -10,7 +10,15 @@ Real-time collaborative editing for the fleet, on **Yjs**: several people (or de
 
 ```ts
 import { createLivesync } from "@broberg/livesync/server";
-const lv = createLivesync();
+const lv = createLivesync({
+  // F100.2 — the login check. Required: there is no unauthenticated default.
+  async authorize(token, docId) {
+    const who = await tickets.verify(token, { scope: "jam:edit" });      // @broberg/sso — a BID user ticket
+    if (who.type !== "user") return null;
+    const role = await myApp.roleFor(who.principal, docId);             // your own "may this user open this document"
+    return role ? { sub: who.principal, access: role === "viewer" ? "read" : "write" } : null;
+  },
+});
 
 // Bun / Hono WebSocket — one connection per document:
 const h = lv.connect(docId, { send: (bytes) => ws.send(bytes), close: () => ws.close() });
@@ -18,16 +26,19 @@ ws.onmessage = (e) => h.message(new Uint8Array(e.data));
 ws.onclose = () => h.closed();
 ```
 
-One room per document id. Every editor's changes merge into the room's copy and go out to everyone else. The standard Yjs sync + awareness messages, framed like y-websocket, so existing Yjs editor bindings work unchanged. Login (F100.2), storage in your database (F100.3) and presence UI (F100.4) come next — until F100.3 the room lives in memory only.
+**Login (F100.2):** the client's first message is its token (never in the URL, so never in an access log). Until your `authorize` answers, the connection receives nothing — not even what the document contains. Refused (or a check that throws) → one `DENIED` message, then close. `access: "read"` users receive every change; anything they would change is dropped on the server.
+
+One room per document id. Every editor's changes merge into the room's copy and go out to everyone else. The standard Yjs sync + awareness messages, framed like y-websocket, so existing Yjs editor bindings work unchanged. Storage in your database (F100.3) and presence UI (F100.4) come next — until F100.3 the room lives in memory only.
 
 ## Client — `@broberg/livesync/client` (F100.1)
 
 ```ts
 import { connect } from "@broberg/livesync/client";
-const live = connect({ url: `wss://your.app/sync/${docId}` });
+const live = connect({ url: `wss://your.app/sync/${docId}`, getToken: () => auth.ticket() });
 live.doc.getMap("mindmap").set("title", "Idé");     // a normal Y.Doc
-live.onState((s) => …);                             // "connecting" | "synced" | "offline"
+live.onState((s) => …);                             // "connecting" | "synced" | "offline" | "denied"
 ```
 
 - **Offline is normal:** edits made while disconnected stay in the doc; on reconnect each side sends exactly what the other lacks — nothing lost, nothing applied twice.
 - **Reconnects by itself** with backoff (500 ms doubling to 10 s). `disconnect()` / `reconnect()` for a deliberate offline mode; `destroy()` to stop.
+- **Login:** `getToken()` is asked on every (re)connect, so a refreshed session is used automatically. A refused login → state `"denied"` and no retry storm; call `reconnect()` once the user has logged in again.
