@@ -1,6 +1,6 @@
 {
   "name": "@broberg/web-clipper",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The fleet's one web-clipper base (Trail Web Clipper, Jam Clipper): /core fingerprint + chain + branch engine, /extract Extractor plug-in point + Trail's article extractor, /transport destinations + sender (only new units, idempotent resend, 401/5xx rules, consent gate), /auth Broberg ID login from an extension (PKCE, user tickets), /extension + /content + /vite an MV3 extension from a few lines, /ui the Preact popup on @broberg/theme tokens.",
   "type": "module",
   "license": "MIT",

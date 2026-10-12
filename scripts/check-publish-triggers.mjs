@@ -67,6 +67,17 @@ if (ungated.length) {
       `\n  Measured 2026-08-29: notifications 0.3.0 shipped through ELEVEN consecutive red runs.`,
   );
 }
+// A job name twice is a YAML duplicate key: GitHub rejects the WHOLE workflow, so no
+// package publishes at all, and the tag pushes look accepted. Measured 12/10 2026: a
+// copied block carried publish-web-clipper twice and four runs died as "workflow file
+// issue" before anyone noticed — the Set above counted it once and passed.
+const allJobs = [...src.matchAll(/^  ([a-z0-9-]+):\n/gm)].map((m) => m[1]);
+const dupJobs = [...new Set(allJobs.filter((n, i) => allJobs.indexOf(n) !== i))].sort();
+if (dupJobs.length) {
+  problems.push(
+    `job name(s) defined more than once — GitHub rejects the whole workflow:\n` + dupJobs.map((n) => `    ${n}`).join("\n"),
+  );
+}
 if (!/^  gate:\n    uses: \.\/\.github\/workflows\/test\.yml$/m.test(src)) {
   problems.push(
     `publish.yml has no \`gate\` job calling ./.github/workflows/test.yml.\n` +
