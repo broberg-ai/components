@@ -5,7 +5,7 @@
     "Christian's standing order, 2026-09-20: every release of this package is",
     "announced to broberg-id AND every known consumer, at PUBLISH time — not",
     "when somebody is about to upgrade. The day it was given, 0.2.1 had spent",
-    "an hour on npm rejecting every token the real Broberg ID issues.",
+    "an hour on npm rejecting every token the real BrobergID issues.",
     "",
     "WHY THIS FILE EXISTS RATHER THAN A LOOKUP. Discovery is the right place to",
     "ask 'who uses X', and it was MEASURED EMPTY for this package the same day:",
