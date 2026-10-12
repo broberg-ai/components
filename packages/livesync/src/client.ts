@@ -4,12 +4,14 @@
 //  - Offline is normal (owner 12/10: «ja offline»): edits made while
 //    disconnected stay in the local doc; on reconnect both sides exchange
 //    state vectors (sync step 1/2) and each sends exactly what the other lacks,
-//    so nobody's edits are lost and nothing is applied twice. Surviving a
-//    closed tab (IndexedDB) is F100.3.
+//    so nobody's edits are lost and nothing is applied twice. With
+//    `offlineStore` (F100.3) the doc is also kept in IndexedDB, so edits
+//    survive a closed tab and go out on the next visit.
 //  - Reconnects with backoff (500 ms doubling to 10 s), forever, until destroy().
 //  - state: "connecting" → "synced" (the server's step 2 arrived) → "offline".
 import * as Y from "yjs";
 import * as awarenessProtocol from "y-protocols/awareness";
+import { IndexeddbPersistence } from "y-indexeddb";
 import { encodeAuth, encodeAwareness, encodeSyncStep1, encodeUpdate, handleMessage, messageType, MESSAGE_DENIED } from "./protocol";
 
 /** "denied": the server refused the login — no automatic retry until reconnect() (with a fresh token). */
@@ -41,6 +43,13 @@ export interface ConnectOptions {
    * first message on the socket, never in the URL.
    */
   getToken?: () => Promise<string>;
+  /**
+   * F100.3 — keep the document in this browser's IndexedDB under this name, so
+   * edits made offline survive a closed tab. Name it per user AND document
+   * (e.g. `jam:${userId}:${docId}`): whatever is stored can be read by anyone
+   * using this browser profile — call clearOfflineStore() on logout.
+   */
+  offlineStore?: string;
   /** Backoff bounds, ms. Default 500 → 10 000. */
   minDelayMs?: number;
   maxDelayMs?: number;
@@ -50,6 +59,10 @@ export interface LiveDoc {
   doc: Y.Doc;
   awareness: awarenessProtocol.Awareness;
   readonly state: SyncState;
+  /** Resolves when the IndexedDB copy has been read into `doc` (at once without `offlineStore`). */
+  whenLoaded: Promise<void>;
+  /** Delete this document's IndexedDB copy (e.g. on logout). The doc in memory is untouched. */
+  clearOfflineStore(): Promise<void>;
   /** Subscribe to state changes; returns an unsubscribe. */
   onState(fn: (s: SyncState) => void): () => void;
   /** Drop the connection on purpose (go offline) — edits keep working locally. */
@@ -95,6 +108,11 @@ export function connect(o: ConnectOptions): LiveDoc {
   awareness.on("update", onAwareness);
 
   const self = {}; // the origin for changes that came FROM the server — never echoed back
+
+  // What IndexedDB restores is applied to the doc like any local edit, so it
+  // goes to the server on connect (or right away, if already connected).
+  const local = o.offlineStore ? new IndexeddbPersistence(o.offlineStore, doc) : null;
+  const whenLoaded = local ? local.whenSynced.then(() => {}) : Promise.resolve();
 
   function open(): void {
     if (!wanted) return;
@@ -147,6 +165,10 @@ export function connect(o: ConnectOptions): LiveDoc {
     get state() {
       return state;
     },
+    whenLoaded,
+    async clearOfflineStore() {
+      await local?.clearData();
+    },
     onState(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);
@@ -170,6 +192,7 @@ export function connect(o: ConnectOptions): LiveDoc {
       doc.off("update", onUpdate);
       awareness.off("update", onAwareness);
       awareness.destroy();
+      void local?.destroy();
     },
   };
 }

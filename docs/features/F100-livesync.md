@@ -4,7 +4,7 @@
 
 ## Open Questions (blocking the build — answered by the consumers, not decided here)
 
-1. **Who is first, and what do they edit?** jam asked (#2965 b) for "a Yjs/CRDT sync primitive" without saying what is edited (a shared transcript? notes on a clip? a live session doc?). cms has F71 v2 ("Google Docs-style", Yjs) parked as "Large, aspirational". The first consumer's document shape decides story F100.3. Asked jam 12/10.
+1. **ANSWERED (jam #2989, 12/10 — see below): jam's mind map per Jam.** Was: who is first, and what do they edit? jam asked (#2965 b) for "a Yjs/CRDT sync primitive" without saying what is edited (a shared transcript? notes on a clip? a live session doc?). cms has F71 v2 ("Google Docs-style", Yjs) parked as "Large, aspirational". The first consumer's document shape decides story F100.3. Asked jam 12/10.
 2. **Text only, or structured documents?** Yjs carries both (Y.Text, Y.Map, Y.Array, Y.XmlFragment for rich text). A rich-text editor binding (TipTap/ProseMirror, CodeMirror) is a separate story per editor — which editor does the first consumer use?
 3. **ANSWERED (Christian 12/10: «ja offline»): offline editing is in.** Edits are kept in the browser (IndexedDB) and merge on reconnect. Was: IndexedDB persistence on the client (y-indexeddb) makes edits survive a closed tab and merge later. Cheap to add, but it means data sits in the browser — does the first consumer want that?
 4. **ANSWERED (Christian 12/10: «egen server pr. app»): one server per app**, each app's data in its own database; no fleet-wide sync service. Was: Recommendation: one package, each app runs its own server (its data stays in its own database). A single fleet-wide sync service would be one more thing that holds everyone's data. Owner call.
@@ -14,6 +14,11 @@
 - **(2)** Mind map = structured data (Y.Map / Y.Array), rendered in React Flow (xyflow). Notes: editor not chosen; assume rich text, TipTap/ProseMirror most likely, not locked.
 - **(3)** Offline edits to the mind map merged on reconnect — in jam's draft, not yet approved by Christian.
 - **(4)** [Guessing, jam's own tag] 2–5 concurrent editors, rarely over 10. Cursors/awareness required. Stack awaits Christian (Next.js recommended) — **the client must work under React**.
+
+**Verbatim (jam → components, intercom #2989, 12/10 2026 ~19:47 Danish time), the part F100.3 is built for:**
+> «(1) Mindmappet pr. Jam er hoveddokumentet (knuder, kanter, typer idé/spørgsmål/beslutning/fravalg/risiko/kilde, proveniens-link til tur, sammenfoldning) + Jam'ens titel og noter. Transskriptionsture redigeres ALDRIG (append-only, ændring = ny gren) — de skal ikke i Yjs. […] (2) Mindmap = struktureret data (Y.Map/Y.Array), renderet i React Flow/xyflow. Noter: editor ikke valgt — antag rich text, TipTap/ProseMirror er mest sandsynligt; ikke låst.»
+
+**First consumer's document shape (F100.3, recorded from #2989):** one Y.Doc per Jam. The mind map as Y.Map/Y.Array (nodes, edges, node type, provenance link to a transcript turn, collapsed flag), plus the Jam's title and notes. Transcript turns stay OUT of the doc. **Editor:** React Flow (xyflow) for the map; notes editor not chosen (TipTap/ProseMirror likely). The package does not prescribe the shape — the tests use exactly this one (`mindmap` map, `nodes` array) so it is what is proven. The editor binding is jam's, not this package's.
 
 Consequence for this plan: F100.1 targets Y.Map/Y.Array first (not text); the client ships a React hook beside the plain provider; question 3 stays open until Christian approves jam's draft; question 4 (one server per app) is unchanged.
 
@@ -78,7 +83,7 @@ connect({ url, docId, getToken: () => Promise<string>, offline?: boolean })
 ## Stories
 - **F100.1** — Core: server + client + protocol, tested convergence and offline merge (no auth, in-memory persistence).
 - **F100.2** — Auth + access: BID token check before sync, read/write per document, read-only writes dropped.
-- **F100.3** — Persistence hook + the first consumer's document shape (blocked on open question 1).
+- **F100.3** — Persistence hook (`load`/`store`, debounced, idle rooms unloaded after a store, `flush()` for shutdown) + IndexedDB on the client (`offlineStore`) + the first consumer's document shape (recorded above from #2989).
 - **F100.4** — Presence: who is in the document, cursors; example app driven by Lens with two browsers.
 - **F100.5** — Publish 0.1.0, Discovery roster row, first consumer adopts.
 

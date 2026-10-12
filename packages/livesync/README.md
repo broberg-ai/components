@@ -28,7 +28,28 @@ ws.onclose = () => h.closed();
 
 **Login (F100.2):** the client's first message is its token (never in the URL, so never in an access log). Until your `authorize` answers, the connection receives nothing — not even what the document contains. Refused (or a check that throws) → one `DENIED` message, then close. `access: "read"` users receive every change; anything they would change is dropped on the server. **Access is decided when the connection opens:** a user logged out of BID keeps an already-open connection until it reconnects (the client reconnects on every network blip, and re-asks `getToken`). Close the socket yourself when you learn of a logout (e.g. from @broberg/sso's back-channel logout) to cut it at once.
 
-One room per document id. Every editor's changes merge into the room's copy and go out to everyone else. The standard Yjs sync + awareness messages, framed like y-websocket, so existing Yjs editor bindings work unchanged. Storage in your database (F100.3) and presence UI (F100.4) come next — until F100.3 the room lives in memory only.
+One room per document id. Every editor's changes merge into the room's copy and go out to everyone else. The standard Yjs sync + awareness messages, framed like y-websocket, so existing Yjs editor bindings work unchanged. Presence UI (F100.4) comes next.
+
+### Storage in your own database (F100.3)
+
+```ts
+const lv = createLivesync({
+  authorize,
+  persistence: {
+    load: async (docId) => (await db.get("SELECT state FROM docs WHERE id = ?", docId))?.state ?? null,
+    store: async (docId, state) => db.run("INSERT INTO docs (id, state) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET state = excluded.state", docId, state),
+  },
+  storeDebounceMs: 2000,     // default — at most one store per 2 s while people edit
+  unloadAfterIdleMs: 60_000, // default — a room leaves memory a minute after the last editor, stored first
+});
+process.on("SIGTERM", async () => { await lv.flush(); process.exit(0); }); // a deploy must not lose the last 2 s
+```
+
+- `state` is the whole document as one Yjs update (bytes). Store it as a blob, replace it on every store.
+- `load` is asked once when a room opens. If it **throws**, the connection is closed and nothing is sent — an empty document would be stored over the real one.
+- If `store` throws, the room stays in memory and is retried; `onError(err, docId)` is told (default `console.error`).
+- A read-only user's changes never reach the room, so they are never stored either.
+- Without `persistence`, rooms live in memory only and are never unloaded.
 
 ## Client — `@broberg/livesync/client` (F100.1)
 
@@ -41,4 +62,5 @@ live.onState((s) => …);                             // "connecting" | "synced"
 
 - **Offline is normal:** edits made while disconnected stay in the doc; on reconnect each side sends exactly what the other lacks — nothing lost, nothing applied twice.
 - **Reconnects by itself** with backoff (500 ms doubling to 10 s). `disconnect()` / `reconnect()` for a deliberate offline mode; `destroy()` to stop.
+- **Survives a closed tab (F100.3):** ``connect({ …, offlineStore: `jam:${userId}:${docId}` })`` keeps the doc in IndexedDB; the next visit restores it (`await live.whenLoaded`) and sends what the server lacks. Name it per user **and** document — anyone using that browser profile can read it — and call `live.clearOfflineStore()` on logout.
 - **Login:** `getToken()` is asked on every (re)connect, so a refreshed session is used automatically. A refused login → state `"denied"` and no retry storm; call `reconnect()` once the user has logged in again.

@@ -9,5 +9,5 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   treeshake: true,
-  external: ["yjs", "y-protocols", "lib0"],
+  external: ["yjs", "y-protocols", "lib0", "y-indexeddb"],
 });

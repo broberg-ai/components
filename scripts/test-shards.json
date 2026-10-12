@@ -51,7 +51,7 @@
         "@broberg/tenant": 27,
         "@broberg/webmcp": 5,
         "@broberg/web-clipper": 8,
-        "@broberg/livesync": 4
+        "@broberg/livesync": 21
       }
     },
     {

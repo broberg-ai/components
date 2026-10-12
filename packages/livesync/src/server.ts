@@ -1,8 +1,8 @@
 // @broberg/livesync/server — F100.1. One room per document; every
 // connection's changes are merged into the room's copy and sent on to the
 // others. Transport-agnostic: anything that can send bytes and be closed is
-// a connection (a Bun/Hono WebSocket, or an in-memory pair in a test). The
-// HTTP upgrade, auth (F100.2) and persistence (F100.3) sit on top of this.
+// a connection (a Bun/Hono WebSocket, or an in-memory pair in a test). Auth
+// (F100.2) and persistence (F100.3) are hooks the app passes in.
 //
 // One server per app (owner 12/10): this runs INSIDE the consumer's app, and
 // the documents live in the consumer's database — never in a shared service.
@@ -26,6 +26,10 @@ interface Room {
   doc: Y.Doc;
   awareness: awarenessProtocol.Awareness;
   conns: Map<Connection, Set<number>>;
+  /** Changed since the last successful store. */
+  dirty: boolean;
+  storeTimer?: ReturnType<typeof setTimeout>;
+  idleTimer?: ReturnType<typeof setTimeout>;
 }
 
 /** Who is on the other end, as the app's login check decided. */
@@ -49,6 +53,25 @@ export interface LivesyncOptions {
    * `authorize` is a startup error rather than an open server.
    */
   insecureNoAuth?: true;
+  /**
+   * F100.3 — where documents live: the app's OWN database (owner 12/10, one
+   * server per app). `load` is asked once when a room opens; `store` gets the
+   * whole document state (a Yjs update), debounced after changes, before an
+   * idle room is dropped from memory, and on flush(). Without it the room
+   * lives in memory only and is never unloaded.
+   */
+  persistence?: Persistence;
+  /** Store at most this often while a document is being edited. Default 2000 ms. */
+  storeDebounceMs?: number;
+  /** Drop a room from memory this long after its last editor left (it is stored first). Default 60 000 ms. */
+  unloadAfterIdleMs?: number;
+  /** A failed load/store. Default console.error. A room whose store failed stays in memory and is retried. */
+  onError?: (err: unknown, docId: string) => void;
+}
+
+export interface Persistence {
+  load(docId: string): Promise<Uint8Array | null>;
+  store(docId: string, state: Uint8Array): Promise<void>;
 }
 
 export interface Livesync {
@@ -56,6 +79,8 @@ export interface Livesync {
   connect(docId: string, conn: Connection): ConnectionHandle;
   /** The room's current copy — what every connection converges to. undefined when no one is connected. */
   doc(docId: string): Y.Doc | undefined;
+  /** Store every changed document now — call before the app shuts down (e.g. on SIGTERM in a deploy). */
+  flush(): Promise<void>;
 }
 
 export function createLivesync(options: LivesyncOptions = {}): Livesync {
@@ -63,17 +88,95 @@ export function createLivesync(options: LivesyncOptions = {}): Livesync {
     throw new Error("livesync: pass `authorize` (the login check) — or `insecureNoAuth: true` for a test; an unauthenticated server is never the default");
   }
   const authorize = options.authorize;
+  const persistence = options.persistence;
+  const storeDebounceMs = options.storeDebounceMs ?? 2000;
+  const unloadAfterIdleMs = options.unloadAfterIdleMs ?? 60_000;
+  const onError = options.onError ?? ((err, docId) => console.error(`livesync: storage failed for ${docId}`, err));
   const rooms = new Map<string, Room>();
+  const LOADED = {}; // the origin of the state applied from load() — not a change, so not re-stored
+  // A room being loaded: every connection for it waits on the same load.
+  const opening = new Map<string, Promise<Room>>();
+  // The last store of an unloaded room — a reopen must not load() before it has landed.
+  const lastStore = new Map<string, Promise<void>>();
 
-  function room(docId: string): Room {
-    let r = rooms.get(docId);
+  // Synchronous when the room is in memory or there is no store — so a server
+  // without persistence behaves exactly as before F100.3.
+  function room(docId: string): Room | Promise<Room> {
+    const r = rooms.get(docId);
     if (r) return r;
+    if (!persistence) {
+      const fresh = newRoom(docId);
+      rooms.set(docId, fresh);
+      return fresh;
+    }
+    let p = opening.get(docId);
+    if (p) return p;
+    p = (async () => {
+      await lastStore.get(docId);
+      const saved = await persistence.load(docId);
+      const fresh = newRoom(docId);
+      if (saved && saved.length) Y.applyUpdate(fresh.doc, saved, LOADED);
+      rooms.set(docId, fresh);
+      return fresh;
+    })();
+    opening.set(docId, p);
+    p.finally(() => opening.delete(docId)).catch(() => {});
+    return p;
+  }
+
+  async function store(docId: string, r: Room): Promise<boolean> {
+    clearTimeout(r.storeTimer);
+    r.storeTimer = undefined;
+    if (!persistence || !r.dirty) return true;
+    r.dirty = false; // changes made while this store runs mark it dirty again
+    try {
+      await persistence.store(docId, Y.encodeStateAsUpdate(r.doc));
+      return true;
+    } catch (err) {
+      r.dirty = true;
+      onError(err, docId);
+      scheduleStore(docId, r);
+      return false;
+    }
+  }
+
+  function scheduleStore(docId: string, r: Room): void {
+    if (!persistence || r.storeTimer) return;
+    r.storeTimer = setTimeout(() => void store(docId, r), storeDebounceMs);
+  }
+
+  function scheduleUnload(docId: string, r: Room): void {
+    if (!persistence) return; // nowhere to keep it — unloading would throw the document away
+    clearTimeout(r.idleTimer);
+    r.idleTimer = setTimeout(async () => {
+      r.idleTimer = undefined;
+      if (r.conns.size || rooms.get(docId) !== r) return;
+      // Out of the map FIRST, so a connection arriving now opens a fresh room —
+      // which waits for this store before it loads.
+      rooms.delete(docId);
+      const done = store(docId, r);
+      lastStore.set(docId, done.then(() => {}));
+      if (await done) {
+        r.awareness.destroy();
+        r.doc.destroy();
+      } else {
+        rooms.set(docId, r); // not saved: keep it in memory rather than lose it, try again later
+        scheduleUnload(docId, r);
+      }
+      lastStore.delete(docId);
+    }, unloadAfterIdleMs);
+  }
+
+  function newRoom(docId: string): Room {
     const doc = new Y.Doc();
     const awareness = new awarenessProtocol.Awareness(doc);
     awareness.setLocalState(null); // the server is not a participant
-    const fresh: Room = { doc, awareness, conns: new Map() };
+    const fresh: Room = { doc, awareness, conns: new Map(), dirty: false };
     // Every change to the room's copy goes to everyone except the connection it came from.
     doc.on("update", (update: Uint8Array, origin: unknown) => {
+      if (origin === LOADED) return; // nobody is connected while it loads, and it is already stored
+      fresh.dirty = true;
+      scheduleStore(docId, fresh);
       const msg = encodeUpdate(update);
       for (const c of fresh.conns.keys()) if (c !== origin) safeSend(c, msg);
     });
@@ -87,7 +190,6 @@ export function createLivesync(options: LivesyncOptions = {}): Livesync {
       const msg = encodeAwareness(awareness, changed);
       for (const c of fresh.conns.keys()) safeSend(c, msg);
     });
-    rooms.set(docId, fresh);
     return fresh;
   }
 
@@ -110,8 +212,25 @@ export function createLivesync(options: LivesyncOptions = {}): Livesync {
       const pending: Uint8Array[] = [];
       let r: Room | undefined;
 
-      const join = () => {
-        r = room(docId);
+      const join = async () => {
+        let opened: Room;
+        try {
+          const got = room(docId);
+          opened = got instanceof Promise ? await got : got;
+        } catch (err) {
+          // Could not read the document: closing is honest, an empty one would be overwritten on the next store.
+          onError(err, docId);
+          dead = true;
+          conn.close();
+          return;
+        }
+        if (dead) {
+          if (!opened.conns.size) scheduleUnload(docId, opened); // left while it loaded
+          return;
+        }
+        r = opened;
+        clearTimeout(r.idleTimer);
+        r.idleTimer = undefined;
         r.conns.set(conn, new Set());
         joined = true;
         safeSend(conn, encodeSyncStep1(r.doc));
@@ -140,34 +259,34 @@ export function createLivesync(options: LivesyncOptions = {}): Livesync {
         if (reply) safeSend(conn, reply);
       };
 
-      if (!authorize) join();
+      if (!authorize) void join();
 
       return {
         message(data) {
           if (dead) return;
           if (joined) return handle(data);
-          if (!authStarted) {
-            // The first message must be the login.
-            let token: string | null = null;
-            try {
-              token = messageType(data) === MESSAGE_AUTH ? readAuth(data) : null;
-            } catch {
-              token = null;
-            }
-            if (token === null) return refuse();
-            authStarted = true;
-            authorize!(token, docId).then(
-              (p) => {
-                if (dead) return;
-                if (!p) return refuse();
-                principal = p;
-                join();
-              },
-              () => refuse(), // a login check that throws is a refusal, never an open door
-            );
+          if (authStarted || !authorize) {
+            pending.push(data.slice()); // sync step 1 etc. arriving while the check or the load runs
             return;
           }
-          pending.push(data.slice()); // sync step 1 etc. arriving while the check runs
+          // The first message must be the login.
+          let token: string | null = null;
+          try {
+            token = messageType(data) === MESSAGE_AUTH ? readAuth(data) : null;
+          } catch {
+            token = null;
+          }
+          if (token === null) return refuse();
+          authStarted = true;
+          authorize(token, docId).then(
+            (p) => {
+              if (dead) return;
+              if (!p) return refuse();
+              principal = p;
+              void join();
+            },
+            () => refuse(), // a login check that throws is a refusal, never an open door
+          );
         },
         closed() {
           dead = true;
@@ -175,12 +294,14 @@ export function createLivesync(options: LivesyncOptions = {}): Livesync {
           const ids = r.conns.get(conn);
           r.conns.delete(conn);
           if (ids?.size) awarenessProtocol.removeAwarenessStates(r.awareness, [...ids], null);
-          // The room stays when the last editor leaves: with no persistence yet
-          // (F100.3), unloading it would throw the document away. F100.3 stores
-          // it first and only then unloads idle rooms.
+          if (!r.conns.size) scheduleUnload(docId, r);
         },
       };
     },
     doc: (docId) => rooms.get(docId)?.doc,
+    async flush() {
+      await Promise.all([...rooms].map(([id, r]) => store(id, r)));
+      await Promise.all(lastStore.values());
+    },
   };
 }
