@@ -1,5 +1,5 @@
 /**
- * Server-side tokens for calling Broberg ID on the user's behalf (F095.1).
+ * Server-side tokens for calling BrobergID on the user's behalf (F095.1).
  *
  * The login already RECEIVES an access token and a refresh token; before 0.9.0
  * ssoRoutes dropped both, so an app could not call BID's app API (the account

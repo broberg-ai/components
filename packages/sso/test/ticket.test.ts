@@ -1,5 +1,5 @@
 // F084.153 — BID tickets verified locally. Keys are EdDSA because that is what
-// Broberg ID signs with (measured 2026-09-20; a fake issuer signing RS256 is
+// BrobergID signs with (measured 2026-09-20; a fake issuer signing RS256 is
 // how 0.2.1 shipped broken). Every principal is asserted with strict equality.
 import { beforeAll, describe, expect, it } from "vitest";
 import { SignJWT, exportJWK, generateKeyPair, type CryptoKey, type JWK } from "jose";

@@ -1,6 +1,6 @@
 # @broberg/sso
 
-The thin client for **Broberg ID** (`id.broberg.ai`). Send a user to central
+The thin client for **BrobergID** (`id.broberg.ai`). Send a user to central
 login, verify the ID token against JWKS, keep a local session. That is all it
 does, and the list of what it deliberately cannot do is part of the design.
 
@@ -117,7 +117,7 @@ That is the whole integration. No other code changes.
 
 ## Using the core instead — and the two things you then own
 
-The adapter above mints **its own** session cookie, keyed on Broberg ID's `sub`.
+The adapter above mints **its own** session cookie, keyed on BrobergID's `sub`.
 That is right for a NEW app and wrong for an app that already has a user table
 and a session keyed on its own id — you would end up with two cookies and two
 opinions about who is logged in. **That is the common case in a migration, not
@@ -152,12 +152,12 @@ const url = await client.logoutUrl({ idTokenHint: await myStore.get(userId) });
 behaviour (the issuer asks) rather than an error. So this fails quietly, which
 is exactly why it is written here instead of left to be discovered.
 
-**Or decide not to log out of Broberg ID at all — that is the other valid
+**Or decide not to log out of BrobergID at all — that is the other valid
 shape, not a lesser one.** HelpDesk clears only its own session cookie and never
 redirects to the issuer's end-session endpoint. Then there is no foreign
 confirmation page to get past and no `idTokenHint` to be missing, and you need
 none of the code above. The consequence is real and worth choosing on purpose
-rather than discovering: **signing out of your app leaves the Broberg ID session
+rather than discovering: **signing out of your app leaves the BrobergID session
 alive**, so signing back in happens without a prompt. That is right for an app
 on a shared product surface and wrong for a kiosk.
 
@@ -262,7 +262,7 @@ with invented kids cannot be used to aim traffic at BID.
 
 ## One thing that is load-bearing and easy to undo
 
-The session cookie is `SameSite=Lax`, not `Strict`. The callback from Broberg ID
+The session cookie is `SameSite=Lax`, not `Strict`. The callback from BrobergID
 is a top-level navigation from another site, and `Strict` withholds the cookie
 on exactly that navigation — every sign-in would fail with "state does not
 match", which sends you looking at the OAuth flow instead of at a cookie flag.
@@ -284,7 +284,7 @@ Calls BID's `POST /api/app/address-ownership` with the user's access token. **It
 
 ## Inviting users and tracking the move to BID (since 0.5.0)
 
-Two calls that authenticate with **your app's own key** (`bidk_…`, issued by Broberg ID) — not the client secret, not a user's token.
+Two calls that authenticate with **your app's own key** (`bidk_…`, issued by BrobergID) — not the client secret, not a user's token.
 
 ```ts
 const results = await client.inviteUsers(process.env.BID_APP_KEY!, {
@@ -307,7 +307,7 @@ const status = await client.migrationStatus(process.env.BID_APP_KEY!, ["sanne@ex
 
 ## «Log ud overalt» — receiving it from BID (since 0.6.0)
 
-When a user presses **«Log ud overalt»** in Broberg ID, BID tells every app it has registered for that: an OIDC Back-Channel Logout token to `POST <mount>/backchannel-logout`. The ordinary «Log ud» in BID does **not** reach your app (owner decision D-376ffa), and the package refuses a token carrying `sid` to keep it that way.
+When a user presses **«Log ud overalt»** in BrobergID, BID tells every app it has registered for that: an OIDC Back-Channel Logout token to `POST <mount>/backchannel-logout`. The ordinary «Log ud» in BID does **not** reach your app (owner decision D-376ffa), and the package refuses a token carrying `sid` to keep it that way.
 
 ```ts
 const sso = ssoRoutes({
@@ -548,7 +548,7 @@ a VPN; think twice on the open internet.
 
 ## Trusting another service — BID tickets (since 0.13.0)
 
-One service proves who it is to another with a short-lived **ticket** from Broberg ID (a JWT signed with BID's keys). The receiver checks it locally against BID's *public* keys — no shared secret anywhere. Format: broberg-id `docs/features/F087.1-identitetsmodel.md` §3 (draft until the organisation question is settled; only `org`'s mapping would move).
+One service proves who it is to another with a short-lived **ticket** from BrobergID (a JWT signed with BID's keys). The receiver checks it locally against BID's *public* keys — no shared secret anywhere. Format: broberg-id `docs/features/F087.1-identitetsmodel.md` §3 (draft until the organisation question is settled; only `org`'s mapping would move).
 
 ```ts
 import { createTicketVerifier, JwksUnavailableError, SsoError } from "@broberg/sso";
@@ -625,7 +625,7 @@ One ES256 key per client, non-extractable, never stored; BID binds the ticket to
 
 ## Getting a ticket — `fetchTicket` (since 0.14.1 — 0.14.0 was tagged but never reached npm)
 
-The sending half: a workload on **Fly** or in **GitHub Actions** gets a Broberg ID ticket with no key at all. It proves who it is with the identity its platform already gives it, and BID exchanges that (RFC 8693). Nothing secret is stored anywhere.
+The sending half: a workload on **Fly** or in **GitHub Actions** gets a BrobergID ticket with no key at all. It proves who it is with the identity its platform already gives it, and BID exchanges that (RFC 8693). Nothing secret is stored anywhere.
 
 ```ts
 import { fetchTicket, NoWorkloadIdentityError, TicketExchangeError, TicketUnavailableError } from "@broberg/sso";

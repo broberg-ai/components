@@ -1,5 +1,5 @@
 /**
- * The core: framework-free, public-client OAuth 2.1 against Broberg ID.
+ * The core: framework-free, public-client OAuth 2.1 against BrobergID.
  *
  * ── THIS PACKAGE IS A PUBLIC CLIENT. THERE IS NO CLIENT SECRET. ───────────
  *
@@ -438,7 +438,7 @@ function invalidClientHint(error: string | undefined, weSentASecret: boolean): s
  * first, and there is a test that fails if this list is widened.
  */
 export const ALLOWED_ALGS = [
-  // FIRST, because it is what Broberg ID actually signs with. Measured on the
+  // FIRST, because it is what BrobergID actually signs with. Measured on the
   // live issuer 2026-09-20:
   //   /jwks      kid=Iodh… kty=OKP alg=EdDSA crv=Ed25519
   //   discovery  id_token_signing_alg_values_supported: ["EdDSA"]
@@ -715,7 +715,7 @@ export function createSsoClient(
    * Fetch the profile claims and fold them in.
    *
    * NOT an optimisation — it is the only way to learn a user's name. MEASURED
-   * against the live Broberg ID on 16 Sep 2026:
+   * against the live BrobergID on 16 Sep 2026:
    *
    *   ID token   iss · sub · aud · iat · exp · auth_time · acr · at_hash
    *   userinfo   sub · name · given_name · family_name · email · email_verified
@@ -883,7 +883,7 @@ export function createSsoClient(
       const error = params.get("error");
       if (error) {
         throw new SsoError(
-          `Broberg ID refused this login: ${error}` +
+          `BrobergID refused this login: ${error}` +
             (params.get("error_description") ? ` — ${params.get("error_description")}` : ""),
         );
       }

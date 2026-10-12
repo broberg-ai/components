@@ -14,7 +14,7 @@
  */
 
 export interface SessionPayload {
-  /** The subject from Broberg ID. The one stable identifier. */
+  /** The subject from BrobergID. The one stable identifier. */
   sub: string;
   /** Unix seconds. Checked on every read. */
   exp: number;
@@ -197,7 +197,7 @@ export function cookieHeader(
     `Path=${opts.path ?? "/"}`,
     `Max-Age=${opts.maxAge}`,
     "HttpOnly",
-    // Lax, NOT Strict, and this is load-bearing: the callback from Broberg ID
+    // Lax, NOT Strict, and this is load-bearing: the callback from BrobergID
     // is a top-level GET navigation from another site. Strict withholds the
     // cookie on exactly that navigation, so the login transaction cookie would
     // be missing when it is needed and every sign-in would fail with "state

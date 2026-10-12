@@ -1,10 +1,10 @@
 /**
- * @broberg/sso — the thin client for Broberg ID.
+ * @broberg/sso — the thin client for BrobergID.
  *
  * WHAT IS DELIBERATELY ABSENT, and stays absent (F084.4 AC#4 greps the
  * published tarball for it): password handling, passkey registration,
  * social-provider keys, email verification, and any client secret. All of it
- * lives in Broberg ID. A client that CAN do those things is a client somebody
+ * lives in BrobergID. A client that CAN do those things is a client somebody
  * eventually uses to do them — and then the identity rules exist in two places
  * and start to disagree.
  */

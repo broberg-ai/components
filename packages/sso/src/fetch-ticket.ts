@@ -1,5 +1,5 @@
 /**
- * F084.154 — fetch a Broberg ID ticket WITHOUT a key (broberg-id-F087.10/.11).
+ * F084.154 — fetch a BrobergID ticket WITHOUT a key (broberg-id-F087.10/.11).
  *
  * The sending half of F084.153: a workload proves who it is with the identity its
  * platform already gives it, and BID exchanges that for a short-lived ticket
@@ -179,7 +179,7 @@ export function createTicketClient(options: TicketClientOptions = {}): TicketCli
     if (!res.ok || !body.access_token) {
       const desc = body.error_description ?? "";
       const code = desc.includes(":") ? desc.slice(0, desc.indexOf(":")).trim() : body.error ?? "exchange_refused";
-      throw new TicketExchangeError(`Broberg ID refused the ticket for ${audience}: ${desc || body.error || res.status}`, code, res.status);
+      throw new TicketExchangeError(`BrobergID refused the ticket for ${audience}: ${desc || body.error || res.status}`, code, res.status);
     }
     const nowSec = Math.floor(now() / 1000);
     const exp = jwtExp(body.access_token) ?? nowSec + (body.expires_in ?? 300);

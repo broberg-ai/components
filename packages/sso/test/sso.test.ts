@@ -3,7 +3,7 @@
  *
  * ── WHAT THESE CAN AND CANNOT PROVE ───────────────────────────────────────
  *
- * They run against a FAKE Broberg ID built here. A fake is kind by
+ * They run against a FAKE BrobergID built here. A fake is kind by
  * construction — it agrees with whatever this file believes the protocol is —
  * so it can prove the key-rotation and rejection LOGIC and it cannot prove the
  * package talks to the real service. That half is F084.4 AC#1, run in a real
@@ -37,7 +37,7 @@ const ENV = {
   SSO_COOKIE_SECRET: "s".repeat(64),
 } as NodeJS.ProcessEnv;
 
-/* ── a fake Broberg ID, with a rotatable signing key ─────────────────────── */
+/* ── a fake BrobergID, with a rotatable signing key ─────────────────────── */
 
 async function makeIdp() {
   let keyId = "key-1";
@@ -447,7 +447,7 @@ describe("the session cookie is unforgeable and expires", () => {
 
 describe("the profile comes from userinfo, and only for the right subject", () => {
   /**
-   * MEASURED against the live Broberg ID, 16 Sep 2026 — not assumed:
+   * MEASURED against the live BrobergID, 16 Sep 2026 — not assumed:
    *   ID token   iss · sub · aud · iat · exp · auth_time · acr · at_hash
    *   userinfo   sub · name · given_name · family_name · email · email_verified
    * An app reading only the ID token gets a proven identity and a blank name,
@@ -957,7 +957,7 @@ describe("a forged ID token is refused by OUR rule, not by a dependency's intern
   }
 
   test("PRODUCTION'S OWN ALGORITHM — an EdDSA token is accepted", async () => {
-    // The test 0.2.1 did not have, and the reason it shipped broken. Broberg ID
+    // The test 0.2.1 did not have, and the reason it shipped broken. BrobergID
     // signs with Ed25519 and advertises EdDSA as the ONLY supported algorithm;
     // the whole suite used an RS256 fake, so an allow-list that omitted EdDSA
     // was green here and rejected every real token in production.
@@ -1147,7 +1147,7 @@ describe("an issuer we cannot verify at all is named at first use", () => {
     expect(err!.message).toMatch(/Every token would be rejected/);
   });
 
-  test("EdDSA-only — the real Broberg ID — is fine", async () => {
+  test("EdDSA-only — the real BrobergID — is fine", async () => {
     // The live issuer advertises exactly this. A guard that tripped here would
     // be a second outage wearing caution's clothes.
     await expect(issuerSigningWith(["EdDSA"]).discovery()).resolves.toBeTruthy();

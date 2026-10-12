@@ -1,6 +1,6 @@
 /**
  * F095.2 — the profile client (getProfile/updateProfile/uploadAvatar/removeAvatar)
- * and accountRoutes, against a FAKE Broberg ID. Same limit as sso.test.ts: a fake
+ * and accountRoutes, against a FAKE BrobergID. Same limit as sso.test.ts: a fake
  * agrees with whoever wrote it, so this proves the wiring and the error mapping,
  * not that BID answers exactly so. The live shape of the 401 ({"error":"invalid_token"})
  * was measured against id.broberg.ai on 2026-10-05; the 403 insufficient_scope

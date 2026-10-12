@@ -1,8 +1,8 @@
 /**
- * F084.153 — verify a Broberg ID ticket LOCALLY (broberg-id-F087.4).
+ * F084.153 — verify a BrobergID ticket LOCALLY (broberg-id-F087.4).
  *
  * A ticket is how one service or agent proves who it is to another without a
- * shared secret: Broberg ID signs a short-lived JWT, the receiver checks it
+ * shared secret: BrobergID signs a short-lived JWT, the receiver checks it
  * against BID's PUBLIC keys. Nothing secret lives at the receiver.
  *
  * Format: broberg-id docs/features/F087.1-identitetsmodel.md §3 (draft, 8/10).

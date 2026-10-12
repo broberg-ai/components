@@ -15,7 +15,7 @@ export class SsoConfigError extends Error {
 }
 
 export interface SsoConfig {
-  /** Broberg ID's origin, e.g. https://id.broberg.ai — the BARE origin. */
+  /** BrobergID's origin, e.g. https://id.broberg.ai — the BARE origin. */
   issuer: string;
   /** The client id this app was registered under (administratively, in BID). */
   clientId: string;
@@ -78,7 +78,7 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
   const rawIssuer = required(
     env,
     "BID_ISSUER",
-    "It is Broberg ID's bare origin, e.g. https://id.broberg.ai",
+    "It is BrobergID's bare origin, e.g. https://id.broberg.ai",
   );
 
   let issuer: string;
@@ -127,7 +127,7 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
 
   return {
     issuer,
-    clientId: required(env, "SSO_CLIENT_ID", "The id this app is registered under in Broberg ID."),
+    clientId: required(env, "SSO_CLIENT_ID", "The id this app is registered under in BrobergID."),
     redirectUri: required(
       env,
       "SSO_REDIRECT_URI",
