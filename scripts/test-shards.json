@@ -38,7 +38,8 @@
         "@broberg/tenant",
         "@broberg/webmcp",
         "@broberg/web-clipper",
-        "@broberg/livesync"
+        "@broberg/livesync",
+        "@broberg/editor"
       ],
       "min_tests": {
         "@broberg/app-shell": 24,
@@ -51,7 +52,8 @@
         "@broberg/tenant": 27,
         "@broberg/webmcp": 5,
         "@broberg/web-clipper": 136,
-        "@broberg/livesync": 25
+        "@broberg/livesync": 25,
+        "@broberg/editor": 16
       }
     },
     {

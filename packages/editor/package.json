@@ -1,12 +1,60 @@
 {
   "name": "@broberg/editor",
   "version": "0.0.1",
-  "description": "PLACEHOLDER — not functional yet. Reserves the name for the fleet's shared WYSIWYG editor on TipTap (headless core + React/Preact adapters; epic F101, docs/features/F101-editor.md in broberg-ai/components). Do not install: there is no code in this version.",
+  "description": "The fleet's shared WYSIWYG editor on TipTap: a headless core (createEditor, toolbarState, markdown in/out), server-side HTML rendering without a browser, image upload through your own callback, and thin React/Preact adapters. Epic F101.",
   "type": "module",
   "license": "MIT",
-  "files": ["README.md"],
-  "exports": { "./package.json": "./package.json" },
-  "keywords": ["editor", "rich-text", "wysiwyg", "tiptap", "prosemirror", "broberg"],
-  "repository": { "type": "git", "url": "git+https://github.com/broberg-ai/components.git", "directory": "packages/editor" },
-  "publishConfig": { "access": "public" }
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "editor",
+    "rich-text",
+    "wysiwyg",
+    "tiptap",
+    "prosemirror",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broberg-ai/components.git",
+    "directory": "packages/editor"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsup",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.32.0",
+    "@tiptap/extension-image": "3.32.0",
+    "@tiptap/extensions": "3.32.0",
+    "@tiptap/markdown": "3.32.0",
+    "@tiptap/pm": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0"
+  },
+  "devDependencies": {
+    "happy-dom": "^15.11.7",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
 }
