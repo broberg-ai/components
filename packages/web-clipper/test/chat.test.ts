@@ -305,3 +305,24 @@ describe("F099.10 — Claude artifacts come along as files, and nothing is silen
     expect(clip.units.at(-1)!.content).toBe("[Artefakt: app.ts]\n\nFilen er lavet.\n\nse her");
   });
 });
+
+describe("F099.10 / 0.6.1 — what the person attached is not dropped", () => {
+  it("a message that is only an attached file stays a turn (its text as a file); an uploaded image is named", async () => {
+    const m = (uuid: string, sender: string, parent: string, content: unknown[], extra: Record<string, unknown> = {}) => ({ uuid, sender, parent_message_uuid: parent, content, ...extra });
+    const data = {
+      name: "Bilag", current_leaf_message_uuid: "a2",
+      chat_messages: [
+        m("u1", "human", "r", [{ type: "text", text: "Læs den her" }]),
+        m("a1", "assistant", "u1", [{ type: "text", text: "Send den" }]),
+        m("u2", "human", "a1", [], { attachments: [{ file_name: "brief.md", file_type: "text/markdown", extracted_content: "# Brief" }], files_v2: [{ file_name: "skitse.png", file_kind: "image" }] }),
+        m("a2", "assistant", "u2", [{ type: "text", text: "Tak" }]),
+      ],
+    };
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(data)).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.units.map((u) => [u.role, u.content])).toStrictEqual([
+      ["user", "Læs den her"], ["assistant", "Send den"], ["user", "[Bilag: brief.md]\n\n[Fil: skitse.png]"], ["assistant", "Tak"],
+    ]);
+    expect(clip.units[2]!.assets).toStrictEqual([{ type: "file", name: "brief.md", mime: "text/markdown", content: "# Brief" }]);
+    expect(clip.completeness?.complete).toBe(true);
+  });
+});

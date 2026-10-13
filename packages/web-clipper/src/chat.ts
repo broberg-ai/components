@@ -340,6 +340,21 @@ export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skip
     }
     const parts: string[] = [];
     const assets: Asset[] = [];
+    // Files the person attached: the text claude.ai extracted from them comes along as a file;
+    // an image or other upload is named. Without this, a message that was only a file vanished
+    // and its neighbours were merged into one turn (jam 13/10: «KAI», 74 of 79).
+    for (const a of Array.isArray(m.attachments) ? m.attachments : []) {
+      if (!isObj(a)) continue;
+      const name = str(a.file_name) ?? "bilag";
+      const content = str(a.extracted_content);
+      parts.push(`[Bilag: ${name}]`);
+      if (content !== undefined) assets.push({ type: "file", name, ...(str(a.file_type) ? { mime: str(a.file_type)! } : {}), content });
+    }
+    const uploads = [...(Array.isArray(m.files_v2) ? m.files_v2 : Array.isArray(m.files) ? m.files : [])];
+    for (const f of uploads) {
+      if (!isObj(f)) continue;
+      parts.push(`[Fil: ${str(f.file_name) ?? "fil"}]`);
+    }
     for (const b of m.content) {
       if (!isObj(b)) continue;
       if (b.type === "text" && typeof b.text === "string") parts.push(b.text);
