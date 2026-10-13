@@ -8,7 +8,7 @@
 //  - Chrome first (Edge, Brave, Arc for free); `geckoId` adds Firefox.
 //  - `key` pins the extension id, which pins the redirect URI BID matches
 //    character for character (https://<id>.chromiumapp.org/).
-import type { Clip } from "./extract";
+import type { Asset, Clip } from "./extract";
 
 export interface ClipperManifestOptions {
   name: string;
@@ -73,6 +73,8 @@ export function defineClipperManifest(o: ClipperManifestOptions): Record<string,
 // script injected with executeScript cannot import anything. A test holds the
 // two literals equal.
 export const EXTRACT_MESSAGE = "broberg-web-clipper:extract";
+/** Must equal CONTENT_STREAM_MESSAGE in ./content.ts (held by a test). F099.20. */
+export const STREAM_MESSAGE = "broberg-web-clipper:stream";
 /** Must equal CONTENT_PART_MESSAGE / CONTENT_PART_CHARS in ./content.ts (held by a test). */
 export const PART_MESSAGE = "broberg-web-clipper:part";
 export const PART_CHARS = 8 * 1024 * 1024;
@@ -166,6 +168,33 @@ async function assembleParts(clip: Clip, ask: (ref: string, start: number) => Pr
       reason: [c?.reason, ...problems].filter(Boolean).join("; "),
     },
   };
+}
+
+/** How many part addresses a streamed file needs at `partSize` bytes per part. */
+export const partsNeeded = (size: number, partSize: number) => Math.max(1, Math.ceil(size / partSize));
+
+/**
+ * F099.20 — stream a `transfer: "stream"` asset from the page straight to YOUR storage. Get
+ * `partsNeeded(asset.size, partSize)` presigned part addresses from your server first (e.g.
+ * @broberg/media's `multipart.presignPart`); this returns each part's ETag in order for your server's
+ * `complete`. On a thrown error, ABORT the upload on your server. Every part but the last must be at
+ * least 5 MiB (S3 rule). The bytes never pass through the extension or sit in memory beyond one part.
+ */
+export async function streamAsset(
+  asset: Pick<Asset, "streamRef" | "name">,
+  upload: { partUrls: string[]; partSize: number },
+  api: { tabs: Pick<TabsLike, "query"> & { sendMessage(tabId: number, msg: unknown): Promise<unknown> } } = chromeApi() as never,
+): Promise<{ etags: string[]; size: number }> {
+  if (!asset.streamRef) throw new Error(`«${asset.name ?? "fil"}» is not a streamed file`);
+  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) throw new ClipTabError("no_tab", "no active tab");
+  const r = (await api.tabs.sendMessage(tab.id, { action: STREAM_MESSAGE, ref: asset.streamRef, partUrls: upload.partUrls, partSize: upload.partSize })) as
+    | { ok: true; etags: string[]; size: number }
+    | { ok: false; error: string }
+    | undefined;
+  if (!r) throw new Error("the page did not answer");
+  if (!r.ok) throw new Error(r.error);
+  return { etags: r.etags, size: r.size };
 }
 
 function chromeApi(): Record<string, unknown> {

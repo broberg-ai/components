@@ -617,3 +617,23 @@ describe("F099.13 / 0.8.3 — the thread is the WHOLE thread (jam 13/10: KAI gav
     expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
   });
 });
+
+describe("F099.20 — a file over streamOverBytes comes as a stream handle, not in the clip", () => {
+  const DL = "https://claude.ai/api/organizations/org-a/conversations/11111111-2222-3333-4444-555555555555/wiggle/download-file?path=";
+  it("big → { transfer:'stream', streamRef, size, no content }, small → in the clip as before; the clip is complete", async () => {
+    const data = { name: "X", current_leaf_message_uuid: "a1", chat_messages: [
+      { uuid: "u1", sender: "human", parent_message_uuid: "r", content: [{ type: "text", text: "?" }] },
+      { uuid: "a1", sender: "assistant", parent_message_uuid: "u1", content: [{ type: "tool_use", name: "present_files", input: { filepaths: ["/mnt/user-data/outputs/film.mp4", "/mnt/user-data/outputs/note.md"] } }, { type: "text", text: "!" }] },
+    ] };
+    const routes: Record<string, Route> = {
+      ...claudeRoutes(data),
+      [DL + encodeURIComponent("/mnt/user-data/outputs/film.mp4")]: () => new Response(new Uint8Array(10), { headers: { "content-type": "video/mp4", "content-length": String(2_000_000_000) } }),
+      [DL + encodeURIComponent("/mnt/user-data/outputs/note.md")]: () => new Response("# note", { headers: { "content-type": "text/markdown" } }),
+    };
+    const clip = await createClaudeReader({ fetch: fakeFetch(routes).f, streamOverBytes: 25 * 1024 * 1024 }).extract(docWith(""), CLAUDE_URL);
+    const [film, note] = clip.units[1]!.assets!;
+    expect(film).toStrictEqual({ type: "file", id: "/mnt/user-data/outputs/film.mp4", name: "film.mp4", mime: "video/mp4", size: 2_000_000_000, transfer: "stream", streamRef: expect.stringMatching(/^stream-\d+$/) });
+    expect(note).toMatchObject({ name: "note.md", content: "# note" });
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+});

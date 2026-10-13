@@ -16,6 +16,7 @@
 // do not recognise falls back to what is on screen, and the clip says
 // complete: false with the reason. A clip is complete: true only when the
 // whole conversation was read from the data. Never the other way round.
+import { holdStream } from "./streams";
 import { htmlToMarkdown, NothingToClipError, type MissingFile, type Asset, type Clip, type Completeness, type Extractor, type Unit } from "./extract";
 
 type Fetch = typeof fetch;
@@ -26,6 +27,12 @@ export interface ChatReaderOptions {
   maxFileBytes?: number;
   /** Cap for all files in one clip (default MAX_CLIP_FILE_BYTES). */
   maxClipFileBytes?: number;
+  /**
+   * F099.20 — files bigger than this many bytes are NOT put in the clip: they come as
+   * `{ transfer: "stream", streamRef, size }` and you stream them to storage with `streamAsset`.
+   * Off by default (everything up to maxFileBytes rides in the clip). Jam sets 25 MB.
+   */
+  streamOverBytes?: number;
 }
 
 /** The data answered, but not in a shape we know — never guess, fall back. */
@@ -65,7 +72,9 @@ class FileProblem extends Error {
   constructor(text: string, readonly file: MissingFile) { super(text); }
 }
 
-async function download(f: Fetch, ref: FileRef, budget: number, maxFile: number): Promise<Asset> {
+async function download(f: Fetch, ref: FileRef, budget: number, maxFile: number, streamOver?: number): Promise<Asset> {
+  let lastInit: RequestInit = { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) };
+  let lastUrl = ref.url;
   let res = await f(ref.url, { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) });
   if (!res.ok) throw new FileProblem(`«${ref.name}» kunne ikke hentes (${res.status})`, { name: ref.name, why: "http", status: res.status });
   if (ref.indirect) {
@@ -77,13 +86,23 @@ async function download(f: Fetch, ref: FileRef, budget: number, maxFile: number)
     // send the session; another host (a signed CDN URL) → send nothing.
     const target = new URL(to, ref.url);
     const same = target.origin === new URL(ref.url).origin;
-    res = await f(target.href, same ? { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) } : { credentials: "omit" });
+    lastInit = same ? { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) } : { credentials: "omit" };
+    lastUrl = target.href;
+    res = await f(target.href, lastInit);
     if (!res.ok) throw new FileProblem(`«${ref.name}» kunne ikke hentes (${res.status} fra download-adressen)`, { name: ref.name, why: "http", status: res.status });
   }
   const limit = Math.min(maxFile, budget);
   const tooBig = (n: number) =>
     new FileProblem(`«${ref.name}» er ${mb(n)} — over grænsen på ${mb(limit)}`, { name: ref.name, why: n > maxFile ? "too_large" : "clip_limit" });
   const declared = Number(res.headers.get("content-length"));
+  if (streamOver !== undefined && declared > streamOver) {
+    // Too big for the clip: leave the bytes in the page and hand out a handle to stream them.
+    await res.body?.cancel().catch(() => undefined);
+    const served = res.headers.get("content-type")?.split(";")[0]?.trim();
+    const mime = ref.mime ?? (served && served !== "application/octet-stream" ? served : undefined) ?? EXT_MIME[ref.name.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
+    const streamRef = holdStream({ name: ref.name, url: lastUrl, init: lastInit, size: declared, fetch: f });
+    return { type: "file", id: ref.id, name: ref.name, mime, size: declared, transfer: "stream", streamRef };
+  }
   if (declared > limit) throw tooBig(declared);
   const bytes = new Uint8Array(await res.arrayBuffer());
   if (bytes.length > limit) throw tooBig(bytes.length);
@@ -102,8 +121,8 @@ async function fetchRefs(f: Fetch, turns: Turn[], o: ChatReaderOptions = {}): Pr
   for (const t of turns) {
     for (const ref of t.refs ?? []) {
       try {
-        const a = await download(f, ref, budget, maxFile);
-        budget -= a.size ?? 0;
+        const a = await download(f, ref, budget, maxFile, o.streamOverBytes);
+        if (a.transfer !== "stream") budget -= a.size ?? 0;
         t.assets = [...(t.assets ?? []), a];
       } catch (e) {
         if (e instanceof FileProblem) problems.push({ text: e.message, file: e.file });

@@ -3,9 +3,12 @@
 // request with a Clip from YOUR extractors (the article extractor covers the
 // rest). Import NOTHING here that the popup also imports — see ./extension.ts.
 import { extractClip, type Clip, type Extractor } from "./extract";
+import { streamParts, takeStream } from "./streams";
 
 /** Must equal EXTRACT_MESSAGE in ./extension.ts (held by a test). */
 export const CONTENT_EXTRACT_MESSAGE = "broberg-web-clipper:extract";
+/** Must equal STREAM_MESSAGE in ./extension.ts (held by a test). F099.20. */
+export const CONTENT_STREAM_MESSAGE = "broberg-web-clipper:stream";
 /** Must equal PART_MESSAGE in ./extension.ts (held by a test). */
 export const CONTENT_PART_MESSAGE = "broberg-web-clipper:part";
 /**
@@ -14,7 +17,7 @@ export const CONTENT_PART_MESSAGE = "broberg-web-clipper:part";
  * PART_CHARS in ./extension.ts.
  */
 export const CONTENT_PART_CHARS = 8 * 1024 * 1024;
-type Reply = { ok: true; clip: Clip } | { ok: false; error: string; name: string } | { ok: true; data: string };
+type Reply = { ok: true; clip: Clip } | { ok: false; error: string; name: string } | { ok: true; data: string } | { ok: true; etags: string[]; size: number };
 
 /** Big contents held back in the page until the extension has fetched every part. */
 const held = new Map<string, string>();
@@ -71,7 +74,18 @@ export function runContentScript(extractors: readonly Extractor[] = [], runtime?
     }
   }
   const listener: Listener = (msg, _sender, respond) => {
-    const m = msg as { action?: string; ref?: string; start?: number };
+    const m = msg as { action?: string; ref?: string; start?: number; partUrls?: string[]; partSize?: number };
+    if (m?.action === CONTENT_STREAM_MESSAGE) {
+      // F099.20 — stream a held file straight to the part addresses (the page's session reads it).
+      const s = typeof m.ref === "string" ? takeStream(m.ref) : undefined;
+      if (!s) respond({ ok: false, error: "that file is no longer held — clip again", name: "StreamGone" });
+      else
+        streamParts(s, m.partUrls ?? [], Number(m.partSize) || 0).then(
+          (r) => respond({ ok: true, ...r }),
+          (e: unknown) => respond({ ok: false, error: e instanceof Error ? e.message : String(e), name: "StreamFailed" }),
+        );
+      return true;
+    }
     if (m?.action === CONTENT_PART_MESSAGE) {
       const all = typeof m.ref === "string" ? held.get(m.ref) : undefined;
       if (all === undefined) respond({ ok: false, error: "that part is no longer held — clip again", name: "PartGone" });

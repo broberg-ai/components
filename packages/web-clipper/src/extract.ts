@@ -61,6 +61,13 @@ export interface Asset {
    */
   contentRef?: string;
   contentLength?: number;
+  /**
+   * F099.20 — "stream": the file was too big for the clip (over the reader's `streamOverBytes`). It has
+   * NO `content`; stream it to your storage with `streamAsset(asset, …)` from /extension, using
+   * `streamRef`. `size` is its size in bytes.
+   */
+  transfer?: "stream";
+  streamRef?: string;
 }
 export interface Clip {
   url: string;
