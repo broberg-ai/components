@@ -31,7 +31,27 @@ export interface Unit extends CoreUnit {
   links?: string[];
 }
 export type Block = { type: "code"; lang?: string; text: string } | { type: "table"; head: string[]; rows: string[][] };
-export interface Asset { type: "image" | "file"; url: string; alt?: string }
+/**
+ * A file or image that belongs to a unit. Either a `url` to fetch, or (F099.10,
+ * a chat artifact) the `content` itself — the destination stores it (uploadAsset).
+ */
+export interface Asset {
+  type: "image" | "file";
+  url?: string;
+  alt?: string;
+  /** F099.10 — a stable id (a Claude artifact's id) so versions of one file group together. */
+  id?: string;
+  /** File name / title, e.g. "Markedsplan". */
+  name?: string;
+  /** e.g. "text/markdown", "text/html", "application/vnd.ant.code". */
+  mime?: string;
+  /** Programming language, for code. */
+  language?: string;
+  /** The file's text as of this unit (an update is already applied to the previous version). */
+  content?: string;
+  /** 1 for the first version of `id`, then 2, 3 … */
+  version?: number;
+}
 export interface Clip {
   url: string;
   title: string;

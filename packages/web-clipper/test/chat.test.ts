@@ -250,3 +250,58 @@ describe("F099.9 / 0.5.2 — a shared link whose live page holds no data (a sign
     expect(clip.completeness).toMatchObject({ complete: false, source: "dom" });
   });
 });
+
+// ── F099.10: Claude artifacts as FILES ───────────────────────────────────────
+function claudeArtifactData(extra: unknown[] = []) {
+  const m = (uuid: string, sender: string, parent: string, content: unknown[]) => ({ uuid, sender, parent_message_uuid: parent, content });
+  const art = (input: Record<string, unknown>) => ({ type: "tool_use", name: "artifacts", input });
+  return {
+    name: "KAI",
+    current_leaf_message_uuid: extra.length ? "a4" : "a3",
+    chat_messages: [
+      m("u1", "human", "00000000-0000-4000-8000-000000000000", [{ type: "text", text: "Lav en plan" }]),
+      m("a1", "assistant", "u1", [{ type: "text", text: "Her er planen:" }, art({ id: "plan", command: "create", type: "text/markdown", title: "Markedsplan", content: "# Plan\n\n- trin 1" })]),
+      m("u2", "human", "a1", [{ type: "text", text: "Tilføj trin 2" }]),
+      // a turn that is ONLY an artifact change — 0.5.2 dropped these (74 of 79)
+      m("a2", "assistant", "u2", [art({ id: "plan", command: "update", old_str: "- trin 1", new_str: "- trin 1\n- trin 2" })]),
+      m("u3", "human", "a2", [{ type: "text", text: "Og noget kode" }]),
+      m("a3", "assistant", "u3", [{ type: "tool_use", name: "create_file", input: { path: "/mnt/user-data/outputs/app.ts", file_text: "export const x = 1;\n" } }, { type: "text", text: "Filen er lavet." }]),
+      ...extra,
+    ],
+  };
+}
+
+describe("F099.10 — Claude artifacts come along as files, and nothing is silently skipped", () => {
+  it("every artifact operation is a file on its turn, AS OF that turn; artifact-only turns are kept", async () => {
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData())).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+    expect(clip.units.map((u) => [u.role, u.content])).toStrictEqual([
+      ["user", "Lav en plan"],
+      ["assistant", "Her er planen:\n\n[Artefakt: Markedsplan]"],
+      ["user", "Tilføj trin 2"],
+      ["assistant", "[Artefakt: Markedsplan]"],
+      ["user", "Og noget kode"],
+      ["assistant", "[Artefakt: app.ts]\n\nFilen er lavet."],
+    ]);
+    expect(clip.units[1]!.assets).toStrictEqual([{ type: "file", id: "plan", name: "Markedsplan", mime: "text/markdown", content: "# Plan\n\n- trin 1", version: 1 }]);
+    expect(clip.units[3]!.assets).toStrictEqual([{ type: "file", id: "plan", name: "Markedsplan", mime: "text/markdown", content: "# Plan\n\n- trin 1\n- trin 2", version: 2 }]);
+    expect(clip.units[5]!.assets).toStrictEqual([{ type: "file", id: "/mnt/user-data/outputs/app.ts", name: "app.ts", mime: "text/typescript", content: "export const x = 1;\n", version: 1 }]);
+  });
+
+  it("a change that cannot be applied → complete:false with the reason (never a silent «complete»)", async () => {
+    const bad = { uuid: "a4", sender: "assistant", parent_message_uuid: "a3", content: [{ type: "tool_use", name: "artifacts", input: { id: "plan", command: "update", old_str: "FINDES IKKE", new_str: "x" } }] };
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData([bad]))).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness?.complete).toBe(false);
+    expect(clip.completeness?.source).toBe("data");
+    expect(clip.completeness?.reason).toContain("could not be applied");
+  });
+
+  it("an unknown kind of message part → complete:false, naming it", async () => {
+    const odd = { uuid: "a4", sender: "assistant", parent_message_uuid: "a3", content: [{ type: "text", text: "se her" }, { type: "hologram", data: "?" }] };
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData([odd]))).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toMatchObject({ complete: false, source: "data" });
+    expect(clip.completeness?.reason).toContain("«hologram»");
+    // what WAS readable is still there (two assistant messages in a row are one turn)
+    expect(clip.units.at(-1)!.content).toBe("[Artefakt: app.ts]\n\nFilen er lavet.\n\nse her");
+  });
+});

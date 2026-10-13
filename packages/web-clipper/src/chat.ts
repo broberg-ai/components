@@ -16,7 +16,7 @@
 // do not recognise falls back to what is on screen, and the clip says
 // complete: false with the reason. A clip is complete: true only when the
 // whole conversation was read from the data. Never the other way round.
-import { htmlToMarkdown, NothingToClipError, type Clip, type Completeness, type Extractor, type Unit } from "./extract";
+import { htmlToMarkdown, NothingToClipError, type Asset, type Clip, type Completeness, type Extractor, type Unit } from "./extract";
 
 type Fetch = typeof fetch;
 export interface ChatReaderOptions {
@@ -27,7 +27,7 @@ export interface ChatReaderOptions {
 /** The data answered, but not in a shape we know — never guess, fall back. */
 class ShapeError extends Error {}
 
-interface Turn { role: "user" | "assistant"; text: string }
+interface Turn { role: "user" | "assistant"; text: string; assets?: Asset[] }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -38,10 +38,12 @@ function toUnits(turns: Turn[]): Unit[] {
     const text = t.text.trim();
     if (!text) continue;
     const last = merged[merged.length - 1];
-    if (last && last.role === t.role) last.text += `\n\n${text}`;
-    else merged.push({ role: t.role, text });
+    if (last && last.role === t.role) {
+      last.text += `\n\n${text}`;
+      if (t.assets?.length) last.assets = [...(last.assets ?? []), ...t.assets];
+    } else merged.push({ role: t.role, text, ...(t.assets?.length ? { assets: [...t.assets] } : {}) });
   }
-  return merged.map((t, position) => ({ kind: "turn", role: t.role, content: t.text, position }));
+  return merged.map((t, position) => ({ kind: "turn", role: t.role, content: t.text, position, ...(t.assets ? { assets: t.assets } : {}) }));
 }
 
 async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<unknown> {
@@ -52,7 +54,7 @@ async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<unkno
 
 /** Read a clip from the data; on any failure, from the screen — and say which. */
 async function dataOrScreen(
-  fromData: () => Promise<{ title: string; units: Unit[] }>,
+  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: string }>,
   fromScreen: () => { title: string; units: Unit[] },
   url: URL,
   base: { anchor: string; shareUrl?: string },
@@ -60,7 +62,9 @@ async function dataOrScreen(
   try {
     const d = await fromData();
     if (!d.units.length) throw new ShapeError("the conversation data holds no turns");
-    return { url: url.href, title: d.title, ...base, units: d.units, completeness: { complete: true, source: "data" } };
+    // Read from the data, but something in it was not understood: still the whole thread, not the whole content.
+    const completeness: Completeness = d.incomplete ? { complete: false, source: "data", reason: d.incomplete } : { complete: true, source: "data" };
+    return { url: url.href, title: d.title, ...base, units: d.units, completeness };
   } catch (e) {
     const s = fromScreen();
     if (!s.units.length) throw new NothingToClipError(url.href);
@@ -236,8 +240,70 @@ function claudeIds(url: URL): { conversation?: string; share?: string } {
   return s ? { share: s[1] } : {};
 }
 
+// ── Claude artifacts (F099.10) ─────────────────────────────────────────────
+// An artifact is not text in the message: it is a tool call (claude.ai's
+// "artifacts" tool: create / rewrite / update, or the newer file tools
+// create_file / str_replace). Each becomes a FILE on its turn, holding the
+// artifact AS OF that turn, and the turn's text gets a short reference so the
+// fingerprint is stable and a turn that is only an artifact is not dropped.
+
+/** Content blocks that are known and deliberately not part of the conversation's words. */
+const CLAUDE_SKIP = new Set(["thinking", "redacted_thinking", "tool_result", "server_tool_use", "web_search_tool_result", "web_fetch_tool_result", "token_budget"]);
+const EXT_MIME: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", html: "text/html", htm: "text/html", svg: "image/svg+xml", json: "application/json", csv: "text/csv", txt: "text/plain", tsx: "text/tsx", jsx: "text/jsx", ts: "text/typescript", js: "text/javascript", py: "text/x-python", mermaid: "text/vnd.mermaid" };
+const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+interface ArtifactState { title: string; mime?: string; language?: string; content: string; version: number }
+
+/** Apply one artifact tool call; returns the asset for this turn, or a problem to report. */
+function artifactOp(name: string, input: Record<string, unknown>, files: Map<string, ArtifactState>): { asset?: Asset; title?: string; problem?: string; ignore?: true } {
+  const emit = (id: string, st: ArtifactState): { asset: Asset; title: string } => ({
+    title: st.title,
+    asset: { type: "file", id, name: st.title, ...(st.mime ? { mime: st.mime } : {}), ...(st.language ? { language: st.language } : {}), content: st.content, version: st.version },
+  });
+  if (name === "artifacts") {
+    const id = str(input.id);
+    const command = str(input.command) ?? "create";
+    if (!id) return { problem: "an artifact without an id" };
+    const prev = files.get(id);
+    if (command === "create" || command === "rewrite") {
+      const content = str(input.content);
+      if (content === undefined) return { problem: `artifact «${str(input.title) ?? id}» has no content` };
+      const st: ArtifactState = { title: str(input.title) ?? prev?.title ?? id, mime: str(input.type) ?? prev?.mime, language: str(input.language) ?? prev?.language, content, version: (prev?.version ?? 0) + 1 };
+      files.set(id, st);
+      return emit(id, st);
+    }
+    if (command === "update") {
+      const oldStr = str(input.old_str), newStr = str(input.new_str);
+      if (!prev || oldStr === undefined || newStr === undefined || !prev.content.includes(oldStr)) return { problem: `a change to artifact «${prev?.title ?? id}» could not be applied` };
+      const st: ArtifactState = { ...prev, content: prev.content.replace(oldStr, () => newStr), version: prev.version + 1 };
+      files.set(id, st);
+      return emit(id, st);
+    }
+    return { problem: `unknown artifact command «${command}»` };
+  }
+  if (name === "create_file") {
+    const path = str(input.path), content = str(input.file_text) ?? str(input.content);
+    if (!path || content === undefined) return { problem: "a created file without path or content" };
+    const base = path.split("/").pop() ?? path;
+    const prev = files.get(path);
+    const st: ArtifactState = { title: base, mime: EXT_MIME[base.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain", content, version: (prev?.version ?? 0) + 1 };
+    files.set(path, st);
+    return emit(path, st);
+  }
+  if (name === "str_replace" || name === "str_replace_based_edit_tool") {
+    const path = str(input.path);
+    const prev = path ? files.get(path) : undefined;
+    const oldStr = str(input.old_str), newStr = str(input.new_str) ?? "";
+    if (!path || !prev || oldStr === undefined || !prev.content.includes(oldStr)) return { problem: `a change to file «${path ?? "?"}» could not be applied` };
+    const st: ArtifactState = { ...prev, content: prev.content.replace(oldStr, () => newStr), version: prev.version + 1 };
+    files.set(path, st);
+    return emit(path, st);
+  }
+  return { ignore: true }; // another tool (web search, …): a call, not content
+}
+
 /** The thread on screen, from Claude's conversation answer. Exported for tests. */
-export function claudeTurns(data: unknown): { title: string; turns: Turn[] } {
+export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skipped: string[] } {
   if (!isObj(data) || !Array.isArray(data.chat_messages)) throw new ShapeError("unexpected conversation shape");
   const byId = new Map<string, Record<string, unknown>>();
   for (const m of data.chat_messages) if (isObj(m) && typeof m.uuid === "string") byId.set(m.uuid, m);
@@ -262,18 +328,33 @@ export function claudeTurns(data: unknown): { title: string; turns: Turn[] } {
     path = data.chat_messages.filter(isObj);
   }
   const turns: Turn[] = [];
+  const skipped: string[] = [];
+  const files = new Map<string, ArtifactState>();
   for (const m of path) {
     const role = m.sender === "human" ? "user" : m.sender === "assistant" ? "assistant" : null;
     if (!role) continue;
-    let text: string;
-    if (Array.isArray(m.content)) {
-      // Words only: thinking, tool calls and tool results are not the conversation.
-      text = m.content.filter((b): b is { type: string; text: string } => isObj(b) && b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n\n");
-    } else if (typeof m.text === "string") text = m.text;
-    else throw new ShapeError("message has neither content nor text");
-    turns.push({ role, text });
+    if (!Array.isArray(m.content)) {
+      if (typeof m.text !== "string") throw new ShapeError("message has neither content nor text");
+      turns.push({ role, text: m.text });
+      continue;
+    }
+    const parts: string[] = [];
+    const assets: Asset[] = [];
+    for (const b of m.content) {
+      if (!isObj(b)) continue;
+      if (b.type === "text" && typeof b.text === "string") parts.push(b.text);
+      else if (b.type === "tool_use" && typeof b.name === "string") {
+        const r = artifactOp(b.name, isObj(b.input) ? b.input : {}, files);
+        if (r.asset) {
+          assets.push(r.asset);
+          parts.push(`[Artefakt: ${r.title}]`);
+        } else if (r.problem) skipped.push(r.problem);
+      } else if (typeof b.type === "string" && CLAUDE_SKIP.has(b.type)) continue;
+      else skipped.push(`a message part of type «${String(b.type)}»`);
+    }
+    turns.push({ role, text: parts.join("\n\n"), ...(assets.length ? { assets } : {}) });
   }
-  return { title: typeof data.name === "string" && data.name ? data.name : "Claude", turns };
+  return { title: typeof data.name === "string" && data.name ? data.name : "Claude", turns, skipped };
 }
 
 function claudeScreen(doc: Document): { title: string; units: Unit[] } {
@@ -310,8 +391,11 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
           for (const org of orgs) {
             try {
               const data = await getJson(f, `${url.origin}/api/organizations/${org}/chat_conversations/${ids.conversation}?tree=True&rendering_mode=messages&render_all_tools=true`);
-              const { title, turns } = claudeTurns(data);
-              return { title, units: toUnits(turns) };
+              const { title, turns, skipped } = claudeTurns(data);
+              const incomplete = skipped.length
+                ? `${skipped.length} ${skipped.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${[...new Set(skipped)].slice(0, 3).join("; ")}`
+                : undefined;
+              return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
             } catch (e) {
               if (e instanceof ShapeError) throw e; // the right org, a shape we do not know — do not try the next
               last = e;
