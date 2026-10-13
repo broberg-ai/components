@@ -322,6 +322,27 @@ describe("F099.13 — a tool that may have made files is never skipped silently"
   });
 });
 
+describe("F099.13 / 0.7.2 — completeness says WHAT is missing (jam #3215)", () => {
+  const msg = (content: unknown[]) => ({ uuid: "a4", sender: "assistant", parent_message_uuid: "a3", content });
+  const read = async (extra: unknown[]) => (await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData(extra))).f }).extract(docWith(""), CLAUDE_URL)).completeness;
+
+  it("turns whole, a file not → missing:\"files\" (unknown tool, and a change that cannot be applied)", async () => {
+    expect((await read([msg([{ type: "tool_use", name: "bash_tool", input: {} }, { type: "text", text: "ok" }])]))?.missing).toBe("files");
+    expect((await read([msg([{ type: "tool_use", name: "artifacts", input: { id: "plan", command: "update", old_str: "FINDES IKKE", new_str: "x" } }])]))?.missing).toBe("files");
+  });
+
+  it("a part that may hold words → missing:\"turns\", and it outranks a missing file", async () => {
+    expect((await read([msg([{ type: "hologram" }])]))?.missing).toBe("turns");
+    expect((await read([msg([{ type: "hologram" }, { type: "tool_use", name: "bash_tool", input: {} }])]))?.missing).toBe("turns");
+  });
+
+  it("read from the screen → missing:\"turns\"; NEGATIVE CONTROL: a complete clip carries no missing", async () => {
+    const screen = await createClaudeReader({ fetch: fakeFetch({}).f }).extract(docWith('<div data-testid="user-message">Hej</div>'), CLAUDE_URL);
+    expect(screen.completeness).toMatchObject({ complete: false, source: "dom", missing: "turns" });
+    expect(await read([])).toStrictEqual({ complete: true, source: "data" });
+  });
+});
+
 describe("F099.10 / 0.6.1 — what the person attached is not dropped", () => {
   it("a message that is only an attached file stays a turn (its text as a file); an uploaded image is named", async () => {
     const m = (uuid: string, sender: string, parent: string, content: unknown[], extra: Record<string, unknown> = {}) => ({ uuid, sender, parent_message_uuid: parent, content, ...extra });

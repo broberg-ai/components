@@ -54,7 +54,7 @@ async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<unkno
 
 /** Read a clip from the data; on any failure, from the screen — and say which. */
 async function dataOrScreen(
-  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: string }>,
+  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: { reason: string; missing: "files" | "turns" } }>,
   fromScreen: () => { title: string; units: Unit[] },
   url: URL,
   base: { anchor: string; shareUrl?: string },
@@ -63,13 +63,13 @@ async function dataOrScreen(
     const d = await fromData();
     if (!d.units.length) throw new ShapeError("the conversation data holds no turns");
     // Read from the data, but something in it was not understood: still the whole thread, not the whole content.
-    const completeness: Completeness = d.incomplete ? { complete: false, source: "data", reason: d.incomplete } : { complete: true, source: "data" };
+    const completeness: Completeness = d.incomplete ? { complete: false, source: "data", reason: d.incomplete.reason, missing: d.incomplete.missing } : { complete: true, source: "data" };
     return { url: url.href, title: d.title, ...base, units: d.units, completeness };
   } catch (e) {
     const s = fromScreen();
     if (!s.units.length) throw new NothingToClipError(url.href);
     const reason = `Kun det der er synligt på skærmen blev klippet — samtalen kunne ikke hentes i sin helhed (${e instanceof Error ? e.message : String(e)}).`;
-    const completeness: Completeness = { complete: false, source: "dom", reason };
+    const completeness: Completeness = { complete: false, source: "dom", reason, missing: "turns" };
     return { url: url.href, title: s.title, ...base, units: s.units, completeness };
   }
 }
@@ -309,7 +309,8 @@ function artifactOp(name: string, input: Record<string, unknown>, files: Map<str
 const CLAUDE_TOOLS_NO_FILES = new Set(["web_search", "web_fetch", "conversation_search", "recent_chats", "google_drive_search", "google_drive_fetch", "view"]);
 
 /** The thread on screen, from Claude's conversation answer. Exported for tests. */
-export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skipped: string[] } {
+/** `skipped`: parts that may hold words (the turns are not whole). `filesSkipped`: the turns are whole, a file is not (F099.13). */
+export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skipped: string[]; filesSkipped: string[] } {
   if (!isObj(data) || !Array.isArray(data.chat_messages)) throw new ShapeError("unexpected conversation shape");
   const byId = new Map<string, Record<string, unknown>>();
   for (const m of data.chat_messages) if (isObj(m) && typeof m.uuid === "string") byId.set(m.uuid, m);
@@ -335,6 +336,7 @@ export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skip
   }
   const turns: Turn[] = [];
   const skipped: string[] = [];
+  const filesSkipped: string[] = [];
   const files = new Map<string, ArtifactState>();
   for (const m of path) {
     const role = m.sender === "human" ? "user" : m.sender === "assistant" ? "assistant" : null;
@@ -369,13 +371,13 @@ export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skip
         if (r.asset) {
           assets.push(r.asset);
           parts.push(`[Artefakt: ${r.title}]`);
-        } else if (r.problem) skipped.push(r.problem);
+        } else if (r.problem) filesSkipped.push(r.problem);
       } else if (typeof b.type === "string" && CLAUDE_SKIP.has(b.type)) continue;
       else skipped.push(`a message part of type «${String(b.type)}»`);
     }
     turns.push({ role, text: parts.join("\n\n"), ...(assets.length ? { assets } : {}) });
   }
-  return { title: typeof data.name === "string" && data.name ? data.name : "Claude", turns, skipped };
+  return { title: typeof data.name === "string" && data.name ? data.name : "Claude", turns, skipped, filesSkipped };
 }
 
 function claudeScreen(doc: Document): { title: string; units: Unit[] } {
@@ -412,9 +414,14 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
           for (const org of orgs) {
             try {
               const data = await getJson(f, `${url.origin}/api/organizations/${org}/chat_conversations/${ids.conversation}?tree=True&rendering_mode=messages&render_all_tools=true`);
-              const { title, turns, skipped } = claudeTurns(data);
-              const incomplete = skipped.length
-                ? `${skipped.length} ${skipped.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${[...new Set(skipped)].slice(0, 3).join("; ")}`
+              const { title, turns, skipped, filesSkipped } = claudeTurns(data);
+              const all = [...skipped, ...filesSkipped];
+              // A part that may hold words outranks a missing file: then the turns themselves are not whole.
+              const incomplete = all.length
+                ? {
+                    reason: `${all.length} ${all.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${[...new Set(all)].slice(0, 3).join("; ")}`,
+                    missing: skipped.length ? ("turns" as const) : ("files" as const),
+                  }
                 : undefined;
               return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
             } catch (e) {

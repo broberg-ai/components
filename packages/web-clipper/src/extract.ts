@@ -74,6 +74,12 @@ export interface Completeness {
   source: "data" | "dom";
   /** Why it is not complete, in words the popup can show. */
   reason?: string;
+  /**
+   * F099.13 — WHAT is missing when complete is false. "files": every turn was read whole, only a file
+   * (an artifact, a tool's output) is not in the clip — keep the turns. "turns": the turns themselves are
+   * not whole (read from the screen, or a part that may hold words was not understood).
+   */
+  missing?: "files" | "turns";
 }
 
 export interface Extractor {
