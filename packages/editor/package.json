@@ -1,0 +1,12 @@
+{
+  "name": "@broberg/editor",
+  "version": "0.0.1",
+  "description": "PLACEHOLDER — not functional yet. Reserves the name for the fleet's shared WYSIWYG editor on TipTap (headless core + React/Preact adapters; epic F101, docs/features/F101-editor.md in broberg-ai/components). Do not install: there is no code in this version.",
+  "type": "module",
+  "license": "MIT",
+  "files": ["README.md"],
+  "exports": { "./package.json": "./package.json" },
+  "keywords": ["editor", "rich-text", "wysiwyg", "tiptap", "prosemirror", "broberg"],
+  "repository": { "type": "git", "url": "git+https://github.com/broberg-ai/components.git", "directory": "packages/editor" },
+  "publishConfig": { "access": "public" }
+}
