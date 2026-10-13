@@ -159,11 +159,11 @@ export function decodeTurboStream(chunk: string): unknown {
   return at(0);
 }
 
-/** The conversation a server-rendered ChatGPT page carries in its own <script> data. */
-function chatgptEmbedded(doc: Document): unknown {
+/** The conversation a server-rendered ChatGPT page carries in its <script> data — from the live page's scripts or a fetched copy's HTML. */
+function chatgptEmbedded(sources: string[]): unknown {
   const re = /__reactRouterContext\.streamController\.enqueue\(("(?:[^"\\]|\\.)*")\)/g;
-  for (const script of Array.from(doc.querySelectorAll("script"))) {
-    for (const m of (script.textContent ?? "").matchAll(re)) {
+  for (const text of sources) {
+    for (const m of text.matchAll(re)) {
       const chunk = JSON.parse(m[1]!) as unknown;
       if (typeof chunk !== "string" || !chunk.startsWith("[")) continue; // promise chunks ("P12:…")
       const root = decodeTurboStream(chunk);
@@ -198,7 +198,18 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
         async () => {
           if (!ids.conversation) {
             // A shared link: the whole conversation is in the page itself (no login needed).
-            const { title, turns } = chatgptTurns(chatgptEmbedded(doc));
+            let data: unknown;
+            try {
+              data = chatgptEmbedded(Array.from(doc.querySelectorAll("script"), (x) => x.textContent ?? ""));
+            } catch (inPage) {
+              if (inPage instanceof ShapeError) throw inPage;
+              // Not in this page's scripts (a signed-in view can be drawn in the browser instead):
+              // the signed-OUT copy of the same link is server-rendered with the data — measured 13/10.
+              const res = await f(url.href, { credentials: "omit", headers: { accept: "text/html" } });
+              if (!res.ok) throw new Error(`the shared page answered ${res.status}`);
+              data = chatgptEmbedded([await res.text()]);
+            }
+            const { title, turns } = chatgptTurns(data);
             return { title, units: toUnits(turns) };
           }
           const session = await getJson(f, `${url.origin}/api/auth/session`);

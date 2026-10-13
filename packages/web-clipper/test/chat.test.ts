@@ -107,7 +107,7 @@ describe("F099.9 — ChatGPT: the whole conversation", () => {
   it("a shared link WITHOUT embedded data is read from the screen and says so", async () => {
     const clip = await createChatgptReader({ fetch: fakeFetch({}).f }).extract(docWith(screenTail), new URL("https://chatgpt.com/share/6acd402d-cfb0-83eb-ab10-a9a538082b14"));
     expect(clip.completeness?.complete).toBe(false);
-    expect(clip.completeness?.reason).toContain("no conversation data");
+    expect(clip.completeness?.reason).toContain("the shared page answered 404");
     expect(clip.shareUrl).toBe("https://chatgpt.com/share/6acd402d-cfb0-83eb-ab10-a9a538082b14");
   });
 
@@ -232,5 +232,21 @@ describe("F099.9 / 0.5.1 — a shared ChatGPT link (jam 13/10: «delingslinks er
     const clip = await createChatgptReader({ fetch: fakeFetch({}).f }).extract(docWith(sharePage({ title: "x", messages: [] })), SHARE_URL);
     expect(clip.completeness).toMatchObject({ complete: false, source: "dom" });
     expect(clip.units.map((u) => u.content)).toStrictEqual(["kun det sidste"]);
+  });
+});
+
+describe("F099.9 / 0.5.2 — a shared link whose live page holds no data (a signed-in view drawn in the browser)", () => {
+  it("fetches the signed-OUT copy of the same link (no cookies) and reads the whole conversation from it", async () => {
+    const { f, calls } = fakeFetch({ [SHARE_URL.href]: () => new Response(sharePage(chatgptData(12)), { headers: { "content-type": "text/html" } }) });
+    const clip = await createChatgptReader({ fetch: f }).extract(docWith("<main>tegnet i browseren</main>"), SHARE_URL);
+    expect(clip.units).toHaveLength(24);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.init?.credentials).toBe("omit");
+  });
+  it("NEGATIVE CONTROL: the fetched copy has no data either → the screen, marked incomplete", async () => {
+    const { f } = fakeFetch({ [SHARE_URL.href]: () => new Response("<html>ingen data</html>") });
+    const clip = await createChatgptReader({ fetch: f }).extract(docWith(screenTail), SHARE_URL);
+    expect(clip.completeness).toMatchObject({ complete: false, source: "dom" });
   });
 });
