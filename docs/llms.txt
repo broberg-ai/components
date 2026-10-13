@@ -76,7 +76,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/lens-daemon** v0.1.5 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-daemon`
 - **@broberg/lens-svg** v0.1.0 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-svg`
 - **@broberg/webmcp** v0.1.0 — WebMCP for the fleet (epic F098): letting a customer's own AI find and use a site's booking, shop or order tools. `npm i @broberg/webmcp`
-- **@broberg/web-clipper** v0.7.0 — The fleet's one web-clipper base (epic F099, Christian's build order 12/10): Trail Web Clipper and Jam Clipper build on it, no forks. `npm i @broberg/web-clipper`
+- **@broberg/web-clipper** v0.7.1 — The fleet's one web-clipper base (epic F099, Christian's build order 12/10): Trail Web Clipper and Jam Clipper build on it, no forks. `npm i @broberg/web-clipper`
 - **@broberg/bodymap** v0.12.0 — Interactive body pain-map. `npm i @broberg/bodymap`
 - **@broberg/stripe** v0.4.1 — The fleet's one Stripe chokepoint, and the one place that knows where Stripe MOVED a field to (invoice.subscription is gone, so is the period). `npm i @broberg/stripe`
 - **@broberg/pwa** v0.6.0 — The fleet's PWA primitive. `npm i @broberg/pwa`
