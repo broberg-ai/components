@@ -13,7 +13,8 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { makeOutsideClickHandler, selectKeyReducer, type SelectState } from "@broberg/ui-controls-core";
 import type { Clip } from "./extract";
-import { sendClip, type Destination, type SendResult, type Session, type Target } from "./transport";
+import type { Destination, SendResult, Target } from "./transport";
+import { createClipper, type Clipper, type ClipperAuth, type ClipperOptions, type ClipperState } from "./engine";
 import type { KeyValueStorage } from "./auth";
 
 export type Lang = "da" | "en";
@@ -139,11 +140,8 @@ const labelOf = (t: Target) => (t.group ? `${t.group} · ${t.label}` : t.label);
 
 // ── the ready popup ──────────────────────────────────────────────────────────
 
-export interface PopupAuth {
-  login(): Promise<Session>;
-  session(options?: { refresh?: boolean }): Promise<Session | null>;
-  logout(): Promise<void>;
-}
+/** The login the popup needs (same as the engine's). */
+export type PopupAuth = ClipperAuth;
 
 /** F099.8 — a text field the consumer adds to the popup (Trail: tags; Jam: a note). */
 export interface ClipperField {
@@ -185,107 +183,51 @@ export interface ClipperPopupProps {
   text?: Partial<ClipperTexts>;
 }
 
-type Phase =
-  | { kind: "checking" }
-  | { kind: "logged_out"; error?: string }
-  | { kind: "logging_in" }
-  | { kind: "ready" };
-type ClipState =
-  | { kind: "idle" }
-  | { kind: "clipping" }
-  | { kind: "done"; result: SendResult; clip: Clip }
-  | { kind: "error"; message: string };
+/**
+ * F099.12 — the headless engine (./engine) as a Preact hook: [state, actions].
+ * Draw your OWN popup on it; ClipperPopup below is just one way to draw it.
+ */
+export function useClipper(options: ClipperOptions): [ClipperState, Clipper] {
+  const ref = useRef<Clipper | null>(null);
+  if (!ref.current) ref.current = createClipper(options);
+  const engine = ref.current;
+  const [state, setState] = useState<ClipperState>(engine.getState());
+  useEffect(() => {
+    const off = engine.subscribe(setState);
+    void engine.start();
+    return off;
+  }, []);
+  return [state, engine];
+}
 
+/** The ready-made popup — optional. Built on useClipper, so it behaves exactly like a popup you draw yourself. */
 export function ClipperPopup(p: ClipperPopupProps) {
   const t: ClipperTexts = { ...TEXT[p.lang ?? "da"], ...p.text };
-  const targetKey = `broberg-web-clipper:target:${p.destination.id}`;
-  const [phase, setPhase] = useState<Phase>({ kind: "checking" });
-  const [targets, setTargets] = useState<Target[] | null>(null);
-  const [target, setTarget] = useState<string | null>(null);
-  const [clip, setClip] = useState<ClipState>({ kind: "idle" });
-  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
+  const [s, clipper] = useClipper({ auth: p.auth, destination: p.destination, getClip: p.getClip, storage: p.storage });
   // Component state only: tags for one page are not tags for the next, so nothing here is stored.
   const [values, setValues] = useState<Record<string, string>>({});
-
-  const loadTargets = async (session: Session) => {
-    const list = await p.destination.targets(session);
-    setTargets(list);
-    const remembered = (await p.storage.get(targetKey)) as string | undefined;
-    setTarget(list.some((x) => x.id === remembered) ? remembered! : list[0]?.id ?? null);
+  const fields = () => (p.fields?.length ? Object.fromEntries(p.fields.map((f) => [f.id, values[f.id] ?? ""])) : undefined);
+  const run = (consent?: boolean) => {
+    const f = fields();
+    void clipper.clip({ ...(consent ? { consent: true } : {}), ...(f ? { fields: f } : {}) });
   };
-
-  const enter = async (session: Session | null) => {
-    if (!session) return setPhase({ kind: "logged_out" });
-    setPhase({ kind: "ready" });
-    try {
-      await loadTargets(session);
-    } catch (e) {
-      // The same rule as sending: a 401 is the login, refreshed once; anything else is an error to show.
-      if (e instanceof Error && (e as { status?: number }).status === 401) {
-        const fresh = await p.auth.session({ refresh: true }).catch(() => null);
-        if (fresh) return loadTargets(fresh).catch((e2: unknown) => setClip({ kind: "error", message: errorText(e2) }));
-        return setPhase({ kind: "logged_out", error: TEXT[p.lang ?? "da"].loginAgain });
-      }
-      setClip({ kind: "error", message: errorText(e) });
-    }
-  };
-
-  useEffect(() => {
-    p.auth.session().then(enter, (e: unknown) => setPhase({ kind: "logged_out", error: errorText(e) }));
-  }, []);
-
-  const login = async () => {
-    setPhase({ kind: "logging_in" });
-    try {
-      await enter(await p.auth.login());
-    } catch (e) {
-      setPhase({ kind: "logged_out", error: `${t.loginFailed}: ${errorText(e)}` });
-    }
-  };
-  const logout = async () => {
-    await p.auth.logout();
-    setTargets(null);
-    setClip({ kind: "idle" });
-    setPhase({ kind: "logged_out" });
-  };
-  const choose = async (id: string) => {
-    setTarget(id);
-    await p.storage.set(targetKey, id);
-  };
-
-  const run = async (consentFor?: string) => {
-    const chosen = targets?.find((x) => x.id === target);
-    if (!chosen) return;
-    setClip({ kind: "clipping" });
-    try {
-      const c = await p.getClip();
-      const consentKey = c.anchor ? `broberg-web-clipper:consent:${p.destination.id}:${c.anchor}` : null;
-      if (consentFor && consentKey) await p.storage.set(consentKey, true);
-      const consented = consentKey ? (await p.storage.get(consentKey)) === true : false;
-      const fields = p.fields?.length ? Object.fromEntries(p.fields.map((f) => [f.id, values[f.id] ?? ""])) : undefined;
-      const result = await sendClip({ destination: p.destination, target: chosen, clip: c, auth: p.auth, consented, ...(fields ? { fields } : {}) });
-      setPendingAnchor(result.state === "consent_required" ? c.anchor ?? null : null);
-      if (result.state === "login_required") setPhase({ kind: "logged_out" });
-      setClip({ kind: "done", result, clip: c });
-    } catch (e) {
-      setClip({ kind: "error", message: errorText(e) });
-    }
-  };
+  const phase = s.phase;
+  const loginError = phase.kind === "logged_out" ? (phase.reason === "login_again" ? t.loginAgain : phase.reason === "login_failed" ? `${t.loginFailed}: ${phase.message ?? ""}` : null) : null;
+  const done = s.run.kind === "done" ? s.run : null;
 
   return (
     <div class="bwc-popup" data-testid="clipper-root" data-phase={phase.kind}>
       <header class="bwc-popup__head">
         <h1 class="bwc-popup__title">{p.title}</h1>
-        {phase.kind === "ready" ? <ClipperButton testid="clipper-logout" onClick={() => void logout()}>{t.logout}</ClipperButton> : null}
+        {phase.kind === "ready" ? <ClipperButton testid="clipper-logout" onClick={() => void clipper.logout()}>{t.logout}</ClipperButton> : null}
       </header>
 
       {phase.kind === "checking" ? <ClipperStatus tone="busy">…</ClipperStatus> : null}
 
       {phase.kind === "logged_out" || phase.kind === "logging_in" ? (
         <div class="bwc-popup__body">
-          {clip.kind === "done" && clip.result.state === "login_required" ? <ClipperStatus tone="error">{t.loginAgain}</ClipperStatus> : null}
-          {phase.kind === "logged_out" && phase.error ? <ClipperStatus tone="error">{phase.error}</ClipperStatus> : null}
-          <ClipperButton testid="clipper-login" primary busy={phase.kind === "logging_in"} onClick={() => void login()}>
+          {loginError ? <ClipperStatus tone="error">{loginError}</ClipperStatus> : null}
+          <ClipperButton testid="clipper-login" primary busy={phase.kind === "logging_in"} onClick={() => void clipper.login()}>
             {phase.kind === "logging_in" ? t.loggingIn : t.login}
           </ClipperButton>
         </div>
@@ -293,32 +235,32 @@ export function ClipperPopup(p: ClipperPopupProps) {
 
       {phase.kind === "ready" ? (
         <div class="bwc-popup__body">
-          {targets && targets.length === 0 ? <ClipperStatus tone="error">{t.noTargets}</ClipperStatus> : null}
-          {targets && targets.length > 0 ? (
-            <TargetPicker targets={targets} value={target} onChange={(id) => void choose(id)} label={t.target} placeholder={t.chooseTarget} />
+          {s.targets && s.targets.length === 0 ? <ClipperStatus tone="error">{t.noTargets}</ClipperStatus> : null}
+          {s.targets && s.targets.length > 0 ? (
+            <TargetPicker targets={s.targets} value={s.target} onChange={(id) => void clipper.choose(id)} label={t.target} placeholder={t.chooseTarget} />
           ) : null}
           {p.fields?.map((f) => (
             <ClipperFieldInput key={f.id} field={f} value={values[f.id] ?? ""} onValue={(v) => setValues((cur) => ({ ...cur, [f.id]: v }))} />
           ))}
-          <ClipperButton testid="clipper-clip" primary busy={clip.kind === "clipping"} disabled={!target} onClick={() => void run()}>
-            {clip.kind === "clipping" ? t.clipping : t.clip}
+          <ClipperButton testid="clipper-clip" primary busy={s.run.kind === "clipping"} disabled={!s.target} onClick={() => run()}>
+            {s.run.kind === "clipping" ? t.clipping : t.clip}
           </ClipperButton>
-          {pendingAnchor ? (
+          {s.consentFor ? (
             <>
               <ClipperStatus tone="neutral">{t.consentHint}</ClipperStatus>
-              <ClipperButton testid="clipper-consent" onClick={() => void run(pendingAnchor)}>{t.consent}</ClipperButton>
+              <ClipperButton testid="clipper-consent" onClick={() => run(true)}>{t.consent}</ClipperButton>
             </>
           ) : null}
-          {clip.kind === "done" && clip.result.state === "consent_required" && !clip.clip.anchor ? (
+          {s.notAConversation ? (
             // Never silent (jam 13/10: «den blinker blot»): consent is per conversation, and this page is none.
             <ClipperStatus tone="error" testid="clipper-not-a-conversation">{t.notAConversation}</ClipperStatus>
           ) : null}
-          {clip.kind === "done" && clip.result.state !== "consent_required" ? <ResultLine result={clip.result} t={t} /> : null}
-          {clip.kind === "done" && clip.clip.completeness?.complete === false && clip.result.state === "sent" ? (
+          {done && done.result.state !== "consent_required" ? <ResultLine result={done.result} t={t} /> : null}
+          {done && done.clip.completeness?.complete === false && done.result.state === "sent" ? (
             // The owner's rule: an incomplete clip must never look complete.
-            <ClipperStatus tone="error" testid="clipper-incomplete">{`${t.incomplete}. ${clip.clip.completeness.reason ?? ""}`.trim()}</ClipperStatus>
+            <ClipperStatus tone="error" testid="clipper-incomplete">{`${t.incomplete}. ${done.clip.completeness.reason ?? ""}`.trim()}</ClipperStatus>
           ) : null}
-          {clip.kind === "error" ? <ClipperStatus tone="error">{clip.message}</ClipperStatus> : null}
+          {s.run.kind === "error" ? <ClipperStatus tone="error">{s.run.message}</ClipperStatus> : null}
         </div>
       ) : null}
     </div>
@@ -338,6 +280,3 @@ function ResultLine({ result, t }: { result: SendResult; t: ClipperTexts }) {
   }
 }
 
-function errorText(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}

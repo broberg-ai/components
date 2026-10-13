@@ -86,6 +86,27 @@ const r = await sendClip({ destination, target, clip, auth });   // auth IS the 
 - With `audience`: the BID token is swapped for a 5-minute user ticket (BID F087.37), reused while valid, fetched anew when the sender forces a refresh after a 401. `session_ended` → `null`; a setup refusal (`no_rule_for_audience`, `scope_not_allowed`) → `BidTicketRefusedError` (the sender reports `refused`).
 - The redirect is `chrome.identity.getRedirectURL()` = `https://<extension-id>.chromiumapp.org/` — BID matches it character for character, so the extension needs a FIXED id (manifest `key`).
 
+## Draw your OWN popup: `/engine` (0.7.0, F099.12)
+
+**The design belongs to the extension that uses this package, not to the package** (owner, 13/10). `/engine` is everything the popup DOES — log in, load and remember the target, clip, consent per conversation, send, report — with no element, no CSS and no text:
+
+```ts
+import { createClipper } from "@broberg/web-clipper/engine";   // framework-free
+import { useClipper } from "@broberg/web-clipper/ui";           // the same, as a Preact hook
+
+const [s, clipper] = useClipper({ auth: popupAuth(createBidAuth(opts)), destination, getClip: () => clipActiveTab(CONTENT_SCRIPT_PATH), storage: extensionStorage() });
+
+s.phase.kind          // "checking" | "logged_out" (reason "login_again" | "login_failed", message) | "logging_in" | "ready"
+s.targets, s.target   // where it can go; the chosen one (remembered per destination)
+s.run                 // { kind: "idle" | "clipping" } | { kind: "done", result, clip } | { kind: "error", message }
+                      //   result.sent = units sent · clip.completeness = { complete, reason } — show it when complete is false
+s.consentFor          // a conversation that needs «record this conversation» → clipper.clip({ consent: true })
+s.notAConversation    // consent needed but the page is no conversation — say so
+clipper.login() · clipper.logout() · clipper.choose(id) · clipper.clip({ fields })
+```
+
+Your texts, your layout, your height. `ClipperPopup` (below) is one ready-made way to draw it — optional, and built on this same engine, so it behaves exactly like yours.
+
 ## The extension: `/extension`, `/content`, `/vite`, `/ui` (F099.6)
 
 ```ts

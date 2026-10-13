@@ -8,6 +8,7 @@ export default defineConfig({
     core: "src/core.ts",
     extract: "src/extract.ts",
     transport: "src/transport.ts",
+    engine: "src/engine.ts",
     auth: "src/auth.ts",
     content: "src/content.ts",
     extension: "src/extension.ts",
