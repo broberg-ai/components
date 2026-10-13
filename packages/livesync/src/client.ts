@@ -55,9 +55,28 @@ export interface ConnectOptions {
   maxDelayMs?: number;
 }
 
+/** F100.4 — someone else in the same document, as their own client announced it. */
+export interface Peer {
+  /** Yjs client id — stable for that browser tab while it is open. */
+  clientId: number;
+  /** Whatever that client set with presence.set(), e.g. { user: { name, color }, cursor: { x, y } }. */
+  state: Record<string, unknown>;
+}
+
+export interface Presence {
+  /** Merge fields into what THIS client shows the others (name, colour, cursor …). */
+  set(fields: Record<string, unknown>): void;
+  /** Everyone else in the document right now — not this client. */
+  peers(): Peer[];
+  /** Called whenever someone arrives, leaves or moves; returns an unsubscribe. */
+  onChange(fn: (peers: Peer[]) => void): () => void;
+}
+
 export interface LiveDoc {
   doc: Y.Doc;
   awareness: awarenessProtocol.Awareness;
+  /** F100.4 — who is in the document, and where their cursor is. */
+  presence: Presence;
   readonly state: SyncState;
   /** Resolves when the IndexedDB copy has been read into `doc` (at once without `offlineStore`). */
   whenLoaded: Promise<void>;
@@ -159,9 +178,24 @@ export function connect(o: ConnectOptions): LiveDoc {
 
   open();
 
+  const peers = (): Peer[] =>
+    [...awareness.getStates()].filter(([id]) => id !== doc.clientID).map(([clientId, state]) => ({ clientId, state }));
+  const presence: Presence = {
+    set(fields) {
+      awareness.setLocalState({ ...(awareness.getLocalState() ?? {}), ...fields });
+    },
+    peers,
+    onChange(fn) {
+      const h = () => fn(peers());
+      awareness.on("change", h);
+      return () => awareness.off("change", h);
+    },
+  };
+
   return {
     doc,
     awareness,
+    presence,
     get state() {
       return state;
     },

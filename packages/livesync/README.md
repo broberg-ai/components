@@ -28,7 +28,7 @@ ws.onclose = () => h.closed();
 
 **Login (F100.2):** the client's first message is its token (never in the URL, so never in an access log). Until your `authorize` answers, the connection receives nothing — not even what the document contains. Refused (or a check that throws) → one `DENIED` message, then close. `access: "read"` users receive every change; anything they would change is dropped on the server. **Access is decided when the connection opens:** a user logged out of BID keeps an already-open connection until it reconnects (the client reconnects on every network blip, and re-asks `getToken`). Close the socket yourself when you learn of a logout (e.g. from @broberg/sso's back-channel logout) to cut it at once.
 
-One room per document id. Every editor's changes merge into the room's copy and go out to everyone else. The standard Yjs sync + awareness messages, framed like y-websocket, so existing Yjs editor bindings work unchanged. Presence UI (F100.4) comes next.
+One room per document id. Every editor's changes merge into the room's copy and go out to everyone else. The standard Yjs sync + awareness messages, framed like y-websocket, so existing Yjs editor bindings work unchanged. See it running: `examples/livesync` (`bun run examples/livesync/server.ts` → http://127.0.0.1:5202/?name=Anna&doc=demo in two windows, or `/duo?doc=demo` for two people side by side in one window). The page shows how long the other person's change took to arrive.
 
 ### Storage in your own database (F100.3)
 
@@ -63,4 +63,5 @@ live.onState((s) => …);                             // "connecting" | "synced"
 - **Offline is normal:** edits made while disconnected stay in the doc; on reconnect each side sends exactly what the other lacks — nothing lost, nothing applied twice.
 - **Reconnects by itself** with backoff (500 ms doubling to 10 s). `disconnect()` / `reconnect()` for a deliberate offline mode; `destroy()` to stop.
 - **Survives a closed tab (F100.3):** ``connect({ …, offlineStore: `jam:${userId}:${docId}` })`` keeps the doc in IndexedDB; the next visit restores it (`await live.whenLoaded`) and sends what the server lacks. Name it per user **and** document — anyone using that browser profile can read it — and call `live.clearOfflineStore()` on logout.
+- **Who is here (F100.4):** `live.presence.set({ user: { name, color } })` announces this tab; `live.presence.peers()` lists everyone ELSE (never yourself) with what they set; `live.presence.onChange(fn)` fires when someone arrives, moves or leaves. A cursor is just another field: `presence.set({ cursor: { x, y } })` (send `null` when the pointer leaves). A closed tab disappears from the others' list by itself.
 - **Login:** `getToken()` is asked on every (re)connect, so a refreshed session is used automatically. A refused login → state `"denied"` and no retry storm; call `reconnect()` once the user has logged in again.

@@ -1,0 +1,29 @@
+/* Tokens only (@broberg/theme). Nothing here may make the page scroll sideways at phone width. */
+body { margin: 0; background: var(--bg-sunk); color: var(--fg); font-family: system-ui, sans-serif; }
+.ls { max-width: 760px; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+.ls-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ls-head h1 { font-size: 1.25rem; margin: 0; }
+.ls-doc { color: var(--fg-muted); font-weight: 400; }
+.ls-state { font-size: .8rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); }
+.ls-state-synced { border-color: var(--success); }
+.ls-state-denied { border-color: var(--danger); }
+.ls-people { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; align-items: center; }
+.ls-chip { --tone: var(--accent); font-size: .85rem; padding: 3px 10px; border-radius: 999px; background: var(--bg-card); border: 2px solid var(--tone); white-space: nowrap; }
+.ls-me { font-weight: 600; }
+.ls-alone { color: var(--fg-muted); font-size: .85rem; }
+.ls-board { position: relative; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius, 10px); padding: 12px; min-height: 260px; overflow: hidden; }
+.ls-add { display: flex; gap: 8px; }
+.ls-input { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius, 8px); background: var(--bg); color: var(--fg); }
+.ls-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ls-btn { font: inherit; white-space: nowrap; padding: 8px 14px; border-radius: var(--radius, 8px); border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+.ls-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.ls-btn:active:not(:disabled) { transform: translateY(1px); }
+.ls-btn:disabled { opacity: .5; cursor: default; }
+.ls-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+.ls-item { --tone: var(--accent); display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius, 8px); background: var(--bg); border: 1px solid var(--border); overflow-wrap: anywhere; }
+.ls-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--tone); flex: none; }
+.ls-text { flex: 1; min-width: 0; }
+.ls-by { color: var(--fg-muted); font-size: .8rem; white-space: nowrap; }
+.ls-empty { color: var(--fg-muted); padding: 8px 0; }
+.ls-cursor { --tone: var(--accent); position: absolute; pointer-events: none; transform: translate(-2px, -2px); font-size: .7rem; padding: 1px 6px; border-radius: 6px; background: var(--tone); color: var(--paper, var(--bg)); white-space: nowrap; }
+.ls-latency { color: var(--fg-muted); font-size: .85rem; overflow-wrap: anywhere; }
