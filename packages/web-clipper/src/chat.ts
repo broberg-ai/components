@@ -299,8 +299,14 @@ function artifactOp(name: string, input: Record<string, unknown>, files: Map<str
     files.set(path, st);
     return emit(path, st);
   }
-  return { ignore: true }; // another tool (web search, …): a call, not content
+  if (CLAUDE_TOOLS_NO_FILES.has(name)) return { ignore: true }; // a call that reads or searches, never content
+  // F099.13: any other tool may have made files (a code tool that writes DESIGN.md or renders a PNG —
+  // jam 13/10: «KAI», 3 of 28 files, and the clip said complete). Unknown is never read as nothing.
+  return { problem: `a tool «${name}» that may have made files the clip does not hold` };
 }
+
+/** Tools that only read or search — they never make a file, so skipping them loses nothing. Everything else is reported. */
+const CLAUDE_TOOLS_NO_FILES = new Set(["web_search", "web_fetch", "conversation_search", "recent_chats", "google_drive_search", "google_drive_fetch", "view"]);
 
 /** The thread on screen, from Claude's conversation answer. Exported for tests. */
 export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skipped: string[] } {

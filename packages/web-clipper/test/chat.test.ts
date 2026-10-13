@@ -306,6 +306,22 @@ describe("F099.10 — Claude artifacts come along as files, and nothing is silen
   });
 });
 
+describe("F099.13 — a tool that may have made files is never skipped silently", () => {
+  it("an unknown tool (a code tool) → complete:false, naming it; the turn's words stay", async () => {
+    const code = { uuid: "a4", sender: "assistant", parent_message_uuid: "a3", content: [{ type: "tool_use", name: "bash_tool", input: { command: "cat > DESIGN.md" } }, { type: "tool_result", content: [] }, { type: "text", text: "Designmanualen er klar som DESIGN.md" }] };
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData([code]))).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toMatchObject({ complete: false, source: "data" });
+    expect(clip.completeness?.reason).toContain("«bash_tool»");
+    expect(clip.units.at(-1)!.content).toBe("[Artefakt: app.ts]\n\nFilen er lavet.\n\nDesignmanualen er klar som DESIGN.md");
+  });
+
+  it("NEGATIVE CONTROL: tools that only read or search (web_search, web_fetch, view) keep a clip complete", async () => {
+    const reads = { uuid: "a4", sender: "assistant", parent_message_uuid: "a3", content: ["web_search", "web_fetch", "view"].map((name) => ({ type: "tool_use", name, input: {} })).concat([{ type: "text", text: "Fundet" } as never]) };
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData([reads]))).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+});
+
 describe("F099.10 / 0.6.1 — what the person attached is not dropped", () => {
   it("a message that is only an attached file stays a turn (its text as a file); an uploaded image is named", async () => {
     const m = (uuid: string, sender: string, parent: string, content: unknown[], extra: Record<string, unknown> = {}) => ({ uuid, sender, parent_message_uuid: parent, content, ...extra });

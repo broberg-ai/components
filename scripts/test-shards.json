@@ -50,7 +50,7 @@
         "@broberg/sso": 78,
         "@broberg/tenant": 27,
         "@broberg/webmcp": 5,
-        "@broberg/web-clipper": 119,
+        "@broberg/web-clipper": 121,
         "@broberg/livesync": 25
       }
     },
