@@ -5,7 +5,7 @@
 // logged-in browser is the consumer's measurement (Lens cannot sign in for us).
 import { describe, expect, it } from "vitest";
 import { chatgptReader, claudeReader, createChatgptReader, createClaudeReader, extractClip, htmlToMarkdown, chatReaders, articleExtractor } from "../src/extract";
-import { chatgptTurns } from "../src/chat";
+import { chatgptTurns, MAX_FILE_BYTES } from "../src/chat";
 
 type Route = (url: string, init?: RequestInit) => unknown | Response;
 function fakeFetch(routes: Record<string, Route>) {
@@ -308,10 +308,10 @@ describe("F099.10 — Claude artifacts come along as files, and nothing is silen
 
 describe("F099.13 — a tool that may have made files is never skipped silently", () => {
   it("an unknown tool (a code tool) → complete:false, naming it; the turn's words stay", async () => {
-    const code = { uuid: "a4", sender: "assistant", parent_message_uuid: "a3", content: [{ type: "tool_use", name: "bash_tool", input: { command: "cat > DESIGN.md" } }, { type: "tool_result", content: [] }, { type: "text", text: "Designmanualen er klar som DESIGN.md" }] };
+    const code = { uuid: "a4", sender: "assistant", parent_message_uuid: "a3", content: [{ type: "tool_use", name: "render_video", input: { scene: 1 } }, { type: "tool_result", content: [] }, { type: "text", text: "Designmanualen er klar som DESIGN.md" }] };
     const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData([code]))).f }).extract(docWith(""), CLAUDE_URL);
     expect(clip.completeness).toMatchObject({ complete: false, source: "data" });
-    expect(clip.completeness?.reason).toContain("«bash_tool»");
+    expect(clip.completeness?.reason).toContain("«render_video»");
     expect(clip.units.at(-1)!.content).toBe("[Artefakt: app.ts]\n\nFilen er lavet.\n\nDesignmanualen er klar som DESIGN.md");
   });
 
@@ -327,13 +327,13 @@ describe("F099.13 / 0.7.2 — completeness says WHAT is missing (jam #3215)", ()
   const read = async (extra: unknown[]) => (await createClaudeReader({ fetch: fakeFetch(claudeRoutes(claudeArtifactData(extra))).f }).extract(docWith(""), CLAUDE_URL)).completeness;
 
   it("turns whole, a file not → missing:\"files\" (unknown tool, and a change that cannot be applied)", async () => {
-    expect((await read([msg([{ type: "tool_use", name: "bash_tool", input: {} }, { type: "text", text: "ok" }])]))?.missing).toBe("files");
+    expect((await read([msg([{ type: "tool_use", name: "render_video", input: {} }, { type: "text", text: "ok" }])]))?.missing).toBe("files");
     expect((await read([msg([{ type: "tool_use", name: "artifacts", input: { id: "plan", command: "update", old_str: "FINDES IKKE", new_str: "x" } }])]))?.missing).toBe("files");
   });
 
   it("a part that may hold words → missing:\"turns\", and it outranks a missing file", async () => {
     expect((await read([msg([{ type: "hologram" }])]))?.missing).toBe("turns");
-    expect((await read([msg([{ type: "hologram" }, { type: "tool_use", name: "bash_tool", input: {} }])]))?.missing).toBe("turns");
+    expect((await read([msg([{ type: "hologram" }, { type: "tool_use", name: "render_video", input: {} }])]))?.missing).toBe("turns");
   });
 
   it("read from the screen → missing:\"turns\"; NEGATIVE CONTROL: a complete clip carries no missing", async () => {
@@ -351,15 +351,138 @@ describe("F099.10 / 0.6.1 — what the person attached is not dropped", () => {
       chat_messages: [
         m("u1", "human", "r", [{ type: "text", text: "Læs den her" }]),
         m("a1", "assistant", "u1", [{ type: "text", text: "Send den" }]),
-        m("u2", "human", "a1", [], { attachments: [{ file_name: "brief.md", file_type: "text/markdown", extracted_content: "# Brief" }], files_v2: [{ file_name: "skitse.png", file_kind: "image" }] }),
+        m("u2", "human", "a1", [], { attachments: [{ file_name: "brief.md", file_type: "text/markdown", extracted_content: "# Brief" }], files_v2: [{ file_uuid: "up-1", file_name: "skitse.png", file_kind: "image", preview_url: "/api/org-a/files/up-1/preview" }] }),
         m("a2", "assistant", "u2", [{ type: "text", text: "Tak" }]),
       ],
     };
-    const clip = await createClaudeReader({ fetch: fakeFetch(claudeRoutes(data)).f }).extract(docWith(""), CLAUDE_URL);
+    const routes = { ...claudeRoutes(data), "https://claude.ai/api/org-a/files/up-1/preview": () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "content-type": "image/png" } }) };
+    const clip = await createClaudeReader({ fetch: fakeFetch(routes).f }).extract(docWith(""), CLAUDE_URL);
     expect(clip.units.map((u) => [u.role, u.content])).toStrictEqual([
       ["user", "Læs den her"], ["assistant", "Send den"], ["user", "[Bilag: brief.md]\n\n[Fil: skitse.png]"], ["assistant", "Tak"],
     ]);
-    expect(clip.units[2]!.assets).toStrictEqual([{ type: "file", name: "brief.md", mime: "text/markdown", content: "# Brief" }]);
-    expect(clip.completeness?.complete).toBe(true);
+    // F099.13: the upload itself comes along now (0.6.1 only named it)
+    expect(clip.units[2]!.assets).toStrictEqual([
+      { type: "file", name: "brief.md", mime: "text/markdown", content: "# Brief" },
+      { type: "file", id: "up-1", name: "skitse.png", mime: "image/png", size: 4, encoding: "base64", content: "iVBORw==" },
+    ]);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+});
+
+describe("F099.13 / 0.8.0 — the files themselves: Claude's Artifacts panel + uploads, ChatGPT's images + code files", () => {
+  const PNG = new Uint8Array([137, 80, 78, 71, 13, 10]);
+  const png = () => new Response(PNG, { headers: { "content-type": "image/png" } });
+  const presented = (uuid: string, parent: string, files: { file_path: string; name: string; mime_type: string }[], text: string) => ({
+    uuid, sender: "assistant", parent_message_uuid: parent,
+    content: [
+      { type: "tool_use", name: "bash_tool", input: { command: "make" } },
+      { type: "tool_result", name: "bash_tool", content: [{ type: "text", text: "ok" }] },
+      { type: "tool_use", name: "present_files", input: { filepaths: files.map((x) => x.file_path) } },
+      { type: "tool_result", name: "present_files", is_error: false, content: files.map((x) => ({ type: "local_resource", artifact_publishable: true, ...x })) },
+      { type: "text", text },
+    ],
+  });
+  const kai = (extra: unknown[] = []) => ({
+    name: "KAI", current_leaf_message_uuid: extra.length ? "a3" : "a2",
+    chat_messages: [
+      { uuid: "u1", sender: "human", parent_message_uuid: "r", content: [{ type: "text", text: "Lav logo og manual" }] },
+      presented("a1", "u1", [{ file_path: "/mnt/user-data/outputs/kai-logo.png", name: "kai-logo.png", mime_type: "image/png" }, { file_path: "/mnt/user-data/outputs/DESIGN.md", name: "DESIGN.md", mime_type: "text/markdown" }], "Her er de."),
+      { uuid: "u2", sender: "human", parent_message_uuid: "a1", content: [{ type: "text", text: "Ret manualen" }] },
+      presented("a2", "u2", [{ file_path: "/mnt/user-data/outputs/DESIGN.md", name: "DESIGN.md", mime_type: "text/markdown" }], "Rettet."),
+      ...extra,
+    ],
+  });
+  const DL = "https://claude.ai/api/organizations/org-a/conversations/11111111-2222-3333-4444-555555555555/wiggle/download-file?path=";
+  const claudeFiles = (data: unknown, over: Record<string, Route> = {}) => ({
+    ...claudeRoutes(data),
+    [DL + encodeURIComponent("/mnt/user-data/outputs/kai-logo.png")]: png,
+    [DL + encodeURIComponent("/mnt/user-data/outputs/DESIGN.md")]: () => new Response("# Design v2", { headers: { "content-type": "text/markdown" } }),
+    ...over,
+  });
+
+  it("Claude: every presented file is fetched with the page's session and carried — text as text, a PNG as base64; a file presented twice is fetched once, on its last turn", async () => {
+    const { f, calls } = fakeFetch(claudeFiles(kai()));
+    const clip = await createClaudeReader({ fetch: f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+    expect(clip.units.map((u) => u.content)).toStrictEqual([
+      "Lav logo og manual", "[Fil: kai-logo.png]\n\n[Fil: DESIGN.md]\n\nHer er de.", "Ret manualen", "[Fil: DESIGN.md]\n\nRettet.",
+    ]);
+    expect(clip.units[1]!.assets).toStrictEqual([{ type: "file", id: "/mnt/user-data/outputs/kai-logo.png", name: "kai-logo.png", mime: "image/png", size: 6, encoding: "base64", content: "iVBORw0K" }]);
+    expect(clip.units[3]!.assets).toStrictEqual([{ type: "file", id: "/mnt/user-data/outputs/DESIGN.md", name: "DESIGN.md", mime: "text/markdown", size: 11, content: "# Design v2" }]);
+    const downloads = calls.filter((c) => c.url.startsWith(DL));
+    expect(downloads.map((c) => c.url)).toStrictEqual([DL + encodeURIComponent("/mnt/user-data/outputs/kai-logo.png"), DL + encodeURIComponent("/mnt/user-data/outputs/DESIGN.md")]);
+    expect(downloads.every((c) => c.init?.credentials === "include")).toBe(true);
+  });
+
+  it("Claude: a file that cannot be fetched → missing:\"files\" naming it; the turns stay whole", async () => {
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeFiles(kai(), { [DL + encodeURIComponent("/mnt/user-data/outputs/kai-logo.png")]: () => new Response("no", { status: 404 }) })).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toMatchObject({ complete: false, source: "data", missing: "files" });
+    expect(clip.completeness?.reason).toContain("«kai-logo.png» kunne ikke hentes (404)");
+    expect(clip.units).toHaveLength(4);
+    expect(clip.units[1]!.assets).toBeUndefined();
+    expect(clip.units[3]!.assets).toHaveLength(1);
+  });
+
+  it("Claude: a file over the size limit is not carried — named, missing:\"files\"", async () => {
+    const big = () => new Response(PNG, { headers: { "content-type": "video/mp4", "content-length": String(MAX_FILE_BYTES + 1) } });
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeFiles(kai(), { [DL + encodeURIComponent("/mnt/user-data/outputs/kai-logo.png")]: big })).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toMatchObject({ complete: false, missing: "files" });
+    expect(clip.completeness?.reason).toContain("«kai-logo.png» er 25 MB — over grænsen på 25 MB");
+  });
+
+  it("Claude: MCP tools and the code tool are not reported as missing files", async () => {
+    const mcp = { uuid: "a3", sender: "assistant", parent_message_uuid: "a2", content: [{ type: "tool_use", name: "DNS Manager:simply_check", input: { domain: "kai.dk" } }, { type: "tool_use", name: "Claude Docs:create", input: {} }, { type: "text", text: "Ledig" }] };
+    const clip = await createClaudeReader({ fetch: fakeFetch(claudeFiles(kai([mcp]))).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+
+  const gptImageData = () => ({
+    title: "Frugt", current_node: "t1",
+    mapping: {
+      root: { id: "root", parent: null, message: null },
+      u1: { id: "u1", parent: "root", message: { id: "u1", author: { role: "user" }, content: { content_type: "text", parts: ["Tegn frugt og lav en CSV"] } } },
+      c1: { id: "c1", parent: "u1", message: { id: "c1", author: { role: "assistant" }, recipient: "python", content: { content_type: "code", text: "df.to_csv()" } } },
+      x1: { id: "x1", parent: "c1", message: { id: "x1", author: { role: "tool", name: "python" }, content: { content_type: "execution_output", text: "" } } },
+      a1: { id: "a1", parent: "x1", message: { id: "a1", author: { role: "assistant" }, recipient: "all", content: { content_type: "text", parts: ["Her er [CSV'en](sandbox:/mnt/data/frugt_og_priser.csv)."] } } },
+      t1: { id: "t1", parent: "a1", message: { id: "t1", author: { role: "tool", name: "t2uay3k.sj1i4kz" }, recipient: "t2uay3k.sj1i4kz", metadata: { image_gen_title: "Frugtkurv" }, content: { content_type: "multimodal_text", parts: [{ content_type: "image_asset_pointer", asset_pointer: "sediment://file_00000000bd88", width: 1024, height: 1024, size_bytes: 6, mime_type: "image/png", metadata: { generation: { serialization_title: "Frugtkurv" } } }] } } },
+    },
+  });
+  const gptFiles = (data: unknown): Record<string, Route> => ({
+    ...chatgptRoutes(data),
+    "https://chatgpt.com/backend-api/files/download/file_00000000bd88": () => ({ status: "success", download_url: "https://files.oaiusercontent.com/img-1?sig=x" }),
+    "https://chatgpt.com/backend-api/conversation/6acd402d-cfb0-83eb-ab10-a9a538082b14/interpreter/download?message_id=a1&sandbox_path=%2Fmnt%2Fdata%2Ffrugt_og_priser.csv": () => ({ download_url: "https://files.oaiusercontent.com/csv-1?sig=y" }),
+    "https://files.oaiusercontent.com/img-1": png,
+    "https://files.oaiusercontent.com/csv-1": () => new Response("frugt;pris\næble;3", { headers: { "content-type": "text/csv" } }),
+  });
+
+  it("ChatGPT: a generated image (on the image TOOL's message) and a code-tool file (sandbox link) come along, fetched via their download addresses with the bearer", async () => {
+    const { f, calls } = fakeFetch(gptFiles(gptImageData()));
+    const clip = await createChatgptReader({ fetch: f }).extract(docWith(""), CHATGPT_URL);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+    expect(clip.units.map((u) => [u.role, u.content])).toStrictEqual([
+      ["user", "Tegn frugt og lav en CSV"],
+      ["assistant", "Her er [CSV'en](sandbox:/mnt/data/frugt_og_priser.csv).\n\n[Billede: Frugtkurv.png]"],
+    ]);
+    expect(clip.units[1]!.assets).toStrictEqual([
+      { type: "file", id: "/mnt/data/frugt_og_priser.csv", name: "frugt_og_priser.csv", mime: "text/csv", size: 18, content: "frugt;pris\næble;3" },
+      { type: "file", id: "file_00000000bd88", name: "Frugtkurv.png", mime: "image/png", size: 6, encoding: "base64", content: "iVBORw0K" },
+    ]);
+    const meta = calls.filter((c) => c.url.includes("/files/download/") || c.url.includes("/interpreter/download"));
+    expect(meta).toHaveLength(2);
+    expect(meta.every((c) => (c.init?.headers as Record<string, string>)?.authorization === "Bearer tok-1")).toBe(true);
+    expect(calls.filter((c) => c.url.startsWith("https://files.oaiusercontent.com/")).every((c) => c.init?.credentials === "omit")).toBe(true);
+  });
+
+  it("NEGATIVE CONTROL: ChatGPT download refused → missing:\"files\"; a conversation with no files stays complete", async () => {
+    const routes = { ...gptFiles(gptImageData()), "https://chatgpt.com/backend-api/files/download/file_00000000bd88": () => new Response("x", { status: 403 }) };
+    const clip = await createChatgptReader({ fetch: fakeFetch(routes).f }).extract(docWith(""), CHATGPT_URL);
+    expect(clip.completeness).toMatchObject({ complete: false, missing: "files" });
+    expect(clip.completeness?.reason).toContain("«Frugtkurv.png» kunne ikke hentes (403)");
+    // a network refusal (CORS) is named too, not a bare «Failed to fetch»
+    const cors = { ...gptFiles(gptImageData()), "https://files.oaiusercontent.com/img-1": () => { throw new TypeError("Failed to fetch"); } };
+    const blocked = await createChatgptReader({ fetch: fakeFetch(cors).f }).extract(docWith(""), CHATGPT_URL);
+    expect(blocked.completeness?.reason).toContain("«Frugtkurv.png» kunne ikke hentes (Failed to fetch)");
+    const plain = await createChatgptReader({ fetch: fakeFetch(chatgptRoutes(chatgptData(3))).f }).extract(docWith(""), CHATGPT_URL);
+    expect(plain.completeness).toStrictEqual({ complete: true, source: "data" });
   });
 });

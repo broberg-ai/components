@@ -27,7 +27,91 @@ export interface ChatReaderOptions {
 /** The data answered, but not in a shape we know — never guess, fall back. */
 class ShapeError extends Error {}
 
-interface Turn { role: "user" | "assistant"; text: string; assets?: Asset[] }
+interface Turn { role: "user" | "assistant"; text: string; assets?: Asset[]; refs?: FileRef[] }
+
+// ── Files that live behind a link (F099.13) ────────────────────────────────
+// A file the conversation SHOWS but does not carry: a Claude file in the
+// Artifacts panel, an upload, a ChatGPT image or a code-tool file. The content
+// script fetches it with the page's own session — the receiving server never
+// has to log in to claude.ai or chatgpt.com — and it travels as a file asset:
+// text as text, anything else as base64. A file that cannot be fetched (or is
+// too big to carry) is named in the reason and the clip says missing:"files".
+
+/** A file to fetch. `indirect`: the url answers JSON { download_url } and the file is there (ChatGPT). */
+interface FileRef { id: string; name: string; mime?: string; url: string; indirect?: boolean; headers?: Record<string, string> }
+
+/** Per file, and for the whole clip — a clip crosses chrome.runtime as one message. */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_CLIP_FILE_BYTES = 60 * 1024 * 1024;
+const TEXT_MIME = /^text\/|[+/](json|xml|javascript)$|^image\/svg\+xml$/;
+const mb = (n: number) => `${Math.round(n / 1024 / 1024)} MB`;
+
+function toBase64(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+async function download(f: Fetch, ref: FileRef, budget: number): Promise<Asset> {
+  let res = await f(ref.url, { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) });
+  if (!res.ok) throw new Error(`«${ref.name}» kunne ikke hentes (${res.status})`);
+  if (ref.indirect) {
+    const j: unknown = await res.json();
+    const to = isObj(j) && typeof j.download_url === "string" ? j.download_url : undefined;
+    if (!to) throw new Error(`«${ref.name}» gav ingen download-adresse`);
+    res = await f(to, { credentials: "omit" });
+    if (!res.ok) throw new Error(`«${ref.name}» kunne ikke hentes (${res.status})`);
+  }
+  const limit = Math.min(MAX_FILE_BYTES, budget);
+  const declared = Number(res.headers.get("content-length"));
+  if (declared > limit) throw new Error(`«${ref.name}» er ${mb(declared)} — over grænsen på ${mb(limit)}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.length > limit) throw new Error(`«${ref.name}» er ${mb(bytes.length)} — over grænsen på ${mb(limit)}`);
+  const mime = ref.mime ?? res.headers.get("content-type")?.split(";")[0]?.trim() ?? "application/octet-stream";
+  const body = TEXT_MIME.test(mime) ? { content: new TextDecoder().decode(bytes) } : { encoding: "base64" as const, content: toBase64(bytes) };
+  return { type: "file", id: ref.id, name: ref.name, mime, size: bytes.length, ...body };
+}
+
+/** Fetch every turn's refs into assets, one at a time; returns what could not be fetched. */
+async function fetchRefs(f: Fetch, turns: Turn[]): Promise<string[]> {
+  const problems: string[] = [];
+  let budget = MAX_CLIP_FILE_BYTES;
+  for (const t of turns) {
+    for (const ref of t.refs ?? []) {
+      try {
+        const a = await download(f, ref, budget);
+        budget -= a.size ?? 0;
+        t.assets = [...(t.assets ?? []), a];
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // A network refusal (CORS, offline) says only «Failed to fetch» — name the file it was.
+        problems.push(msg.includes(`«${ref.name}»`) ? msg : `«${ref.name}» kunne ikke hentes (${msg})`);
+      }
+    }
+    delete t.refs;
+  }
+  return problems;
+}
+
+/** A file presented more than once (a newer version each time) is fetched once, on its LAST turn — the download is the current file. */
+function lastRefOnly(turns: Turn[]): void {
+  const seen = new Set<string>();
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const refs = turns[i]!.refs;
+    if (!refs) continue;
+    turns[i]!.refs = refs.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+  }
+}
+
+/** The completeness note for a data read: words not understood outrank a missing file. */
+function incompleteFrom(skipped: string[], filesSkipped: string[]): { reason: string; missing: "files" | "turns" } | undefined {
+  const all = [...skipped, ...filesSkipped];
+  if (!all.length) return undefined;
+  return {
+    reason: `${all.length} ${all.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${[...new Set(all)].slice(0, 3).join("; ")}`,
+    missing: skipped.length ? "turns" : "files",
+  };
+}
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -85,8 +169,19 @@ function chatgptIds(url: URL): { conversation?: string; share?: string } {
   return s ? { share: s[1] } : {};
 }
 
+/** Where a ChatGPT file is fetched from — absent on a shared link (no login, nothing to fetch with). */
+export interface ChatgptLinks {
+  /** An image / upload: GET …/backend-api/files/download/<file id> → { download_url }. */
+  file(fileId: string): FileRef["url"];
+  /** A code-tool file: GET …/interpreter/download?message_id=…&sandbox_path=… → { download_url }. */
+  interpreter(messageId: string, sandboxPath: string): FileRef["url"];
+  headers: Record<string, string>;
+}
+
+const EXT_OF: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
+
 /** The thread on screen, from ChatGPT's conversation answer. Exported for tests. */
-export function chatgptTurns(data: unknown): { title: string; turns: Turn[] } {
+export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: string; turns: Turn[]; filesSkipped: string[] } {
   if (!isObj(data) || !isObj(data.mapping) || typeof data.current_node !== "string") throw new ShapeError("unexpected conversation shape");
   const mapping = data.mapping;
   const path: Record<string, unknown>[] = [];
@@ -100,20 +195,57 @@ export function chatgptTurns(data: unknown): { title: string; turns: Turn[] } {
     id = node.parent;
   }
   const turns: Turn[] = [];
+  const filesSkipped: string[] = [];
+  const ref = (r: Omit<FileRef, "url" | "indirect" | "headers">, url: (l: ChatgptLinks) => string): FileRef | undefined => {
+    if (links) return { ...r, url: url(links), indirect: true, headers: links.headers };
+    filesSkipped.push(`«${r.name}» kan ikke hentes fra et delt link`);
+    return undefined;
+  };
   for (const node of path.reverse()) {
     const m = node.message;
     if (!isObj(m)) continue; // the root has no message
     const role = isObj(m.author) ? m.author.role : undefined;
-    if (role !== "user" && role !== "assistant") continue; // system, tool, …
     if (isObj(m.metadata) && m.metadata.is_visually_hidden_from_conversation) continue;
-    if (role === "assistant" && m.recipient !== undefined && m.recipient !== "all") continue; // a call to a tool, not words to the user
     const content = m.content;
+    // F099.13 — an image is a part of its own (image_asset_pointer): a generated one sits on the image
+    // TOOL's message (measured 13/10, jam: author "tool:…", multimodal_text), an upload on the user's.
+    const images: FileRef[] = [];
+    const marks: string[] = [];
+    if (isObj(content) && content.content_type === "multimodal_text" && Array.isArray(content.parts)) {
+      for (const p of content.parts) {
+        if (!isObj(p) || p.content_type !== "image_asset_pointer" || typeof p.asset_pointer !== "string") continue;
+        const fileId = p.asset_pointer.replace(/^[a-z-]+:\/\//i, "");
+        const md = isObj(p.metadata) ? p.metadata : {};
+        const gen = isObj(md.generation) ? md.generation : isObj(md.dalle) ? md.dalle : {};
+        const mime = str(p.mime_type);
+        const title = str(gen.serialization_title) ?? (isObj(m.metadata) ? str(m.metadata.image_gen_title) : undefined) ?? fileId;
+        const name = /\.[a-z0-9]{2,5}$/i.test(title) ? title : `${title}.${EXT_OF[mime ?? ""] ?? "png"}`;
+        marks.push(`[Billede: ${name}]`);
+        const r = ref({ id: fileId, name, ...(mime ? { mime } : {}) }, (l) => l.file(fileId));
+        if (r) images.push(r);
+      }
+    }
+    if (role !== "user" && role !== "assistant") {
+      // system / tool: not words — but a tool's image belongs to the answer it is part of.
+      if (images.length) turns.push({ role: "assistant", text: marks.join("\n\n"), refs: images });
+      continue;
+    }
+    if (role === "assistant" && m.recipient !== undefined && m.recipient !== "all") continue; // a call to a tool, not words to the user
     if (!isObj(content) || (content.content_type !== "text" && content.content_type !== "multimodal_text")) continue; // code runs, search results, thoughts
     if (!Array.isArray(content.parts)) throw new ShapeError("message content has no parts");
     const text = content.parts.filter((p): p is string => typeof p === "string").join("\n\n");
-    turns.push({ role, text });
+    // A code-tool file is a markdown link to sandbox:/mnt/data/… in the answer.
+    const refs = [...images];
+    if (role === "assistant") {
+      for (const [, sandboxPath] of text.matchAll(/\(sandbox:(\/mnt\/data\/[^)\s]+)\)/g)) {
+        const name = decodeURIComponent(sandboxPath!.split("/").pop()!);
+        const r = typeof m.id === "string" ? ref({ id: sandboxPath!, name }, (l) => l.interpreter(m.id as string, sandboxPath!)) : undefined;
+        if (r && !refs.some((x) => x.id === r.id)) refs.push(r);
+      }
+    }
+    turns.push({ role, text: [...marks, text].filter(Boolean).join("\n\n"), ...(refs.length ? { refs } : {}) });
   }
-  return { title: typeof data.title === "string" && data.title ? data.title : "ChatGPT", turns };
+  return { title: typeof data.title === "string" && data.title ? data.title : "ChatGPT", turns, filesSkipped };
 }
 
 /**
@@ -213,15 +345,25 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
               if (!res.ok) throw new Error(`the shared page answered ${res.status}`);
               data = chatgptEmbedded([await res.text()]);
             }
-            const { title, turns } = chatgptTurns(data);
-            return { title, units: toUnits(turns) };
+            const { title, turns, filesSkipped } = chatgptTurns(data);
+            const incomplete = incompleteFrom([], filesSkipped);
+            return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
           }
           const session = await getJson(f, `${url.origin}/api/auth/session`);
           const token = isObj(session) && typeof session.accessToken === "string" ? session.accessToken : null;
           if (!token) throw new Error("not signed in to ChatGPT");
-          const data = await getJson(f, `${url.origin}/backend-api/conversation/${ids.conversation}`, { headers: { authorization: `Bearer ${token}` } });
-          const { title, turns } = chatgptTurns(data);
-          return { title, units: toUnits(turns) };
+          const headers = { authorization: `Bearer ${token}` };
+          const data = await getJson(f, `${url.origin}/backend-api/conversation/${ids.conversation}`, { headers });
+          const conv = ids.conversation;
+          const { title, turns, filesSkipped } = chatgptTurns(data, {
+            file: (id) => `${url.origin}/backend-api/files/download/${encodeURIComponent(id)}`,
+            interpreter: (messageId, sandboxPath) =>
+              `${url.origin}/backend-api/conversation/${conv}/interpreter/download?message_id=${encodeURIComponent(messageId)}&sandbox_path=${encodeURIComponent(sandboxPath)}`,
+            headers,
+          });
+          lastRefOnly(turns);
+          const incomplete = incompleteFrom([], [...filesSkipped, ...(await fetchRefs(f, turns))]);
+          return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
         },
         () => chatgptScreen(doc),
         url,
@@ -299,18 +441,30 @@ function artifactOp(name: string, input: Record<string, unknown>, files: Map<str
     files.set(path, st);
     return emit(path, st);
   }
-  if (CLAUDE_TOOLS_NO_FILES.has(name)) return { ignore: true }; // a call that reads or searches, never content
+  // An MCP tool ("DNS Manager:simply_check") acts outside the conversation; its result is not a file in it.
+  if (CLAUDE_TOOLS_NO_FILES.has(name) || name.includes(":")) return { ignore: true }; // reads, searches, or runs — never a file the conversation holds
   // F099.13: any other tool may have made files (a code tool that writes DESIGN.md or renders a PNG —
   // jam 13/10: «KAI», 3 of 28 files, and the clip said complete). Unknown is never read as nothing.
   return { problem: `a tool «${name}» that may have made files the clip does not hold` };
 }
 
 /** Tools that only read or search — they never make a file, so skipping them loses nothing. Everything else is reported. */
-const CLAUDE_TOOLS_NO_FILES = new Set(["web_search", "web_fetch", "conversation_search", "recent_chats", "google_drive_search", "google_drive_fetch", "view"]);
+// Measured on «KAI» 13/10 (jam's shape extract): the code tool (bash_tool) writes files, but what the
+// person SEES is what present_files hands over — read from its tool_result below. A file the code tool
+// wrote and never presented is not in the Artifacts panel either.
+const CLAUDE_TOOLS_NO_FILES = new Set(["web_search", "web_fetch", "conversation_search", "recent_chats", "google_drive_search", "google_drive_fetch", "view", "bash_tool", "present_files", "tool_search", "memory_read", "Artifact"]);
+
+/** Where a Claude file is fetched from. */
+export interface ClaudeLinks {
+  /** A file in the Artifacts panel (present_files): …/conversations/<id>/wiggle/download-file?path=… */
+  output(path: string): string;
+  /** An upload's preview, from files[].preview_url (relative to the origin). */
+  upload(relative: string): string;
+}
 
 /** The thread on screen, from Claude's conversation answer. Exported for tests. */
 /** `skipped`: parts that may hold words (the turns are not whole). `filesSkipped`: the turns are whole, a file is not (F099.13). */
-export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skipped: string[]; filesSkipped: string[] } {
+export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string; turns: Turn[]; skipped: string[]; filesSkipped: string[] } {
   if (!isObj(data) || !Array.isArray(data.chat_messages)) throw new ShapeError("unexpected conversation shape");
   const byId = new Map<string, Record<string, unknown>>();
   for (const m of data.chat_messages) if (isObj(m) && typeof m.uuid === "string") byId.set(m.uuid, m);
@@ -358,10 +512,17 @@ export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skip
       parts.push(`[Bilag: ${name}]`);
       if (content !== undefined) assets.push({ type: "file", name, ...(str(a.file_type) ? { mime: str(a.file_type)! } : {}), content });
     }
+    const refs: FileRef[] = [];
     const uploads = [...(Array.isArray(m.files_v2) ? m.files_v2 : Array.isArray(m.files) ? m.files : [])];
     for (const f of uploads) {
       if (!isObj(f)) continue;
-      parts.push(`[Fil: ${str(f.file_name) ?? "fil"}]`);
+      const name = str(f.file_name) ?? "fil";
+      parts.push(`[Fil: ${name}]`);
+      // F099.13 — the upload itself (measured: files[] = { file_uuid, file_name, preview_url, preview_asset{url} }).
+      const rel = (isObj(f.preview_asset) ? str(f.preview_asset.url) : undefined) ?? str(f.preview_url);
+      const id = str(f.file_uuid) ?? str(f.uuid) ?? name;
+      if (rel && links) refs.push({ id, name, url: links.upload(rel) });
+      else filesSkipped.push(`uploadet «${name}» har ingen adresse at hente fra`);
     }
     for (const b of m.content) {
       if (!isObj(b)) continue;
@@ -372,10 +533,19 @@ export function claudeTurns(data: unknown): { title: string; turns: Turn[]; skip
           assets.push(r.asset);
           parts.push(`[Artefakt: ${r.title}]`);
         } else if (r.problem) filesSkipped.push(r.problem);
+      } else if (b.type === "tool_result" && b.name === "present_files" && b.is_error !== true) {
+        // F099.13 — what is in the Artifacts panel: present_files hands files over (measured on «KAI»:
+        // content[] = { type, file_path, mime_type, name }). Named in the turn; fetched below.
+        for (const item of Array.isArray(b.content) ? b.content : []) {
+          if (!isObj(item) || typeof item.file_path !== "string") continue;
+          const name = str(item.name) ?? item.file_path.split("/").pop()!;
+          parts.push(`[Fil: ${name}]`);
+          if (links) refs.push({ id: item.file_path, name, ...(str(item.mime_type) ? { mime: str(item.mime_type)! } : {}), url: links.output(item.file_path) });
+        }
       } else if (typeof b.type === "string" && CLAUDE_SKIP.has(b.type)) continue;
       else skipped.push(`a message part of type «${String(b.type)}»`);
     }
-    turns.push({ role, text: parts.join("\n\n"), ...(assets.length ? { assets } : {}) });
+    turns.push({ role, text: parts.join("\n\n"), ...(assets.length ? { assets } : {}), ...(refs.length ? { refs } : {}) });
   }
   return { title: typeof data.name === "string" && data.name ? data.name : "Claude", turns, skipped, filesSkipped };
 }
@@ -414,15 +584,13 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
           for (const org of orgs) {
             try {
               const data = await getJson(f, `${url.origin}/api/organizations/${org}/chat_conversations/${ids.conversation}?tree=True&rendering_mode=messages&render_all_tools=true`);
-              const { title, turns, skipped, filesSkipped } = claudeTurns(data);
-              const all = [...skipped, ...filesSkipped];
-              // A part that may hold words outranks a missing file: then the turns themselves are not whole.
-              const incomplete = all.length
-                ? {
-                    reason: `${all.length} ${all.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${[...new Set(all)].slice(0, 3).join("; ")}`,
-                    missing: skipped.length ? ("turns" as const) : ("files" as const),
-                  }
-                : undefined;
+              const base = `${url.origin}/api/organizations/${org}/conversations/${ids.conversation}`;
+              const { title, turns, skipped, filesSkipped } = claudeTurns(data, {
+                output: (path) => `${base}/wiggle/download-file?path=${encodeURIComponent(path)}`,
+                upload: (rel) => new URL(rel, url.origin).href,
+              });
+              lastRefOnly(turns);
+              const incomplete = incompleteFrom(skipped, [...filesSkipped, ...(await fetchRefs(f, turns))]);
               return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
             } catch (e) {
               if (e instanceof ShapeError) throw e; // the right org, a shape we do not know — do not try the next

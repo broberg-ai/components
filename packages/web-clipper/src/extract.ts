@@ -51,6 +51,10 @@ export interface Asset {
   content?: string;
   /** 1 for the first version of `id`, then 2, 3 … */
   version?: number;
+  /** F099.13 — "base64": `content` is the file's bytes in base64 (an image, a zip, a video). Absent: `content` is text. */
+  encoding?: "base64";
+  /** F099.13 — the file's size in bytes, for a fetched file. */
+  size?: number;
 }
 export interface Clip {
   url: string;
