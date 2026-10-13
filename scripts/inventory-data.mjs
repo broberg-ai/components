@@ -113,11 +113,12 @@ export const DATA = [
 
 // The fleet roster — who builds & consumes the shared library (F038/inventory Fleet section).
 export const FLEET = [
-  { s:"components", r:"the shared-library home — this repo", pub:["theme","logger","secret-scan","lens","seti-client","seti-server","mail","mail-core","config","media","media-transform","apikey","webpush","cron","deploy-core","gravatar","auth","forms-turnstile","speech-dictionary","notify","lens-engine","lens-client","http","notifications"] },
+  { s:"components", r:"the shared-library home — this repo", pub:["theme","logger","secret-scan","seti-client","seti-server","mail","mail-core","config","media","media-transform","apikey","webpush","cron","deploy-core","gravatar","auth","forms-turnstile","speech-dictionary","notify","http","notifications"] },
   { s:"buddy", r:"fleet daemon — cron, intercom, SETI cloud", pub:["fleet-client","fleet-contracts"] },
   { s:"ai-sdk", r:"the fleet LLM SDK", pub:["ai-sdk"] },
   { s:"upmetrics", r:"telemetry, errors & deploy timeline", pub:["@upmetrics/sdk","upmetrics-swift"] },
-  { s:"cardmem", r:"PM board + Lens visual-verification daemon", src:["lens"], uses:["lens","seti-client","seti-server"] },
+  { s:"cardmem", r:"PM board — runs the Lens daemon (imports @broberg/lens-daemon)", uses:["lens-daemon","seti-client","seti-server"] },
+  { s:"lens", r:"Lens — visual verification: engine, daemon, client (all Lens code lives in broberg-ai/lens)", pub:["lens","lens-engine","lens-client","lens-daemon"] },
   { s:"trail", r:"trailmem — fleet second-brain", src:["secret-scan"], uses:["lens","secret-scan","mail"] },
   { s:"sanne", r:"sanneandersen.dk — booking + shop", src:["mail"], uses:["lens","mail"] },
   { s:"cms", r:"AI-native CMS", src:["theme"], pub:["cms-inline-edit","cms-chat-client"] },
