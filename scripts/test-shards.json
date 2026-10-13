@@ -114,7 +114,7 @@
         "@broberg/consent-cookie": 33,
         "@broberg/forms-turnstile": 26,
         "@broberg/gravatar": 35,
-        "@broberg/media": 19,
+        "@broberg/media": 109,
         "@broberg/ui-controls-core": 20
       }
     },

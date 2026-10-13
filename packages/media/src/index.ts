@@ -7,12 +7,14 @@ import { createVolumeStore } from "./providers/volume";
 import type { MediaConfig, MediaStore } from "./types";
 
 export type {
+  CompletedPart,
   ListOptions,
   ListResult,
   MediaBody,
   MediaConfig,
   MediaObject,
   MediaStore,
+  MultipartStore,
   R2Config,
   SignedUrlOptions,
   UploadOptions,

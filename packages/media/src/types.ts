@@ -69,6 +69,31 @@ export interface MediaStore {
    * and say how many objects went. An empty prefix is refused: it would empty the store.
    */
   deletePrefix(prefix: string): Promise<{ deleted: number }>;
+  /**
+   * F099.20 — multipart upload for files too big for one request (a 1 GB video): the server
+   * starts it, hands out short-lived presigned PART addresses, and the bytes go from the
+   * client straight to the bucket in parts — never through your server. Only providers whose
+   * clients can PUT directly have it (`r2`); `volume` has no such address, so it is absent.
+   */
+  multipart?: MultipartStore;
+}
+
+/** One finished part: its number (1–10000) and the ETag the bucket answered the PUT with. */
+export interface CompletedPart {
+  partNumber: number;
+  etag: string;
+}
+
+/** F099.20 — see {@link MediaStore.multipart}. Every part except the last must be at least 5 MiB (S3 rule). */
+export interface MultipartStore {
+  /** Start an upload at `key`. Returns the logical key and the upload id every later call needs. */
+  create(key: string, opts?: { contentType?: string }): Promise<{ key: string; uploadId: string }>;
+  /** A presigned PUT address for one part (1–10000), valid `expiresIn` seconds (default 3600). */
+  presignPart(key: string, uploadId: string, partNumber: number, opts?: { expiresIn?: number }): Promise<string>;
+  /** Join the parts into the object. Parts in ascending order, each with the ETag its PUT returned. */
+  complete(key: string, uploadId: string, parts: CompletedPart[]): Promise<{ key: string }>;
+  /** Throw the upload away (frees the stored parts). Idempotent. */
+  abort(key: string, uploadId: string): Promise<void>;
 }
 
 /** Options for {@link MediaStore.list}. */

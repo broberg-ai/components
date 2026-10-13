@@ -130,3 +130,17 @@ EU jurisdiction is set at creation and is immutable.
 
 Part of the [broberg.ai shared inventory](https://discovery.broberg.ai). Search
 before you build: `GET https://discovery.broberg.ai/api/search?q=storage`.
+
+## Multipart upload — files too big for one request (0.6.0, F099.20)
+
+For a 1 GB video the bytes should go from the client straight to the bucket, in parts, never through your server. `r2` stores have `store.multipart` (`volume` does not — a client cannot PUT to a disk):
+
+```ts
+const { key, uploadId } = await media.multipart!.create("clips/film.mp4", { contentType: "video/mp4" });
+const urls = await Promise.all([1, 2, 3].map((n) => media.multipart!.presignPart(key, uploadId, n, { expiresIn: 900 })));
+// the client PUTs each part (≥ 5 MiB except the last) to its url and keeps the ETag header of each answer
+await media.multipart!.complete(key, uploadId, [{ partNumber: 1, etag }, /* … ascending */]);
+// or, on failure: await media.multipart!.abort(key, uploadId);
+```
+
+The server keeps the R2 keys; the client only sees short-lived presigned part addresses. For a browser client the bucket's CORS must allow `PUT` from the client's origin and expose `ETag`. `complete` treats a 200 that carries an `<Error>` as the failure it is.

@@ -127,6 +127,48 @@ export function createR2Store(cfg: R2Config): MediaStore {
       return deleteUnder(this, folder, "r2");
     },
 
+    // F099.20 — S3 multipart, signed with the same SigV4 client. The server keeps the keys;
+    // the client only ever sees short-lived presigned part addresses.
+    multipart: {
+      async create(key, opts) {
+        const headers: Record<string, string> = {};
+        if (opts?.contentType) headers["content-type"] = opts.contentType;
+        const res = await aws.fetch(`${objectUrl(key)}?uploads`, { method: "POST", headers });
+        const xml = await res.text().catch(() => "");
+        if (!res.ok) throw new Error(`media(r2): multipart create failed ${res.status} ${xml}`.trim());
+        const uploadId = xml.match(/<UploadId>([\s\S]*?)<\/UploadId>/)?.[1];
+        if (!uploadId) throw new Error("media(r2): multipart create answered without an UploadId");
+        return { key: normalize(key), uploadId: decodeXml(uploadId) };
+      },
+      async presignPart(key, uploadId, partNumber, opts) {
+        if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) throw new Error(`media(r2): partNumber must be 1–10000, got ${partNumber}`);
+        if (!uploadId) throw new Error("media(r2): uploadId is required");
+        const q = new URLSearchParams({ partNumber: String(partNumber), uploadId, "X-Amz-Expires": String(opts?.expiresIn ?? 3600) });
+        const signed = await aws.sign(`${objectUrl(key)}?${q.toString()}`, { method: "PUT", aws: { signQuery: true } });
+        return signed.url;
+      },
+      async complete(key, uploadId, parts) {
+        if (!parts.length) throw new Error("media(r2): complete needs at least one part");
+        for (let i = 0; i < parts.length; i++) {
+          const p = parts[i]!;
+          if (!Number.isInteger(p.partNumber) || p.partNumber < 1 || p.partNumber > 10000) throw new Error(`media(r2): bad partNumber ${p.partNumber}`);
+          if (i > 0 && p.partNumber <= parts[i - 1]!.partNumber) throw new Error("media(r2): parts must be in ascending order without repeats");
+          if (typeof p.etag !== "string" || !p.etag) throw new Error(`media(r2): part ${p.partNumber} has no ETag`);
+        }
+        const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const body = `<CompleteMultipartUpload>${parts.map((p) => `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>${esc(p.etag)}</ETag></Part>`).join("")}</CompleteMultipartUpload>`;
+        const res = await aws.fetch(`${objectUrl(key)}?${new URLSearchParams({ uploadId }).toString()}`, { method: "POST", body, headers: { "content-type": "application/xml" } });
+        const xml = await res.text().catch(() => "");
+        // S3 can answer 200 with an <Error> in the body — that is a failure, not a success.
+        if (!res.ok || /<Error>/.test(xml)) throw new Error(`media(r2): multipart complete failed ${res.status} ${xml}`.trim());
+        return { key: normalize(key) };
+      },
+      async abort(key, uploadId) {
+        const res = await aws.fetch(`${objectUrl(key)}?${new URLSearchParams({ uploadId }).toString()}`, { method: "DELETE" });
+        if (!res.ok && res.status !== 404) throw new Error(`media(r2): multipart abort failed ${res.status}`);
+      },
+    },
+
     publicUrl(key: string): string {
       if (!publicBase) {
         throw new Error(

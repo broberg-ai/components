@@ -138,3 +138,63 @@ describe("r2 provider — publicUrl (stable public URL, no network)", () => {
     expect(() => createMedia(cfg).publicUrl("a.png")).toThrow(/publicBaseUrl/);
   });
 });
+
+describe("F099.20 — r2 multipart: big files go client → bucket in parts, never through the server", () => {
+  const calls: Request[] = [];
+  const answers: Response[] = [];
+  beforeEach(() => {
+    calls.length = 0;
+    answers.length = 0;
+    vi.stubGlobal("fetch", vi.fn(async (req: Request) => { calls.push(req); return answers.shift() ?? new Response("", { status: 200 }); }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  const m = () => createMedia({ ...cfg, jurisdiction: "eu", keyPrefix: "tenants/jam/" }).multipart!;
+
+  it("create: POST ?uploads on the EU host with the prefix; returns the logical key + UploadId", async () => {
+    answers.push(new Response("<InitiateMultipartUploadResult><Bucket>assets</Bucket><Key>tenants/jam/v/film.mp4</Key><UploadId>abc&amp;123</UploadId></InitiateMultipartUploadResult>"));
+    expect(await m().create("v/film.mp4", { contentType: "video/mp4" })).toStrictEqual({ key: "v/film.mp4", uploadId: "abc&123" });
+    expect(calls[0]!.method).toBe("POST");
+    expect(calls[0]!.url).toBe("https://acct123.eu.r2.cloudflarestorage.com/assets/tenants/jam/v/film.mp4?uploads");
+    expect(calls[0]!.headers.get("content-type")).toBe("video/mp4");
+  });
+
+  it("presignPart: a signed PUT address carrying partNumber + uploadId, no network; refuses part 0 and 10001", async () => {
+    const url = await m().presignPart("v/film.mp4", "abc&123", 7, { expiresIn: 900 });
+    expect(url).toContain("acct123.eu.r2.cloudflarestorage.com/assets/tenants/jam/v/film.mp4?");
+    expect(url).toContain("partNumber=7");
+    expect(url).toContain("uploadId=abc%26123");
+    expect(url).toContain("X-Amz-Expires=900");
+    expect(url).toMatch(/X-Amz-Signature=[0-9a-f]+/);
+    expect(calls).toHaveLength(0);
+    await expect(m().presignPart("v/film.mp4", "abc", 0)).rejects.toThrow(/1–10000/);
+    await expect(m().presignPart("v/film.mp4", "abc", 10001)).rejects.toThrow(/1–10000/);
+  });
+
+  it("complete: POST ?uploadId with the parts as XML, in order; a 200 that carries <Error> is a failure", async () => {
+    answers.push(new Response("<CompleteMultipartUploadResult><Key>x</Key></CompleteMultipartUploadResult>"));
+    expect(await m().complete("v/film.mp4", "abc", [{ partNumber: 1, etag: '"e1"' }, { partNumber: 2, etag: '"e2"' }])).toStrictEqual({ key: "v/film.mp4" });
+    expect(calls[0]!.method).toBe("POST");
+    expect(calls[0]!.url).toMatch(/\?uploadId=abc$/);
+    expect(await calls[0]!.text()).toBe('<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>"e1"</ETag></Part><Part><PartNumber>2</PartNumber><ETag>"e2"</ETag></Part></CompleteMultipartUpload>');
+    answers.push(new Response("<Error><Code>InvalidPart</Code></Error>", { status: 200 }));
+    await expect(m().complete("v/film.mp4", "abc", [{ partNumber: 1, etag: '"e1"' }])).rejects.toThrow(/InvalidPart/);
+  });
+
+  it("NEGATIVE CONTROL: complete refuses no parts, out-of-order parts and a missing ETag before any request", async () => {
+    await expect(m().complete("k", "u", [])).rejects.toThrow(/at least one part/);
+    await expect(m().complete("k", "u", [{ partNumber: 2, etag: "a" }, { partNumber: 1, etag: "b" }])).rejects.toThrow(/ascending/);
+    await expect(m().complete("k", "u", [{ partNumber: 1, etag: "" }])).rejects.toThrow(/no ETag/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("abort: DELETE ?uploadId; a 404 (already gone) is fine; the key cannot climb out of the prefix", async () => {
+    answers.push(new Response("", { status: 404 }));
+    await m().abort("v/film.mp4", "abc");
+    expect(calls[0]!.method).toBe("DELETE");
+    await expect(m().create("../escape.mp4")).rejects.toThrow();
+  });
+
+  it("the volume provider has no multipart (no address a client could PUT to)", () => {
+    expect(createMedia({ provider: "volume", root: "/tmp/x" } as never).multipart).toBeUndefined();
+  });
+});
