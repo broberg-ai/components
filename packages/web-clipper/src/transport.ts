@@ -74,8 +74,8 @@ export type SendResult =
   | { state: "sent"; mode: "same" | "append" | "branch"; sent: number; idempotencyKeys: string[] }
   | { state: "login_required" }
   | { state: "consent_required" }
-  /** A 4xx other than 401: the destination refused the clip. Not retried. */
-  | { state: "refused"; status: number; message: string }
+  /** A 4xx other than 401: the destination refused a batch. Not retried. `sent` units went through BEFORE it (owner 13/10: a refused batch must say how much arrived). */
+  | { state: "refused"; status: number; message: string; sent: number }
   /** Retries exhausted on 5xx or network. `sent` units went through before it stopped. */
   | { state: "unavailable"; status: number | null; message: string; sent: number };
 
@@ -170,7 +170,7 @@ export async function sendClip(opts: SendOptions): Promise<SendResult> {
           continue; // the refresh retry does not spend a backoff attempt
         }
         if (status !== null && status >= 400 && status < 500) {
-          return { kind: "stop", result: () => ({ state: "refused", status, message }) };
+          return { kind: "stop", result: (sent) => ({ state: "refused", status, message, sent }) };
         }
         last = { status, message };
         attempt++;
@@ -189,7 +189,7 @@ export async function sendClip(opts: SendOptions): Promise<SendResult> {
  */
 function sessionFailure(e: unknown, sent: number): SendResult {
   const message = e instanceof Error ? e.message : String(e);
-  if (e instanceof Error && e.name === "BidTicketRefusedError") return { state: "refused", status: 403, message };
+  if (e instanceof Error && e.name === "BidTicketRefusedError") return { state: "refused", status: 403, message, sent };
   const status = typeof (e as { status?: unknown })?.status === "number" ? (e as { status: number }).status : null;
   return { state: "unavailable", status, message, sent };
 }

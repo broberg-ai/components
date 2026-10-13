@@ -427,7 +427,8 @@ describe("F099.13 / 0.8.0 — the files themselves: Claude's Artifacts panel + u
     const big = () => new Response(PNG, { headers: { "content-type": "video/mp4", "content-length": String(MAX_FILE_BYTES + 1) } });
     const clip = await createClaudeReader({ fetch: fakeFetch(claudeFiles(kai(), { [DL + encodeURIComponent("/mnt/user-data/outputs/kai-logo.png")]: big })).f }).extract(docWith(""), CLAUDE_URL);
     expect(clip.completeness).toMatchObject({ complete: false, missing: "files" });
-    expect(clip.completeness?.reason).toContain("«kai-logo.png» er 25 MB — over grænsen på 25 MB");
+    expect(clip.completeness?.reason).toContain("«kai-logo.png» er 100 MB — over grænsen på 100 MB");
+    expect(MAX_FILE_BYTES).toBe(100 * 1024 * 1024); // 0.8.3: raised from 25 MB (owner 13/10)
   });
 
   it("Claude: MCP tools and the code tool are not reported as missing files", async () => {
@@ -564,11 +565,11 @@ describe("F099.13 / 0.8.2 — missing files as DATA (owner 13/10: «send en fejl
   });
 
   it("the clip's total budget used up → clip_limit (not too_large)", async () => {
-    const big = new Uint8Array(MAX_FILE_BYTES - 1);
+    const big = new Uint8Array(900); // with the limits set small: 1000 per file, 2000 per clip
     const names = ["1.zip", "2.zip", "3.zip"];
     const routes: Record<string, Route> = { ...claudeRoutes(conv([present(...names)])) };
     for (const n of names) routes[DL + encodeURIComponent(`/mnt/user-data/outputs/${n}`)] = () => new Response(big, { headers: { "content-type": "application/zip" } });
-    const clip = await createClaudeReader({ fetch: fakeFetch(routes).f }).extract(docWith(""), CLAUDE_URL);
+    const clip = await createClaudeReader({ fetch: fakeFetch(routes).f, maxFileBytes: 1000, maxClipFileBytes: 2000 }).extract(docWith(""), CLAUDE_URL);
     expect(clip.units[1]!.assets).toHaveLength(2);
     expect(clip.completeness?.missingFiles).toStrictEqual([{ name: "3.zip", why: "clip_limit" }]);
   });
@@ -576,6 +577,43 @@ describe("F099.13 / 0.8.2 — missing files as DATA (owner 13/10: «send en fejl
   it("NEGATIVE CONTROL: a complete clip has no missingFiles field at all", async () => {
     const routes = { ...claudeRoutes(conv([present("ok.md")])), [DL + encodeURIComponent("/mnt/user-data/outputs/ok.md")]: () => new Response("# ok", { headers: { "content-type": "text/markdown" } }) };
     const clip = await createClaudeReader({ fetch: fakeFetch(routes).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+});
+
+describe("F099.13 / 0.8.3 — the thread is the WHOLE thread (jam 13/10: KAI gave 51 of 76, «complete»)", () => {
+  const msg = (uuid: string, sender: string, parent: string, text: string, t: number) => ({ uuid, sender, parent_message_uuid: parent, content: [{ type: "text", text }], created_at: new Date(Date.UTC(2026, 9, 13, 10, t)).toISOString() });
+  const read = async (data: unknown) => createClaudeReader({ fetch: fakeFetch(claudeRoutes(data)).f }).extract(docWith(""), CLAUDE_URL);
+
+  it("a current_leaf that has replies after it is followed to the real end — every turn, complete", async () => {
+    const data = { name: "X", current_leaf_message_uuid: "a1", chat_messages: [
+      msg("u1", "human", "r", "en", 1), msg("a1", "assistant", "u1", "to", 2), msg("u2", "human", "a1", "tre", 3), msg("a2", "assistant", "u2", "fire", 4),
+    ] };
+    const clip = await read(data);
+    expect(clip.units.map((u) => u.content)).toStrictEqual(["en", "to", "tre", "fire"]);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+
+  it("an older version on screen while a newer one exists → clipped as shown, but missing:\"turns\" says so", async () => {
+    const data = { name: "X", current_leaf_message_uuid: "a2old", chat_messages: [
+      msg("u1", "human", "r", "en", 1), msg("a1", "assistant", "u1", "to", 2),
+      msg("u2old", "human", "a1", "gammel", 3), msg("a2old", "assistant", "u2old", "gammelt svar", 4),
+      msg("u2new", "human", "a1", "ny", 5), msg("a2new", "assistant", "u2new", "nyt svar", 6),
+    ] };
+    const clip = await read(data);
+    expect(clip.units.map((u) => u.content)).toStrictEqual(["en", "to", "gammel", "gammelt svar"]);
+    expect(clip.completeness).toMatchObject({ complete: false, source: "data", missing: "turns" });
+    expect(clip.completeness?.reason).toContain("nyere beskeder i en anden version");
+  });
+
+  it("NEGATIVE CONTROL: the newest version on screen, an older branch elsewhere → complete", async () => {
+    const data = { name: "X", current_leaf_message_uuid: "a2new", chat_messages: [
+      msg("u1", "human", "r", "en", 1), msg("a1", "assistant", "u1", "to", 2),
+      msg("u2old", "human", "a1", "gammel", 3), msg("a2old", "assistant", "u2old", "gammelt svar", 4),
+      msg("u2new", "human", "a1", "ny", 5), msg("a2new", "assistant", "u2new", "nyt svar", 6),
+    ] };
+    const clip = await read(data);
+    expect(clip.units.map((u) => u.content)).toStrictEqual(["en", "to", "ny", "nyt svar"]);
     expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
   });
 });

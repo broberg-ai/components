@@ -109,6 +109,14 @@ describe("F099.4 — the response rules", () => {
     expect(f.calls).toHaveLength(1);
   });
 
+  it("0.8.3 — a refused LATER batch reports how many units arrived before it (owner 13/10)", async () => {
+    const f = fakeStore(["ok", 413]);
+    const r = await sendClip({ destination: f.dest, target: T, clip: clip(turns(5)), auth: auth(), batchSize: 2, ...noSleep });
+    expect(r).toStrictEqual({ state: "refused", status: 413, message: expect.any(String), sent: 2 });
+    const first = await sendClip({ destination: fakeStore([422]).dest, target: T, clip: clip(turns(2)), auth: auth(), ...noSleep });
+    expect(first).toMatchObject({ state: "refused", sent: 0 });
+  });
+
   it("401 → refresh ONCE, resend with the fresh session, succeed", async () => {
     const f = fakeStore([401, "ok"]);
     const a = auth([S("old"), S("new")]);

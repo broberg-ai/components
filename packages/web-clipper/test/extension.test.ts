@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 // F099.6 — the manifest factory, the content-script half and the popup half.
 import { describe, expect, it } from "vitest";
-import { defineClipperManifest, clipActiveTab, ClipTabError, EXTRACT_MESSAGE } from "../src/extension";
-import { runContentScript, CONTENT_EXTRACT_MESSAGE } from "../src/content";
+import { defineClipperManifest, clipActiveTab, ClipTabError, EXTRACT_MESSAGE, PART_MESSAGE, PART_CHARS } from "../src/extension";
+import { runContentScript, CONTENT_EXTRACT_MESSAGE, CONTENT_PART_MESSAGE, CONTENT_PART_CHARS } from "../src/content";
 import { contentScriptStandsAlone, CONTENT_SCRIPT_PATH } from "../src/vite";
 
 describe("F099.6 — defineClipperManifest", () => {
@@ -77,6 +77,65 @@ describe("F099.6 — popup asks, content script answers", () => {
     await expect(clipActiveTab(CONTENT_SCRIPT_PATH, { tabs: { query: async () => [{ id: 1, url: "chrome://extensions/" }], sendMessage: async () => undefined }, scripting: { executeScript: async () => {} } }))
       .rejects.toMatchObject({ name: "ClipTabError", reason: "restricted_page" });
     expect(ClipTabError).toBeTypeOf("function");
+  });
+});
+
+describe("F099.13 / 0.8.3 — a file bigger than one extension message (Chrome caps at 64 MiB) travels in parts", () => {
+  const bigClip = (size: number) => ({
+    id: "big", matches: () => true,
+    extract: async () => ({ url: location.href, title: "stor", units: [{ kind: "turn" as const, role: "assistant" as const, content: "[Fil: film.mp4]", position: 0,
+      assets: [{ type: "file" as const, id: "f", name: "film.mp4", mime: "video/mp4", size, encoding: "base64" as const, content: "A".repeat(size - 1) + "Z" }, { type: "file" as const, name: "lille.md", content: "# hej" }] }] }),
+  });
+  const wire = (onPart?: (msg: { ref: string; start: number }) => void) => {
+    let listener: ((m: unknown, s: unknown, r: (x: unknown) => void) => boolean | void) | undefined;
+    delete (globalThis as { __brobergWebClipper?: unknown }).__brobergWebClipper;
+    return {
+      run: (reader: ReturnType<typeof bigClip>) => runContentScript([reader], { onMessage: { addListener: (fn) => { listener = fn as never; } } }),
+      tabs: {
+        query: async () => [{ id: 7, url: location.href }],
+        sendMessage: (_id: number, msg: unknown) => new Promise((resolve) => {
+          const m = msg as { action: string; ref: string; start: number };
+          if (m.action === PART_MESSAGE) onPart?.(m);
+          // every single message must stay under the cap
+          listener!(msg, {}, (r: unknown) => { expect(JSON.stringify(r).length).toBeLessThan(PART_CHARS + 1000); resolve(r); });
+        }),
+      },
+    };
+  };
+
+  it("the part literals are the same on both sides (they must not share a module)", () => {
+    expect(CONTENT_PART_MESSAGE).toBe(PART_MESSAGE);
+    expect(CONTENT_PART_CHARS).toBe(PART_CHARS);
+  });
+
+  it("a 2.5-part file arrives whole and byte-identical; a small file rides along unchanged", async () => {
+    const size = Math.floor(PART_CHARS * 2.5);
+    const parts: number[] = [];
+    const w = wire((m) => parts.push(m.start));
+    w.run(bigClip(size));
+    const clip = await clipActiveTab(CONTENT_SCRIPT_PATH, { tabs: w.tabs as never, scripting: { executeScript: async () => {} } });
+    const [film, small] = clip.units[0]!.assets!;
+    expect(film!.content!.length).toBe(size);
+    expect(film!.content!.endsWith("AZ")).toBe(true);
+    expect(film).not.toHaveProperty("contentRef");
+    expect(small).toStrictEqual({ type: "file", name: "lille.md", content: "# hej" });
+    expect(parts).toStrictEqual([0, PART_CHARS, PART_CHARS * 2]);
+    expect(clip.completeness).toBeUndefined();
+  });
+
+  it("NEGATIVE CONTROL: a part that cannot be fetched → the file is left out AND named (missing files), never a cut-off file", async () => {
+    const w = wire();
+    w.run(bigClip(PART_CHARS + 10));
+    let first = true;
+    const tabs = { ...w.tabs, sendMessage: (id: number, msg: unknown) => {
+      const m = msg as { action: string };
+      if (m.action === PART_MESSAGE && !first) return Promise.resolve({ ok: false, error: "gone", name: "PartGone" });
+      if (m.action === PART_MESSAGE) first = false;
+      return w.tabs.sendMessage(id, msg);
+    } };
+    const clip = await clipActiveTab(CONTENT_SCRIPT_PATH, { tabs: tabs as never, scripting: { executeScript: async () => {} } });
+    expect(clip.units[0]!.assets!.map((a) => a.name)).toStrictEqual(["lille.md"]);
+    expect(clip.completeness).toMatchObject({ complete: false, missing: "files", missingFiles: [{ name: "film.mp4", why: "network" }] });
   });
 });
 

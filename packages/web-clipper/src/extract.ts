@@ -55,6 +55,12 @@ export interface Asset {
   encoding?: "base64";
   /** F099.13 — the file's size in bytes, for a fetched file. */
   size?: number;
+  /**
+   * INTERNAL to the content-script → extension hop (0.8.3): a file too big for one extension message
+   * travels in parts and is put back together by clipActiveTab. Never present on a clip you receive.
+   */
+  contentRef?: string;
+  contentLength?: number;
 }
 export interface Clip {
   url: string;

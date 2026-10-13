@@ -73,7 +73,11 @@ export function defineClipperManifest(o: ClipperManifestOptions): Record<string,
 // script injected with executeScript cannot import anything. A test holds the
 // two literals equal.
 export const EXTRACT_MESSAGE = "broberg-web-clipper:extract";
+/** Must equal CONTENT_PART_MESSAGE / CONTENT_PART_CHARS in ./content.ts (held by a test). */
+export const PART_MESSAGE = "broberg-web-clipper:part";
+export const PART_CHARS = 8 * 1024 * 1024;
 type Reply = { ok: true; clip: Clip } | { ok: false; error: string; name: string };
+type PartReply = { ok: true; data: string } | { ok: false; error: string; name: string };
 
 interface TabsLike { query(q: { active: true; currentWindow: true }): Promise<Array<{ id?: number; url?: string }>>; sendMessage(tabId: number, msg: unknown): Promise<Reply | undefined> }
 interface ScriptingLike { executeScript(d: { target: { tabId: number }; files: string[] }): Promise<unknown> }
@@ -102,8 +106,66 @@ export async function clipActiveTab(contentScript: string, api: { tabs: TabsLike
   }
   const reply = await api.tabs.sendMessage(tab.id, { action: EXTRACT_MESSAGE });
   if (!reply) throw new ClipTabError("extract_failed", "the page did not answer");
-  if (reply.ok) return reply.clip;
+  if (reply.ok) return assembleParts(reply.clip, (ref, start) => api.tabs.sendMessage(tab.id!, { action: PART_MESSAGE, ref, start }) as Promise<PartReply | undefined>);
   throw new ClipTabError(reply.name === "NothingToClipError" ? "nothing_to_clip" : "extract_failed", reply.error);
+}
+
+/**
+ * 0.8.3 — put back together every file that travelled in parts (Chrome caps one message at 64 MiB).
+ * A file whose parts cannot be fetched is left out and NAMED in completeness, never silently dropped.
+ */
+async function assembleParts(clip: Clip, ask: (ref: string, start: number) => Promise<PartReply | undefined>): Promise<Clip> {
+  if (!clip.units.some((u) => u.assets?.some((a) => a.contentRef))) return clip;
+  const lost: string[] = [];
+  const units = [];
+  for (const u of clip.units) {
+    if (!u.assets?.some((a) => a.contentRef)) {
+      units.push(u);
+      continue;
+    }
+    const assets = [];
+    for (const a of u.assets) {
+      if (!a.contentRef) {
+        assets.push(a);
+        continue;
+      }
+      const { contentRef, contentLength = 0, ...rest } = a;
+      const parts: string[] = [];
+      let got = 0;
+      let failed = false;
+      while (got < contentLength) {
+        const r = await ask(contentRef, got);
+        if (!r || !r.ok || !("data" in r) || !r.data) {
+          failed = true;
+          break;
+        }
+        parts.push(r.data);
+        got += r.data.length;
+      }
+      if (failed || got !== contentLength) lost.push(rest.name ?? contentRef);
+      else assets.push({ ...rest, content: parts.join("") });
+    }
+    if (assets.length) units.push({ ...u, assets });
+    else {
+      const { assets: _gone, ...bare } = u;
+      units.push(bare);
+    }
+  }
+  if (!lost.length) return { ...clip, units };
+  const problems = lost.map((n) => `«${n}» kunne ikke overføres fra siden til udvidelsen`);
+  const c = clip.completeness;
+  return {
+    ...clip,
+    units,
+    completeness: {
+      complete: false,
+      source: c?.source ?? "data",
+      missing: c?.missing === "turns" ? "turns" : "files",
+      problems: [...(c?.problems ?? []), ...problems],
+      missingFiles: [...(c?.missingFiles ?? []), ...lost.map((name) => ({ name, why: "network" as const }))],
+      reason: [c?.reason, ...problems].filter(Boolean).join("; "),
+    },
+  };
 }
 
 function chromeApi(): Record<string, unknown> {

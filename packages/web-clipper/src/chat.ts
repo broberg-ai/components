@@ -22,6 +22,10 @@ type Fetch = typeof fetch;
 export interface ChatReaderOptions {
   /** Default: the page's fetch (same origin, the user's own login). */
   fetch?: Fetch;
+  /** Per-file cap in bytes (default MAX_FILE_BYTES). */
+  maxFileBytes?: number;
+  /** Cap for all files in one clip (default MAX_CLIP_FILE_BYTES). */
+  maxClipFileBytes?: number;
 }
 
 /** The data answered, but not in a shape we know — never guess, fall back. */
@@ -41,8 +45,11 @@ interface Turn { role: "user" | "assistant"; text: string; assets?: Asset[]; ref
 interface FileRef { id: string; name: string; mime?: string; url: string; indirect?: boolean; headers?: Record<string, string> }
 
 /** Per file, and for the whole clip — a clip crosses chrome.runtime as one message. */
-export const MAX_FILE_BYTES = 25 * 1024 * 1024;
-export const MAX_CLIP_FILE_BYTES = 60 * 1024 * 1024;
+// 0.8.3 (owner 13/10: «for stort accepterer jeg ikke som årsag»): a file bigger than one extension
+// message now travels in parts (content.ts/extension.ts), so the caps are memory caps, not message caps.
+// Files beyond these are for streaming straight to storage (next step), not for the clip.
+export const MAX_FILE_BYTES = 100 * 1024 * 1024;
+export const MAX_CLIP_FILE_BYTES = 300 * 1024 * 1024;
 const TEXT_MIME = /^text\/|[+/](json|xml|javascript)$|^image\/svg\+xml$/;
 const mb = (n: number) => `${Math.round(n / 1024 / 1024)} MB`;
 
@@ -58,7 +65,7 @@ class FileProblem extends Error {
   constructor(text: string, readonly file: MissingFile) { super(text); }
 }
 
-async function download(f: Fetch, ref: FileRef, budget: number): Promise<Asset> {
+async function download(f: Fetch, ref: FileRef, budget: number, maxFile: number): Promise<Asset> {
   let res = await f(ref.url, { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) });
   if (!res.ok) throw new FileProblem(`«${ref.name}» kunne ikke hentes (${res.status})`, { name: ref.name, why: "http", status: res.status });
   if (ref.indirect) {
@@ -73,9 +80,9 @@ async function download(f: Fetch, ref: FileRef, budget: number): Promise<Asset> 
     res = await f(target.href, same ? { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) } : { credentials: "omit" });
     if (!res.ok) throw new FileProblem(`«${ref.name}» kunne ikke hentes (${res.status} fra download-adressen)`, { name: ref.name, why: "http", status: res.status });
   }
-  const limit = Math.min(MAX_FILE_BYTES, budget);
+  const limit = Math.min(maxFile, budget);
   const tooBig = (n: number) =>
-    new FileProblem(`«${ref.name}» er ${mb(n)} — over grænsen på ${mb(limit)}`, { name: ref.name, why: n > MAX_FILE_BYTES ? "too_large" : "clip_limit" });
+    new FileProblem(`«${ref.name}» er ${mb(n)} — over grænsen på ${mb(limit)}`, { name: ref.name, why: n > maxFile ? "too_large" : "clip_limit" });
   const declared = Number(res.headers.get("content-length"));
   if (declared > limit) throw tooBig(declared);
   const bytes = new Uint8Array(await res.arrayBuffer());
@@ -88,13 +95,14 @@ async function download(f: Fetch, ref: FileRef, budget: number): Promise<Asset> 
 }
 
 /** Fetch every turn's refs into assets, one at a time; returns what could not be fetched. */
-async function fetchRefs(f: Fetch, turns: Turn[]): Promise<FileIssue[]> {
+async function fetchRefs(f: Fetch, turns: Turn[], o: ChatReaderOptions = {}): Promise<FileIssue[]> {
   const problems: FileIssue[] = [];
-  let budget = MAX_CLIP_FILE_BYTES;
+  const maxFile = o.maxFileBytes ?? MAX_FILE_BYTES;
+  let budget = o.maxClipFileBytes ?? MAX_CLIP_FILE_BYTES;
   for (const t of turns) {
     for (const ref of t.refs ?? []) {
       try {
-        const a = await download(f, ref, budget);
+        const a = await download(f, ref, budget, maxFile);
         budget -= a.size ?? 0;
         t.assets = [...(t.assets ?? []), a];
       } catch (e) {
@@ -385,7 +393,7 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
             headers,
           });
           lastRefOnly(turns);
-          const incomplete = incompleteFrom([], [...filesSkipped, ...(await fetchRefs(f, turns))]);
+          const incomplete = incompleteFrom([], [...filesSkipped, ...(await fetchRefs(f, turns, o))]);
           return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
         },
         () => chatgptScreen(doc),
@@ -492,7 +500,19 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
   if (!isObj(data) || !Array.isArray(data.chat_messages)) throw new ShapeError("unexpected conversation shape");
   const byId = new Map<string, Record<string, unknown>>();
   for (const m of data.chat_messages) if (isObj(m) && typeof m.uuid === "string") byId.set(m.uuid, m);
-  const leaf = data.current_leaf_message_uuid;
+  // 0.8.3 (jam 13/10: KAI gave 51 of 76 turns, «complete»): current_leaf_message_uuid can point at a
+  // message that has replies after it. A leaf with children is not the end of the thread — follow the
+  // newest reply down to the real end.
+  const children = new Map<string, Record<string, unknown>[]>();
+  for (const m of byId.values()) {
+    const p = m.parent_message_uuid;
+    if (typeof p === "string") children.set(p, [...(children.get(p) ?? []), m]);
+  }
+  const order = (m: Record<string, unknown>) => (typeof m.created_at === "string" ? Date.parse(m.created_at) : NaN) || (typeof m.index === "number" ? m.index : 0);
+  let leaf = data.current_leaf_message_uuid;
+  for (let guard = 0; typeof leaf === "string" && children.get(leaf)?.length && guard < byId.size; guard++) {
+    leaf = [...children.get(leaf)!].sort((x, y) => order(y) - order(x))[0]!.uuid;
+  }
   let path: Record<string, unknown>[];
   if (typeof leaf === "string") {
     path = [];
@@ -515,6 +535,11 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
   const turns: Turn[] = [];
   const skipped: string[] = [];
   const filesSkipped: FileIssue[] = [];
+  // The thread clipped is not the newest one (an older version chosen with the arrows, or a reply that
+  // hangs elsewhere): say so — a clip must never look like the whole conversation when it is not.
+  const onPath = new Set(path.map((m) => m.uuid));
+  const newest = [...byId.values()].sort((x, y) => order(y) - order(x))[0];
+  if (newest && !onPath.has(newest.uuid)) skipped.push("samtalen har nyere beskeder i en anden version end den der klippes");
   const files = new Map<string, ArtifactState>();
   for (const m of path) {
     const role = m.sender === "human" ? "user" : m.sender === "assistant" ? "assistant" : null;
@@ -632,7 +657,7 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
                 upload: (rel) => new URL(rel, url.origin).href,
               });
               lastRefOnly(turns);
-              const incomplete = incompleteFrom(skipped, [...filesSkipped, ...(await fetchRefs(f, turns))]);
+              const incomplete = incompleteFrom(skipped, [...filesSkipped, ...(await fetchRefs(f, turns, o))]);
               return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
             } catch (e) {
               if (e instanceof ShapeError) throw e; // the right org, a shape we do not know — do not try the next

@@ -283,7 +283,8 @@ function ResultLine({ result, t }: { result: SendResult; t: ClipperTexts }) {
     case "unavailable":
       return <ClipperStatus tone="error">{t.unavailable}</ClipperStatus>;
     case "refused":
-      return <ClipperStatus tone="error">{`${t.refused}: ${result.message}`}</ClipperStatus>;
+      // a refused LATER batch must not hide that earlier ones arrived (owner 13/10)
+      return <ClipperStatus tone="error">{`${t.refused}: ${result.message}${result.sent ? ` · ${result.sent} ${t.sent}` : ""}`}</ClipperStatus>;
     default:
       return null;
   }
