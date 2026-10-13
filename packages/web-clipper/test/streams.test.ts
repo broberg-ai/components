@@ -29,6 +29,15 @@ describe("F099.20 — streamParts: one part in memory at a time, parts in order,
     expect(partsNeeded(25_000, partSize)).toBe(3);
   });
 
+  it("10 parts: memory never holds more than one part, every PUT is at most partSize", async () => {
+    const sizes: number[] = [];
+    const put = (async (_u: string, init?: RequestInit) => { sizes.push((init!.body as Uint8Array).length); return new Response("", { headers: { etag: `"${sizes.length}"` } }); }) as typeof fetch;
+    const urls = Array.from({ length: 10 }, (_, i) => `u${i + 1}`);
+    const r = await streamParts(source(95_000), urls, 10_000, put);
+    expect(r.etags).toHaveLength(10);
+    expect(sizes).toStrictEqual([...Array(9).fill(10_000), 5_000]);
+  });
+
   it("NEGATIVE CONTROL: a refused part, a missing ETag (CORS hides it) and too few addresses each stop with a named error", async () => {
     const refuse = (async (url: string) => (url === "u2" ? new Response("no", { status: 403 }) : new Response("", { headers: { etag: '"ok"' } }))) as typeof fetch;
     await expect(streamParts(source(25_000), ["u1", "u2", "u3"], 10_000, refuse)).rejects.toThrow("del 2 af «film.mp4» blev afvist (403)");
