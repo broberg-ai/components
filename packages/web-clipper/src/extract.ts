@@ -39,6 +39,21 @@ export interface Clip {
   anchor?: string;
   shareUrl?: string;
   units: Unit[];
+  /**
+   * F099.9 — did this clip get EVERYTHING? Only a reader that fetched the whole
+   * conversation sets complete: true. A clip read from what happens to be on
+   * screen is complete: false with a reason, and the popup says so: an
+   * incomplete clip must never look complete (owner, 13/10). Absent = not
+   * known (a plain page).
+   */
+  completeness?: Completeness;
+}
+export interface Completeness {
+  complete: boolean;
+  /** "data": the page's own conversation data. "dom": what was rendered on screen. */
+  source: "data" | "dom";
+  /** Why it is not complete, in words the popup can show. */
+  reason?: string;
 }
 
 export interface Extractor {
@@ -65,7 +80,18 @@ export function extractArticle(doc: Document): { title: string; markdown: string
     charThreshold: 0,
   }).parse();
   if (!article) return null;
+  return {
+    title: article.title || doc.title || "Untitled",
+    markdown: htmlToMarkdown(article.content ?? ""),
+  };
+}
 
+/**
+ * F099.9 — HTML to markdown with exactly the article extractor's Turndown
+ * setup (moved here unchanged), so a consumer's own reader converts the same
+ * way and never rolls a copy. Deterministic: the same HTML gives the same bytes.
+ */
+export function htmlToMarkdown(html: string): string {
   const turndown = new TurndownService({
     headingStyle: "atx",
     codeBlockStyle: "fenced",
@@ -75,11 +101,7 @@ export function extractArticle(doc: Document): { title: string; markdown: string
     filter: ["script", "style", "noscript", "iframe", "nav", "footer", "header"],
     replacement: () => "",
   });
-
-  return {
-    title: article.title || doc.title || "Untitled",
-    markdown: turndown.turndown(article.content ?? ""),
-  };
+  return turndown.turndown(html);
 }
 
 /** The generic extractor: matches every page, yields one "page" unit. */
@@ -102,3 +124,6 @@ export function pickExtractor(url: URL, extractors: readonly Extractor[] = []): 
 export function extractClip(doc: Document, url: URL, extractors: readonly Extractor[] = []): Promise<Clip> {
   return pickExtractor(url, extractors).extract(doc, url);
 }
+
+// F099.9 — the chat readers live in ./chat and are part of /extract.
+export { chatgptReader, claudeReader, createChatgptReader, createClaudeReader, chatReaders } from "./chat";

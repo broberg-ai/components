@@ -36,7 +36,7 @@ describe("F099.6 — ClipperPopup", () => {
     fireEvent.click(await screen.findByTestId("clipper-login"));
     await screen.findByTestId("clipper-target-button");
     fireEvent.click(screen.getByTestId("clipper-clip"));
-    await waitFor(() => expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet"));
+    await waitFor(() => expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet · 1 sendt"));
     expect(d.sent).toStrictEqual(["kb-1"]);
     expect(auth.logins).toBe(1);
   });
@@ -85,7 +85,7 @@ describe("F099.6 — ClipperPopup", () => {
     render(<ClipperPopup title="Jam" auth={fakeAuth(S)} destination={d} getClip={async () => chat} storage={store} />);
     fireEvent.click(await screen.findByTestId("clipper-clip"));
     fireEvent.click(await screen.findByTestId("clipper-consent"));
-    await waitFor(() => expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet"));
+    await waitFor(() => expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet · 1 sendt"));
     expect(d.sent).toHaveLength(1);
     expect(store.data.get("broberg-web-clipper:consent:trail:abc")).toBe(true);
   });
@@ -127,5 +127,42 @@ describe("F099.6 — ClipperPopup", () => {
     const interactive = [...document.querySelectorAll("button, [role=option], input, a")];
     expect(interactive.length).toBeGreaterThan(3);
     expect(interactive.filter((el) => !el.getAttribute("data-testid"))).toStrictEqual([]);
+  });
+});
+
+describe("F099.9 — the popup is never silent and never calls an incomplete clip complete", () => {
+  const chat = (completeness?: Clip["completeness"]): Clip => ({
+    url: "https://chatgpt.com/c/abc12345", title: "Samtale", anchor: "abc12345", ...(completeness ? { completeness } : {}),
+    units: [{ kind: "turn", role: "user", content: "hej", position: 0 }, { kind: "turn", role: "assistant", content: "hej igen", position: 1 }],
+  });
+
+  it("an incomplete clip is sent AND says it is incomplete, with the reason", async () => {
+    render(<ClipperPopup title="Jam" auth={fakeAuth(S)} destination={dest()} getClip={async () => chat({ complete: false, source: "dom", reason: "Kun det synlige." })} storage={memory()} />);
+    fireEvent.click(await screen.findByTestId("clipper-clip"));
+    const warn = await screen.findByTestId("clipper-incomplete");
+    expect(warn.textContent).toBe("Ikke hele samtalen kom med. Kun det synlige.");
+    expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet · 2 sendt");
+  });
+
+  it("negative control: a complete clip shows no warning", async () => {
+    render(<ClipperPopup title="Jam" auth={fakeAuth(S)} destination={dest()} getClip={async () => chat({ complete: true, source: "data" })} storage={memory()} />);
+    fireEvent.click(await screen.findByTestId("clipper-clip"));
+    await waitFor(() => expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet · 2 sendt"));
+    expect(screen.queryByTestId("clipper-incomplete")).toBeNull();
+  });
+
+  it("consent needed but the page is no conversation → a visible message, not a blink", async () => {
+    const d = { ...dest(), requiresConsent: true };
+    render(<ClipperPopup title="Jam" auth={fakeAuth(S)} destination={d} getClip={async () => page} storage={memory()} />);
+    fireEvent.click(await screen.findByTestId("clipper-clip"));
+    expect((await screen.findByTestId("clipper-not-a-conversation")).textContent).toBe("Siden er ikke en samtale — der er intet at optage her");
+    expect(screen.queryByTestId("clipper-consent")).toBeNull();
+    expect(d.sent).toStrictEqual([]);
+  });
+
+  it("any text can be replaced (jam: «Ingen steder at gemme»)", async () => {
+    const d = { ...dest(), targets: async () => [] };
+    render(<ClipperPopup title="Jam" auth={fakeAuth(S)} destination={d} getClip={async () => page} storage={memory()} text={{ noTargets: "Opret en organisation i Jam først" }} />);
+    await waitFor(() => expect(screen.getByTestId("clipper-status").textContent).toBe("Opret en organisation i Jam først"));
   });
 });

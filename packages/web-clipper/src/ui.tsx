@@ -25,6 +25,9 @@ export const TEXT = {
     consent: "Optag denne samtale", consentHint: "Optagelse er slået fra for denne samtale.",
     unavailable: "Kunne ikke nå frem — prøv igen om lidt", refused: "Afvist",
     loginFailed: "Login blev ikke gennemført",
+    sent: "sendt",
+    incomplete: "Ikke hele samtalen kom med",
+    notAConversation: "Siden er ikke en samtale — der er intet at optage her",
   },
   en: {
     login: "Sign in with BrobergID", loggingIn: "Signing in…", logout: "Sign out", loginAgain: "Sign in again",
@@ -33,8 +36,13 @@ export const TEXT = {
     consent: "Record this conversation", consentHint: "Recording is off for this conversation.",
     unavailable: "Could not get through — try again shortly", refused: "Refused",
     loginFailed: "Sign-in was not completed",
+    sent: "sent",
+    incomplete: "Not the whole conversation was clipped",
+    notAConversation: "This page is not a conversation — there is nothing to record here",
   },
 } as const;
+/** Every text the popup shows; ClipperPopup's `text` overrides any of them. */
+export type ClipperTexts = { [K in keyof (typeof TEXT)["da"]]: string };
 
 // ── building blocks ──────────────────────────────────────────────────────────
 
@@ -173,6 +181,8 @@ export interface ClipperPopupProps {
   lang?: Lang;
   /** F099.8 — the consumer's own fields; their values reach send() as ctx.fields and are never stored. */
   fields?: ClipperField[];
+  /** F099.9 — replace any of the popup's texts, e.g. { noTargets: "Opret en organisation først" }. */
+  text?: Partial<ClipperTexts>;
 }
 
 type Phase =
@@ -183,11 +193,11 @@ type Phase =
 type ClipState =
   | { kind: "idle" }
   | { kind: "clipping" }
-  | { kind: "done"; result: SendResult }
+  | { kind: "done"; result: SendResult; clip: Clip }
   | { kind: "error"; message: string };
 
 export function ClipperPopup(p: ClipperPopupProps) {
-  const t = TEXT[p.lang ?? "da"];
+  const t: ClipperTexts = { ...TEXT[p.lang ?? "da"], ...p.text };
   const targetKey = `broberg-web-clipper:target:${p.destination.id}`;
   const [phase, setPhase] = useState<Phase>({ kind: "checking" });
   const [targets, setTargets] = useState<Target[] | null>(null);
@@ -256,7 +266,7 @@ export function ClipperPopup(p: ClipperPopupProps) {
       const result = await sendClip({ destination: p.destination, target: chosen, clip: c, auth: p.auth, consented, ...(fields ? { fields } : {}) });
       setPendingAnchor(result.state === "consent_required" ? c.anchor ?? null : null);
       if (result.state === "login_required") setPhase({ kind: "logged_out" });
-      setClip({ kind: "done", result });
+      setClip({ kind: "done", result, clip: c });
     } catch (e) {
       setClip({ kind: "error", message: errorText(e) });
     }
@@ -299,7 +309,15 @@ export function ClipperPopup(p: ClipperPopupProps) {
               <ClipperButton testid="clipper-consent" onClick={() => void run(pendingAnchor)}>{t.consent}</ClipperButton>
             </>
           ) : null}
+          {clip.kind === "done" && clip.result.state === "consent_required" && !clip.clip.anchor ? (
+            // Never silent (jam 13/10: «den blinker blot»): consent is per conversation, and this page is none.
+            <ClipperStatus tone="error" testid="clipper-not-a-conversation">{t.notAConversation}</ClipperStatus>
+          ) : null}
           {clip.kind === "done" && clip.result.state !== "consent_required" ? <ResultLine result={clip.result} t={t} /> : null}
+          {clip.kind === "done" && clip.clip.completeness?.complete === false && clip.result.state === "sent" ? (
+            // The owner's rule: an incomplete clip must never look complete.
+            <ClipperStatus tone="error" testid="clipper-incomplete">{`${t.incomplete}. ${clip.clip.completeness.reason ?? ""}`.trim()}</ClipperStatus>
+          ) : null}
           {clip.kind === "error" ? <ClipperStatus tone="error">{clip.message}</ClipperStatus> : null}
         </div>
       ) : null}
@@ -307,10 +325,10 @@ export function ClipperPopup(p: ClipperPopupProps) {
   );
 }
 
-function ResultLine({ result, t }: { result: SendResult; t: (typeof TEXT)[Lang] }) {
+function ResultLine({ result, t }: { result: SendResult; t: ClipperTexts }) {
   switch (result.state) {
     case "sent":
-      return <ClipperStatus tone="ok">{result.mode === "same" ? t.nothingNew : t.clipped}</ClipperStatus>;
+      return <ClipperStatus tone="ok">{result.mode === "same" ? t.nothingNew : `${t.clipped} · ${result.sent} ${t.sent}`}</ClipperStatus>;
     case "unavailable":
       return <ClipperStatus tone="error">{t.unavailable}</ClipperStatus>;
     case "refused":
