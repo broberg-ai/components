@@ -72,6 +72,22 @@ export interface Clip {
    */
   completeness?: Completeness;
 }
+/** A file the conversation shows that the clip does not carry, and why. */
+export interface MissingFile {
+  /** The file's name (for unknown_tool: the tool's name). */
+  name: string;
+  /**
+   * no_url: there is no address to fetch it from (an upload without a preview, a shared link) ·
+   * http: the address answered an error (`status`) · network: the browser refused the request (CORS, offline) ·
+   * no_download_url: the site gave no download address · too_large: over the per-file limit ·
+   * clip_limit: the clip's total file budget was used up · unknown_tool: a tool call the reader does not know
+   * (it may have made files — `tool`) · unapplied: an artifact change that could not be applied.
+   */
+  why: "no_url" | "http" | "network" | "no_download_url" | "too_large" | "clip_limit" | "unknown_tool" | "unapplied";
+  status?: number;
+  tool?: string;
+}
+
 export interface Completeness {
   complete: boolean;
   /** "data": the page's own conversation data. "dom": what was rendered on screen. */
@@ -84,6 +100,11 @@ export interface Completeness {
    * not whole (read from the screen, or a part that may hold words was not understood).
    */
   missing?: "files" | "turns";
+  /**
+   * F099.13 / 0.8.2 — every file that is NOT in the clip, as data (owner 13/10: «send en fejlbesked til
+   * klienten, så kan I selv style eller bruge meddelelsen»). All of them, never the first few.
+   */
+  missingFiles?: MissingFile[];
   /** F099.13 / 0.8.1 — every problem, one per entry (a file that could not be fetched, a part not understood). `reason` names them all too. */
   problems?: string[];
 }

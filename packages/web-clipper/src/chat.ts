@@ -16,7 +16,7 @@
 // do not recognise falls back to what is on screen, and the clip says
 // complete: false with the reason. A clip is complete: true only when the
 // whole conversation was read from the data. Never the other way round.
-import { htmlToMarkdown, NothingToClipError, type Asset, type Clip, type Completeness, type Extractor, type Unit } from "./extract";
+import { htmlToMarkdown, NothingToClipError, type MissingFile, type Asset, type Clip, type Completeness, type Extractor, type Unit } from "./extract";
 
 type Fetch = typeof fetch;
 export interface ChatReaderOptions {
@@ -52,26 +52,34 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
+/** A file problem: the words for a person, the data for a client. */
+interface FileIssue { text: string; file: MissingFile }
+class FileProblem extends Error {
+  constructor(text: string, readonly file: MissingFile) { super(text); }
+}
+
 async function download(f: Fetch, ref: FileRef, budget: number): Promise<Asset> {
   let res = await f(ref.url, { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) });
-  if (!res.ok) throw new Error(`«${ref.name}» kunne ikke hentes (${res.status})`);
+  if (!res.ok) throw new FileProblem(`«${ref.name}» kunne ikke hentes (${res.status})`, { name: ref.name, why: "http", status: res.status });
   if (ref.indirect) {
     const j: unknown = await res.json();
     const to = isObj(j) && typeof j.download_url === "string" ? j.download_url : undefined;
-    if (!to) throw new Error(`«${ref.name}» gav ingen download-adresse`);
+    if (!to) throw new FileProblem(`«${ref.name}» gav ingen download-adresse`, { name: ref.name, why: "no_download_url" });
     // jam 13/10, 0.8.0: BOTH ChatGPT files answered 403 — the download address is ChatGPT's own
     // /backend-api/estuary/content, which needs the same login as the first call. Same origin →
     // send the session; another host (a signed CDN URL) → send nothing.
     const target = new URL(to, ref.url);
     const same = target.origin === new URL(ref.url).origin;
     res = await f(target.href, same ? { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) } : { credentials: "omit" });
-    if (!res.ok) throw new Error(`«${ref.name}» kunne ikke hentes (${res.status} fra download-adressen)`);
+    if (!res.ok) throw new FileProblem(`«${ref.name}» kunne ikke hentes (${res.status} fra download-adressen)`, { name: ref.name, why: "http", status: res.status });
   }
   const limit = Math.min(MAX_FILE_BYTES, budget);
+  const tooBig = (n: number) =>
+    new FileProblem(`«${ref.name}» er ${mb(n)} — over grænsen på ${mb(limit)}`, { name: ref.name, why: n > MAX_FILE_BYTES ? "too_large" : "clip_limit" });
   const declared = Number(res.headers.get("content-length"));
-  if (declared > limit) throw new Error(`«${ref.name}» er ${mb(declared)} — over grænsen på ${mb(limit)}`);
+  if (declared > limit) throw tooBig(declared);
   const bytes = new Uint8Array(await res.arrayBuffer());
-  if (bytes.length > limit) throw new Error(`«${ref.name}» er ${mb(bytes.length)} — over grænsen på ${mb(limit)}`);
+  if (bytes.length > limit) throw tooBig(bytes.length);
   const served = res.headers.get("content-type")?.split(";")[0]?.trim();
   const byExt = EXT_MIME[ref.name.split(".").pop()?.toLowerCase() ?? ""];
   const mime = ref.mime ?? (served && served !== "application/octet-stream" ? served : undefined) ?? byExt ?? "application/octet-stream";
@@ -80,8 +88,8 @@ async function download(f: Fetch, ref: FileRef, budget: number): Promise<Asset> 
 }
 
 /** Fetch every turn's refs into assets, one at a time; returns what could not be fetched. */
-async function fetchRefs(f: Fetch, turns: Turn[]): Promise<string[]> {
-  const problems: string[] = [];
+async function fetchRefs(f: Fetch, turns: Turn[]): Promise<FileIssue[]> {
+  const problems: FileIssue[] = [];
   let budget = MAX_CLIP_FILE_BYTES;
   for (const t of turns) {
     for (const ref of t.refs ?? []) {
@@ -90,9 +98,9 @@ async function fetchRefs(f: Fetch, turns: Turn[]): Promise<string[]> {
         budget -= a.size ?? 0;
         t.assets = [...(t.assets ?? []), a];
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        if (e instanceof FileProblem) problems.push({ text: e.message, file: e.file });
         // A network refusal (CORS, offline) says only «Failed to fetch» — name the file it was.
-        problems.push(msg.includes(`«${ref.name}»`) ? msg : `«${ref.name}» kunne ikke hentes (${msg})`);
+        else problems.push({ text: `«${ref.name}» kunne ikke hentes (${e instanceof Error ? e.message : String(e)})`, file: { name: ref.name, why: "network" } });
       }
     }
     delete t.refs;
@@ -111,14 +119,18 @@ function lastRefOnly(turns: Turn[]): void {
 }
 
 /** The completeness note for a data read: words not understood outrank a missing file. */
-function incompleteFrom(skipped: string[], filesSkipped: string[]): { reason: string; missing: "files" | "turns"; problems: string[] } | undefined {
+interface Incomplete { reason: string; missing: "files" | "turns"; problems: string[]; missingFiles?: MissingFile[] }
+function incompleteFrom(skipped: string[], files: FileIssue[]): Incomplete | undefined {
   // jam 13/10: «2 talt, 1 navngivet» — every problem is named, none is cut to the first three.
-  const problems = [...new Set([...skipped, ...filesSkipped])];
+  const problems = [...new Set([...skipped, ...files.map((x) => x.text)])];
   if (!problems.length) return undefined;
+  const seen = new Set<string>();
+  const missingFiles = files.map((x) => x.file).filter((m) => (seen.has(`${m.why}:${m.name}`) ? false : (seen.add(`${m.why}:${m.name}`), true)));
   return {
     reason: `${problems.length} ${problems.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${problems.join("; ")}`,
     missing: skipped.length ? "turns" : "files",
     problems,
+    ...(missingFiles.length ? { missingFiles } : {}),
   };
 }
 
@@ -147,7 +159,7 @@ async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<unkno
 
 /** Read a clip from the data; on any failure, from the screen — and say which. */
 async function dataOrScreen(
-  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: { reason: string; missing: "files" | "turns"; problems: string[] } }>,
+  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: Incomplete }>,
   fromScreen: () => { title: string; units: Unit[] },
   url: URL,
   base: { anchor: string; shareUrl?: string },
@@ -156,7 +168,7 @@ async function dataOrScreen(
     const d = await fromData();
     if (!d.units.length) throw new ShapeError("the conversation data holds no turns");
     // Read from the data, but something in it was not understood: still the whole thread, not the whole content.
-    const completeness: Completeness = d.incomplete ? { complete: false, source: "data", reason: d.incomplete.reason, missing: d.incomplete.missing, problems: d.incomplete.problems } : { complete: true, source: "data" };
+    const completeness: Completeness = d.incomplete ? { complete: false, source: "data", ...d.incomplete } : { complete: true, source: "data" };
     return { url: url.href, title: d.title, ...base, units: d.units, completeness };
   } catch (e) {
     const s = fromScreen();
@@ -190,7 +202,7 @@ export interface ChatgptLinks {
 const EXT_OF: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
 
 /** The thread on screen, from ChatGPT's conversation answer. Exported for tests. */
-export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: string; turns: Turn[]; filesSkipped: string[] } {
+export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: string; turns: Turn[]; filesSkipped: FileIssue[] } {
   if (!isObj(data) || !isObj(data.mapping) || typeof data.current_node !== "string") throw new ShapeError("unexpected conversation shape");
   const mapping = data.mapping;
   const path: Record<string, unknown>[] = [];
@@ -204,10 +216,10 @@ export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: stri
     id = node.parent;
   }
   const turns: Turn[] = [];
-  const filesSkipped: string[] = [];
+  const filesSkipped: FileIssue[] = [];
   const ref = (r: Omit<FileRef, "url" | "indirect" | "headers">, url: (l: ChatgptLinks) => string): FileRef | undefined => {
     if (links) return { ...r, url: url(links), indirect: true, headers: links.headers };
-    filesSkipped.push(`«${r.name}» kan ikke hentes fra et delt link`);
+    filesSkipped.push({ text: `«${r.name}» kan ikke hentes fra et delt link`, file: { name: r.name, why: "no_url" } });
     return undefined;
   };
   for (const node of path.reverse()) {
@@ -408,7 +420,8 @@ const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 interface ArtifactState { title: string; mime?: string; language?: string; content: string; version: number }
 
 /** Apply one artifact tool call; returns the asset for this turn, or a problem to report. */
-function artifactOp(name: string, input: Record<string, unknown>, files: Map<string, ArtifactState>): { asset?: Asset; title?: string; problem?: string; ignore?: true } {
+function artifactOp(name: string, input: Record<string, unknown>, files: Map<string, ArtifactState>): { asset?: Asset; title?: string; problem?: FileIssue; ignore?: true } {
+  const unapplied = (text: string, file: string): { problem: FileIssue } => ({ problem: { text, file: { name: file, why: "unapplied" } } });
   const emit = (id: string, st: ArtifactState): { asset: Asset; title: string } => ({
     title: st.title,
     asset: { type: "file", id, name: st.title, ...(st.mime ? { mime: st.mime } : {}), ...(st.language ? { language: st.language } : {}), content: st.content, version: st.version },
@@ -416,27 +429,27 @@ function artifactOp(name: string, input: Record<string, unknown>, files: Map<str
   if (name === "artifacts") {
     const id = str(input.id);
     const command = str(input.command) ?? "create";
-    if (!id) return { problem: "an artifact without an id" };
+    if (!id) return unapplied("an artifact without an id", "?");
     const prev = files.get(id);
     if (command === "create" || command === "rewrite") {
       const content = str(input.content);
-      if (content === undefined) return { problem: `artifact «${str(input.title) ?? id}» has no content` };
+      if (content === undefined) return unapplied(`artifact «${str(input.title) ?? id}» has no content`, str(input.title) ?? id);
       const st: ArtifactState = { title: str(input.title) ?? prev?.title ?? id, mime: str(input.type) ?? prev?.mime, language: str(input.language) ?? prev?.language, content, version: (prev?.version ?? 0) + 1 };
       files.set(id, st);
       return emit(id, st);
     }
     if (command === "update") {
       const oldStr = str(input.old_str), newStr = str(input.new_str);
-      if (!prev || oldStr === undefined || newStr === undefined || !prev.content.includes(oldStr)) return { problem: `a change to artifact «${prev?.title ?? id}» could not be applied` };
+      if (!prev || oldStr === undefined || newStr === undefined || !prev.content.includes(oldStr)) return unapplied(`a change to artifact «${prev?.title ?? id}» could not be applied`, prev?.title ?? id);
       const st: ArtifactState = { ...prev, content: prev.content.replace(oldStr, () => newStr), version: prev.version + 1 };
       files.set(id, st);
       return emit(id, st);
     }
-    return { problem: `unknown artifact command «${command}»` };
+    return unapplied(`unknown artifact command «${command}»`, prev?.title ?? id);
   }
   if (name === "create_file") {
     const path = str(input.path), content = str(input.file_text) ?? str(input.content);
-    if (!path || content === undefined) return { problem: "a created file without path or content" };
+    if (!path || content === undefined) return unapplied("a created file without path or content", path ?? "?");
     const base = path.split("/").pop() ?? path;
     const prev = files.get(path);
     const st: ArtifactState = { title: base, mime: EXT_MIME[base.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain", content, version: (prev?.version ?? 0) + 1 };
@@ -447,7 +460,7 @@ function artifactOp(name: string, input: Record<string, unknown>, files: Map<str
     const path = str(input.path);
     const prev = path ? files.get(path) : undefined;
     const oldStr = str(input.old_str), newStr = str(input.new_str) ?? "";
-    if (!path || !prev || oldStr === undefined || !prev.content.includes(oldStr)) return { problem: `a change to file «${path ?? "?"}» could not be applied` };
+    if (!path || !prev || oldStr === undefined || !prev.content.includes(oldStr)) return unapplied(`a change to file «${path ?? "?"}» could not be applied`, path?.split("/").pop() ?? "?");
     const st: ArtifactState = { ...prev, content: prev.content.replace(oldStr, () => newStr), version: prev.version + 1 };
     files.set(path, st);
     return emit(path, st);
@@ -456,7 +469,7 @@ function artifactOp(name: string, input: Record<string, unknown>, files: Map<str
   if (CLAUDE_TOOLS_NO_FILES.has(name) || name.includes(":")) return { ignore: true }; // reads, searches, or runs — never a file the conversation holds
   // F099.13: any other tool may have made files (a code tool that writes DESIGN.md or renders a PNG —
   // jam 13/10: «KAI», 3 of 28 files, and the clip said complete). Unknown is never read as nothing.
-  return { problem: `a tool «${name}» that may have made files the clip does not hold` };
+  return { problem: { text: `a tool «${name}» that may have made files the clip does not hold`, file: { name, why: "unknown_tool", tool: name } } };
 }
 
 /** Tools that only read or search — they never make a file, so skipping them loses nothing. Everything else is reported. */
@@ -475,7 +488,7 @@ export interface ClaudeLinks {
 
 /** The thread on screen, from Claude's conversation answer. Exported for tests. */
 /** `skipped`: parts that may hold words (the turns are not whole). `filesSkipped`: the turns are whole, a file is not (F099.13). */
-export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string; turns: Turn[]; skipped: string[]; filesSkipped: string[] } {
+export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string; turns: Turn[]; skipped: string[]; filesSkipped: FileIssue[] } {
   if (!isObj(data) || !Array.isArray(data.chat_messages)) throw new ShapeError("unexpected conversation shape");
   const byId = new Map<string, Record<string, unknown>>();
   for (const m of data.chat_messages) if (isObj(m) && typeof m.uuid === "string") byId.set(m.uuid, m);
@@ -501,7 +514,7 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
   }
   const turns: Turn[] = [];
   const skipped: string[] = [];
-  const filesSkipped: string[] = [];
+  const filesSkipped: FileIssue[] = [];
   const files = new Map<string, ArtifactState>();
   for (const m of path) {
     const role = m.sender === "human" ? "user" : m.sender === "assistant" ? "assistant" : null;
@@ -533,7 +546,7 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
       const rel = (isObj(f.preview_asset) ? str(f.preview_asset.url) : undefined) ?? str(f.preview_url);
       const id = str(f.file_uuid) ?? str(f.uuid) ?? name;
       if (rel && links) refs.push({ id, name, url: links.upload(rel) });
-      else filesSkipped.push(`uploadet «${name}» har ingen adresse at hente fra`);
+      else filesSkipped.push({ text: `uploadet «${name}» har ingen adresse at hente fra`, file: { name, why: "no_url" } });
     }
     for (const b of m.content) {
       if (!isObj(b)) continue;
@@ -547,7 +560,7 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
           const name = path.split("/").pop()!;
           parts.push(`[Fil: ${name}]`);
           if (links) refs.push({ id: path, name, url: links.output(path) });
-          else filesSkipped.push(`«${name}» har ingen adresse at hente fra`);
+          else filesSkipped.push({ text: `«${name}» har ingen adresse at hente fra`, file: { name, why: "no_url" } });
         }
       } else if (b.type === "tool_use" && typeof b.name === "string") {
         const r = artifactOp(b.name, isObj(b.input) ? b.input : {}, files);
