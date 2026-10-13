@@ -51,6 +51,18 @@ importers:
         specifier: ^10.23.0
         version: 10.29.2
 
+  examples/editor:
+    dependencies:
+      '@broberg/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
+      '@broberg/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      preact:
+        specifier: ^10.23.0
+        version: 10.29.2
+
   examples/livesync:
     dependencies:
       '@broberg/livesync':
@@ -413,9 +425,30 @@ importers:
         specifier: 17.0.6
         version: 17.0.6
     devDependencies:
+      '@testing-library/preact':
+        specifier: ^3.2.4
+        version: 3.2.4(preact@10.29.2)
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.5(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.5
+        version: 19.2.5(@types/react@19.2.17)
       happy-dom:
         specifier: ^15.11.7
         version: 15.11.7
+      preact:
+        specifier: ^10.29.2
+        version: 10.29.2
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)

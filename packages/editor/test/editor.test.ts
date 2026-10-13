@@ -80,6 +80,22 @@ describe("F101.1 — createEditor: markdown in, markdown out", () => {
   });
 });
 
+describe("F101.3 — what is saved is what loads (found by Lens 13/10)", () => {
+  it("an empty paragraph is not stored as extra blank lines; blank lines inside a code block stay", () => {
+    const e = mount({ content: "" });
+    e.commands.setContent({ type: "doc", content: [
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Titel" }] },
+      { type: "paragraph" },
+      { type: "paragraph", content: [{ type: "text", text: "Tekst" }] },
+      { type: "codeBlock", content: [{ type: "text", text: "a\n\n\nb" }] },
+    ] });
+    expect(getMarkdown(e)).toBe("## Titel\n\nTekst\n\n```\na\n\n\nb\n```");
+    // and loading that markdown gives the same markdown back
+    const again = mount({ content: getMarkdown(e) });
+    expect(getMarkdown(again)).toBe(getMarkdown(e));
+  });
+});
+
 describe("F101.1 — images go through YOUR upload, and only a real address is ever stored (cms trap 7)", () => {
   it("insertImage: the address your upload returns is inserted", async () => {
     const uploadImage = vi.fn(async (f: File) => ({ src: `https://cdn.vnleker.no/${f.name}`, alt: "Gyngehest" }));

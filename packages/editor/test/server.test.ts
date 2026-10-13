@@ -29,6 +29,10 @@ describe("F101.1 — /server: markdown → safe HTML with no browser", () => {
     for (const bad of ["javascript:alert(1)", " JAVASCRIPT:alert(1)", "java\tscript:alert(1)", "data:text/html,x", "vbscript:x", "//evil.com/x.png", ""]) expect(safeUrl(bad, "link")).toBeNull();
   });
 
+  it("an empty paragraph renders as nothing", () => {
+    expect(renderDocHTML({ type: "doc", content: [{ type: "paragraph" }, { type: "paragraph", content: [{ type: "text", text: "a" }] }] })).toBe("<p>a</p>");
+  });
+
   it("an unknown node is left out and reported — never passed through", () => {
     const seen: string[] = [];
     const html = renderDocHTML({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "a" }] }, { type: "iframe", attrs: { src: "https://evil" } }] }, { onUnknown: (t) => seen.push(t) });

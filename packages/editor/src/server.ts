@@ -53,7 +53,10 @@ function node(n: JSONContent, o: RenderOptions): string {
   switch (n.type) {
     case "doc": return kids();
     case "text": return marks(n.text ?? "", n.marks);
-    case "paragraph": return `<p>${kids()}</p>`;
+    case "paragraph": {
+      const inner = kids();
+      return inner ? `<p>${inner}</p>` : ""; // an empty paragraph shows nothing on a page
+    }
     case "heading": {
       const l = Math.min(6, Math.max(1, Number(n.attrs?.level) || 1));
       return `<h${l}>${kids()}</h${l}>`;

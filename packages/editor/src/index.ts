@@ -57,7 +57,21 @@ export function sanitizePastedHTML(html: string): string {
  * and that must not be stored — or every save after an image would differ.
  */
 export function getMarkdown(editor: Editor): string {
-  return editor.getMarkdown().replace(/\s+$/, "");
+  return normalizeMarkdown(editor.getMarkdown());
+}
+
+/**
+ * Empty paragraphs are not stored. Markdown cannot hold one — it serializes as extra blank lines,
+ * which the next load drops — so storing it would make «what was saved» differ from «what loads»
+ * (measured by Lens 13/10: a heading + image saved as "\n\n\n\n" and reloaded as "\n\n").
+ * Blank lines INSIDE a fenced code block are content and stay.
+ */
+export function normalizeMarkdown(md: string): string {
+  return md
+    .split(/(^```[^\n]*\n[\s\S]*?^```[ \t]*$)/m)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/\n{3,}/g, "\n\n")))
+    .join("")
+    .replace(/\s+$/, "");
 }
 
 /** Per editor: the markdown onChange last reported (or what was loaded) — the dirty guard. */

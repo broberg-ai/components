@@ -6,6 +6,7 @@
   "license": "MIT",
   "files": [
     "dist",
+    "css",
     "README.md"
   ],
   "exports": {
@@ -19,6 +20,17 @@
       "import": "./dist/server.js",
       "require": "./dist/server.cjs"
     },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
+    "./css/editor.css": "./css/editor.css",
     "./package.json": "./package.json"
   },
   "keywords": [
@@ -53,9 +65,32 @@
     "marked": "17.0.6"
   },
   "devDependencies": {
+    "@testing-library/preact": "^3.2.4",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.5",
     "happy-dom": "^15.11.7",
+    "preact": "^10.29.2",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "preact": ">=10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "preact": {
+      "optional": true
+    }
   }
 }
