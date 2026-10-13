@@ -59,15 +59,22 @@ async function download(f: Fetch, ref: FileRef, budget: number): Promise<Asset> 
     const j: unknown = await res.json();
     const to = isObj(j) && typeof j.download_url === "string" ? j.download_url : undefined;
     if (!to) throw new Error(`«${ref.name}» gav ingen download-adresse`);
-    res = await f(to, { credentials: "omit" });
-    if (!res.ok) throw new Error(`«${ref.name}» kunne ikke hentes (${res.status})`);
+    // jam 13/10, 0.8.0: BOTH ChatGPT files answered 403 — the download address is ChatGPT's own
+    // /backend-api/estuary/content, which needs the same login as the first call. Same origin →
+    // send the session; another host (a signed CDN URL) → send nothing.
+    const target = new URL(to, ref.url);
+    const same = target.origin === new URL(ref.url).origin;
+    res = await f(target.href, same ? { credentials: "include", ...(ref.headers ? { headers: ref.headers } : {}) } : { credentials: "omit" });
+    if (!res.ok) throw new Error(`«${ref.name}» kunne ikke hentes (${res.status} fra download-adressen)`);
   }
   const limit = Math.min(MAX_FILE_BYTES, budget);
   const declared = Number(res.headers.get("content-length"));
   if (declared > limit) throw new Error(`«${ref.name}» er ${mb(declared)} — over grænsen på ${mb(limit)}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   if (bytes.length > limit) throw new Error(`«${ref.name}» er ${mb(bytes.length)} — over grænsen på ${mb(limit)}`);
-  const mime = ref.mime ?? res.headers.get("content-type")?.split(";")[0]?.trim() ?? "application/octet-stream";
+  const served = res.headers.get("content-type")?.split(";")[0]?.trim();
+  const byExt = EXT_MIME[ref.name.split(".").pop()?.toLowerCase() ?? ""];
+  const mime = ref.mime ?? (served && served !== "application/octet-stream" ? served : undefined) ?? byExt ?? "application/octet-stream";
   const body = TEXT_MIME.test(mime) ? { content: new TextDecoder().decode(bytes) } : { encoding: "base64" as const, content: toBase64(bytes) };
   return { type: "file", id: ref.id, name: ref.name, mime, size: bytes.length, ...body };
 }
@@ -104,12 +111,14 @@ function lastRefOnly(turns: Turn[]): void {
 }
 
 /** The completeness note for a data read: words not understood outrank a missing file. */
-function incompleteFrom(skipped: string[], filesSkipped: string[]): { reason: string; missing: "files" | "turns" } | undefined {
-  const all = [...skipped, ...filesSkipped];
-  if (!all.length) return undefined;
+function incompleteFrom(skipped: string[], filesSkipped: string[]): { reason: string; missing: "files" | "turns"; problems: string[] } | undefined {
+  // jam 13/10: «2 talt, 1 navngivet» — every problem is named, none is cut to the first three.
+  const problems = [...new Set([...skipped, ...filesSkipped])];
+  if (!problems.length) return undefined;
   return {
-    reason: `${all.length} ${all.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${[...new Set(all)].slice(0, 3).join("; ")}`,
+    reason: `${problems.length} ${problems.length === 1 ? "del" : "dele"} af samtalen kunne ikke læses: ${problems.join("; ")}`,
     missing: skipped.length ? "turns" : "files",
+    problems,
   };
 }
 
@@ -138,7 +147,7 @@ async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<unkno
 
 /** Read a clip from the data; on any failure, from the screen — and say which. */
 async function dataOrScreen(
-  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: { reason: string; missing: "files" | "turns" } }>,
+  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: { reason: string; missing: "files" | "turns"; problems: string[] } }>,
   fromScreen: () => { title: string; units: Unit[] },
   url: URL,
   base: { anchor: string; shareUrl?: string },
@@ -147,7 +156,7 @@ async function dataOrScreen(
     const d = await fromData();
     if (!d.units.length) throw new ShapeError("the conversation data holds no turns");
     // Read from the data, but something in it was not understood: still the whole thread, not the whole content.
-    const completeness: Completeness = d.incomplete ? { complete: false, source: "data", reason: d.incomplete.reason, missing: d.incomplete.missing } : { complete: true, source: "data" };
+    const completeness: Completeness = d.incomplete ? { complete: false, source: "data", reason: d.incomplete.reason, missing: d.incomplete.missing, problems: d.incomplete.problems } : { complete: true, source: "data" };
     return { url: url.href, title: d.title, ...base, units: d.units, completeness };
   } catch (e) {
     const s = fromScreen();
@@ -218,7 +227,9 @@ export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: stri
         const md = isObj(p.metadata) ? p.metadata : {};
         const gen = isObj(md.generation) ? md.generation : isObj(md.dalle) ? md.dalle : {};
         const mime = str(p.mime_type);
-        const title = str(gen.serialization_title) ?? (isObj(m.metadata) ? str(m.metadata.image_gen_title) : undefined) ?? fileId;
+        // image_gen_title is the image's own title; serialization_title is a generic label
+        // («Image Generation metadata» — jam 13/10), never a name.
+        const title = (isObj(m.metadata) ? str(m.metadata.image_gen_title) : undefined) ?? fileId;
         const name = /\.[a-z0-9]{2,5}$/i.test(title) ? title : `${title}.${EXT_OF[mime ?? ""] ?? "png"}`;
         marks.push(`[Billede: ${name}]`);
         const r = ref({ id: fileId, name, ...(mime ? { mime } : {}) }, (l) => l.file(fileId));
@@ -391,7 +402,7 @@ function claudeIds(url: URL): { conversation?: string; share?: string } {
 
 /** Content blocks that are known and deliberately not part of the conversation's words. */
 const CLAUDE_SKIP = new Set(["thinking", "redacted_thinking", "tool_result", "server_tool_use", "web_search_tool_result", "web_fetch_tool_result", "token_budget"]);
-const EXT_MIME: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", html: "text/html", htm: "text/html", svg: "image/svg+xml", json: "application/json", csv: "text/csv", txt: "text/plain", tsx: "text/tsx", jsx: "text/jsx", ts: "text/typescript", js: "text/javascript", py: "text/x-python", mermaid: "text/vnd.mermaid" };
+const EXT_MIME: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", html: "text/html", htm: "text/html", svg: "image/svg+xml", json: "application/json", csv: "text/csv", txt: "text/plain", tsx: "text/tsx", jsx: "text/jsx", ts: "text/typescript", js: "text/javascript", py: "text/x-python", mermaid: "text/vnd.mermaid", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", zip: "application/zip", mp4: "video/mp4", mp3: "audio/mpeg", wav: "audio/wav", pdf: "application/pdf" };
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
 interface ArtifactState { title: string; mime?: string; language?: string; content: string; version: number }
@@ -527,7 +538,18 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
     for (const b of m.content) {
       if (!isObj(b)) continue;
       if (b.type === "text" && typeof b.text === "string") parts.push(b.text);
-      else if (b.type === "tool_use" && typeof b.name === "string") {
+      else if (b.type === "tool_use" && b.name === "present_files") {
+        // F099.13 / 0.8.1 — the INPUT is the full list of files handed over (jam 13/10: KAI showed
+        // 28 in the panel, the tool results named ~15). The result only adds mime/name when it has them.
+        const input = isObj(b.input) ? b.input : {};
+        for (const path of Array.isArray(input.filepaths) ? input.filepaths : []) {
+          if (typeof path !== "string" || !path) continue;
+          const name = path.split("/").pop()!;
+          parts.push(`[Fil: ${name}]`);
+          if (links) refs.push({ id: path, name, url: links.output(path) });
+          else filesSkipped.push(`«${name}» har ingen adresse at hente fra`);
+        }
+      } else if (b.type === "tool_use" && typeof b.name === "string") {
         const r = artifactOp(b.name, isObj(b.input) ? b.input : {}, files);
         if (r.asset) {
           assets.push(r.asset);
@@ -538,9 +560,16 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
         // content[] = { type, file_path, mime_type, name }). Named in the turn; fetched below.
         for (const item of Array.isArray(b.content) ? b.content : []) {
           if (!isObj(item) || typeof item.file_path !== "string") continue;
+          const known = refs.find((r) => r.id === item.file_path);
+          const mime = str(item.mime_type);
+          if (known) {
+            if (mime) known.mime = mime;
+            continue;
+          }
+          // in the result but not in the input — still a file the person was shown
           const name = str(item.name) ?? item.file_path.split("/").pop()!;
           parts.push(`[Fil: ${name}]`);
-          if (links) refs.push({ id: item.file_path, name, ...(str(item.mime_type) ? { mime: str(item.mime_type)! } : {}), url: links.output(item.file_path) });
+          if (links) refs.push({ id: item.file_path, name, ...(mime ? { mime } : {}), url: links.output(item.file_path) });
         }
       } else if (typeof b.type === "string" && CLAUDE_SKIP.has(b.type)) continue;
       else skipped.push(`a message part of type «${String(b.type)}»`);

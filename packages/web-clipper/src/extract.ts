@@ -84,6 +84,8 @@ export interface Completeness {
    * not whole (read from the screen, or a part that may hold words was not understood).
    */
   missing?: "files" | "turns";
+  /** F099.13 / 0.8.1 — every problem, one per entry (a file that could not be fetched, a part not understood). `reason` names them all too. */
+  problems?: string[];
 }
 
 export interface Extractor {

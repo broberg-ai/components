@@ -144,6 +144,16 @@ describe("F099.9 — the popup is never silent and never calls an incomplete cli
     expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet · 2 sendt");
   });
 
+  it("0.8.1: only files missing → a calm line that says every turn was saved and names each file (not the orange «not the whole conversation»)", async () => {
+    const c = chat({ complete: false, source: "data", missing: "files", reason: "2 dele …", problems: ["«a.png» kunne ikke hentes (403)", "«b.svg» kunne ikke hentes (404)"] });
+    render(<ClipperPopup title="Jam" auth={fakeAuth(S)} destination={dest()} getClip={async () => c} storage={memory()} />);
+    fireEvent.click(await screen.findByTestId("clipper-clip"));
+    const line = await screen.findByTestId("clipper-incomplete-files");
+    expect(line.textContent).toBe("Alle ture er gemt — 2 filer mangler. «a.png» kunne ikke hentes (403); «b.svg» kunne ikke hentes (404)");
+    expect(line.getAttribute("data-tone")).toBe("neutral");
+    expect(screen.queryByTestId("clipper-incomplete")).toBeNull();
+  });
+
   it("negative control: a complete clip shows no warning", async () => {
     render(<ClipperPopup title="Jam" auth={fakeAuth(S)} destination={dest()} getClip={async () => chat({ complete: true, source: "data" })} storage={memory()} />);
     fireEvent.click(await screen.findByTestId("clipper-clip"));

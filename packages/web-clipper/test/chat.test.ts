@@ -444,12 +444,14 @@ describe("F099.13 / 0.8.0 — the files themselves: Claude's Artifacts panel + u
       c1: { id: "c1", parent: "u1", message: { id: "c1", author: { role: "assistant" }, recipient: "python", content: { content_type: "code", text: "df.to_csv()" } } },
       x1: { id: "x1", parent: "c1", message: { id: "x1", author: { role: "tool", name: "python" }, content: { content_type: "execution_output", text: "" } } },
       a1: { id: "a1", parent: "x1", message: { id: "a1", author: { role: "assistant" }, recipient: "all", content: { content_type: "text", parts: ["Her er [CSV'en](sandbox:/mnt/data/frugt_og_priser.csv)."] } } },
-      t1: { id: "t1", parent: "a1", message: { id: "t1", author: { role: "tool", name: "t2uay3k.sj1i4kz" }, recipient: "t2uay3k.sj1i4kz", metadata: { image_gen_title: "Frugtkurv" }, content: { content_type: "multimodal_text", parts: [{ content_type: "image_asset_pointer", asset_pointer: "sediment://file_00000000bd88", width: 1024, height: 1024, size_bytes: 6, mime_type: "image/png", metadata: { generation: { serialization_title: "Frugtkurv" } } }] } } },
+      t1: { id: "t1", parent: "a1", message: { id: "t1", author: { role: "tool", name: "t2uay3k.sj1i4kz" }, recipient: "t2uay3k.sj1i4kz", metadata: { image_gen_title: "Frugtkurv" }, content: { content_type: "multimodal_text", parts: [{ content_type: "image_asset_pointer", asset_pointer: "sediment://file_00000000bd88", width: 1024, height: 1024, size_bytes: 6, mime_type: "image/png", metadata: { generation: { serialization_title: "Image Generation metadata" } } }] } } },
     },
   });
   const gptFiles = (data: unknown): Record<string, Route> => ({
     ...chatgptRoutes(data),
-    "https://chatgpt.com/backend-api/files/download/file_00000000bd88": () => ({ status: "success", download_url: "https://files.oaiusercontent.com/img-1?sig=x" }),
+    "https://chatgpt.com/backend-api/files/download/file_00000000bd88": () => ({ status: "success", download_url: "/backend-api/estuary/content?id=file_00000000bd88&sig=x" }),
+    // measured 13/10 (jam, 0.8.0 → 403): the estuary address answers only with the login
+    "https://chatgpt.com/backend-api/estuary/content": (_u, init) => ((init?.headers as Record<string, string> | undefined)?.authorization === "Bearer tok-1" ? png() : new Response("no", { status: 403 })),
     "https://chatgpt.com/backend-api/conversation/6acd402d-cfb0-83eb-ab10-a9a538082b14/interpreter/download?message_id=a1&sandbox_path=%2Fmnt%2Fdata%2Ffrugt_og_priser.csv": () => ({ download_url: "https://files.oaiusercontent.com/csv-1?sig=y" }),
     "https://files.oaiusercontent.com/img-1": png,
     "https://files.oaiusercontent.com/csv-1": () => new Response("frugt;pris\næble;3", { headers: { "content-type": "text/csv" } }),
@@ -467,8 +469,8 @@ describe("F099.13 / 0.8.0 — the files themselves: Claude's Artifacts panel + u
       { type: "file", id: "/mnt/data/frugt_og_priser.csv", name: "frugt_og_priser.csv", mime: "text/csv", size: 18, content: "frugt;pris\næble;3" },
       { type: "file", id: "file_00000000bd88", name: "Frugtkurv.png", mime: "image/png", size: 6, encoding: "base64", content: "iVBORw0K" },
     ]);
-    const meta = calls.filter((c) => c.url.includes("/files/download/") || c.url.includes("/interpreter/download"));
-    expect(meta).toHaveLength(2);
+    const meta = calls.filter((c) => c.url.includes("/files/download/") || c.url.includes("/interpreter/download") || c.url.includes("/estuary/content"));
+    expect(meta).toHaveLength(3);
     expect(meta.every((c) => (c.init?.headers as Record<string, string>)?.authorization === "Bearer tok-1")).toBe(true);
     expect(calls.filter((c) => c.url.startsWith("https://files.oaiusercontent.com/")).every((c) => c.init?.credentials === "omit")).toBe(true);
   });
@@ -479,10 +481,49 @@ describe("F099.13 / 0.8.0 — the files themselves: Claude's Artifacts panel + u
     expect(clip.completeness).toMatchObject({ complete: false, missing: "files" });
     expect(clip.completeness?.reason).toContain("«Frugtkurv.png» kunne ikke hentes (403)");
     // a network refusal (CORS) is named too, not a bare «Failed to fetch»
-    const cors = { ...gptFiles(gptImageData()), "https://files.oaiusercontent.com/img-1": () => { throw new TypeError("Failed to fetch"); } };
+    const cors = { ...gptFiles(gptImageData()), "https://chatgpt.com/backend-api/estuary/content": () => { throw new TypeError("Failed to fetch"); } };
     const blocked = await createChatgptReader({ fetch: fakeFetch(cors).f }).extract(docWith(""), CHATGPT_URL);
     expect(blocked.completeness?.reason).toContain("«Frugtkurv.png» kunne ikke hentes (Failed to fetch)");
     const plain = await createChatgptReader({ fetch: fakeFetch(chatgptRoutes(chatgptData(3))).f }).extract(docWith(""), CHATGPT_URL);
     expect(plain.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+});
+
+describe("F099.13 / 0.8.1 — jam's measurements on 0.8.0", () => {
+  const DL = "https://claude.ai/api/organizations/org-a/conversations/11111111-2222-3333-4444-555555555555/wiggle/download-file?path=";
+  it("Claude: present_files' INPUT is the full list — a file the result does not name is still fetched (KAI: 28 in the panel, ~15 came)", async () => {
+    const paths = ["/mnt/user-data/outputs/kai-icon-32.png", "/mnt/user-data/outputs/kai-icon.svg", "/mnt/user-data/outputs/kai-logo.svg"];
+    const data = {
+      name: "KAI", current_leaf_message_uuid: "a1",
+      chat_messages: [
+        { uuid: "u1", sender: "human", parent_message_uuid: "r", content: [{ type: "text", text: "Ikoner" }] },
+        { uuid: "a1", sender: "assistant", parent_message_uuid: "u1", content: [
+          { type: "tool_use", name: "present_files", input: { filepaths: paths } },
+          { type: "tool_result", name: "present_files", content: [{ type: "local_resource", file_path: paths[0], name: "kai-icon-32.png", mime_type: "image/png" }] },
+          { type: "text", text: "Her." },
+        ] },
+      ],
+    };
+    const routes: Record<string, Route> = { ...claudeRoutes(data) };
+    for (const p of paths) routes[DL + encodeURIComponent(p)] = () => new Response(p.endsWith(".svg") ? "<svg/>" : new Uint8Array([1]), { headers: { "content-type": "application/octet-stream" } });
+    const clip = await createClaudeReader({ fetch: fakeFetch(routes).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+    expect(clip.units[1]!.content).toBe("[Fil: kai-icon-32.png]\n\n[Fil: kai-icon.svg]\n\n[Fil: kai-logo.svg]\n\nHer.");
+    // mime: the result's when it has one, else the extension (the server said octet-stream); an SVG is text
+    expect(clip.units[1]!.assets!.map((a) => [a.name, a.mime, a.encoding ?? "text"])).toStrictEqual([
+      ["kai-icon-32.png", "image/png", "base64"], ["kai-icon.svg", "image/svg+xml", "text"], ["kai-logo.svg", "image/svg+xml", "text"],
+    ]);
+  });
+
+  it("every problem is named — none cut to the first three — and problems[] carries them one by one", async () => {
+    const paths = ["a", "b", "c", "d"].map((x) => `/mnt/user-data/outputs/${x}.png`);
+    const data = { name: "X", current_leaf_message_uuid: "a1", chat_messages: [
+      { uuid: "u1", sender: "human", parent_message_uuid: "r", content: [{ type: "text", text: "?" }] },
+      { uuid: "a1", sender: "assistant", parent_message_uuid: "u1", content: [{ type: "tool_use", name: "present_files", input: { filepaths: paths } }, { type: "text", text: "!" }] },
+    ] };
+    const clip = await createClaudeReader({ fetch: fakeFetch({ ...claudeRoutes(data), [DL]: () => new Response("no", { status: 404 }) }).f }).extract(docWith(""), CLAUDE_URL);
+    expect(clip.completeness?.problems).toStrictEqual(["a", "b", "c", "d"].map((x) => `«${x}.png» kunne ikke hentes (404)`));
+    for (const x of ["a", "b", "c", "d"]) expect(clip.completeness?.reason).toContain(`«${x}.png»`);
+    expect(clip.completeness?.missing).toBe("files");
   });
 });

@@ -28,6 +28,7 @@ export const TEXT = {
     loginFailed: "Login blev ikke gennemført",
     sent: "sendt",
     incomplete: "Ikke hele samtalen kom med",
+    filesMissing: "Alle ture er gemt — {n} filer mangler",
     notAConversation: "Siden er ikke en samtale — der er intet at optage her",
   },
   en: {
@@ -38,6 +39,7 @@ export const TEXT = {
     unavailable: "Could not get through — try again shortly", refused: "Refused",
     loginFailed: "Sign-in was not completed",
     sent: "sent",
+    filesMissing: "Every turn was saved — {n} files are missing",
     incomplete: "Not the whole conversation was clipped",
     notAConversation: "This page is not a conversation — there is nothing to record here",
   },
@@ -257,8 +259,15 @@ export function ClipperPopup(p: ClipperPopupProps) {
           ) : null}
           {done && done.result.state !== "consent_required" ? <ResultLine result={done.result} t={t} /> : null}
           {done && done.clip.completeness?.complete === false && done.result.state === "sent" ? (
-            // The owner's rule: an incomplete clip must never look complete.
-            <ClipperStatus tone="error" testid="clipper-incomplete">{`${t.incomplete}. ${done.clip.completeness.reason ?? ""}`.trim()}</ClipperStatus>
+            // The owner's rule: an incomplete clip must never look complete. But «only files are missing»
+            // is not «the conversation is broken» (jam 13/10: the orange text scared the owner).
+            done.clip.completeness.missing === "files" ? (
+              <ClipperStatus tone="neutral" testid="clipper-incomplete-files">
+                {`${t.filesMissing.replace("{n}", String(done.clip.completeness.problems?.length ?? 1))}. ${done.clip.completeness.problems?.join("; ") ?? done.clip.completeness.reason ?? ""}`.trim()}
+              </ClipperStatus>
+            ) : (
+              <ClipperStatus tone="error" testid="clipper-incomplete">{`${t.incomplete}. ${done.clip.completeness.reason ?? ""}`.trim()}</ClipperStatus>
+            )
           ) : null}
           {s.run.kind === "error" ? <ClipperStatus tone="error">{s.run.message}</ClipperStatus> : null}
         </div>
