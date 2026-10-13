@@ -112,6 +112,71 @@ export function chatgptTurns(data: unknown): { title: string; turns: Turn[] } {
   return { title: typeof data.title === "string" && data.title ? data.title : "ChatGPT", turns };
 }
 
+/**
+ * F099.9/0.5.1 — React Router's «turbo-stream», the format a server-rendered
+ * ChatGPT page embeds its data in: ONE flat JSON array, where every object key
+ * and every value is an INDEX into that array ({"_12": 34} = key arr[12], value
+ * arr[34]), negative numbers are fixed constants, and an array that starts with
+ * a string is a typed value (date, promise, …). Measured 13/10 on a real share
+ * page: the whole conversation (150 nodes) is in the first chunk, while the
+ * screen shows ~8 messages. Exported for tests.
+ */
+export function decodeTurboStream(chunk: string): unknown {
+  const arr: unknown = JSON.parse(chunk);
+  if (!Array.isArray(arr) || !arr.length) throw new ShapeError("not a turbo-stream chunk");
+  const SPECIAL: Record<number, unknown> = { [-1]: undefined, [-2]: NaN, [-3]: -Infinity, [-4]: -0, [-5]: null, [-6]: Infinity, [-7]: undefined };
+  const memo = new Map<number, unknown>();
+  const at = (i: unknown): unknown => {
+    if (typeof i !== "number" || !Number.isInteger(i)) throw new ShapeError("turbo-stream reference is not an index");
+    if (i < 0) return SPECIAL[i];
+    if (memo.has(i)) return memo.get(i);
+    if (i >= arr.length) throw new ShapeError("turbo-stream reference out of range");
+    const v = arr[i];
+    if (v === null || typeof v !== "object") {
+      memo.set(i, v);
+      return v;
+    }
+    if (Array.isArray(v)) {
+      // A typed value (["D", …] date, ["P", …] promise, …) — nothing a conversation needs.
+      if (v.length && typeof v[0] === "string") {
+        memo.set(i, undefined);
+        return undefined;
+      }
+      const out: unknown[] = [];
+      memo.set(i, out);
+      for (const x of v) out.push(at(x));
+      return out;
+    }
+    const out: Record<string, unknown> = {};
+    memo.set(i, out);
+    for (const [k, x] of Object.entries(v)) {
+      const key = at(Number(k.slice(1)));
+      if (typeof key !== "string") throw new ShapeError("turbo-stream key is not a string");
+      out[key] = at(x);
+    }
+    return out;
+  };
+  return at(0);
+}
+
+/** The conversation a server-rendered ChatGPT page carries in its own <script> data. */
+function chatgptEmbedded(doc: Document): unknown {
+  const re = /__reactRouterContext\.streamController\.enqueue\(("(?:[^"\\]|\\.)*")\)/g;
+  for (const script of Array.from(doc.querySelectorAll("script"))) {
+    for (const m of (script.textContent ?? "").matchAll(re)) {
+      const chunk = JSON.parse(m[1]!) as unknown;
+      if (typeof chunk !== "string" || !chunk.startsWith("[")) continue; // promise chunks ("P12:…")
+      const root = decodeTurboStream(chunk);
+      const loaderData = isObj(root) && isObj(root.loaderData) ? root.loaderData : null;
+      for (const route of Object.values(loaderData ?? {})) {
+        const data = isObj(route) && isObj(route.serverResponse) ? route.serverResponse.data : undefined;
+        if (isObj(data) && isObj(data.mapping) && typeof data.current_node === "string") return data;
+      }
+    }
+  }
+  throw new Error("the page carries no conversation data");
+}
+
 function chatgptScreen(doc: Document): { title: string; units: Unit[] } {
   const turns: Turn[] = [];
   for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[data-message-author-role]"))) {
@@ -131,7 +196,11 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
       const anchor = (ids.conversation ?? ids.share)!;
       return dataOrScreen(
         async () => {
-          if (!ids.conversation) throw new Error("a shared link is read from the screen");
+          if (!ids.conversation) {
+            // A shared link: the whole conversation is in the page itself (no login needed).
+            const { title, turns } = chatgptTurns(chatgptEmbedded(doc));
+            return { title, units: toUnits(turns) };
+          }
           const session = await getJson(f, `${url.origin}/api/auth/session`);
           const token = isObj(session) && typeof session.accessToken === "string" ? session.accessToken : null;
           if (!token) throw new Error("not signed in to ChatGPT");

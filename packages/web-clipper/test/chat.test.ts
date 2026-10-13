@@ -104,9 +104,10 @@ describe("F099.9 — ChatGPT: the whole conversation", () => {
     expect(() => chatgptTurns(d)).toThrow(/node gone is missing/);
   });
 
-  it("a shared link is read from the screen and says so", async () => {
+  it("a shared link WITHOUT embedded data is read from the screen and says so", async () => {
     const clip = await createChatgptReader({ fetch: fakeFetch({}).f }).extract(docWith(screenTail), new URL("https://chatgpt.com/share/6acd402d-cfb0-83eb-ab10-a9a538082b14"));
     expect(clip.completeness?.complete).toBe(false);
+    expect(clip.completeness?.reason).toContain("no conversation data");
     expect(clip.shareUrl).toBe("https://chatgpt.com/share/6acd402d-cfb0-83eb-ab10-a9a538082b14");
   });
 
@@ -175,5 +176,61 @@ describe("F099.9 — wiring", () => {
     const html = "<h2>Titel</h2><ul><li>en</li><li>to</li></ul><pre><code>x = 1</code></pre><style>p{color:red}</style>";
     expect(htmlToMarkdown(html)).toBe("## Titel\n\n-   en\n-   to\n\n```\nx = 1\n```");
     expect(htmlToMarkdown(html)).toBe(htmlToMarkdown(html));
+  });
+});
+
+// ── 0.5.1: shared ChatGPT links carry the whole conversation in the page ─────
+/** Encode a value the way React Router's turbo-stream does: one flat array, keys and values as indices. */
+function turboEncode(root: unknown): string {
+  const arr: unknown[] = [];
+  const seen = new Map<unknown, number>();
+  const enc = (v: unknown): number => {
+    if (v === null) return -5;
+    if (v === undefined) return -7;
+    if (typeof v !== "object" && seen.has(v)) return seen.get(v)!;
+    const i = arr.length;
+    arr.push(null);
+    if (typeof v !== "object") { seen.set(v, i); arr[i] = v; return i; }
+    if (Array.isArray(v)) { arr[i] = v.map(enc); return i; }
+    const o: Record<string, number> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) o[`_${enc(k)}`] = enc(x);
+    arr[i] = o;
+    return i;
+  };
+  enc(root);
+  return JSON.stringify(arr) + "\n";
+}
+function sharePage(data: unknown): string {
+  const root = { loaderData: { root: { theme: "dark" }, "routes/share.$shareId.($action)": { sharedConversationId: "x", serverResponse: { type: "data", data } } }, actionData: null, errors: null };
+  // A promise chunk FIRST: the reader must skip it, not choke on it.
+  return `<div data-message-author-role="user"><p>kun det sidste</p></div>
+<script>window.__reactRouterContext.streamController.enqueue(${JSON.stringify("P99:[{}]\n")});</script>
+<script>window.__reactRouterContext.streamController.enqueue(${JSON.stringify(turboEncode(root))});</script>`;
+}
+const SHARE_URL = new URL("https://chatgpt.com/share/6acd402d-cfb0-83eb-ab10-a9a538082b14");
+
+describe("F099.9 / 0.5.1 — a shared ChatGPT link (jam 13/10: «delingslinks er HELT døde»)", () => {
+  it("the whole conversation from the page's own data — no login, complete:true, the screen ignored", async () => {
+    const { f, calls } = fakeFetch({});
+    const clip = await createChatgptReader({ fetch: f }).extract(docWith(sharePage(chatgptData(20))), SHARE_URL);
+    expect(clip.units).toHaveLength(40);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+    expect(clip.units[0]).toStrictEqual({ kind: "turn", role: "user", content: "Spørgsmål 0", position: 0 });
+    expect(clip.units.map((u) => u.content).join("\n")).not.toMatch(/FRAVALGT|SKJULT|search\(/);
+    expect(clip.anchor).toBe("6acd402d-cfb0-83eb-ab10-a9a538082b14");
+    expect(clip.shareUrl).toBe(SHARE_URL.href);
+    expect(calls).toStrictEqual([]); // nothing fetched: it is all in the page
+  });
+
+  it("decodeTurboStream round-trips nesting, shared values, null and undefined", async () => {
+    const { decodeTurboStream } = await import("../src/chat");
+    const v = { a: [1, "x", { b: null, c: undefined }], d: "x", e: true };
+    expect(decodeTurboStream(turboEncode(v))).toStrictEqual(v);
+  });
+
+  it("NEGATIVE CONTROL: a page whose data is not a conversation is read from the screen, marked incomplete", async () => {
+    const clip = await createChatgptReader({ fetch: fakeFetch({}).f }).extract(docWith(sharePage({ title: "x", messages: [] })), SHARE_URL);
+    expect(clip.completeness).toMatchObject({ complete: false, source: "dom" });
+    expect(clip.units.map((u) => u.content)).toStrictEqual(["kun det sidste"]);
   });
 });

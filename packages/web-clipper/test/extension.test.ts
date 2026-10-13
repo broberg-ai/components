@@ -39,7 +39,7 @@ describe("F099.6 — popup asks, content script answers", () => {
     document.title = "Fixture";
     document.body.innerHTML = "<article><h1>Fixture</h1><p>A paragraph with enough words in it to be read as the article body by Readability.</p></article>";
     let listener: ((m: unknown, s: unknown, r: (x: unknown) => void) => boolean | void) | undefined;
-    (globalThis as { __brobergWebClipper?: boolean }).__brobergWebClipper = false;
+    delete (globalThis as { __brobergWebClipper?: unknown }).__brobergWebClipper;
     runContentScript([], { onMessage: { addListener: (fn) => { listener = fn as never; } } });
     const injected: string[] = [];
     const clip = await clipActiveTab(CONTENT_SCRIPT_PATH, {
@@ -52,6 +52,25 @@ describe("F099.6 — popup asks, content script answers", () => {
     expect(injected).toStrictEqual([CONTENT_SCRIPT_PATH]);
     expect(clip.units).toHaveLength(1);
     expect(clip.units[0]!.content).toContain("A paragraph with enough words");
+  });
+
+  it("0.5.1 — a NEW injection replaces the old listener (jam 13/10: after reloading the extension, the old one kept answering)", async () => {
+    delete (globalThis as { __brobergWebClipper?: unknown }).__brobergWebClipper;
+    const live = new Set<(m: unknown, s: unknown, r: (x: unknown) => void) => boolean | void>();
+    const rt = { onMessage: { addListener: (fn: never) => void live.add(fn), removeListener: (fn: never) => void live.delete(fn) } };
+    runContentScript([], rt);
+    const first = [...live][0];
+    // the reloaded extension injects again, now with a chat reader
+    const reader = { id: "new", matches: () => true, extract: async () => ({ url: location.href, title: "ny", units: [{ kind: "turn", role: "user", content: "fra den NYE læser", position: 0 }] }) };
+    runContentScript([reader], rt);
+    expect(live.size).toBe(1);
+    expect(live.has(first!)).toBe(false);
+    const reply = await new Promise<{ ok: boolean; clip?: { title: string } }>((resolve) => [...live][0]!({ action: CONTENT_EXTRACT_MESSAGE }, {}, resolve as never));
+    expect(reply.clip?.title).toBe("ny");
+    // an old context whose runtime is gone (removeListener throws) does not stop the new one
+    const dead = { onMessage: { addListener: () => {}, removeListener: () => { throw new Error("Extension context invalidated."); } } };
+    (globalThis as { __brobergWebClipper?: unknown }).__brobergWebClipper = { rt: dead, listener: () => {} };
+    expect(() => runContentScript([reader], rt)).not.toThrow();
   });
 
   it("a chrome:// page is refused with a reason the popup can show", async () => {
