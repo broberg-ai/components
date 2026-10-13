@@ -1,6 +1,6 @@
 {
   "name": "@broberg/editor",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "The fleet's shared WYSIWYG editor on TipTap: a headless core (createEditor, toolbarState, markdown in/out), server-side HTML rendering without a browser, image upload through your own callback, and thin React/Preact adapters. Epic F101.",
   "type": "module",
   "license": "MIT",
