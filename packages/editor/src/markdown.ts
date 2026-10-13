@@ -1,16 +1,23 @@
 // F101.1 — markdown is the document format (vn-leker, cms: «vælg ét format og hold det»).
 // TipTap's own MarkdownManager over the SAME extensions, so it runs in Node with no DOM.
 import { MarkdownManager } from "@tiptap/markdown";
+import { Marked } from "marked";
 import type { JSONContent } from "@tiptap/core";
 import { editorExtensions, type SchemaOptions } from "./schema";
 
-const managers = new WeakMap<object, MarkdownManager>();
-const DEFAULT = {};
+// One parser per distinct (blocks, extensions) pair — keyed on the arrays themselves, so pass the same list.
+const managers = new WeakMap<object, WeakMap<object, MarkdownManager>>();
+const NONE: object[] = [];
 
 function manager(o: SchemaOptions = {}): MarkdownManager {
-  const key = o.extensions ? (o.extensions as object) : DEFAULT;
-  let m = managers.get(key);
-  if (!m) managers.set(key, (m = new MarkdownManager({ extensions: editorExtensions(o) })));
+  const a = (o.blocks ?? NONE) as object, b = (o.extensions ?? NONE) as object;
+  let inner = managers.get(a);
+  if (!inner) managers.set(a, (inner = new WeakMap()));
+  let m = inner.get(b);
+  // Its OWN marked instance: TipTap otherwise registers every block's tokenizer on the one global
+  // marked, so a block defined for one editor leaks into every other parser — measured: an
+  // unregistered «:::product» then vanished from the page instead of staying as text.
+  if (!m) inner.set(b, (m = new MarkdownManager({ marked: new Marked() as never, extensions: editorExtensions(o) })));
   return m;
 }
 

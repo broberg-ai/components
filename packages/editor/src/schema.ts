@@ -5,8 +5,12 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import type { AnyExtension } from "@tiptap/core";
 
+import type { Block } from "./blocks";
+
 export interface SchemaOptions {
-  /** Extra extensions (custom blocks, F101.2) — added to BOTH sides. */
+  /** Your own blocks (defineBlock, F101.2) — in the editor, in the markdown and on the server. Pass the SAME list everywhere. */
+  blocks?: Block[];
+  /** Extra TipTap extensions — added to the editor AND to markdown parsing. */
   extensions?: AnyExtension[];
 }
 
@@ -18,6 +22,7 @@ export function editorExtensions(o: SchemaOptions = {}): AnyExtension[] {
       link: { openOnClick: false, autolink: true, defaultProtocol: "https", protocols: ["http", "https", "mailto"] },
     }),
     Image.configure({ inline: false, allowBase64: false }),
+    ...(o.blocks ?? []).map((b) => b.extension),
     ...(o.extensions ?? []),
   ];
 }

@@ -9,6 +9,7 @@
 import type { JSONContent } from "@tiptap/core";
 import { fromMarkdown } from "./markdown";
 import type { SchemaOptions } from "./schema";
+import { blockAttrs } from "./blocks";
 
 export interface RenderOptions extends SchemaOptions {
   /** Called for a node this renderer does not know (it is left out, never passed through). */
@@ -75,9 +76,12 @@ function node(n: JSONContent, o: RenderOptions): string {
       // alt is always present (empty = decorative), so a screen reader never reads the file name.
       return src ? `<img src="${esc(src)}" alt="${esc(typeof n.attrs?.alt === "string" ? n.attrs.alt : "")}"${attr("title", n.attrs?.title as string)}>` : "";
     }
-    default:
+    default: {
+      const block = o.blocks?.find((b) => b.name === n.type);
+      if (block) return block.renderHTML(blockAttrs(block, n.attrs as Record<string, unknown>)); // the consumer's own HTML
       o.onUnknown?.(String(n.type));
       return "";
+    }
   }
 }
 
@@ -92,3 +96,4 @@ export function renderHTML(markdown: string, o: RenderOptions = {}): string {
 }
 
 export { fromMarkdown, toMarkdown } from "./markdown";
+export { defineBlock, escapeHTML, type Block, type BlockDefinition } from "./blocks";

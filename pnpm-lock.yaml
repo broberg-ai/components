@@ -409,6 +409,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: 3.32.0
         version: 3.32.0
+      marked:
+        specifier: 17.0.6
+        version: 17.0.6
     devDependencies:
       happy-dom:
         specifier: ^15.11.7

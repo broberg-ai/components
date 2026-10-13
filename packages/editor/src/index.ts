@@ -13,6 +13,7 @@
 // The design is yours: /react and /preact give hooks; no CSS is required.
 import { Editor, type EditorOptions } from "@tiptap/core";
 import { Markdown } from "@tiptap/markdown";
+import { Marked } from "marked";
 import { Placeholder } from "@tiptap/extensions";
 import { editorExtensions, type SchemaOptions } from "./schema";
 import { safeUrl } from "./server";
@@ -92,7 +93,8 @@ export function editorOptions(c: EditorConfig, getEditor: () => Editor | null): 
   return {
     extensions: [
       ...editorExtensions(c),
-      Markdown,
+      // its own marked instance — see markdown.ts: blocks must not leak between editors on one page
+      Markdown.configure({ marked: new Marked() as never }),
       ...(c.placeholder ? [Placeholder.configure({ placeholder: c.placeholder })] : []),
     ],
     content: c.content ?? "",
@@ -234,3 +236,4 @@ export { Editor } from "@tiptap/core";
 export { editorExtensions, type SchemaOptions } from "./schema";
 export { fromMarkdown, toMarkdown } from "./markdown";
 export { safeUrl } from "./server";
+export { defineBlock, insertBlock, escapeHTML, blockAttrs, type Block, type BlockDefinition } from "./blocks";
