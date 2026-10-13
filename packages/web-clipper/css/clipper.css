@@ -7,8 +7,16 @@
  * spinner's transparent edge. Prefix bwc- so it cannot collide with the
  * consumer's classes (settings uses bst-, app-shell bas-).
  */
+/*
+ * ONE height in every state (owner 13/10: «den skal hele tiden have samme
+ * højde … alt det sjove sker inde i den samme højde»). The popup never grows or
+ * shrinks between log in → clip → clipping → result; the extension sets the
+ * number in its own CSS: .bwc-popup { --bwc-popup-height: 480px } — the
+ * consumer owns the design, the base only keeps it still.
+ */
 .bwc-popup {
   box-sizing: border-box; width: 340px; max-width: 100%; padding: 16px;
+  height: var(--bwc-popup-height, 420px); overflow-y: auto;
   display: flex; flex-direction: column; gap: 12px;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px;
   color: var(--fg); background: var(--bg);
@@ -16,7 +24,7 @@
 .bwc-popup * { box-sizing: border-box; }
 .bwc-popup__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .bwc-popup__title { margin: 0; font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bwc-popup__body { display: flex; flex-direction: column; gap: 10px; }
+.bwc-popup__body { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
 
 .bwc-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px;
