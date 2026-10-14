@@ -94,12 +94,14 @@ export interface CookieConsentStorageOptions {
  * First-party cookie storage (F014.13). Unlike localStorage the server can read
  * it, and with `domain` it covers subdomains. Storing the CHOICE needs no
  * consent: it is strictly necessary. SSR-safe: without `document` it degrades
- * to memory.
+ * to memory. So does a sandboxed iframe without allow-same-origin (F014.23):
+ * there reading document.cookie throws a SecurityError, so the choice lives in
+ * memory for that view and the banner still shows.
  */
 export function createCookieConsentStorage(options: CookieConsentStorageOptions = {}): ConsentStorage {
   // Structural, not DOM types: the core is also typechecked by packages without lib "DOM".
   const doc = (globalThis as unknown as { document?: { cookie: string } }).document;
-  if (!doc || typeof doc.cookie !== "string") return createMemoryConsentStorage();
+  if (!doc || !cookiesReadable(doc)) return createMemoryConsentStorage();
   const name = options.name ?? DEFAULT_KEY;
   const maxAge = Math.round((options.maxAgeDays ?? DEFAULT_MAX_AGE_DAYS) * 86400);
   const secure = (globalThis as unknown as { location?: { protocol?: string } }).location?.protocol === "https:";
@@ -125,6 +127,15 @@ export function createCookieConsentStorage(options: CookieConsentStorageOptions 
       doc.cookie = `${name}=${attrs(0)}; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
     },
   };
+}
+
+/** False when the cookie jar is absent or the browser refuses access (sandboxed iframe → SecurityError). */
+function cookiesReadable(doc: { cookie: string }): boolean {
+  try {
+    return typeof doc.cookie === "string";
+  } catch {
+    return false;
+  }
 }
 
 /** In-memory storage (SSR, tests, or an ephemeral session). */

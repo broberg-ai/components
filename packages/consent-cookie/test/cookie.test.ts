@@ -104,3 +104,26 @@ describe("cookie-domain (AC#2)", () => {
     expect(b.writes[0]!.includes("Domain=")).toBe(false);
   });
 });
+
+// F014.23 — a sandboxed iframe without allow-same-origin (cardmem's mockup viewer,
+// about:srcdoc) throws a SecurityError on ANY touch of document.cookie.
+describe("sandboxed iframe (F014.23)", () => {
+  function sandboxedDoc() {
+    const deny = () => {
+      throw new DOMException("Failed to read the 'cookie' property from 'Document': The document is sandboxed and lacks the 'allow-same-origin' flag.", "SecurityError");
+    };
+    (globalThis as any).document = { get cookie() { return deny(); }, set cookie(_v: string) { deny(); } };
+    (globalThis as any).location = { protocol: "https:" };
+  }
+
+  it("falls back to memory: no throw, banner shows, the choice holds for the view", () => {
+    sandboxedDoc();
+    const storage = createCookieConsentStorage();
+    expect(storage.get()).toBe(null);
+    const m = createConsentManager({ policyVersion: "1", storage });
+    expect(m.needsBanner()).toBe(true);
+    m.rejectAll();
+    expect(storage.get()?.categories).toStrictEqual({ essential: true, analytics: false, marketing: false });
+    expect(m.needsBanner()).toBe(false);
+  });
+});
