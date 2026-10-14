@@ -33,7 +33,9 @@ describe("F099.6 — ClipperPopup", () => {
   it("logged out → log in → targets → clip → «Klippet»", async () => {
     const auth = fakeAuth(); const d = dest();
     render(<ClipperPopup title="Trail" auth={auth} destination={d} getClip={async () => page} storage={memory()} />);
-    fireEvent.click(await screen.findByTestId("clipper-login"));
+    // F084.164 — owner 15/10: the service is called «BID»
+    expect((await screen.findByTestId("clipper-login")).textContent).toBe("Log ind med BID");
+    fireEvent.click(screen.getByTestId("clipper-login"));
     await screen.findByTestId("clipper-target-button");
     fireEvent.click(screen.getByTestId("clipper-clip"));
     await waitFor(() => expect(screen.getByTestId("clipper-status").textContent).toBe("Klippet · 1 sendt"));

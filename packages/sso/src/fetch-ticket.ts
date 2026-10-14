@@ -179,7 +179,7 @@ export function createTicketClient(options: TicketClientOptions = {}): TicketCli
     if (!res.ok || !body.access_token) {
       const desc = body.error_description ?? "";
       const code = desc.includes(":") ? desc.slice(0, desc.indexOf(":")).trim() : body.error ?? "exchange_refused";
-      throw new TicketExchangeError(`BrobergID refused the ticket for ${audience}: ${desc || body.error || res.status}`, code, res.status);
+      throw new TicketExchangeError(`BID refused the ticket for ${audience}: ${desc || body.error || res.status}`, code, res.status);
     }
     const nowSec = Math.floor(now() / 1000);
     const exp = jwtExp(body.access_token) ?? nowSec + (body.expires_in ?? 300);

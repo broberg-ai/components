@@ -163,18 +163,18 @@ describe("AccountPage — picture", () => {
   });
 });
 
-describe("AccountPage — BrobergID link", () => {
-  it("«Sikkerhed i BrobergID» → account_url in a new tab", async () => {
+describe("AccountPage — BID link", () => {
+  it("«Sikkerhed i BID» → account_url in a new tab", async () => {
     render(<AccountPage lang="da" adapter={fakeAdapter()} />);
     const a = (await screen.findByTestId("account-bid-link")) as HTMLAnchorElement;
-    expect(a.textContent).toBe("Sikkerhed i BrobergID");
+    expect(a.textContent).toBe("Sikkerhed i BID");
     expect(a.getAttribute("href")).toBe("https://id.broberg.ai/account");
     expect(a.getAttribute("target")).toBe("_blank");
     expect(a.getAttribute("rel")).toBe("noopener noreferrer");
   });
   it("English label", async () => {
     render(<AccountPage lang="en" adapter={fakeAdapter()} />);
-    expect((await screen.findByTestId("account-bid-link")).textContent).toBe("Security in BrobergID");
+    expect((await screen.findByTestId("account-bid-link")).textContent).toBe("Security in BID");
   });
 });
 

@@ -49,7 +49,7 @@ export function defineClipperManifest(o: ClipperManifestOptions): Record<string,
   try {
     bidOrigin = new URL(o.bidIssuer).origin;
   } catch {
-    throw new Error(`web-clipper: bidIssuer "${o.bidIssuer}" is not a URL — pass BrobergID's issuer, the same as createBidAuth's`);
+    throw new Error(`web-clipper: bidIssuer "${o.bidIssuer}" is not a URL — pass BID's issuer, the same as createBidAuth's`);
   }
   const hosts = [...new Set([...(o.apiHosts ?? []), `${bidOrigin}/*`])];
   return {

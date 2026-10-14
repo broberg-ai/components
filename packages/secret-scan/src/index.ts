@@ -453,7 +453,7 @@ const PATTERNS: SecretPattern[] = [
     // BID app key. OURS: broberg-id mints `bidk_${randomBytes(32).base64url}`,
     // so exactly 43 base64url — a fact about our minter, not a guess.
     label: 'bid-app-key',
-    description: 'BrobergID app key (bidk_ + 43 base64url)',
+    description: 'BID app key (bidk_ + 43 base64url)',
     regex: /\bbidk_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
   },
   {

@@ -78,7 +78,7 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
   const rawIssuer = required(
     env,
     "BID_ISSUER",
-    "It is BrobergID's bare origin, e.g. https://id.broberg.ai",
+    "It is BID's bare origin, e.g. https://id.broberg.ai",
   );
 
   let issuer: string;
@@ -127,7 +127,7 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
 
   return {
     issuer,
-    clientId: required(env, "SSO_CLIENT_ID", "The id this app is registered under in BrobergID."),
+    clientId: required(env, "SSO_CLIENT_ID", "The id this app is registered under in BID."),
     redirectUri: required(
       env,
       "SSO_REDIRECT_URI",

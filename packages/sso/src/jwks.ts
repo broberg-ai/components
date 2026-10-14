@@ -225,7 +225,7 @@ export function createJwksCache(options: JwksCacheOptions): JwksCache {
 
       if (!jwk) {
         throw new JwksUnknownKeyError(
-          `BrobergID does not publish a signing key with kid ${kid}. ` +
+          `BID does not publish a signing key with kid ${kid}. ` +
             `The token was not signed by this issuer.`,
         );
       }

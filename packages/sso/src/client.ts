@@ -883,7 +883,7 @@ export function createSsoClient(
       const error = params.get("error");
       if (error) {
         throw new SsoError(
-          `BrobergID refused this login: ${error}` +
+          `BID refused this login: ${error}` +
             (params.get("error_description") ? ` — ${params.get("error_description")}` : ""),
         );
       }
