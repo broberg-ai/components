@@ -249,6 +249,7 @@ export function createArticleExtractor(o: ArticleExtractorOptions = {}): Extract
 
 /** The article's content images, before fetching: decoration, sprites and known-small images left out. */
 function contentImages(html: string, base: string, minSize: number): ImageRef[] {
+  // An inert document (no browsing context): nothing in it runs or loads. `html` is Readability's own output of this page.
   const tpl = document.implementation.createHTMLDocument("");
   tpl.body.innerHTML = html;
   const out: ImageRef[] = [];
