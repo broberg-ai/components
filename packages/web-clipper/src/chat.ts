@@ -17,7 +17,6 @@
 // do not recognise falls back to what is on screen, and the clip says
 // complete: false with the reason. A clip is complete: true only when the
 // whole conversation was read from the data. Never the other way round.
-import { chain } from "./core";
 import { holdStream } from "./streams";
 import { htmlToMarkdown, NothingToClipError, type MissingFile, type Asset, type Clip, type Completeness, type Extractor, type Unit } from "./extract";
 
@@ -236,15 +235,36 @@ function uniqueTurns(main: Turn[], lines: Turn[][]): Turn[] {
   return [...new Set(lines.flat())].filter((t) => !onMain.has(t)).concat(main);
 }
 
-/** The side lines as units, minus a line that adds nothing the lines before it hold (a failed answer that was retried leaves an empty leaf). */
-async function branchUnits(main: Unit[], lines: Turn[][]): Promise<Unit[][]> {
-  const known = new Set((await chain(main)).map((l) => l.chainFp));
+/**
+ * The side lines as units, minus a line that adds nothing the lines before it hold (a failed answer
+ * that was retried leaves an empty leaf). "Holds" = the same unit at the same place after the same
+ * prefix — what an equal chain fingerprint means — tracked as a trie of prefixes, without importing
+ * ./core: the content script must not share a module with the popup (jam #3274, 0.10.0 failed to build).
+ */
+function branchUnits(main: Unit[], lines: Turn[][]): Unit[][] {
+  const trie = new Map<string, number>();
+  const walk = (units: Unit[], add: boolean): boolean => {
+    let node = 0;
+    let fresh = false;
+    for (const u of units) {
+      const key = `${node}\u0000${JSON.stringify([u.kind, u.role ?? "", u.position, u.content])}`;
+      let next = trie.get(key);
+      if (next === undefined) {
+        fresh = true;
+        if (!add) return true;
+        next = trie.size + 1;
+        trie.set(key, next);
+      }
+      node = next;
+    }
+    return fresh;
+  };
+  walk(main, true);
   const out: Unit[][] = [];
   for (const line of lines) {
     const units = toUnits(line);
-    const fps = (await chain(units)).map((l) => l.chainFp);
-    if (fps.every((fp) => known.has(fp))) continue;
-    for (const fp of fps) known.add(fp);
+    if (!walk(units, false)) continue;
+    walk(units, true);
     out.push(units);
   }
   return out;
@@ -470,7 +490,7 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
             const { title, turns, branches, filesSkipped } = chatgptTurns(data);
             const incomplete = incompleteFrom([], filesSkipped);
             const units = toUnits(turns);
-            return { title, units, branches: await branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
+            return { title, units, branches: branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
           }
           const session = await getJson(f, `${url.origin}/api/auth/session`);
           const token = isObj(session) && typeof session.accessToken === "string" ? session.accessToken : null;
@@ -488,7 +508,7 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
           lastRefOnly(all);
           const incomplete = incompleteFrom([], [...filesSkipped, ...(await fetchRefs(f, all, o))]);
           const units = toUnits(turns);
-          return { title, units, branches: await branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
+          return { title, units, branches: branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
         },
         () => chatgptScreen(doc),
         url,
@@ -742,7 +762,7 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
               lastRefOnly(all);
               const incomplete = incompleteFrom(skipped, [...filesSkipped, ...(await fetchRefs(f, all, o))]);
               const units = toUnits(turns);
-              return { title, units, branches: await branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
+              return { title, units, branches: branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
             } catch (e) {
               if (e instanceof ShapeError) throw e; // the right org, a shape we do not know — do not try the next
               last = e;
