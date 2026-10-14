@@ -10,12 +10,14 @@
 // and asks the page's OWN backend for the conversation — the same request the
 // page makes. That answer holds every turn however long it is. It is a TREE
 // (edits and regenerations are branches); we walk from the node the user is
-// looking at up to the root, so the clip is the thread on screen, nothing else.
+// looking at up to the root — that is the clip's main line — and every other
+// leaf becomes a line of its own in clip.branches (F099.21, owner 14/10).
 //
 // WHEN THAT FAILS. These are not public APIs. A failed request or ANY shape we
 // do not recognise falls back to what is on screen, and the clip says
 // complete: false with the reason. A clip is complete: true only when the
 // whole conversation was read from the data. Never the other way round.
+import { chain } from "./core";
 import { holdStream } from "./streams";
 import { htmlToMarkdown, NothingToClipError, type MissingFile, type Asset, type Clip, type Completeness, type Extractor, type Unit } from "./extract";
 
@@ -178,6 +180,76 @@ function toUnits(turns: Turn[]): Unit[] {
   return merged.map((t, position) => ({ kind: "turn", role: t.role, content: t.text, position, ...(t.assets ? { assets: t.assets } : {}) }));
 }
 
+// ── Branches (F099.21) ───────────────────────────────────────────────────────
+// Owner 14/10: «Tag alle grene med». A conversation is a tree (an edit, a «try again»): the thread on
+// screen is the main line, and every other leaf ends a line of its own, root → leaf. Measured by jam
+// on 0.8.3: KAI kept 51 turns of 77 messages (25 on an older branch), «Cardmem» 148 of 154 — and
+// both said «all turns saved».
+
+/** The messages root → leaf. */
+function lineTo<N>(byId: Map<string, N>, parentOf: (n: N) => unknown, leaf: string): N[] {
+  const out: N[] = [];
+  const seen = new Set<string>();
+  for (let id: unknown = leaf; typeof id === "string" && byId.has(id); ) {
+    if (seen.has(id)) throw new ShapeError("the conversation tree has a cycle");
+    seen.add(id);
+    const n = byId.get(id)!;
+    out.push(n);
+    id = parentOf(n);
+  }
+  return out.reverse();
+}
+
+/** Every leaf except `main`, oldest first. */
+function otherLeaves<N>(byId: Map<string, N>, parentOf: (n: N) => unknown, order: (n: N) => number, main: string): string[] {
+  const parents = new Set([...byId.values()].map(parentOf));
+  return [...byId.keys()].filter((id) => id !== main && !parents.has(id)).sort((a, b) => order(byId.get(a)!) - order(byId.get(b)!));
+}
+
+/**
+ * Reads each message ONCE however many lines it is on, so a shared stretch is the same Turn objects
+ * (one fetch per file) and units in it fingerprint the same. `state` is what a line carries forward
+ * (Claude's artifact versions): a message is read with the state of ITS OWN ancestors.
+ */
+function lineReader<N, S>(read: (n: N, state: S) => Turn | undefined, fresh: () => S, copy: (s: S) => S): (line: N[]) => Turn[] {
+  const memo = new Map<N, { turn?: Turn; after: S }>();
+  return (line) => {
+    let state = fresh();
+    const out: Turn[] = [];
+    for (const n of line) {
+      let hit = memo.get(n);
+      if (hit) state = copy(hit.after);
+      else {
+        const turn = read(n, state);
+        hit = { ...(turn ? { turn } : {}), after: copy(state) };
+        memo.set(n, hit);
+      }
+      if (hit.turn) out.push(hit.turn);
+    }
+    return out;
+  };
+}
+
+/** Every turn once, side lines first and the main line last — lastRefOnly then fetches a file shown on both on the main line. */
+function uniqueTurns(main: Turn[], lines: Turn[][]): Turn[] {
+  const onMain = new Set(main);
+  return [...new Set(lines.flat())].filter((t) => !onMain.has(t)).concat(main);
+}
+
+/** The side lines as units, minus a line that adds nothing the lines before it hold (a failed answer that was retried leaves an empty leaf). */
+async function branchUnits(main: Unit[], lines: Turn[][]): Promise<Unit[][]> {
+  const known = new Set((await chain(main)).map((l) => l.chainFp));
+  const out: Unit[][] = [];
+  for (const line of lines) {
+    const units = toUnits(line);
+    const fps = (await chain(units)).map((l) => l.chainFp);
+    if (fps.every((fp) => known.has(fp))) continue;
+    for (const fp of fps) known.add(fp);
+    out.push(units);
+  }
+  return out;
+}
+
 async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<unknown> {
   const res = await f(url, { credentials: "include", ...init });
   if (!res.ok) throw new Error(`${url} answered ${res.status}`);
@@ -186,7 +258,7 @@ async function getJson(f: Fetch, url: string, init?: RequestInit): Promise<unkno
 
 /** Read a clip from the data; on any failure, from the screen — and say which. */
 async function dataOrScreen(
-  fromData: () => Promise<{ title: string; units: Unit[]; incomplete?: Incomplete }>,
+  fromData: () => Promise<{ title: string; units: Unit[]; branches?: Unit[][]; incomplete?: Incomplete }>,
   fromScreen: () => { title: string; units: Unit[] },
   url: URL,
   base: { anchor: string; shareUrl?: string },
@@ -196,7 +268,7 @@ async function dataOrScreen(
     if (!d.units.length) throw new ShapeError("the conversation data holds no turns");
     // Read from the data, but something in it was not understood: still the whole thread, not the whole content.
     const completeness: Completeness = d.incomplete ? { complete: false, source: "data", ...d.incomplete } : { complete: true, source: "data" };
-    return { url: url.href, title: d.title, ...base, units: d.units, completeness };
+    return { url: url.href, title: d.title, ...base, units: d.units, ...(d.branches?.length ? { branches: d.branches } : {}), completeness };
   } catch (e) {
     const s = fromScreen();
     if (!s.units.length) throw new NothingToClipError(url.href);
@@ -229,31 +301,28 @@ export interface ChatgptLinks {
 const EXT_OF: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
 
 /** The thread on screen, from ChatGPT's conversation answer. Exported for tests. */
-export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: string; turns: Turn[]; filesSkipped: FileIssue[] } {
+export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: string; turns: Turn[]; branches: Turn[][]; filesSkipped: FileIssue[] } {
   if (!isObj(data) || !isObj(data.mapping) || typeof data.current_node !== "string") throw new ShapeError("unexpected conversation shape");
   const mapping = data.mapping;
-  const path: Record<string, unknown>[] = [];
-  const seen = new Set<string>();
-  for (let id: unknown = data.current_node; typeof id === "string"; ) {
-    if (seen.has(id)) throw new ShapeError("the conversation tree has a cycle");
-    seen.add(id);
-    const node = mapping[id];
-    if (!isObj(node)) throw new ShapeError(`node ${id} is missing`);
-    path.push(node);
-    id = node.parent;
-  }
-  const turns: Turn[] = [];
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const [id, node] of Object.entries(mapping)) if (isObj(node)) byId.set(id, node);
+  const parentOf = (n: Record<string, unknown>) => n.parent;
+  const order = (n: Record<string, unknown>) => (isObj(n.message) && typeof n.message.create_time === "number" ? n.message.create_time : 0);
+  const path = lineTo(byId, parentOf, data.current_node);
+  // A parent the mapping does not hold is a broken tree, not the root — never clip half a thread.
+  const missing = path.length ? path[0]!.parent : data.current_node;
+  if (typeof missing === "string") throw new ShapeError(`node ${missing} is missing`);
   const filesSkipped: FileIssue[] = [];
   const ref = (r: Omit<FileRef, "url" | "indirect" | "headers">, url: (l: ChatgptLinks) => string): FileRef | undefined => {
     if (links) return { ...r, url: url(links), indirect: true, headers: links.headers };
     filesSkipped.push({ text: `«${r.name}» kan ikke hentes fra et delt link`, file: { name: r.name, why: "no_url" } });
     return undefined;
   };
-  for (const node of path.reverse()) {
+  const read = (node: Record<string, unknown>): Turn | undefined => {
     const m = node.message;
-    if (!isObj(m)) continue; // the root has no message
+    if (!isObj(m)) return undefined; // the root has no message
     const role = isObj(m.author) ? m.author.role : undefined;
-    if (isObj(m.metadata) && m.metadata.is_visually_hidden_from_conversation) continue;
+    if (isObj(m.metadata) && m.metadata.is_visually_hidden_from_conversation) return undefined;
     const content = m.content;
     // F099.13 — an image is a part of its own (image_asset_pointer): a generated one sits on the image
     // TOOL's message (measured 13/10, jam: author "tool:…", multimodal_text), an upload on the user's.
@@ -277,11 +346,10 @@ export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: stri
     }
     if (role !== "user" && role !== "assistant") {
       // system / tool: not words — but a tool's image belongs to the answer it is part of.
-      if (images.length) turns.push({ role: "assistant", text: marks.join("\n\n"), refs: images });
-      continue;
+      return images.length ? { role: "assistant", text: marks.join("\n\n"), refs: images } : undefined;
     }
-    if (role === "assistant" && m.recipient !== undefined && m.recipient !== "all") continue; // a call to a tool, not words to the user
-    if (!isObj(content) || (content.content_type !== "text" && content.content_type !== "multimodal_text")) continue; // code runs, search results, thoughts
+    if (role === "assistant" && m.recipient !== undefined && m.recipient !== "all") return undefined; // a call to a tool, not words to the user
+    if (!isObj(content) || (content.content_type !== "text" && content.content_type !== "multimodal_text")) return undefined; // code runs, search results, thoughts
     if (!Array.isArray(content.parts)) throw new ShapeError("message content has no parts");
     const text = content.parts.filter((p): p is string => typeof p === "string").join("\n\n");
     // A code-tool file is a markdown link to sandbox:/mnt/data/… in the answer.
@@ -293,9 +361,13 @@ export function chatgptTurns(data: unknown, links?: ChatgptLinks): { title: stri
         if (r && !refs.some((x) => x.id === r.id)) refs.push(r);
       }
     }
-    turns.push({ role, text: [...marks, text].filter(Boolean).join("\n\n"), ...(refs.length ? { refs } : {}) });
-  }
-  return { title: typeof data.title === "string" && data.title ? data.title : "ChatGPT", turns, filesSkipped };
+    return { role, text: [...marks, text].filter(Boolean).join("\n\n"), ...(refs.length ? { refs } : {}) };
+  };
+  const readLine = lineReader(read, () => undefined, () => undefined);
+  const turns = readLine(path);
+  // F099.21 — every other line of the tree (an edited prompt, a regenerated answer), each read once.
+  const branches = otherLeaves(byId, parentOf, order, data.current_node).map((id) => readLine(lineTo(byId, parentOf, id)));
+  return { title: typeof data.title === "string" && data.title ? data.title : "ChatGPT", turns, branches, filesSkipped };
 }
 
 /**
@@ -395,9 +467,10 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
               if (!res.ok) throw new Error(`the shared page answered ${res.status}`);
               data = chatgptEmbedded([await res.text()]);
             }
-            const { title, turns, filesSkipped } = chatgptTurns(data);
+            const { title, turns, branches, filesSkipped } = chatgptTurns(data);
             const incomplete = incompleteFrom([], filesSkipped);
-            return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
+            const units = toUnits(turns);
+            return { title, units, branches: await branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
           }
           const session = await getJson(f, `${url.origin}/api/auth/session`);
           const token = isObj(session) && typeof session.accessToken === "string" ? session.accessToken : null;
@@ -405,15 +478,17 @@ export function createChatgptReader(o: ChatReaderOptions = {}): Extractor {
           const headers = { authorization: `Bearer ${token}` };
           const data = await getJson(f, `${url.origin}/backend-api/conversation/${ids.conversation}`, { headers });
           const conv = ids.conversation;
-          const { title, turns, filesSkipped } = chatgptTurns(data, {
+          const { title, turns, branches, filesSkipped } = chatgptTurns(data, {
             file: (id) => `${url.origin}/backend-api/files/download/${encodeURIComponent(id)}`,
             interpreter: (messageId, sandboxPath) =>
               `${url.origin}/backend-api/conversation/${conv}/interpreter/download?message_id=${encodeURIComponent(messageId)}&sandbox_path=${encodeURIComponent(sandboxPath)}`,
             headers,
           });
-          lastRefOnly(turns);
-          const incomplete = incompleteFrom([], [...filesSkipped, ...(await fetchRefs(f, turns, o))]);
-          return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
+          const all = uniqueTurns(turns, branches);
+          lastRefOnly(all);
+          const incomplete = incompleteFrom([], [...filesSkipped, ...(await fetchRefs(f, all, o))]);
+          const units = toUnits(turns);
+          return { title, units, branches: await branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
         },
         () => chatgptScreen(doc),
         url,
@@ -515,7 +590,7 @@ export interface ClaudeLinks {
 
 /** The thread on screen, from Claude's conversation answer. Exported for tests. */
 /** `skipped`: parts that may hold words (the turns are not whole). `filesSkipped`: the turns are whole, a file is not (F099.13). */
-export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string; turns: Turn[]; skipped: string[]; filesSkipped: FileIssue[] } {
+export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string; turns: Turn[]; branches: Turn[][]; skipped: string[]; filesSkipped: FileIssue[] } {
   if (!isObj(data) || !Array.isArray(data.chat_messages)) throw new ShapeError("unexpected conversation shape");
   const byId = new Map<string, Record<string, unknown>>();
   for (const m of data.chat_messages) if (isObj(m) && typeof m.uuid === "string") byId.set(m.uuid, m);
@@ -532,18 +607,10 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
   for (let guard = 0; typeof leaf === "string" && children.get(leaf)?.length && guard < byId.size; guard++) {
     leaf = [...children.get(leaf)!].sort((x, y) => order(y) - order(x))[0]!.uuid;
   }
+  const parentOf = (m: Record<string, unknown>) => m.parent_message_uuid;
   let path: Record<string, unknown>[];
   if (typeof leaf === "string") {
-    path = [];
-    const seen = new Set<string>();
-    for (let id: unknown = leaf; typeof id === "string" && byId.has(id); ) {
-      if (seen.has(id)) throw new ShapeError("the conversation tree has a cycle");
-      seen.add(id);
-      const m = byId.get(id)!;
-      path.push(m);
-      id = m.parent_message_uuid;
-    }
-    path.reverse();
+    path = lineTo(byId, parentOf, leaf);
     if (!path.length) throw new ShapeError("the current message is not in the conversation");
   } else {
     // No tree answer: a linear list is the thread only when nothing branches.
@@ -551,22 +618,14 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
     if (new Set(parents).size !== parents.length) throw new ShapeError("branched conversation without a current leaf");
     path = data.chat_messages.filter(isObj);
   }
-  const turns: Turn[] = [];
   const skipped: string[] = [];
   const filesSkipped: FileIssue[] = [];
-  // The thread clipped is not the newest one (an older version chosen with the arrows, or a reply that
-  // hangs elsewhere): say so — a clip must never look like the whole conversation when it is not.
-  const onPath = new Set(path.map((m) => m.uuid));
-  const newest = [...byId.values()].sort((x, y) => order(y) - order(x))[0];
-  if (newest && !onPath.has(newest.uuid)) skipped.push("samtalen har nyere beskeder i en anden version end den der klippes");
-  const files = new Map<string, ArtifactState>();
-  for (const m of path) {
+  const read = (m: Record<string, unknown>, files: Map<string, ArtifactState>): Turn | undefined => {
     const role = m.sender === "human" ? "user" : m.sender === "assistant" ? "assistant" : null;
-    if (!role) continue;
+    if (!role) return undefined;
     if (!Array.isArray(m.content)) {
       if (typeof m.text !== "string") throw new ShapeError("message has neither content nor text");
-      turns.push({ role, text: m.text });
-      continue;
+      return { role, text: m.text };
     }
     const parts: string[] = [];
     const assets: Asset[] = [];
@@ -631,9 +690,13 @@ export function claudeTurns(data: unknown, links?: ClaudeLinks): { title: string
       } else if (typeof b.type === "string" && CLAUDE_SKIP.has(b.type)) continue;
       else skipped.push(`a message part of type «${String(b.type)}»`);
     }
-    turns.push({ role, text: parts.join("\n\n"), ...(assets.length ? { assets } : {}), ...(refs.length ? { refs } : {}) });
-  }
-  return { title: typeof data.name === "string" && data.name ? data.name : "Claude", turns, skipped, filesSkipped };
+    return { role, text: parts.join("\n\n"), ...(assets.length ? { assets } : {}), ...(refs.length ? { refs } : {}) };
+  };
+  const readLine = lineReader(read, () => new Map<string, ArtifactState>(), (st) => new Map(st));
+  const turns = readLine(path);
+  // F099.21 — every other line of the tree (an older version, a retried answer), each read once.
+  const branches = typeof leaf === "string" ? otherLeaves(byId, parentOf, order, leaf).map((id) => readLine(lineTo(byId, parentOf, id))) : [];
+  return { title: typeof data.name === "string" && data.name ? data.name : "Claude", turns, branches, skipped, filesSkipped };
 }
 
 function claudeScreen(doc: Document): { title: string; units: Unit[] } {
@@ -671,13 +734,15 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
             try {
               const data = await getJson(f, `${url.origin}/api/organizations/${org}/chat_conversations/${ids.conversation}?tree=True&rendering_mode=messages&render_all_tools=true`);
               const base = `${url.origin}/api/organizations/${org}/conversations/${ids.conversation}`;
-              const { title, turns, skipped, filesSkipped } = claudeTurns(data, {
+              const { title, turns, branches, skipped, filesSkipped } = claudeTurns(data, {
                 output: (path) => `${base}/wiggle/download-file?path=${encodeURIComponent(path)}`,
                 upload: (rel) => new URL(rel, url.origin).href,
               });
-              lastRefOnly(turns);
-              const incomplete = incompleteFrom(skipped, [...filesSkipped, ...(await fetchRefs(f, turns, o))]);
-              return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
+              const all = uniqueTurns(turns, branches);
+              lastRefOnly(all);
+              const incomplete = incompleteFrom(skipped, [...filesSkipped, ...(await fetchRefs(f, all, o))]);
+              const units = toUnits(turns);
+              return { title, units, branches: await branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
             } catch (e) {
               if (e instanceof ShapeError) throw e; // the right org, a shape we do not know — do not try the next
               last = e;

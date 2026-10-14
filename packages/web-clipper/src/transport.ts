@@ -40,6 +40,13 @@ export interface SendContext {
   session: Session;
   clip: Clip;
   branch?: { forkAt: number; parentChainFp: string };
+  /**
+   * F099.21 — this send is a SIDE line of a branched conversation (clip.branches[index], `of` in all):
+   * its WHOLE path root → leaf, in order; `from` is the position of this batch's first unit in the line
+   * (0, or a later batch of a long line). Diff it against what you hold: the shared stretch you already
+   * have, the rest hangs on the last link you share. Absent for the main line.
+   */
+  side?: { index: number; of: number; from: number };
   /** F099.8 — what the user typed in the consumer's own popup fields (Trail's tags, Jam's note). Absent when none were given. */
   fields?: Record<string, string>;
 }
@@ -52,8 +59,14 @@ export interface Destination {
   /** Recording must be switched on per anchor before anything is sent (Jam). */
   requiresConsent?: boolean;
   targets(session: Session): Promise<Target[]>;
-  /** Chain fingerprints the destination already holds for this anchor, in order (appendOnly only). */
+  /** Chain fingerprints the destination already holds for this anchor, in order (appendOnly only). The MAIN line. */
   lastSeen?(anchor: string, target: Target, session: Session): Promise<string[]>;
+  /**
+   * F099.21 — EVERY chain fingerprint held for this anchor, any order: the whole tree, not one line.
+   * Optional. With it a re-clip skips a side line the destination already has; without it each side
+   * line is resent on every clip (harmless — keyed by chain fp — but counted in `sent`).
+   */
+  heldKeys?(anchor: string, target: Target, session: Session): Promise<string[]>;
   send(units: Unit[], ctx: SendContext): Promise<void>;
   uploadAsset?(asset: Asset, ctx: { target: Target; session: Session }): Promise<{ url: string }>;
 }
@@ -127,22 +140,49 @@ export async function sendClip(opts: SendOptions): Promise<SendResult> {
   }
 
   const d = await diff(known, clip.units);
-  if (d.kind === "same") return { state: "sent", mode: "same", sent: 0, idempotencyKeys: [] };
-  const links: Link[] = d.links;
-  const units = d.units as Unit[];
-  const branch = d.kind === "branch" ? { forkAt: d.forkAt, parentChainFp: d.parentChainFp } : undefined;
-
   let sent = 0;
-  for (let i = 0; i < units.length; i += batchSize) {
-    const batch = units.slice(i, i + batchSize);
-    const keys = links.slice(i, i + batchSize).map((l) => l.chainFp);
-    // The branch marker belongs to the first batch only: later batches extend the new line.
-    const ctx = (): SendContext => ({ idempotencyKeys: keys, target, session: session!, clip, ...(i === 0 && branch ? { branch } : {}), ...(opts.fields ? { fields: opts.fields } : {}) });
-    const r = await withRules(() => destination.send(batch, ctx()));
-    if (r.kind !== "ok") return r.result(sent);
-    sent += batch.length;
+  const keysSent: string[] = [];
+  if (d.kind !== "same") {
+    const stop = await sendLine(d.units as Unit[], d.links, d.kind === "branch" ? { forkAt: d.forkAt, parentChainFp: d.parentChainFp } : undefined);
+    if (stop) return stop;
   }
-  return { state: "sent", mode: d.kind, sent, idempotencyKeys: links.map((l) => l.chainFp) };
+
+  // F099.21 — the other lines of a branched conversation, to a destination that keeps a chain. The
+  // main line goes FIRST (above); then each side line as ONE send of its WHOLE path, root → leaf, marked
+  // `side` (jam 14/10: the server diffs a full path against what it holds, so only the new units hang
+  // on the right parent). A line the destination already holds in full is skipped.
+  const sides = destination.appendOnly ? (clip.branches ?? []) : [];
+  if (sides.length) {
+    const held = new Set([...known, ...(await chain(clip.units)).map((l) => l.chainFp)]);
+    if (clip.anchor && destination.heldKeys) {
+      const r = await withRules(() => destination.heldKeys!(clip.anchor!, target, session!));
+      if (r.kind !== "ok") return r.result(sent);
+      for (const k of r.value) held.add(k);
+    }
+    for (const [index, line] of sides.entries()) {
+      const lineLinks = await chain(line);
+      if (lineLinks.every((l) => held.has(l.chainFp))) continue;
+      const stop = await sendLine(line, lineLinks, undefined, { index, of: sides.length });
+      if (stop) return stop;
+      for (const l of lineLinks) held.add(l.chainFp);
+    }
+  }
+  return { state: "sent", mode: d.kind, sent, idempotencyKeys: keysSent };
+
+  /** One line in batches; each batch that succeeds is committed. Returns the stop result, or undefined when all went. */
+  async function sendLine(units: Unit[], links: Link[], branch?: { forkAt: number; parentChainFp: string }, side?: { index: number; of: number }): Promise<SendResult | undefined> {
+    for (let i = 0; i < units.length; i += batchSize) {
+      const batch = units.slice(i, i + batchSize);
+      const keys = links.slice(i, i + batchSize).map((l) => l.chainFp);
+      // The branch marker belongs to the first batch only: later batches extend the new line.
+      const ctx = (): SendContext => ({ idempotencyKeys: keys, target, session: session!, clip, ...(i === 0 && branch ? { branch } : {}), ...(side ? { side: { ...side, from: i } } : {}), ...(opts.fields ? { fields: opts.fields } : {}) });
+      const r = await withRules(() => destination.send(batch, ctx()));
+      if (r.kind !== "ok") return r.result(sent);
+      sent += batch.length;
+      keysSent.push(...keys);
+    }
+    return undefined;
+  }
 
   // One call under the response rules: refresh once on 401, back off on 5xx/network.
   async function withRules<T>(call: () => Promise<T>): Promise<

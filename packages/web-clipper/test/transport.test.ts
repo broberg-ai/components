@@ -172,3 +172,98 @@ describe("F099.4 — interrupted and resumed: nothing twice, nothing lost", () =
     expect(f.received).toBe(4);
   });
 });
+
+// F099.21 — owner 14/10: «Tag alle grene med». Jam 14/10: main line first, then each side line as ONE
+// send of its whole path; the server diffs it against what it holds and hangs the new units on the right parent.
+describe("F099.21 — the other lines of a branched clip go as whole-path side sends", () => {
+  /** A tree store: a unit hangs on the unit before it in the same send; a side send starts at the root; the main line moves the tip. */
+  function treeStore(script: Array<number | "ok"> = [], withHeld = true) {
+    const parentOf = new Map<string, string>();
+    const calls: { contents: string[]; ctx: SendContext }[] = [];
+    let tip = "root";
+    let lastKey = "root";
+    const dest: Destination = {
+      id: "tree", label: "Tree", appendOnly: true,
+      targets: async () => [T],
+      lastSeen: async () => { const line: string[] = []; for (let k = tip; k !== "root"; k = parentOf.get(k)!) line.unshift(k); return line; },
+      ...(withHeld ? { heldKeys: async () => [...parentOf.keys()] } : {}),
+      async send(units, ctx) {
+        calls.push({ contents: units.map((u) => u.content), ctx });
+        const next = script.shift();
+        if (typeof next === "number") throw new DestinationError(next);
+        let parent = ctx.side ? (ctx.side.from === 0 ? "root" : lastKey) : (ctx.branch?.parentChainFp ?? tip);
+        for (const k of ctx.idempotencyKeys) { if (!parentOf.has(k)) parentOf.set(k, parent); parent = k; }
+        lastKey = parent;
+        if (!ctx.side) tip = parent;
+      },
+    };
+    return { dest, parentOf, calls };
+  }
+  // main: tur 0..5 · side: tur 0, tur 1, then its own two turns (forks after position 1)
+  const main = turns(6);
+  const side: Unit[] = [...turns(2), { kind: "turn", role: "user", content: "gammel", position: 2 }, { kind: "turn", role: "assistant", content: "gammelt svar", position: 3 }];
+  const branched = (): Clip => ({ ...clip(main), branches: [side] });
+
+  it("first clip: the main line, then the side line as its WHOLE path marked side; the new units hang on the shared link; the tip stays on the main line", async () => {
+    const t = treeStore();
+    const r = await sendClip({ destination: t.dest, target: T, clip: branched(), auth: auth(), ...noSleep });
+    expect(r).toMatchObject({ state: "sent", mode: "append", sent: 6 + 4 });
+    expect(t.calls.map((c) => [c.contents, c.ctx.side, c.ctx.branch])).toStrictEqual([
+      [main.map((u) => u.content), undefined, undefined],
+      [["tur 0", "tur 1", "gammel", "gammelt svar"], { index: 0, of: 1, from: 0 }, undefined],
+    ]);
+    const [mainFps, sideFps] = [await chainFps(main), await chainFps(side)];
+    expect(t.parentOf.get(sideFps[2]!)).toBe(mainFps[1]);
+    expect(t.parentOf.size).toBe(6 + 2);
+    expect(await t.dest.lastSeen!("abc", T, S())).toStrictEqual(mainFps);
+  });
+
+  it("with heldKeys: a re-clip sends nothing; a new turn on the main line sends only that", async () => {
+    const t = treeStore();
+    await sendClip({ destination: t.dest, target: T, clip: branched(), auth: auth(), ...noSleep });
+    t.calls.length = 0;
+    expect(await sendClip({ destination: t.dest, target: T, clip: branched(), auth: auth(), ...noSleep })).toMatchObject({ state: "sent", mode: "same", sent: 0 });
+    expect(t.calls).toHaveLength(0);
+    const r = await sendClip({ destination: t.dest, target: T, clip: { ...clip(turns(7)), branches: [side] }, auth: auth(), ...noSleep });
+    expect(r).toMatchObject({ state: "sent", mode: "append", sent: 1 });
+    expect(t.calls.map((c) => c.contents)).toStrictEqual([["tur 6"]]);
+  });
+
+  it("without heldKeys the side line is resent each clip — keyed, so the tree gains nothing", async () => {
+    const t = treeStore([], false);
+    await sendClip({ destination: t.dest, target: T, clip: branched(), auth: auth(), ...noSleep });
+    const size = t.parentOf.size;
+    t.calls.length = 0;
+    expect(await sendClip({ destination: t.dest, target: T, clip: branched(), auth: auth(), ...noSleep })).toMatchObject({ state: "sent", sent: 4 });
+    expect(t.calls.map((c) => c.contents)).toStrictEqual([["tur 0", "tur 1", "gammel", "gammelt svar"]]);
+    expect(t.parentOf.size).toBe(size);
+  });
+
+  it("a side line held in full (a failed answer's empty leaf collapses onto the main line) is not sent", async () => {
+    const t = treeStore([], false);
+    const r = await sendClip({ destination: t.dest, target: T, clip: { ...clip(main), branches: [turns(3)] }, auth: auth(), ...noSleep });
+    expect(r).toMatchObject({ state: "sent", sent: 6 });
+    expect(t.calls).toHaveLength(1);
+  });
+
+  it("a long side line goes in batches; each batch says where it starts", async () => {
+    const t = treeStore();
+    const long: Unit[] = [...turns(2), ...Array.from({ length: 5 }, (_, i) => ({ kind: "turn", role: "user", content: `side ${i}`, position: 2 + i }))];
+    await sendClip({ destination: t.dest, target: T, clip: { ...clip(main), branches: [long] }, auth: auth(), batchSize: 4, ...noSleep });
+    expect(t.calls.slice(2).map((c) => c.ctx.side)).toStrictEqual([{ index: 0, of: 1, from: 0 }, { index: 0, of: 1, from: 4 }]);
+  });
+
+  it("a refused side send stops with refused and the count that arrived", async () => {
+    const t = treeStore(["ok", 413]);
+    expect(await sendClip({ destination: t.dest, target: T, clip: branched(), auth: auth(), ...noSleep })).toMatchObject({ state: "refused", status: 413, sent: 6 });
+  });
+
+  it("NEGATIVE CONTROL: a destination that is not appendOnly gets ONE send of the main line (the branches ride on ctx.clip)", async () => {
+    const calls: { units: Unit[]; ctx: SendContext }[] = [];
+    const dest: Destination = { id: "whole", label: "Whole", targets: async () => [T], async send(units, ctx) { calls.push({ units, ctx }); } };
+    expect(await sendClip({ destination: dest, target: T, clip: branched(), auth: auth(), ...noSleep })).toMatchObject({ state: "sent", sent: 6 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.units.map((u) => u.content)).toStrictEqual(main.map((u) => u.content));
+    expect(calls[0]!.ctx.clip.branches).toHaveLength(1);
+  });
+});

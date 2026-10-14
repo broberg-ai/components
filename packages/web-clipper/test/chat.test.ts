@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { chatgptReader, claudeReader, createChatgptReader, createClaudeReader, extractClip, htmlToMarkdown, chatReaders, articleExtractor } from "../src/extract";
 import { chatgptTurns, MAX_FILE_BYTES } from "../src/chat";
+import { chainFps } from "../src/transport";
 
 type Route = (url: string, init?: RequestInit) => unknown | Response;
 function fakeFetch(routes: Record<string, Route>) {
@@ -594,7 +595,7 @@ describe("F099.13 / 0.8.3 — the thread is the WHOLE thread (jam 13/10: KAI gav
     expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
   });
 
-  it("an older version on screen while a newer one exists → clipped as shown, but missing:\"turns\" says so", async () => {
+  it("F099.21: an older version on screen while a newer one exists → the screen's thread is the main line, the newer one a branch; complete", async () => {
     const data = { name: "X", current_leaf_message_uuid: "a2old", chat_messages: [
       msg("u1", "human", "r", "en", 1), msg("a1", "assistant", "u1", "to", 2),
       msg("u2old", "human", "a1", "gammel", 3), msg("a2old", "assistant", "u2old", "gammelt svar", 4),
@@ -602,11 +603,11 @@ describe("F099.13 / 0.8.3 — the thread is the WHOLE thread (jam 13/10: KAI gav
     ] };
     const clip = await read(data);
     expect(clip.units.map((u) => u.content)).toStrictEqual(["en", "to", "gammel", "gammelt svar"]);
-    expect(clip.completeness).toMatchObject({ complete: false, source: "data", missing: "turns" });
-    expect(clip.completeness?.reason).toContain("nyere beskeder i en anden version");
+    expect(clip.branches?.map((l) => l.map((u) => u.content))).toStrictEqual([["en", "to", "ny", "nyt svar"]]);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
   });
 
-  it("NEGATIVE CONTROL: the newest version on screen, an older branch elsewhere → complete", async () => {
+  it("F099.21: the newest version on screen, an older branch elsewhere → the older one comes as a branch; complete", async () => {
     const data = { name: "X", current_leaf_message_uuid: "a2new", chat_messages: [
       msg("u1", "human", "r", "en", 1), msg("a1", "assistant", "u1", "to", 2),
       msg("u2old", "human", "a1", "gammel", 3), msg("a2old", "assistant", "u2old", "gammelt svar", 4),
@@ -614,7 +615,91 @@ describe("F099.13 / 0.8.3 — the thread is the WHOLE thread (jam 13/10: KAI gav
     ] };
     const clip = await read(data);
     expect(clip.units.map((u) => u.content)).toStrictEqual(["en", "to", "ny", "nyt svar"]);
+    expect(clip.branches?.map((l) => l.map((u) => u.content))).toStrictEqual([["en", "to", "gammel", "gammelt svar"]]);
     expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+
+  it("NEGATIVE CONTROL: a conversation that never branched has no branches field", async () => {
+    const data = { name: "X", current_leaf_message_uuid: "a2", chat_messages: [
+      msg("u1", "human", "r", "en", 1), msg("a1", "assistant", "u1", "to", 2), msg("u2", "human", "a1", "tre", 3), msg("a2", "assistant", "u2", "fire", 4),
+    ] };
+    const clip = await read(data);
+    expect("branches" in clip).toBe(false);
+  });
+});
+
+describe("F099.21 — every branch of the tree (owner 14/10: «Tag alle grene med»; jam: KAI 51 of 77, «all saved»)", () => {
+  const at = (t: number) => new Date(Date.UTC(2026, 9, 14, 10, t)).toISOString();
+  const m = (uuid: string, sender: string, parent: string, content: unknown[], t: number) => ({ uuid, sender, parent_message_uuid: parent, content, created_at: at(t) });
+  const text = (x: string) => [{ type: "text", text: x }];
+  const read = async (data: unknown, routes: Record<string, Route> = {}) => {
+    const ff = fakeFetch({ ...claudeRoutes(data), ...routes });
+    return { clip: await createClaudeReader({ fetch: ff.f }).extract(docWith(""), CLAUDE_URL), calls: ff.calls };
+  };
+
+  it("two forks (an older edit + a retried answer): main line unchanged, one full line per other leaf, shared stretch fingerprints the same; an empty failed answer adds no line", async () => {
+    const data = { name: "X", current_leaf_message_uuid: "a4", chat_messages: [
+      m("u1", "human", "r", text("en"), 1), m("a1", "assistant", "u1", text("to"), 2),
+      // fork 1 at a1: an older version of turn 3, with 2 replies of its own
+      m("u2old", "human", "a1", text("gammel"), 3), m("a2old", "assistant", "u2old", text("gammelt svar"), 4),
+      m("u2", "human", "a1", text("tre"), 5),
+      // fork 2 at u2: a failed answer (empty) that was retried, and a regenerated answer kept as a side line
+      m("a2fail", "assistant", "u2", [], 6), m("a2alt", "assistant", "u2", text("alternativt svar"), 7),
+      m("a2", "assistant", "u2", text("fire"), 8), m("u3", "human", "a2", text("fem"), 9), m("a4", "assistant", "u3", text("seks"), 10),
+    ] };
+    const { clip } = await read(data);
+    expect(clip.units.map((u) => u.content)).toStrictEqual(["en", "to", "tre", "fire", "fem", "seks"]);
+    expect(clip.branches?.map((l) => l.map((u) => [u.position, u.content]))).toStrictEqual([
+      [[0, "en"], [1, "to"], [2, "gammel"], [3, "gammelt svar"]],
+      [[0, "en"], [1, "to"], [2, "tre"], [3, "alternativt svar"]],
+    ]);
+    const main = await chainFps(clip.units);
+    const [b1, b2] = [await chainFps(clip.branches![0]!), await chainFps(clip.branches![1]!)];
+    expect(b1.slice(0, 2)).toStrictEqual(main.slice(0, 2));
+    expect(b1[2]).not.toBe(main[2]);
+    expect(b2.slice(0, 3)).toStrictEqual(main.slice(0, 3));
+    expect(b2[3]).not.toBe(main[3]);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+
+  it("files: one shown on two lines is fetched ONCE (on the main line); an artifact's versions follow their own line", async () => {
+    const DL = "https://claude.ai/api/organizations/org-a/conversations/11111111-2222-3333-4444-555555555555/wiggle/download-file?path=";
+    const present = { type: "tool_use", name: "present_files", input: { filepaths: ["/mnt/user-data/outputs/logo.svg"] } };
+    const art = (command: string, extra: Record<string, unknown>) => ({ type: "tool_use", name: "artifacts", input: { id: "doc", command, title: "Doc", type: "text/markdown", ...extra } });
+    const data = { name: "X", current_leaf_message_uuid: "a2", chat_messages: [
+      m("u1", "human", "r", text("lav doc"), 1), m("a1", "assistant", "u1", [art("create", { content: "v1 HOVED" }), { type: "tool_use", name: "present_files", input: { filepaths: ["/mnt/user-data/outputs/brief.md"] } }, ...text("ok")], 2),
+      m("u2side", "human", "a1", text("ret A"), 3), m("a2side", "assistant", "u2side", [art("update", { old_str: "HOVED", new_str: "SIDE" }), present, ...text("side")], 4),
+      m("u2", "human", "a1", text("ret B"), 5), m("a2", "assistant", "u2", [art("update", { old_str: "HOVED", new_str: "MAIN" }), present, ...text("main")], 6),
+    ] };
+    const { clip, calls } = await read(data, {
+      [DL + encodeURIComponent("/mnt/user-data/outputs/logo.svg")]: () => new Response("<svg/>", { headers: { "content-type": "image/svg+xml" } }),
+      [DL + encodeURIComponent("/mnt/user-data/outputs/brief.md")]: () => new Response("# brief", { headers: { "content-type": "text/markdown" } }),
+    });
+    expect(calls.filter((c) => c.url.startsWith(DL))).toHaveLength(2);
+    // the shared stretch is the SAME turn on both lines: a file in it rides on both, fetched once
+    expect(clip.branches![0]![1]!.assets).toStrictEqual(clip.units[1]!.assets);
+    expect(clip.units[1]!.assets?.map((a) => a.name)).toStrictEqual(["Doc", "brief.md"]);
+    const contents = (u: { assets?: { name?: string; content?: string }[] }) => (u.assets ?? []).map((a) => [a.name, a.content]);
+    expect(contents(clip.units[3]!)).toStrictEqual([["Doc", "v1 MAIN"], ["logo.svg", "<svg/>"]]);
+    expect(contents(clip.branches![0]![3]!)).toStrictEqual([["Doc", "v1 SIDE"]]);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+});
+
+describe("F099.21 — ChatGPT: every branch too", () => {
+  it("a regenerated answer the user is not looking at comes as a branch off the right turn", async () => {
+    const clip = await createChatgptReader({ fetch: fakeFetch(chatgptRoutes(chatgptData(3))).f }).extract(docWith(""), CHATGPT_URL);
+    expect(clip.units.map((u) => u.content)).not.toContain("FRAVALGT GREN");
+    expect(clip.branches?.map((l) => l.map((u) => u.content))).toStrictEqual([["Spørgsmål 0", "Svar 0 med **fed** tekst", "Spørgsmål 1", "FRAVALGT GREN"]]);
+    const [main, side] = [await chainFps(clip.units), await chainFps(clip.branches![0]!)];
+    expect(side.slice(0, 3)).toStrictEqual(main.slice(0, 3));
+  });
+
+  it("NEGATIVE CONTROL: no other leaf → no branches field", async () => {
+    const data = chatgptData(3);
+    delete (data.mapping as Record<string, unknown>).alt;
+    const clip = await createChatgptReader({ fetch: fakeFetch(chatgptRoutes(data)).f }).extract(docWith(""), CHATGPT_URL);
+    expect("branches" in clip).toBe(false);
   });
 });
 

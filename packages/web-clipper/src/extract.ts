@@ -75,7 +75,15 @@ export interface Clip {
   /** Conversation id from the URL (chat readers); absent for a plain page. */
   anchor?: string;
   shareUrl?: string;
+  /** The main line: the thread on screen. */
   units: Unit[];
+  /**
+   * F099.21 — every OTHER line of a branched conversation (an edited prompt, a «try again»), each a
+   * full line root → leaf with positions 0..n-1 of its own. A stretch shared with the main line is the
+   * same units, so it fingerprints the same and the line forks exactly where the conversation did.
+   * sendClip sends them to an appendOnly destination as branch sends. Absent when nothing branches.
+   */
+  branches?: Unit[][];
   /**
    * F099.9 — did this clip get EVERYTHING? Only a reader that fetched the whole
    * conversation sets complete: true. A clip read from what happens to be on
