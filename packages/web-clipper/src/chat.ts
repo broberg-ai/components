@@ -114,6 +114,77 @@ async function download(f: Fetch, ref: FileRef, budget: number, maxFile: number,
   return { type: "file", id: ref.id, name: ref.name, mime, size: bytes.length, ...body };
 }
 
+/** F099.23 — width × height from an image's first bytes (PNG, GIF, JPEG, WebP); undefined when unknown. */
+export function imageSize(bytes: Uint8Array): { width: number; height: number } | undefined {
+  const b = bytes;
+  const u16 = (i: number) => (b[i]! << 8) | b[i + 1]!;
+  const u32 = (i: number) => ((b[i]! << 24) | (b[i + 1]! << 16) | (b[i + 2]! << 8) | b[i + 3]!) >>> 0;
+  const le16 = (i: number) => b[i]! | (b[i + 1]! << 8);
+  if (b.length >= 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return { width: u32(16), height: u32(20) };
+  if (b.length >= 10 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return { width: le16(6), height: le16(8) };
+  if (b.length >= 30 && String.fromCharCode(...b.subarray(0, 4)) === "RIFF" && String.fromCharCode(...b.subarray(8, 12)) === "WEBP") {
+    const kind = String.fromCharCode(...b.subarray(12, 16));
+    if (kind === "VP8X") return { width: 1 + (b[24]! | (b[25]! << 8) | (b[26]! << 16)), height: 1 + (b[27]! | (b[28]! << 8) | (b[29]! << 16)) };
+    if (kind === "VP8 ") return { width: le16(26) & 0x3fff, height: le16(28) & 0x3fff };
+    if (kind === "VP8L") { const bits = b[21]! | (b[22]! << 8) | (b[23]! << 16) | (b[24]! << 24); return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 }; }
+    return undefined;
+  }
+  if (b.length >= 4 && b[0] === 0xff && b[1] === 0xd8) {
+    for (let i = 2; i + 9 < b.length; ) {
+      if (b[i] !== 0xff) return undefined;
+      const marker = b[i + 1]!;
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return { width: u16(i + 7), height: u16(i + 5) };
+      i += 2 + u16(i + 2);
+    }
+  }
+  return undefined;
+}
+
+/** F099.23 — an image a page shows: where it is, how the markdown names it, what the page says about its size. */
+export interface ImageRef { url: string; ref: string; alt?: string; width?: number; height?: number }
+export interface ImageOptions { maxImages: number; maxImageBytes: number; maxImageFileBytes: number; minImageSize: number }
+
+/**
+ * F099.23 — fetch a page's images with the page's own session (an image behind a login comes too),
+ * one at a time, under the consumer's caps. An image measured smaller than minImageSize is an icon:
+ * dropped, not a problem. Everything else that does not come is named.
+ */
+export async function fetchImages(f: Fetch, refs: ImageRef[], o: ImageOptions): Promise<{ assets: Asset[]; problems: FileIssue[] }> {
+  const assets: Asset[] = [];
+  const problems: FileIssue[] = [];
+  let budget = o.maxImageBytes;
+  for (const r of refs) {
+    const u = new URL(r.url);
+    const name = u.protocol === "data:" ? "billede" : decodeURIComponent(u.pathname.split("/").pop() || "billede");
+    if (assets.length >= o.maxImages) {
+      problems.push({ text: `«${name}» er over loftet på ${o.maxImages} billeder`, file: { name, why: "clip_limit" } });
+      continue;
+    }
+    try {
+      const a = await download(f, { id: r.url, name, url: r.url }, budget, o.maxImageFileBytes);
+      const bytes = a.encoding === "base64" ? Uint8Array.from(atob(a.content ?? ""), (c) => c.charCodeAt(0)) : undefined;
+      const measured = bytes ? imageSize(bytes) : undefined;
+      const width = measured?.width ?? r.width;
+      const height = measured?.height ?? r.height;
+      if (width !== undefined && height !== undefined && Math.min(width, height) < o.minImageSize) continue;
+      budget -= a.size ?? 0;
+      const { id: _id, type: _type, ...rest } = a;
+      assets.push({ type: "image", url: r.ref, ...(r.alt ? { alt: r.alt } : {}), ...rest, ...(width !== undefined && height !== undefined ? { width, height } : {}) });
+    } catch (e) {
+      if (e instanceof FileProblem) problems.push({ text: e.message, file: e.file });
+      else problems.push({ text: `«${name}» kunne ikke hentes (${e instanceof Error ? e.message : String(e)})`, file: { name, why: "network" } });
+    }
+  }
+  return { assets, problems };
+}
+
+/** F099.23 — the completeness note for a page whose images did not all come. */
+export function imagesIncomplete(problems: FileIssue[]): { reason: string; missing: "files"; problems: string[]; missingFiles: MissingFile[] } | undefined {
+  if (!problems.length) return undefined;
+  const texts = problems.map((p) => p.text);
+  return { reason: `${texts.length} ${texts.length === 1 ? "billede" : "billeder"} kom ikke med: ${texts.join("; ")}`, missing: "files", problems: texts, missingFiles: problems.map((p) => p.file) };
+}
+
 /** Fetch every turn's refs into assets, one at a time; returns what could not be fetched. */
 async function fetchRefs(f: Fetch, turns: Turn[], o: ChatReaderOptions = {}): Promise<FileIssue[]> {
   const problems: FileIssue[] = [];

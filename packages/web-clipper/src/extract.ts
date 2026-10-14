@@ -55,6 +55,9 @@ export interface Asset {
   encoding?: "base64";
   /** F099.13 — the file's size in bytes, for a fetched file. */
   size?: number;
+  /** F099.23 — an image's size in pixels, when measured from its bytes or given by the page. */
+  width?: number;
+  height?: number;
   /**
    * INTERNAL to the content-script → extension hop (0.8.3): a file too big for one extension message
    * travels in parts and is put back together by clipActiveTab. Never present on a clip you receive.
@@ -178,7 +181,7 @@ export function htmlToMarkdown(html: string): string {
   return turndown.turndown(html);
 }
 
-/** The generic extractor: matches every page, yields one "page" unit. */
+/** The generic extractor: matches every page, yields one "page" unit. Text only — see createArticleExtractor for images. */
 export const articleExtractor: Extractor = {
   id: "article",
   matches: () => true,
@@ -188,6 +191,85 @@ export const articleExtractor: Extractor = {
     return { url: url.href, title: a.title, units: [{ kind: "page", content: a.markdown, position: 0 }] };
   },
 };
+
+export interface ArticleExtractorOptions {
+  /** F099.23 — fetch the article's content images into the page unit's assets. Off by default. */
+  images?: boolean;
+  /** Most images per clip. Default 50 (owner 15/10) — the consumer's own setting goes here. */
+  maxImages?: number;
+  /** Most image bytes per clip. Default 100 MB (owner 15/10). */
+  maxImageBytes?: number;
+  /** Most bytes per image. Default MAX_FILE_BYTES. */
+  maxImageFileBytes?: number;
+  /** An image narrower or lower than this many pixels is an icon and is left out. Default 64. */
+  minImageSize?: number;
+  /** Default: the page's fetch (the user's own session). */
+  fetch?: typeof fetch;
+}
+export const DEFAULT_MAX_IMAGES = 50;
+export const DEFAULT_MAX_IMAGE_BYTES = 100 * 1024 * 1024;
+export const DEFAULT_MIN_IMAGE_SIZE = 64;
+
+/**
+ * F099.23 — the article extractor, with the article's content images when `images` is on: each a
+ * `{ type: "image", url, alt, mime, size, width?, height?, encoding: "base64", content }` asset on the
+ * page unit, fetched in the page with its own session. `url` is exactly the address in the markdown's
+ * `![alt](url)`, so you can point that reference at the stored file. What did not come is named in
+ * `completeness.missingFiles` (complete: false, missing: "files").
+ */
+export function createArticleExtractor(o: ArticleExtractorOptions = {}): Extractor {
+  if (!o.images) return articleExtractor;
+  return {
+    id: "article",
+    matches: () => true,
+    async extract(doc, url) {
+      const article = new Readability(doc.cloneNode(true) as Document, { keepClasses: false, charThreshold: 0 }).parse();
+      if (!article) throw new NothingToClipError(url.href);
+      const html = article.content ?? "";
+      const markdown = htmlToMarkdown(html);
+      const minImageSize = o.minImageSize ?? DEFAULT_MIN_IMAGE_SIZE;
+      const refs = contentImages(html, doc.baseURI || url.href, minImageSize);
+      const f = o.fetch ?? fetch.bind(globalThis);
+      const { assets, problems } = await fetchImages(f, refs, {
+        maxImages: o.maxImages ?? DEFAULT_MAX_IMAGES,
+        maxImageBytes: o.maxImageBytes ?? DEFAULT_MAX_IMAGE_BYTES,
+        maxImageFileBytes: o.maxImageFileBytes ?? MAX_FILE_BYTES,
+        minImageSize,
+      });
+      const incomplete = imagesIncomplete(problems);
+      return {
+        url: url.href,
+        title: article.title || doc.title || "Untitled",
+        units: [{ kind: "page", content: markdown, position: 0, ...(assets.length ? { assets } : {}) }],
+        ...(incomplete ? { completeness: { complete: false, source: "dom" as const, ...incomplete } } : {}),
+      };
+    },
+  };
+}
+
+/** The article's content images, before fetching: decoration, sprites and known-small images left out. */
+function contentImages(html: string, base: string, minSize: number): ImageRef[] {
+  const tpl = document.implementation.createHTMLDocument("");
+  tpl.body.innerHTML = html;
+  const out: ImageRef[] = [];
+  const seen = new Set<string>();
+  for (const img of Array.from(tpl.querySelectorAll("img"))) {
+    if (img.getAttribute("role") === "presentation" || img.getAttribute("aria-hidden") === "true") continue;
+    const ref = img.getAttribute("src") || img.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s+/)[0] || "";
+    if (!ref || /^data:image\/svg/i.test(ref) || (/\.svg(\?|#|$)/i.test(ref) && ref.includes("#"))) continue;
+    let abs: URL;
+    try { abs = new URL(ref, base); } catch { continue; }
+    if (abs.protocol !== "http:" && abs.protocol !== "https:" && abs.protocol !== "data:") continue;
+    const width = Number(img.getAttribute("width")) || undefined;
+    const height = Number(img.getAttribute("height")) || undefined;
+    if ((width !== undefined && width < minSize) || (height !== undefined && height < minSize)) continue;
+    if (seen.has(abs.href)) continue;
+    seen.add(abs.href);
+    const alt = img.getAttribute("alt") || undefined;
+    out.push({ url: abs.href, ref, ...(alt ? { alt } : {}), ...(width ? { width } : {}), ...(height ? { height } : {}) });
+  }
+  return out;
+}
 
 /** The first of `extractors` that matches `url`; articleExtractor when none does. */
 export function pickExtractor(url: URL, extractors: readonly Extractor[] = []): Extractor {
@@ -200,4 +282,5 @@ export function extractClip(doc: Document, url: URL, extractors: readonly Extrac
 }
 
 // F099.9 — the chat readers live in ./chat and are part of /extract.
+import { fetchImages, imagesIncomplete, MAX_FILE_BYTES, type ImageRef } from "./chat";
 export { chatgptReader, claudeReader, createChatgptReader, createClaudeReader, chatReaders } from "./chat";
