@@ -13,7 +13,7 @@ const { signSession } = await import("@broberg/sso");
 
 const cookieFor = async (sub: string) => `bid_session=${await signSession({ sub, exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) }, process.env.SSO_COOKIE_SECRET!)}`;
 
-describe("F038.23 — BrobergID login on Discovery", () => {
+describe("F038.23 — BID login on Discovery", () => {
   it("a browser without a login is sent to /auth/login, keeping where it was going", async () => {
     const res = await app.request("/api/packages?x=1", { headers: { accept: "text/html" } });
     expect([res.status, res.headers.get("location")]).toEqual([302, "/auth/login?returnTo=%2Fapi%2Fpackages%3Fx%3D1"]);
@@ -22,15 +22,15 @@ describe("F038.23 — BrobergID login on Discovery", () => {
     const res = await app.request("/api/packages", { headers: { accept: "application/json" } });
     expect(res.status).toBe(401);
   });
-  it("an allowlisted BrobergID subject gets in", async () => {
+  it("an allowlisted BID subject gets in", async () => {
     const res = await app.request("/api/packages", { headers: { cookie: await cookieFor("owner-sub-2") } });
     expect(res.status).toBe(200);
   });
-  it("a BrobergID account NOT on the list is refused with 403 — an account alone is not access", async () => {
+  it("a BID account NOT on the list is refused with 403 — an account alone is not access", async () => {
     const res = await app.request("/api/packages", { headers: { cookie: await cookieFor("someone-else") } });
     expect(res.status).toBe(403);
     // The words the person reads — the owner's spelling, «BrobergID» (F084.162).
-    expect(await res.text()).toBe("Din BrobergID-konto har ikke adgang til Discovery. Bed components om adgang.");
+    expect(await res.text()).toBe("Din BID-konto har ikke adgang til Discovery. Bed components om adgang.");
   });
   it("a forged cookie (wrong secret) is no login at all", async () => {
     const forged = `bid_session=${await signSession({ sub: "owner-sub-1", exp: Math.floor(Date.now() / 1000) + 3600 }, "x".repeat(64))}`;
