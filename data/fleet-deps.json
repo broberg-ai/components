@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-13T11:54:19.564Z",
+ "scanned_at": "2026-10-14T09:36:30.439Z",
  "repos_scanned": 77,
  "repos_failed": 0,
- "manifests_read": 267,
+ "manifests_read": 269,
  "manifests_unreadable": 0,
- "edges": 328,
+ "edges": 338,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -553,7 +553,7 @@
     ],
     "@broberg/lens-daemon": [
      {
-      "range": "0.1.6",
+      "range": "0.1.10",
       "field": "dependencies",
       "at": "apps/agent/package.json"
      }
@@ -721,12 +721,19 @@
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
+    ],
+    "@broberg/ui-controls-core": [
+     {
+      "range": "0.2.3",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
     ]
    }
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 53,
+   "manifests": 55,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -813,6 +820,11 @@
      {
       "range": "workspace:*",
       "field": "dependencies",
+      "at": "examples/editor/package.json"
+     },
+     {
+      "range": "workspace:*",
+      "field": "dependencies",
       "at": "examples/livesync/package.json"
      },
      {
@@ -871,6 +883,13 @@
       "range": "workspace:*",
       "field": "dependencies",
       "at": "examples/data-table/package.json"
+     }
+    ],
+    "@broberg/editor": [
+     {
+      "range": "workspace:*",
+      "field": "dependencies",
+      "at": "examples/editor/package.json"
      }
     ],
     "@broberg/livesync": [
@@ -1249,6 +1268,13 @@
    "manifests": 1,
    "unreadable": 0,
    "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.62.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
     "@broberg/apikey": [
      {
       "range": "0.3.1",
@@ -1721,12 +1747,38 @@
     ],
     "@broberg/web-clipper": [
      {
-      "range": "0.5.0",
+      "range": "0.8.3",
       "field": "dependencies",
       "at": "apps/clipper/package.json"
      },
      {
+      "range": "0.8.3",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.62.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     },
+     {
+      "range": "0.62.0",
+      "field": "devDependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/media": [
+     {
       "range": "0.5.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/media-transform": [
+     {
+      "range": "0.1.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -1736,13 +1788,6 @@
       "range": "0.18.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
-     }
-    ],
-    "@broberg/ai-sdk": [
-     {
-      "range": "0.62.0",
-      "field": "devDependencies",
-      "at": "package.json"
      }
     ]
    }
@@ -1778,7 +1823,7 @@
     ],
     "@broberg/lens-engine": [
      {
-      "range": "0.10.0",
+      "range": "0.12.0",
       "field": "dependencies",
       "at": "apps/cloud/package.json"
      },
@@ -2421,7 +2466,7 @@
     ],
     "@broberg/web-clipper": [
      {
-      "range": "0.5.0",
+      "range": "0.8.3",
       "field": "dependencies",
       "at": "apps/web-clipper/package.json"
      }
@@ -3229,6 +3274,20 @@
    "manifests": 1,
    "unreadable": 0,
    "deps": {
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/i18n": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
     "@broberg/mail": [
      {
       "range": "0.10.1",
@@ -3239,6 +3298,27 @@
     "@broberg/mail-core": [
      {
       "range": "0.7.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/pwa": [
+     {
+      "range": "0.6.0",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@broberg/theme": [
+     {
+      "range": "0.13.3",
+      "field": "dependencies",
+      "at": "package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "0.11.2",
       "field": "dependencies",
       "at": "package.json"
      }
