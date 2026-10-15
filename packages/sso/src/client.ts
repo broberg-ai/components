@@ -952,7 +952,9 @@ export function createSsoClient(
       res = await fetchImpl(url, {
         method,
         headers: {
-          authorization: `Basic ${btoa(`${config.clientId}:${config.clientSecret}`)}`,
+          // Form-encoded before base64 (RFC 6749 §2.3.1), exactly like introspectToken — BID reads
+          // both with the same parser, so a secret with ":" or "%" must not mean two different things.
+          authorization: `Basic ${btoa(`${encodeURIComponent(config.clientId)}:${encodeURIComponent(config.clientSecret)}`)}`,
           accept: "application/json",
           ...(body ? { "content-type": "application/json" } : {}),
         },
