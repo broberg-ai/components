@@ -119,6 +119,27 @@ describe("components-F084.165 — embedded login from the server", () => {
     expect(await sso.embedded.verify({ ...s.flow, flowId: "gone" }, "481072")).toStrictEqual({ kind: "error", error: { kind: "expired" } });
   });
 
+  test("errors as data, the rest of the table: too_many_requests{retryAfter}, not_embedded (403/404/405), invalid_request, unavailable (5xx and no answer)", async () => {
+    const answering = (status: number, body: object | null) => ({
+      fetchImpl: (async () => {
+        if (body === null) throw new TypeError("fetch failed");
+        return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+      }) as unknown as typeof fetch,
+    });
+    const startWith = async (status: number, body: object | null) => {
+      const s = await client(answering(status, body)).embedded.start({ email: "anne@eksempel.dk" });
+      if (s.ok) throw new Error(`start ${status} was not an error`);
+      return s.error;
+    };
+    expect(await startWith(429, { error: "too_many_requests", retry_after: 60 })).toStrictEqual({ kind: "too_many_requests", retryAfter: 60 });
+    expect(await startWith(403, { error: "client_not_embedded" })).toStrictEqual({ kind: "not_embedded" });
+    expect(await startWith(404, {})).toStrictEqual({ kind: "not_embedded" });
+    expect(await startWith(405, {})).toStrictEqual({ kind: "not_embedded" });
+    expect(await startWith(400, { error: "invalid_request" })).toStrictEqual({ kind: "invalid_request" });
+    expect(await startWith(502, { error: "authorize_failed" })).toStrictEqual({ kind: "unavailable", message: "BID answered 502 (authorize_failed)" });
+    expect(await startWith(0, null)).toStrictEqual({ kind: "unavailable", message: "BID did not answer: fetch failed" });
+  });
+
   test("NEGATIVE CONTROL: an id_token whose nonce is not this flow's is refused — never a session", async () => {
     const bid = await contractBid({ nonceOverride: "someone-elses-nonce" }); const sso = client(bid);
     const s = await sso.embedded.start({ email: "anne@eksempel.dk" });
