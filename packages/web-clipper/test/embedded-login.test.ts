@@ -74,6 +74,12 @@ describe("F099.24 — embedded login (contract v1)", () => {
     expect((await login.verify("481072")).step).toBe("signed_in");
   });
 
+  it("a BID without the /embedded endpoints (404) is not_embedded — fall back to the window, never «no connection»", async () => {
+    const fetchImpl = (async (input: unknown) => String(input).includes("/embedded/") ? new Response("Not Found", { status: 404 }) : contractBid().fetchImpl(input as string)) as typeof fetch;
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl });
+    expect(strip(await auth.embedded!().start("anne@eksempel.dk"))).toStrictEqual({ step: "email", busy: false, error: { kind: "not_embedded" } });
+  });
+
   it("NEGATIVE CONTROL: a client without embedded login gets not_embedded (fall back to the window), and nothing is stored", async () => {
     const bid = contractBid({ embedded: false }); const { auth, store } = make(bid);
     expect(strip(await auth.embedded!().start("anne@eksempel.dk"))).toStrictEqual({ step: "email", busy: false, error: { kind: "not_embedded" } });

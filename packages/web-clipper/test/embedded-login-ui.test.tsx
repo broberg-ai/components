@@ -15,7 +15,7 @@ const dest: Destination = { id: "jam", label: "Jam", targets: async () => [{ id:
 const popup = (o: { secondFactor?: ("totp" | "sms")[]; embedded?: boolean } = {}) => {
   const bid = contractBid(o);
   const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl: bid.fetchImpl });
-  render(<ClipperPopup title="Jam Clipper" auth={auth} destination={dest} getClip={async () => page} storage={memory()} />);
+  render(<ClipperPopup title="Jam Clipper" auth={auth} destination={dest} getClip={async () => page} storage={memory()} embeddedLogin />);
   return bid;
 };
 const type = (testid: string, value: string) => fireEvent.input(screen.getByTestId(testid), { target: { value } });
@@ -87,6 +87,13 @@ describe("F099.24 — embedded login screen", () => {
     fireEvent.click(screen.getByTestId("embedded-login-verify"));
     await screen.findByTestId("embedded-login-denied");
     expect(screen.getByTestId("embedded-login-error").textContent).toBe("Der er prøvet for mange koder. Af hensyn til din konto kan du prøve igen om 15 minutter.");
+  });
+
+  it("NEGATIVE CONTROL: without embeddedLogin the popup shows the window login button as before, even though the auth offers embedded", async () => {
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl: contractBid().fetchImpl });
+    render(<ClipperPopup title="Jam Clipper" auth={auth} destination={dest} getClip={async () => page} storage={memory()} />);
+    await screen.findByTestId("clipper-login");
+    expect(screen.queryByTestId("embedded-login-email")).toBeNull();
   });
 
   it("NEGATIVE CONTROL: a client BID does not allow here → the popup falls back to the window login button", async () => {

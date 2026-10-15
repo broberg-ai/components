@@ -395,6 +395,12 @@ export interface ClipperPopupProps {
   fields?: ClipperField[];
   /** F099.9 — replace any of the popup's texts, e.g. { noTargets: "Opret en organisation først" }. */
   text?: Partial<ClipperTexts>;
+  /**
+   * F099.24 — log in INSIDE the popup (auth.embedded(), BID F084.166) instead of the login window.
+   * Off by default: turn it on when BID serves the embedded endpoints for your client. A BID that
+   * answers 403 client_not_embedded or 404 falls back to the window by itself.
+   */
+  embeddedLogin?: boolean;
 }
 
 /**
@@ -427,7 +433,7 @@ export function ClipperPopup(p: ClipperPopupProps) {
   };
   // F099.24 — log in inside the popup when the auth offers it; the window stays as the fallback.
   const embedded = useRef<EmbeddedLogin | null>(null);
-  if (!embedded.current && p.auth.embedded) embedded.current = p.auth.embedded();
+  if (!embedded.current && p.embeddedLogin && p.auth.embedded) embedded.current = p.auth.embedded();
   const [windowLogin, setWindowLogin] = useState(false);
   const phase = s.phase;
   const loginError = phase.kind === "logged_out" ? (phase.reason === "login_again" ? t.loginAgain : phase.reason === "login_failed" ? `${t.loginFailed}: ${phase.message ?? ""}` : null) : null;

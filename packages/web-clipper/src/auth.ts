@@ -355,6 +355,8 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
       if (res.status === 400 && code === "expired") return { ok: false, error: { kind: "expired" } };
       if (res.status === 400) return { ok: false, error: { kind: "invalid_request" } };
       if (res.status === 403 && code === "client_not_embedded") return { ok: false, error: { kind: "not_embedded" } };
+      // A BID without the /embedded endpoints (not deployed there yet) cannot do this login either: fall back, never «no connection».
+      if (res.status === 404 || res.status === 405) return { ok: false, error: { kind: "not_embedded" } };
       if (res.status === 429) return { ok: false, error: { kind: code === "locked" ? "locked" : "too_many_requests", ...(num(json.retry_after) !== undefined ? { retryAfter: num(json.retry_after) } : {}) } };
       return { ok: false, error: { kind: "unavailable", message: `BID answered ${res.status}${code ? ` (${code})` : ""}` } };
     }

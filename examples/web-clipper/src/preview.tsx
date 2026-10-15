@@ -72,7 +72,7 @@ const clip = mode === "consent"
 render(
   <div style="padding:24px;display:flex;justify-content:center">
     <div style="border:1px solid var(--border);border-radius:var(--radius,8px);overflow:visible">
-      <ClipperPopup title="Web Clipper Example" auth={auth} destination={destination} getClip={async () => clip} storage={storage} fields={[{ id: "tags", label: "Emneord", placeholder: "kommasepareret" }]} />
+      <ClipperPopup title="Web Clipper Example" auth={auth} destination={destination} getClip={async () => clip} storage={storage} fields={[{ id: "tags", label: "Emneord", placeholder: "kommasepareret" }]} embeddedLogin={mode === "embedded" || mode === "embedded-2fa"} />
     </div>
   </div>,
   document.getElementById("app")!,
