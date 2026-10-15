@@ -50,7 +50,7 @@ async function contractBid(o: { secondFactor?: boolean; signup?: boolean; nonceO
     log.push({ path: url.pathname, auth: headers.get("authorization"), body });
     // Basic client_id:client_secret, and client_id in Basic = the body's
     const basic = headers.get("authorization")?.match(/^Basic (.+)$/)?.[1];
-    const [bid, bsecret] = basic ? atob(basic).split(":") : [];
+    const [bid, bsecret] = basic ? atob(basic).split(":").map(decodeURIComponent) : []; // RFC 6749 §2.3.1
     if (bsecret !== SECRET || (url.pathname !== "/embedded/terms" && bid !== body.client_id)) return err(401, { error: "invalid_client" });
     if (url.pathname === "/embedded/terms") return Response.json({ version: TERMS, text: "Ved at oprette et BID accepterer du …", links: [{ label: "Privatlivspolitik", url: "https://id.broberg.ai/privatliv" }] });
     if (url.pathname === "/embedded/start") {
@@ -138,6 +138,14 @@ describe("components-F084.165 — embedded login from the server", () => {
     expect(await startWith(400, { error: "invalid_request" })).toStrictEqual({ kind: "invalid_request" });
     expect(await startWith(502, { error: "authorize_failed" })).toStrictEqual({ kind: "unavailable", message: "BID answered 502 (authorize_failed)" });
     expect(await startWith(0, null)).toStrictEqual({ kind: "unavailable", message: "BID did not answer: fetch failed" });
+  });
+
+  test("Basic is form-encoded before base64 (RFC 6749 §2.3.1), like introspect — a secret with \":\" or \"%\" reaches BID intact", async () => {
+    let header = "";
+    const capture = { fetchImpl: (async (_: unknown, init?: RequestInit) => { header = new Headers(init?.headers).get("authorization") ?? ""; return Response.json({ flow_id: "f", expires_in: 600 }); }) as unknown as typeof fetch };
+    await client(capture, "a:b%c d").embedded.start({ email: "anne@eksempel.dk" });
+    expect(atob(header.replace(/^Basic /, ""))).toBe("jam:a%3Ab%25c%20d");
+    expect(atob(header.replace(/^Basic /, "")).split(":").map(decodeURIComponent)).toStrictEqual([CLIENT_ID, "a:b%c d"]);
   });
 
   test("NEGATIVE CONTROL: an id_token whose nonce is not this flow's is refused — never a session", async () => {
