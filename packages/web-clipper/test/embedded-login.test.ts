@@ -2,67 +2,9 @@
 // (broberg-ai/broberg-id@f9e148d «KONTRAKT v1»): start → mail code → (second factor) → authorization
 // code, swapped on /oauth2/token exactly as after the login window — the same Session.
 import { describe, expect, it } from "vitest";
-import { createBidAuth, popupAuth, type EmbeddedState, type IdentityApi, type KeyValueStorage, type RuntimeApi } from "../src/auth";
+import { createBidAuth, popupAuth, type EmbeddedState, type RuntimeApi } from "../src/auth";
+import { contractBid, identity, ISS, memory, REDIRECT, s256 } from "./bid-contract";
 
-const ISS = "https://id.broberg.ai";
-const REDIRECT = "https://abcdefghijklmnop.chromiumapp.org/";
-const jwt = (payload: object) => `x.${btoa(JSON.stringify(payload)).replace(/=+$/, "")}.y`;
-const identity: IdentityApi = { getRedirectURL: () => REDIRECT, launchWebAuthFlow: async () => { throw new Error("no window in the embedded login"); } };
-function memory(): KeyValueStorage & { data: Map<string, unknown> } {
-  const data = new Map<string, unknown>();
-  return { data, get: async (k) => data.get(k), set: async (k, v) => void data.set(k, v), remove: async (k) => void data.delete(k) };
-}
-async function s256(v: string) {
-  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)));
-  let s = ""; for (const x of d) s += String.fromCharCode(x);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-/** BID per contract v1: the mail code is 481072, the app code 123456, the SMS code 777777; 5 wrong codes lock the flow. */
-function contractBid(o: { secondFactor?: ("totp" | "sms")[]; embedded?: boolean } = {}) {
-  const flows = new Map<string, { email: string; challenge: string; wrong: number; stage: "code" | "second"; smsSent: boolean }>();
-  const codes = new Map<string, string>(); // authorization code → challenge
-  const log: { path: string; body: Record<string, unknown>; credentials?: RequestCredentials }[] = [];
-  let n = 0;
-  const err = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-  const issue = (challenge: string) => { const c = `ac-${++n}`; codes.set(c, challenge); return Response.json({ next: "done", code: c }); };
-  const fetchImpl = (async (input: unknown, init?: RequestInit) => {
-    const url = new URL(String(input));
-    if (url.pathname === "/.well-known/openid-configuration") return Response.json({ issuer: ISS, authorization_endpoint: `${ISS}/oauth2/authorize`, token_endpoint: `${ISS}/oauth2/token` });
-    if (url.pathname === "/oauth2/token") {
-      const p = new URLSearchParams(String(init?.body));
-      log.push({ path: url.pathname, body: Object.fromEntries(p), credentials: init?.credentials });
-      const challenge = codes.get(p.get("code") ?? "");
-      if (!challenge || (await s256(p.get("code_verifier") ?? "")) !== challenge || p.get("redirect_uri") !== REDIRECT) return err(400, { error: "invalid_grant" });
-      codes.delete(p.get("code")!);
-      return Response.json({ access_token: "at-emb", refresh_token: "rt-emb", expires_in: 3600, id_token: jwt({ sub: "user-42" }) });
-    }
-    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-    log.push({ path: url.pathname, body, credentials: init?.credentials });
-    if (o.embedded === false) return err(403, { error: "client_not_embedded" });
-    if (url.pathname === "/embedded/start") {
-      if (typeof body.email !== "string" || body.code_challenge_method !== "S256") return err(400, { error: "invalid_request" });
-      const id = `flow-${++n}`;
-      flows.set(id, { email: body.email, challenge: String(body.code_challenge), wrong: 0, stage: "code", smsSent: false });
-      return Response.json({ flow_id: id, expires_in: 600 });
-    }
-    const f = flows.get(String(body.flow_id));
-    if (!f) return err(400, { error: "expired" });
-    const wrong = () => { f.wrong++; return f.wrong >= 5 ? err(429, { error: "locked", retry_after: 900 }) : err(400, { error: "invalid_code", attempts_left: 5 - f.wrong }); };
-    if (url.pathname === "/embedded/verify") {
-      if (body.code !== "481072") return wrong();
-      if (o.secondFactor?.length) { f.stage = "second"; f.wrong = 0; return Response.json({ next: "second_factor", methods: o.secondFactor }); }
-      return issue(f.challenge);
-    }
-    if (url.pathname === "/embedded/second-factor/sms") { f.smsSent = true; return Response.json({ sent: true }); }
-    if (url.pathname === "/embedded/second-factor") {
-      const ok = (body.method === "totp" && body.code === "123456") || (body.method === "sms" && f.smsSent && body.code === "777777");
-      return ok ? issue(f.challenge) : wrong();
-    }
-    return err(404, {});
-  }) as typeof fetch;
-  return { fetchImpl, log, flows };
-}
 const make = (bid: ReturnType<typeof contractBid>, store = memory(), t = { now: 1_800_000_000_000 }) =>
   ({ auth: createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: store, fetchImpl: bid.fetchImpl, now: () => t.now }), store, t });
 const strip = (s: EmbeddedState) => JSON.parse(JSON.stringify(s));

@@ -78,3 +78,16 @@
 .bwc-spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: bwc-spin .7s linear infinite; }
 @keyframes bwc-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .bwc-spinner { animation: none; } }
+
+/* F099.24 — the embedded login (BID mockup 01a1409a), on the same tokens */
+.bwc-login { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bwc-login__title { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.15; }
+.bwc-login__lead { margin: 0; font-size: 13px; line-height: 1.45; color: var(--fg-muted); overflow-wrap: anywhere; }
+.bwc-login__links { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.bwc-bid { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; }
+.bwc-bid__id { color: var(--accent-text, var(--accent)); }
+.bwc-bid__secured { margin: 4px 0 0; padding-top: 8px; border-top: 1px solid var(--border); text-align: center; font-size: 11.5px; color: var(--fg-muted); }
+.bwc-code { display: flex; gap: 6px; justify-content: space-between; }
+.bwc-code__box { width: 100%; min-width: 0; max-width: 44px; height: 48px; text-align: center; font: inherit; font-size: 20px; font-weight: 700; color: var(--fg); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius, 8px); }
+.bwc-code__box:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bwc-code.is-bad .bwc-code__box { border-color: var(--danger, var(--accent)); }

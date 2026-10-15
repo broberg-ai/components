@@ -15,7 +15,7 @@ import { makeOutsideClickHandler, selectKeyReducer, type SelectState } from "@br
 import type { Clip } from "./extract";
 import type { Destination, SendResult, Target } from "./transport";
 import { createClipper, type Clipper, type ClipperAuth, type ClipperOptions, type ClipperState } from "./engine";
-import type { KeyValueStorage } from "./auth";
+import type { EmbeddedLogin, EmbeddedState, KeyValueStorage } from "./auth";
 
 export type Lang = "da" | "en";
 export const TEXT = {
@@ -30,6 +30,19 @@ export const TEXT = {
     incomplete: "Ikke hele samtalen kom med",
     filesMissing: "Alle ture er gemt — {n} filer mangler",
     notAConversation: "Siden er ikke en samtale — der er intet at optage her",
+    // F099.24 — the embedded login (BID mockup 01a1409a)
+    elTitle: "Log ind for at gemme klip",
+    elLead: "Med dit BID. Vi sender en engangskode til din mail — du skal ikke bruge din adgangskode her.",
+    elEmail: "Mailadresse", elEmailPlaceholder: "navn@firma.dk", elSend: "Send kode", elSending: "Sender kode…",
+    elCheckMail: "Tjek din mail", elSentTo: "Vi har sendt en kode til {email}. Den virker i 10 minutter.",
+    elCode: "Kode", elVerify: "Log ind", elVerifying: "Logger ind…", elResend: "Send ny kode", elChangeEmail: "Anden mail",
+    el2faTitle: "Bekræft det er dig", el2faLead: "Din konto har tofaktor slået til. Skriv koden fra din godkendelses-app.",
+    el2faLeadSms: "Vi har sendt en kode på SMS.", el2faCode: "Kode fra app", el2faCodeSms: "Kode fra SMS", el2faVerify: "Bekræft", el2faSms: "Send en SMS i stedet",
+    elBadCode: "Koden passer ikke. Prøv igen, eller få en ny kode.", elAttemptsLeft: "{n} forsøg tilbage.",
+    elExpired: "Koden er udløbet. Få en ny kode.",
+    elLockedTitle: "Vent lidt", elLocked: "Der er prøvet for mange koder. Af hensyn til din konto kan du prøve igen om {min} minutter.",
+    elOfflineTitle: "Ingen forbindelse", elOffline: "Kan ikke nå BID lige nu. Tjek din internetforbindelse.", elRetry: "Prøv igen",
+    elInvalid: "Noget gik galt. Prøv igen.", elSecured: "Secured by",
   },
   en: {
     login: "Sign in with BID", loggingIn: "Signing in…", logout: "Sign out", loginAgain: "Sign in again",
@@ -42,6 +55,18 @@ export const TEXT = {
     filesMissing: "Every turn was saved — {n} files are missing",
     incomplete: "Not the whole conversation was clipped",
     notAConversation: "This page is not a conversation — there is nothing to record here",
+    elTitle: "Sign in to save clips",
+    elLead: "With your BID. We send a one-time code to your mail — no password here.",
+    elEmail: "Email address", elEmailPlaceholder: "name@company.com", elSend: "Send code", elSending: "Sending code…",
+    elCheckMail: "Check your mail", elSentTo: "We sent a code to {email}. It works for 10 minutes.",
+    elCode: "Code", elVerify: "Sign in", elVerifying: "Signing in…", elResend: "Send a new code", elChangeEmail: "Other email",
+    el2faTitle: "Confirm it is you", el2faLead: "Your account has two-factor on. Enter the code from your authenticator app.",
+    el2faLeadSms: "We sent a code by SMS.", el2faCode: "Code from app", el2faCodeSms: "Code from SMS", el2faVerify: "Confirm", el2faSms: "Send an SMS instead",
+    elBadCode: "That code is not right. Try again, or get a new code.", elAttemptsLeft: "{n} attempts left.",
+    elExpired: "The code has expired. Get a new code.",
+    elLockedTitle: "Hold on", elLocked: "Too many codes were tried. To protect your account, try again in {min} minutes.",
+    elOfflineTitle: "No connection", elOffline: "BID cannot be reached right now. Check your connection.", elRetry: "Try again",
+    elInvalid: "Something went wrong. Try again.", elSecured: "Secured by",
   },
 } as const;
 /** Every text the popup shows; ClipperPopup's `text` overrides any of them. */
@@ -140,10 +165,197 @@ export function TargetPicker(p: { targets: Target[]; value: string | null; onCha
 }
 const labelOf = (t: Target) => (t.group ? `${t.group} · ${t.label}` : t.label);
 
+// ── the embedded login (F099.24) ─────────────────────────────────────────────
+
+/** Six one-digit boxes; typing moves on, Backspace moves back, pasting a whole code fills them all. */
+export function CodeInput(p: { testid: string; label: string; value: string; onValue: (v: string) => void; bad?: boolean; disabled?: boolean }) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const digits = Array.from({ length: 6 }, (_, i) => p.value[i] ?? "");
+  const put = (from: number, text: string) => {
+    const clean = text.replace(/\D/g, "");
+    if (!clean) return;
+    const next = (p.value.slice(0, from) + clean).slice(0, 6);
+    p.onValue(next);
+    refs.current[Math.min(next.length, 5)]?.focus();
+  };
+  return (
+    <div class="bwc-field">
+      <span class="bwc-field__label" id={`${p.testid}-label`}>{p.label}</span>
+      <div class={"bwc-code" + (p.bad ? " is-bad" : "")} data-testid={p.testid} role="group" aria-labelledby={`${p.testid}-label`}>
+        {digits.map((d, i) => (
+          <input
+            key={i}
+            ref={(el) => { refs.current[i] = el; }}
+            class="bwc-code__box"
+            data-testid={`${p.testid}-${i}`}
+            inputMode="numeric"
+            autoComplete={i === 0 ? "one-time-code" : "off"}
+            // No maxLength: autofill of a one-time code (and a typed/filled whole code) lands in box 0 as ALL
+            // six digits; maxLength=1 cut it to one (measured by Lens 15/10). put() spreads them instead.
+            value={d}
+            disabled={p.disabled}
+            aria-label={`${p.label} ${i + 1}`}
+            onInput={(e) => {
+              const v = (e.currentTarget as HTMLInputElement).value;
+              if (v.length > 1) return put(i, v);
+              if (/\d/.test(v)) put(i, v);
+              else p.onValue(p.value.slice(0, i));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Backspace" && !digits[i] && i > 0) {
+                p.onValue(p.value.slice(0, i - 1));
+                refs.current[i - 1]?.focus();
+              }
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              put(i, e.clipboardData?.getData("text") ?? "");
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The step's error in words; null when there is none. */
+function errorWords(state: EmbeddedState, t: ClipperTexts): string | null {
+  const e = state.error;
+  if (!e) return null;
+  switch (e.kind) {
+    case "invalid_code":
+      return e.attemptsLeft !== undefined ? `${t.elBadCode} ${t.elAttemptsLeft.replace("{n}", String(e.attemptsLeft))}` : t.elBadCode;
+    case "expired":
+      return t.elExpired;
+    case "invalid_request":
+      return t.elInvalid;
+    default:
+      return null; // locked / too_many / unavailable / not_embedded have their own screens
+  }
+}
+
+/**
+ * F099.24 — the embedded login as a screen (BID's mockup 01a1409a): mail → code → second factor.
+ * ONE way to draw auth.embedded(); draw your own on the same engine if your popup looks different.
+ * Calls `onSignedIn` once the session is stored; `onFallback` when BID says this client may not
+ * log in here (fall back to the login window).
+ */
+export function EmbeddedLoginForm(p: { login: EmbeddedLogin; lang?: Lang; text?: Partial<ClipperTexts>; onSignedIn: () => void; onFallback?: () => void }) {
+  const t: ClipperTexts = { ...TEXT[p.lang ?? "da"], ...p.text };
+  const [s, setS] = useState<EmbeddedState>(p.login.state());
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  useEffect(() => {
+    const off = p.login.subscribe(setS);
+    void p.login.resume();
+    return off;
+  }, [p.login]);
+  useEffect(() => {
+    if (s.step === "signed_in") p.onSignedIn();
+    if (s.error?.kind === "not_embedded") p.onFallback?.();
+    if (s.step !== "code" && s.step !== "second_factor") setCode("");
+  }, [s.step, s.error?.kind]);
+
+  const err = errorWords(s, t);
+  const brand = (
+    <div class="bwc-bid">
+      <span class="bwc-bid__mark">B<span class="bwc-bid__id">ID</span></span>
+    </div>
+  );
+  const secured = (
+    <p class="bwc-bid__secured">
+      {t.elSecured} <b>B<span class="bwc-bid__id">ID</span></b>
+    </p>
+  );
+  const wait = s.error && (s.error.kind === "locked" || s.error.kind === "too_many_requests") ? s.error : null;
+
+  if (wait) {
+    const min = Math.max(1, Math.ceil((wait.retryAfter ?? 600) / 60));
+    return (
+      <div class="bwc-login" data-testid="embedded-login-denied">
+        {brand}
+        <h2 class="bwc-login__title">{t.elLockedTitle}</h2>
+        <ClipperStatus tone="error" testid="embedded-login-error">{t.elLocked.replace("{min}", String(min))}</ClipperStatus>
+        <ClipperButton testid="embedded-login-restart" onClick={() => void p.login.restart()}>{t.elChangeEmail}</ClipperButton>
+        {secured}
+      </div>
+    );
+  }
+  if (s.error?.kind === "unavailable") {
+    return (
+      <div class="bwc-login" data-testid="embedded-login-offline">
+        {brand}
+        <h2 class="bwc-login__title">{t.elOfflineTitle}</h2>
+        <p class="bwc-login__lead">{t.elOffline}</p>
+        <ClipperButton testid="embedded-login-retry" primary onClick={() => void p.login.resume()}>{t.elRetry}</ClipperButton>
+        {secured}
+      </div>
+    );
+  }
+  if (s.step === "email") {
+    const ok = /.+@.+\..+/.test(email.trim());
+    return (
+      <form class="bwc-login" data-testid="embedded-login-email" onSubmit={(e) => { e.preventDefault(); if (ok && !s.busy) void p.login.start(email.trim()); }}>
+        {brand}
+        <h2 class="bwc-login__title">{t.elTitle}</h2>
+        <p class="bwc-login__lead">{t.elLead}</p>
+        <label class="bwc-field" for="embedded-login-email-input">
+          <span class="bwc-field__label">{t.elEmail}</span>
+          <input id="embedded-login-email-input" class="bwc-field__input" data-testid="embedded-login-email-input" type="email" autoComplete="email" placeholder={t.elEmailPlaceholder} value={email} disabled={s.busy} onInput={(e) => setEmail((e.currentTarget as HTMLInputElement).value)} />
+        </label>
+        {err ? <ClipperStatus tone="error" testid="embedded-login-error">{err}</ClipperStatus> : null}
+        <ClipperButton testid="embedded-login-send-code" primary busy={s.busy} disabled={!ok || s.busy} onClick={() => void p.login.start(email.trim())}>
+          {s.busy ? t.elSending : t.elSend}
+        </ClipperButton>
+        {secured}
+      </form>
+    );
+  }
+  if (s.step === "code") {
+    return (
+      <form class="bwc-login" data-testid="embedded-login-code" onSubmit={(e) => { e.preventDefault(); if (code.length === 6 && !s.busy) void p.login.verify(code); }}>
+        {brand}
+        <h2 class="bwc-login__title">{t.elCheckMail}</h2>
+        <p class="bwc-login__lead">{t.elSentTo.replace("{email}", s.email)}</p>
+        <CodeInput testid="embedded-login-code-input" label={t.elCode} value={code} onValue={setCode} bad={s.error?.kind === "invalid_code"} disabled={s.busy} />
+        {err ? <ClipperStatus tone="error" testid="embedded-login-error">{err}</ClipperStatus> : null}
+        <ClipperButton testid="embedded-login-verify" primary busy={s.busy} disabled={code.length !== 6 || s.busy} onClick={() => void p.login.verify(code)}>
+          {s.busy ? t.elVerifying : t.elVerify}
+        </ClipperButton>
+        <div class="bwc-login__links">
+          <ClipperButton testid="embedded-login-resend" disabled={s.busy} onClick={() => { setCode(""); void p.login.resend(); }}>{t.elResend}</ClipperButton>
+          <ClipperButton testid="embedded-login-change-email" disabled={s.busy} onClick={() => void p.login.restart()}>{t.elChangeEmail}</ClipperButton>
+        </div>
+        {secured}
+      </form>
+    );
+  }
+  if (s.step === "second_factor") {
+    const method: "totp" | "sms" = s.smsSent || !s.methods.includes("totp") ? "sms" : "totp";
+    return (
+      <form class="bwc-login" data-testid="embedded-login-2fa" onSubmit={(e) => { e.preventDefault(); if (code.length === 6 && !s.busy) void p.login.verifySecondFactor(method, code); }}>
+        {brand}
+        <h2 class="bwc-login__title">{t.el2faTitle}</h2>
+        <p class="bwc-login__lead">{method === "sms" && s.smsSent ? t.el2faLeadSms : t.el2faLead}</p>
+        <CodeInput testid="embedded-login-2fa-input" label={method === "sms" ? t.el2faCodeSms : t.el2faCode} value={code} onValue={setCode} bad={s.error?.kind === "invalid_code"} disabled={s.busy} />
+        {err ? <ClipperStatus tone="error" testid="embedded-login-error">{err}</ClipperStatus> : null}
+        <ClipperButton testid="embedded-login-2fa-verify" primary busy={s.busy} disabled={code.length !== 6 || s.busy} onClick={() => void p.login.verifySecondFactor(method, code)}>
+          {t.el2faVerify}
+        </ClipperButton>
+        {s.methods.includes("sms") && !s.smsSent ? (
+          <ClipperButton testid="embedded-login-2fa-sms" disabled={s.busy} onClick={() => { setCode(""); void p.login.sendSms(); }}>{t.el2faSms}</ClipperButton>
+        ) : null}
+        {secured}
+      </form>
+    );
+  }
+  return <ClipperStatus tone="busy">…</ClipperStatus>;
+}
+
 // ── the ready popup ──────────────────────────────────────────────────────────
 
-/** The login the popup needs (same as the engine's). */
-export type PopupAuth = ClipperAuth;
+/** The login the popup needs (same as the engine's); with `embedded` (F099.24) the popup logs in inside itself. */
+export type PopupAuth = ClipperAuth & { embedded?(): EmbeddedLogin };
 
 /** F099.8 — a text field the consumer adds to the popup (Trail: tags; Jam: a note). */
 export interface ClipperField {
@@ -213,6 +425,10 @@ export function ClipperPopup(p: ClipperPopupProps) {
     const f = fields();
     void clipper.clip({ ...(consent ? { consent: true } : {}), ...(f ? { fields: f } : {}) });
   };
+  // F099.24 — log in inside the popup when the auth offers it; the window stays as the fallback.
+  const embedded = useRef<EmbeddedLogin | null>(null);
+  if (!embedded.current && p.auth.embedded) embedded.current = p.auth.embedded();
+  const [windowLogin, setWindowLogin] = useState(false);
   const phase = s.phase;
   const loginError = phase.kind === "logged_out" ? (phase.reason === "login_again" ? t.loginAgain : phase.reason === "login_failed" ? `${t.loginFailed}: ${phase.message ?? ""}` : null) : null;
   const done = s.run.kind === "done" ? s.run : null;
@@ -226,7 +442,14 @@ export function ClipperPopup(p: ClipperPopupProps) {
 
       {phase.kind === "checking" ? <ClipperStatus tone="busy">…</ClipperStatus> : null}
 
-      {phase.kind === "logged_out" || phase.kind === "logging_in" ? (
+      {phase.kind === "logged_out" && embedded.current && !windowLogin ? (
+        <div class="bwc-popup__body">
+          {loginError && phase.reason === "login_again" ? <ClipperStatus tone="error">{loginError}</ClipperStatus> : null}
+          <EmbeddedLoginForm login={embedded.current} lang={p.lang} text={p.text} onSignedIn={() => void clipper.start()} onFallback={() => setWindowLogin(true)} />
+        </div>
+      ) : null}
+
+      {(phase.kind === "logged_out" && (!embedded.current || windowLogin)) || phase.kind === "logging_in" ? (
         <div class="bwc-popup__body">
           {loginError ? <ClipperStatus tone="error">{loginError}</ClipperStatus> : null}
           <ClipperButton testid="clipper-login" primary busy={phase.kind === "logging_in"} onClick={() => void clipper.login()}>
