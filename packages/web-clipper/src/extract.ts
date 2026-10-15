@@ -284,4 +284,4 @@ export function extractClip(doc: Document, url: URL, extractors: readonly Extrac
 
 // F099.9 — the chat readers live in ./chat and are part of /extract.
 import { fetchImages, imagesIncomplete, MAX_FILE_BYTES, type ImageRef } from "./chat";
-export { chatgptReader, claudeReader, createChatgptReader, createClaudeReader, chatReaders } from "./chat";
+export { chatgptReader, claudeReader, geminiReader, createChatgptReader, createClaudeReader, createGeminiReader, chatReaders } from "./chat";

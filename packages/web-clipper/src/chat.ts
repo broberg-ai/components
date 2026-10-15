@@ -849,7 +849,54 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
   };
 }
 
+// ── Gemini (F099.22) ─────────────────────────────────────────────────────────
+// Gemini fetches a conversation through Google's internal RPC (POST batchexecute), whose request
+// has not been measured yet — so this reader reads the SCREEN and says so: complete:false,
+// source:"dom". Structure measured 15/10 on a real page (jam docs/clipper-shapes/gemini.json):
+// div.conversation-container › user-query (.query-text p.query-text-line) + model-response
+// (message-content div.markdown). A long conversation keeps only part of itself on screen.
+
+function geminiIds(url: URL): { conversation?: string } {
+  const m = url.pathname.match(/\/app\/([0-9a-z_-]{6,})/i) ?? url.pathname.match(/^\/(?:u\/\d+\/)?gem\/[^/]+\/([0-9a-z_-]{6,})/i);
+  return m ? { conversation: m[1] } : {};
+}
+
+/** The turns on screen, in order. Exported for tests. */
+export function geminiScreen(doc: Document): Turn[] {
+  const turns: Turn[] = [];
+  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("user-query, model-response"))) {
+    if (el.tagName.toLowerCase() === "user-query") {
+      const lines = Array.from(el.querySelectorAll<HTMLElement>(".query-text-line"), (p) => (p.textContent ?? "").trim());
+      const text = (lines.length ? lines : [(el.querySelector(".query-text")?.textContent ?? "").trim()]).join("\n");
+      turns.push({ role: "user", text });
+    } else {
+      const md = el.querySelector<HTMLElement>("message-content .markdown") ?? el.querySelector<HTMLElement>("message-content");
+      turns.push({ role: "assistant", text: md ? htmlToMarkdown(md.innerHTML) : "" });
+    }
+  }
+  return turns;
+}
+
+export function createGeminiReader(): Extractor {
+  return {
+    id: "gemini",
+    matches: (url) => url.hostname === "gemini.google.com" && !!geminiIds(url).conversation,
+    async extract(doc, url) {
+      const units = toUnits(geminiScreen(doc));
+      if (!units.length) throw new NothingToClipError(url.href);
+      return {
+        url: url.href,
+        title: doc.title.replace(/\s*[-–|]\s*Gemini.*$/i, "").trim() || "Gemini",
+        anchor: geminiIds(url).conversation!,
+        units,
+        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — Geminis samtaledata kan endnu ikke hentes i sin helhed." },
+      };
+    },
+  };
+}
+
 export const chatgptReader: Extractor = createChatgptReader();
 export const claudeReader: Extractor = createClaudeReader();
-/** Both, ready for runContentScript(chatReaders). */
-export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader];
+export const geminiReader: Extractor = createGeminiReader();
+/** Every chat reader, ready for runContentScript(chatReaders). */
+export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader];
