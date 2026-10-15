@@ -71,8 +71,11 @@ export type EmbeddedError =
   | { kind: "too_many_requests"; retryAfter?: number }
   | { kind: "not_embedded" }
   | { kind: "invalid_request" }
-  /** F099.25 — the passkey frame said no: no key for this site on this device, or the check failed. Mail code still works. */
-  | { kind: "passkey"; reason: "not_found" | "failed" }
+  /**
+   * F099.25 — the passkey frame said no: no key for this site on this device, or the check failed. Mail code still works.
+   * F099.26 — "not_enabled": BID has no passkey login for this client (passkey/start 403/404/405) — show the mail code.
+   */
+  | { kind: "passkey"; reason: "not_found" | "failed" | "not_enabled" }
   | { kind: "unavailable"; message: string };
 
 /** F099.24 — where the embedded login stands. `busy` while a call is out; `error` from the last call. */
@@ -481,7 +484,13 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
         busy();
         const verifier = randomString(64);
         const r = await post("/passkey/start", { client_id: opts.clientId, code_challenge: await s256(verifier), code_challenge_method: "S256" });
-        if (!r.ok) return failed(null, r.error);
+        // A BID that will not start a passkey flow for us (no passkey for this client, an older BID, a request it
+        // refuses) means "use the mail code" — never the window fallback, and never a code error about a code
+        // nobody sent. Only a real outage or a rate limit keeps its own screen.
+        if (!r.ok) {
+          const keep = r.error.kind === "unavailable" || r.error.kind === "too_many_requests" || r.error.kind === "locked";
+          return failed(null, keep ? r.error : { kind: "passkey", reason: "not_enabled" });
+        }
         const { flow_id: flowId, frame_url: frameUrl } = r.body;
         if (typeof flowId !== "string" || typeof frameUrl !== "string") return failed(null, { kind: "unavailable", message: "BID's answer has no flow_id/frame_url" });
         // The frame must be BID's own page — never show (and grant the passkey permission to) anything else.

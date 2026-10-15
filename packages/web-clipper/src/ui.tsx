@@ -43,6 +43,11 @@ export const TEXT = {
     elLockedTitle: "Vent lidt", elLocked: "Der er prøvet for mange koder. Af hensyn til din konto kan du prøve igen om {min} minutter.",
     elOfflineTitle: "Ingen forbindelse", elOffline: "Kan ikke nå BID lige nu. Tjek din internetforbindelse.", elRetry: "Prøv igen",
     elInvalid: "Noget gik galt. Prøv igen.", elSecured: "Secured by",
+    // F099.26 — passkey first (BID mockup 01a1409a v2)
+    elPasskeyLead: "Med Face ID, fingeraftryk eller din telefon — uden at forlade udvidelsen.", elPasskeyFrame: "Log ind med adgangsnøgle",
+    elOther: "Andre muligheder", elMailCode: "Få en kode på mail", elBackPasskey: "← Log ind med adgangsnøgle",
+    elPasskeyNotFound: "Der er ingen adgangsnøgle til BID på denne enhed. Få en kode på mail under «Andre muligheder».",
+    elPasskeyFailed: "Adgangsnøglen virkede ikke. Prøv igen, eller få en kode på mail.",
   },
   en: {
     login: "Sign in with BID", loggingIn: "Signing in…", logout: "Sign out", loginAgain: "Sign in again",
@@ -67,6 +72,10 @@ export const TEXT = {
     elLockedTitle: "Hold on", elLocked: "Too many codes were tried. To protect your account, try again in {min} minutes.",
     elOfflineTitle: "No connection", elOffline: "BID cannot be reached right now. Check your connection.", elRetry: "Try again",
     elInvalid: "Something went wrong. Try again.", elSecured: "Secured by",
+    elPasskeyLead: "With Face ID, fingerprint or your phone — without leaving the extension.", elPasskeyFrame: "Sign in with a passkey",
+    elOther: "Other options", elMailCode: "Get a code by mail", elBackPasskey: "← Sign in with a passkey",
+    elPasskeyNotFound: "There is no BID passkey on this device. Get a code by mail under «Other options».",
+    elPasskeyFailed: "The passkey did not work. Try again, or get a code by mail.",
   },
 } as const;
 /** Every text the popup shows; ClipperPopup's `text` overrides any of them. */
@@ -229,6 +238,8 @@ function errorWords(state: EmbeddedState, t: ClipperTexts): string | null {
       return t.elExpired;
     case "invalid_request":
       return t.elInvalid;
+    case "passkey":
+      return e.reason === "not_found" ? t.elPasskeyNotFound : e.reason === "failed" ? t.elPasskeyFailed : null;
     default:
       return null; // locked / too_many / unavailable / not_embedded have their own screens
   }
@@ -236,6 +247,8 @@ function errorWords(state: EmbeddedState, t: ClipperTexts): string | null {
 
 /**
  * F099.24 — the embedded login as a screen (BID's mockup 01a1409a): mail → code → second factor.
+ * F099.26 — mockup v2: it opens on the passkey (BID's frame), the mail code under «Andre muligheder»;
+ * a client BID gives no passkey gets the mail screen straight away.
  * ONE way to draw auth.embedded(); draw your own on the same engine if your popup looks different.
  * Calls `onSignedIn` once the session is stored; `onFallback` when BID says this client may not
  * log in here (fall back to the login window).
@@ -245,9 +258,26 @@ export function EmbeddedLoginForm(p: { login: EmbeddedLogin; lang?: Lang; text?:
   const [s, setS] = useState<EmbeddedState>(p.login.state());
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  // F099.26 — «Andre muligheder» is open; and whether BID has a passkey for this client at all.
+  const [other, setOther] = useState(false);
+  const passkeyOff = useRef(false);
+  if (s.error?.kind === "passkey" && s.error.reason === "not_enabled") passkeyOff.current = true;
+  // True from mount until we know where to stand, and while a passkey flow is being started — so the
+  // mail screen never flashes before the frame.
+  const [starting, setStarting] = useState(true);
+  const passkey = async () => {
+    setOther(false);
+    if (p.login.state().step === "passkey") return;
+    setStarting(true);
+    await p.login.passkeyStart();
+    setStarting(false);
+  };
   useEffect(() => {
     const off = p.login.subscribe(setS);
-    void p.login.resume();
+    void p.login.resume().then(async (r) => {
+      if (r.step === "email" && (!r.error || r.error.kind === "expired")) await p.login.passkeyStart();
+      setStarting(false);
+    });
     return off;
   }, [p.login]);
   useEffect(() => {
@@ -292,21 +322,47 @@ export function EmbeddedLoginForm(p: { login: EmbeddedLogin; lang?: Lang; text?:
       </div>
     );
   }
-  if (s.step === "email") {
+  if ((s.step === "passkey" && !other) || (starting && s.step === "email" && !passkeyOff.current)) {
+    return (
+      <div class="bwc-login" data-testid="embedded-login-passkey">
+        {brand}
+        <h2 class="bwc-login__title">{t.elTitle}</h2>
+        <p class="bwc-login__lead">{t.elPasskeyLead}</p>
+        {s.step === "passkey" && !s.busy ? (
+          <iframe class="bwc-passkey-frame" data-testid="embedded-login-passkey-frame" src={s.frameUrl} allow="publickey-credentials-get" title={t.elPasskeyFrame} />
+        ) : (
+          <ClipperStatus tone="busy" testid="embedded-login-passkey-busy">{s.step === "passkey" ? t.elVerifying : "…"}</ClipperStatus>
+        )}
+        {err ? <ClipperStatus tone="error" testid="embedded-login-error">{err}</ClipperStatus> : null}
+        <div class="bwc-login__links bwc-login__links--center">
+          <ClipperButton testid="embedded-login-other-options" disabled={s.busy} onClick={() => setOther(true)}>{t.elOther}</ClipperButton>
+        </div>
+        {secured}
+      </div>
+    );
+  }
+  if (s.step === "email" || s.step === "passkey") {
     const ok = /.+@.+\..+/.test(email.trim());
+    const v1 = passkeyOff.current; // no passkey for this client: the mail screen IS the login
+    const mailErr = s.error?.kind === "passkey" ? null : err; // a passkey error belongs to the passkey screen
     return (
       <form class="bwc-login" data-testid="embedded-login-email" onSubmit={(e) => { e.preventDefault(); if (ok && !s.busy) void p.login.start(email.trim()); }}>
         {brand}
-        <h2 class="bwc-login__title">{t.elTitle}</h2>
-        <p class="bwc-login__lead">{t.elLead}</p>
+        <h2 class="bwc-login__title">{v1 ? t.elTitle : t.elOther}</h2>
+        {v1 ? <p class="bwc-login__lead">{t.elLead}</p> : null}
         <label class="bwc-field" for="embedded-login-email-input">
-          <span class="bwc-field__label">{t.elEmail}</span>
+          <span class="bwc-field__label">{v1 ? t.elEmail : t.elMailCode}</span>
           <input id="embedded-login-email-input" class="bwc-field__input" data-testid="embedded-login-email-input" type="email" autoComplete="email" placeholder={t.elEmailPlaceholder} value={email} disabled={s.busy} onInput={(e) => setEmail((e.currentTarget as HTMLInputElement).value)} />
         </label>
-        {err ? <ClipperStatus tone="error" testid="embedded-login-error">{err}</ClipperStatus> : null}
+        {mailErr ? <ClipperStatus tone="error" testid="embedded-login-error">{mailErr}</ClipperStatus> : null}
         <ClipperButton testid="embedded-login-send-code" primary busy={s.busy} disabled={!ok || s.busy} onClick={() => void p.login.start(email.trim())}>
           {s.busy ? t.elSending : t.elSend}
         </ClipperButton>
+        {v1 ? null : (
+          <div class="bwc-login__links bwc-login__links--center">
+            <ClipperButton testid="embedded-login-back-passkey" disabled={s.busy} onClick={() => void passkey()}>{t.elBackPasskey}</ClipperButton>
+          </div>
+        )}
         {secured}
       </form>
     );

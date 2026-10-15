@@ -197,6 +197,17 @@ describe("F099.25 — passkey login (contract v2)", () => {
     expect((await settle(login, "signed_in")).step).toBe("signed_in");
   });
 
+  it("passkey/start refused in any other way (403/404, an older BID's 400) → {step:email, error:{kind:passkey, reason:not_enabled}} — never the window, never a code error; an outage keeps its own error", async () => {
+    for (const [status, body] of [[403, { error: "client_not_embedded" }], [404, {}], [400, { error: "expired" }], [400, { error: "invalid_request" }]] as const) {
+      const fetchImpl = (async () => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+      const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl, now: () => 1_800_000_000_000, messages: new EventTarget() as never });
+      expect(strip(await auth.embedded!().passkeyStart())).toStrictEqual({ step: "email", busy: false, error: { kind: "passkey", reason: "not_enabled" } });
+    }
+    const down = (async () => { throw new TypeError("Failed to fetch"); }) as unknown as typeof fetch;
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl: down, now: () => 1_800_000_000_000, messages: new EventTarget() as never });
+    expect(strip(await auth.embedded!().passkeyStart())).toMatchObject({ step: "email", error: { kind: "unavailable" } });
+  });
+
   it("a frame_url off BID's origin is refused — the popup never frames (and grants the passkey permission to) another site", async () => {
     const bid = contractBid();
     const fetchImpl = (async (input: unknown, init?: RequestInit) =>

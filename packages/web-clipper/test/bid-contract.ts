@@ -15,7 +15,7 @@ export async function s256(v: string) {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 /** BID per contract v1: the mail code is 481072, the app code 123456, the SMS code 777777; 5 wrong codes lock the flow. */
-export function contractBid(o: { secondFactor?: ("totp" | "sms")[]; embedded?: boolean } = {}) {
+export function contractBid(o: { secondFactor?: ("totp" | "sms")[]; embedded?: boolean; passkey?: boolean } = {}) {
   const flows = new Map<string, { email: string; challenge: string; wrong: number; stage: "code" | "second"; smsSent: boolean }>();
   const codes = new Map<string, string>(); // authorization code → challenge
   const passkeys = new Map<string, { challenge: string; confirmed: boolean }>();
@@ -44,6 +44,7 @@ export function contractBid(o: { secondFactor?: ("totp" | "sms")[]; embedded?: b
       return Response.json({ flow_id: id, expires_in: 600 });
     }
     // F099.25 — contract v2 (broberg-ai/broberg-id@3c8e6bc «KONTRAKT v2»): the frame confirms the key at BID; complete swaps it for a code.
+    if (o.passkey === false && url.pathname.startsWith("/embedded/passkey/")) return err(404, {}); // a BID without passkey for this client
     if (url.pathname === "/embedded/passkey/start") {
       if (body.code_challenge_method !== "S256" || typeof body.code_challenge !== "string") return err(400, { error: "invalid_request" });
       const id = `pk-${++n}`;

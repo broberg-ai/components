@@ -5,6 +5,9 @@
 // ?state=embedded (F099.24) logs in INSIDE the popup with the real engine against an in-page fake
 // BID that follows contract v1: mail code 481072; ?state=embedded-2fa adds a second factor
 // (app 123456, SMS 777777). Five wrong codes lock the flow.
+// ?state=embedded-passkey (F099.26) opens on the passkey: the in-page BID lives on this page's own
+// origin and server.ts serves a stand-in frame that posts the answer. The other embedded states
+// are a client WITHOUT a passkey (404), so they keep the classic mail screen.
 import "@broberg/theme/css/palettes.css";
 import "@broberg/web-clipper/css/clipper.css";
 import { render } from "preact";
@@ -28,7 +31,7 @@ const fakeAuth = {
 };
 
 /** An in-page BID per F084.166 contract v1 — invented, for the preview only. */
-function fakeBidFetch(secondFactor: boolean): typeof fetch {
+function fakeBidFetch(secondFactor: boolean, passkey = false): typeof fetch {
   const flows = new Map<string, { wrong: number; sms: boolean }>();
   let n = 0;
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -39,6 +42,9 @@ function fakeBidFetch(secondFactor: boolean): typeof fetch {
     if (url.pathname === "/.well-known/openid-configuration") return json(200, { authorization_endpoint: `${url.origin}/oauth2/authorize`, token_endpoint: `${url.origin}/oauth2/token` });
     if (url.pathname === "/oauth2/token") return json(200, { access_token: "demo", refresh_token: "demo-r", expires_in: 3600, id_token: id({ sub: "demo-user" }) });
     const body = JSON.parse(String(init?.body ?? "{}"));
+    if (passkey && url.pathname === "/embedded/passkey/start") { const f = `pk-${++n}`; return json(200, { flow_id: f, frame_url: `${url.origin}/embedded/passkey/frame?flow=${f}`, expires_in: 600 }); }
+    if (passkey && url.pathname === "/embedded/passkey/complete") return json(200, { next: "done", code: "demo-code" });
+    if (url.pathname.startsWith("/embedded/passkey/")) return json(404, {}); // a client without a passkey, as BID answers it
     if (url.pathname === "/embedded/start") { const f = `flow-${++n}`; flows.set(f, { wrong: 0, sms: false }); return json(200, { flow_id: f, expires_in: 600 }); }
     const f = flows.get(body.flow_id);
     if (!f) return json(400, { error: "expired" });
@@ -49,9 +55,10 @@ function fakeBidFetch(secondFactor: boolean): typeof fetch {
     return json(404, {});
   }) as typeof fetch;
 }
-const auth = mode === "embedded" || mode === "embedded-2fa"
+const embedded = mode === "embedded" || mode === "embedded-2fa" || mode === "embedded-passkey";
+const auth = embedded
   ? createBidAuth({
-      issuer: "https://id.example.invalid", clientId: "example-clipper", storage, fetchImpl: fakeBidFetch(mode === "embedded-2fa"),
+      issuer: mode === "embedded-passkey" ? location.origin : "https://id.example.invalid", clientId: "example-clipper", storage, fetchImpl: fakeBidFetch(mode === "embedded-2fa", mode === "embedded-passkey"),
       identity: { getRedirectURL: () => "https://example.invalid/", launchWebAuthFlow: async () => undefined },
     })
   : fakeAuth;
@@ -72,7 +79,7 @@ const clip = mode === "consent"
 render(
   <div style="padding:24px;display:flex;justify-content:center">
     <div style="border:1px solid var(--border);border-radius:var(--radius,8px);overflow:visible">
-      <ClipperPopup title="Web Clipper Example" auth={auth} destination={destination} getClip={async () => clip} storage={storage} fields={[{ id: "tags", label: "Emneord", placeholder: "kommasepareret" }]} embeddedLogin={mode === "embedded" || mode === "embedded-2fa"} />
+      <ClipperPopup title="Web Clipper Example" auth={auth} destination={destination} getClip={async () => clip} storage={storage} fields={[{ id: "tags", label: "Emneord", placeholder: "kommasepareret" }]} embeddedLogin={embedded} />
     </div>
   </div>,
   document.getElementById("app")!,

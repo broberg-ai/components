@@ -12,8 +12,9 @@ import { contractBid, identity, ISS, memory } from "./bid-contract";
 
 const page: Clip = { url: "https://example.com/", title: "Side", units: [{ kind: "page", content: "# side", position: 0 }] };
 const dest: Destination = { id: "jam", label: "Jam", targets: async () => [{ id: "org-1", label: "Min org" }], async send() {} };
-const popup = (o: { secondFactor?: ("totp" | "sms")[]; embedded?: boolean } = {}) => {
-  const bid = contractBid(o);
+// F099.24's tests run as a client BID gives NO passkey (F099.26): the classic mail screen, never the window.
+const popup = (o: { secondFactor?: ("totp" | "sms")[]; embedded?: boolean; passkey?: boolean } = {}) => {
+  const bid = contractBid({ passkey: false, ...o });
   const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl: bid.fetchImpl });
   render(<ClipperPopup title="Jam Clipper" auth={auth} destination={dest} getClip={async () => page} storage={memory()} embeddedLogin />);
   return bid;
@@ -38,7 +39,7 @@ describe("F099.24 — embedded login screen", () => {
     fireEvent.click(screen.getByTestId("embedded-login-verify"));
     await screen.findByTestId("clipper-target-button");
     expect(screen.getByTestId("clipper-root").getAttribute("data-phase")).toBe("ready");
-    expect(bid.log.map((c) => c.path)).toStrictEqual(["/embedded/start", "/embedded/verify", "/oauth2/token"]);
+    expect(bid.log.map((c) => c.path)).toStrictEqual(["/embedded/passkey/start", "/embedded/start", "/embedded/verify", "/oauth2/token"]);
   });
 
   it("a whole code typed or autofilled into the FIRST box spreads over all six (no maxLength cut) — Lens 15/10", async () => {
@@ -103,5 +104,68 @@ describe("F099.24 — embedded login screen", () => {
     fireEvent.click(screen.getByTestId("embedded-login-send-code"));
     await screen.findByTestId("clipper-login");
     expect(screen.queryByTestId("embedded-login-email")).toBeNull();
+  });
+});
+
+// F099.26 — mockup v2: the popup opens on the passkey (BID's frame), the mail code under «Andre muligheder».
+describe("F099.26 — passkey first", () => {
+  const withPasskey = (o: { onFallback?: () => void } = {}) => {
+    const bid = contractBid();
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl: bid.fetchImpl });
+    render(<ClipperPopup title="Jam Clipper" auth={auth} destination={dest} getClip={async () => page} storage={memory()} embeddedLogin />);
+    return bid;
+  };
+  const frameSays = (data: object) => window.dispatchEvent(new MessageEvent("message", { data: { type: "bid-embedded-passkey", ...data }, origin: ISS }));
+
+  it("opens on the passkey screen with BID's frame (allow publickey-credentials-get); the frame's ok → signed in → the targets load", async () => {
+    const bid = withPasskey();
+    const frame = (await screen.findByTestId("embedded-login-passkey-frame")) as HTMLIFrameElement;
+    expect(screen.queryByTestId("embedded-login-email")).toBeNull();
+    const flowId = [...bid.passkeys.keys()][0]!;
+    expect(frame.getAttribute("src")).toBe(`${ISS}/embedded/passkey/frame?flow=${flowId}`);
+    expect(frame.getAttribute("allow")).toBe("publickey-credentials-get");
+    expect(screen.getByTestId("embedded-login-passkey").textContent).toContain("Med Face ID, fingeraftryk eller din telefon");
+    bid.confirmPasskey(flowId);
+    frameSays({ flow_id: flowId, ok: true });
+    await screen.findByTestId("clipper-target-button");
+    expect(bid.log.map((c) => c.path)).toStrictEqual(["/embedded/passkey/start", "/embedded/passkey/complete", "/oauth2/token"]);
+  });
+
+  it("no key on this device → says so in words on the passkey screen; «Andre muligheder» → mail → code → signed in", async () => {
+    const bid = withPasskey();
+    await screen.findByTestId("embedded-login-passkey-frame");
+    frameSays({ flow_id: [...bid.passkeys.keys()][0], ok: false, error: "not_found" });
+    expect((await screen.findByTestId("embedded-login-error")).textContent).toBe("Der er ingen adgangsnøgle til BID på denne enhed. Få en kode på mail under «Andre muligheder».");
+    fireEvent.click(screen.getByTestId("embedded-login-other-options"));
+    const form = await screen.findByTestId("embedded-login-email");
+    expect(form.querySelector(".bwc-login__title")!.textContent).toBe("Andre muligheder");
+    expect(form.textContent).toContain("Få en kode på mail");
+    expect(screen.queryByTestId("embedded-login-error")).toBeNull(); // the passkey's error stays on the passkey screen (Lens 15/10)
+    type("embedded-login-email-input", "anne@eksempel.dk");
+    fireEvent.click(screen.getByTestId("embedded-login-send-code"));
+    await screen.findByTestId("embedded-login-code");
+    paste("embedded-login-code-input", "481072");
+    fireEvent.click(screen.getByTestId("embedded-login-verify"));
+    await screen.findByTestId("clipper-target-button");
+  });
+
+  it("«← Log ind med adgangsnøgle» goes back to the same frame (no new flow while it is still live)", async () => {
+    const bid = withPasskey();
+    await screen.findByTestId("embedded-login-passkey-frame");
+    fireEvent.click(screen.getByTestId("embedded-login-other-options"));
+    await screen.findByTestId("embedded-login-email");
+    expect(screen.queryByTestId("embedded-login-passkey-frame")).toBeNull();
+    fireEvent.click(screen.getByTestId("embedded-login-back-passkey"));
+    await screen.findByTestId("embedded-login-passkey-frame");
+    expect(bid.log.filter((c) => c.path === "/embedded/passkey/start").length).toBe(1);
+  });
+
+  it("NEGATIVE CONTROL: a client WITHOUT a passkey at BID gets the classic mail screen — no back link, and never the window", async () => {
+    popup(); // passkey: false
+    const form = await screen.findByTestId("embedded-login-email");
+    expect(form.querySelector(".bwc-login__title")!.textContent).toBe("Log ind for at gemme klip");
+    expect(screen.queryByTestId("embedded-login-back-passkey")).toBeNull();
+    expect(screen.queryByTestId("embedded-login-passkey-frame")).toBeNull();
+    expect(screen.queryByTestId("clipper-login")).toBeNull();
   });
 });
