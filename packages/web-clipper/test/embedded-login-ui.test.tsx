@@ -160,6 +160,19 @@ describe("F099.26 — passkey first", () => {
     expect(bid.log.filter((c) => c.path === "/embedded/passkey/start").length).toBe(1);
   });
 
+  it("no connection while starting the passkey → «Ingen forbindelse»; «Prøv igen» starts the passkey again (not the mail screen)", async () => {
+    const bid = contractBid(); let down = true;
+    const fetchImpl = (async (input: unknown, init?: RequestInit) => {
+      if (down && new URL(String(input)).pathname === "/embedded/passkey/start") { down = false; throw new TypeError("Failed to fetch"); }
+      return bid.fetchImpl(input as RequestInfo, init);
+    }) as typeof fetch;
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl });
+    render(<ClipperPopup title="Jam Clipper" auth={auth} destination={dest} getClip={async () => page} storage={memory()} embeddedLogin />);
+    fireEvent.click(await screen.findByTestId("embedded-login-retry"));
+    await screen.findByTestId("embedded-login-passkey-frame");
+    expect(screen.queryByTestId("embedded-login-email")).toBeNull();
+  });
+
   it("NEGATIVE CONTROL: a client WITHOUT a passkey at BID gets the classic mail screen — no back link, and never the window", async () => {
     popup(); // passkey: false
     const form = await screen.findByTestId("embedded-login-email");

@@ -317,7 +317,7 @@ export function EmbeddedLoginForm(p: { login: EmbeddedLogin; lang?: Lang; text?:
         {brand}
         <h2 class="bwc-login__title">{t.elOfflineTitle}</h2>
         <p class="bwc-login__lead">{t.elOffline}</p>
-        <ClipperButton testid="embedded-login-retry" primary onClick={() => void p.login.resume()}>{t.elRetry}</ClipperButton>
+        <ClipperButton testid="embedded-login-retry" primary onClick={() => void p.login.resume().then((r) => { if (r.step === "email" && !r.error && !other && !passkeyOff.current) void passkey(); })}>{t.elRetry}</ClipperButton>
         {secured}
       </div>
     );
