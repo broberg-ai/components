@@ -54,6 +54,53 @@ export interface BidAuth extends SessionSource {
   /** Interactive login. Resolves with the session, or throws BidLoginError. */
   login(): Promise<Session>;
   logout(): Promise<void>;
+  /**
+   * F099.24 — the login INSIDE the popup (BID F084.166 contract v1): no window, a code by mail,
+   * then a second factor if the account has one. Ends in the same Session as login().
+   */
+  embedded?(): EmbeddedLogin;
+}
+
+/** F099.24 — what can go wrong on a step, as data the popup can word and style itself. */
+export type EmbeddedError =
+  | { kind: "invalid_code"; attemptsLeft?: number }
+  | { kind: "expired" }
+  | { kind: "locked"; retryAfter?: number }
+  | { kind: "too_many_requests"; retryAfter?: number }
+  | { kind: "not_embedded" }
+  | { kind: "invalid_request" }
+  | { kind: "unavailable"; message: string };
+
+/** F099.24 — where the embedded login stands. `busy` while a call is out; `error` from the last call. */
+export type EmbeddedState = { busy: boolean; error?: EmbeddedError } & (
+  | { step: "email" }
+  | { step: "code"; email: string; expiresAt: number }
+  | { step: "second_factor"; email: string; methods: ("totp" | "sms")[]; smsSent: boolean }
+  | { step: "signed_in"; session: Session }
+);
+
+export interface EmbeddedLogin {
+  /** The current state. */
+  state(): EmbeddedState;
+  /** Called on every change; returns the unsubscribe. */
+  subscribe(fn: (s: EmbeddedState) => void): () => void;
+  /**
+   * Pick up a flow a closed popup left behind (the user went to their mail for the code and Chrome
+   * closed the popup). Call once when the popup opens.
+   */
+  resume(): Promise<EmbeddedState>;
+  /** Send a code to this address. The answer is the same whether the account exists or not. */
+  start(email: string): Promise<EmbeddedState>;
+  /** The code from the mail. */
+  verify(code: string): Promise<EmbeddedState>;
+  /** Ask for the second-factor code by SMS (when `methods` has "sms"). */
+  sendSms(): Promise<EmbeddedState>;
+  /** The second-factor code from the authenticator app ("totp") or the SMS. */
+  verifySecondFactor(method: "totp" | "sms", code: string): Promise<EmbeddedState>;
+  /** A new code to the same address (a new flow). */
+  resend(): Promise<EmbeddedState>;
+  /** Back to the email step, forgetting the flow. */
+  restart(): Promise<EmbeddedState>;
 }
 
 /** The user cancelled, BID refused the login, or the answer did not match the request. */
@@ -209,7 +256,7 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
     throw new BidTicketRefusedError(reason || r.error, `BID refused a ticket for ${opts.audience}: ${r.description || r.error}`);
   }
 
-  return {
+  const api: BidAuth = {
     async login() {
       const { authorization_endpoint } = await discover();
       const verifier = randomString(64);
@@ -243,7 +290,7 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
       if (!r.ok) throw new BidLoginError("token_refused", `BID refused the code (HTTP ${r.status}): ${r.error} ${r.description}`.trim());
       ticket = null;
       await save(r.body, null);
-      const session = await this.session();
+      const session = await api.session();
       if (!session) throw new BidLoginError("token_refused", "logged in, but BID refused the session right after");
       return session;
     },
@@ -265,7 +312,154 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
     async logout() {
       await ended();
     },
+
+    embedded() {
+      return embeddedLogin();
+    },
   };
+
+  /** F099.24 — the embedded login against BID's /embedded/* (F084.166 contract v1). */
+  function embeddedLogin(): EmbeddedLogin {
+    const FLOW = `${KEY}:embedded`;
+    interface Flow { flowId: string; verifier: string; email: string; expiresAt: number; step: "code" | "second_factor"; methods?: ("totp" | "sms")[]; smsSent?: boolean }
+    let state: EmbeddedState = { step: "email", busy: false };
+    const subs = new Set<(s: EmbeddedState) => void>();
+    const set = (next: EmbeddedState): EmbeddedState => {
+      state = next;
+      for (const fn of subs) fn(state);
+      return state;
+    };
+    const fromFlow = (f: Flow, error?: EmbeddedError): EmbeddedState =>
+      f.step === "code"
+        ? { step: "code", email: f.email, expiresAt: f.expiresAt, busy: false, ...(error ? { error } : {}) }
+        : { step: "second_factor", email: f.email, methods: f.methods ?? [], smsSent: f.smsSent ?? false, busy: false, ...(error ? { error } : {}) };
+    const loadFlow = async (): Promise<Flow | null> => {
+      const f = (await storage.get(FLOW)) as Flow | null | undefined;
+      return f && typeof f.flowId === "string" && typeof f.verifier === "string" ? f : null;
+    };
+    const forget = () => storage.remove(FLOW);
+
+    /** One call to /embedded/*: the body on 200, or the contract's error as data. */
+    async function post(path: string, body: Record<string, unknown>): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; error: EmbeddedError }> {
+      let res: Response;
+      try {
+        res = await call(`${issuer}/embedded${path}`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body) });
+      } catch (e) {
+        return { ok: false, error: { kind: "unavailable", message: e instanceof Error ? e.message : String(e) } };
+      }
+      const json = ((await readJson(res).catch(() => ({}))) ?? {}) as Record<string, unknown>;
+      if (res.ok) return { ok: true, body: json };
+      const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+      const code = typeof json.error === "string" ? json.error : "";
+      if (res.status === 400 && code === "invalid_code") return { ok: false, error: { kind: "invalid_code", ...(num(json.attempts_left) !== undefined ? { attemptsLeft: num(json.attempts_left) } : {}) } };
+      if (res.status === 400 && code === "expired") return { ok: false, error: { kind: "expired" } };
+      if (res.status === 400) return { ok: false, error: { kind: "invalid_request" } };
+      if (res.status === 403 && code === "client_not_embedded") return { ok: false, error: { kind: "not_embedded" } };
+      if (res.status === 429) return { ok: false, error: { kind: code === "locked" ? "locked" : "too_many_requests", ...(num(json.retry_after) !== undefined ? { retryAfter: num(json.retry_after) } : {}) } };
+      return { ok: false, error: { kind: "unavailable", message: `BID answered ${res.status}${code ? ` (${code})` : ""}` } };
+    }
+
+    /** A step failed: expired and locked end the flow (back to email); anything else stays where it is. */
+    async function failed(f: Flow | null, error: EmbeddedError): Promise<EmbeddedState> {
+      if (error.kind === "expired" || error.kind === "locked") {
+        await forget();
+        return set({ step: "email", busy: false, error });
+      }
+      return set(f ? fromFlow(f, error) : { step: "email", busy: false, error });
+    }
+
+    /** The authorization code from BID, swapped exactly as after the login window — the same Session. */
+    async function done(code: string, f: Flow): Promise<EmbeddedState> {
+      const r = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: identity.getRedirectURL(), client_id: opts.clientId, code_verifier: f.verifier }).catch(
+        (e: unknown) => ({ ok: false as const, status: 0, error: "unavailable", description: e instanceof Error ? e.message : String(e) }),
+      );
+      if (!r.ok) return failed(f, { kind: "unavailable", message: `BID refused the code (HTTP ${r.status}): ${r.error} ${r.description}`.trim() });
+      ticket = null;
+      await save(r.body, null);
+      await forget();
+      const session = await api.session();
+      if (!session) return failed(null, { kind: "unavailable", message: "logged in, but BID refused the session right after" });
+      return set({ step: "signed_in", session, busy: false });
+    }
+
+    async function next(body: Record<string, unknown>, f: Flow): Promise<EmbeddedState> {
+      if (body.next === "done" && typeof body.code === "string") return done(body.code, f);
+      if (body.next === "second_factor") {
+        const methods = (Array.isArray(body.methods) ? body.methods : []).filter((m): m is "totp" | "sms" => m === "totp" || m === "sms");
+        const g: Flow = { ...f, step: "second_factor", methods, smsSent: false };
+        await storage.set(FLOW, g);
+        return set(fromFlow(g));
+      }
+      return failed(f, { kind: "unavailable", message: "BID's answer names no next step" });
+    }
+
+    const busy = () => set({ ...state, busy: true, error: undefined } as EmbeddedState);
+
+    return {
+      state: () => state,
+      subscribe(fn) {
+        subs.add(fn);
+        return () => subs.delete(fn);
+      },
+      async resume() {
+        const f = await loadFlow();
+        if (!f) return set({ step: "email", busy: false });
+        if (f.expiresAt <= now()) {
+          await forget();
+          return set({ step: "email", busy: false, error: { kind: "expired" } });
+        }
+        return set(fromFlow(f));
+      },
+      async start(email) {
+        busy();
+        const verifier = randomString(64);
+        const r = await post("/start", { client_id: opts.clientId, email, code_challenge: await s256(verifier), code_challenge_method: "S256" });
+        if (!r.ok) return failed(null, r.error);
+        const flowId = r.body.flow_id;
+        if (typeof flowId !== "string") return failed(null, { kind: "unavailable", message: "BID's answer has no flow_id" });
+        const expiresIn = typeof r.body.expires_in === "number" ? r.body.expires_in : 600;
+        const f: Flow = { flowId, verifier, email, expiresAt: now() + expiresIn * 1000, step: "code" };
+        await storage.set(FLOW, f);
+        return set(fromFlow(f));
+      },
+      async verify(code) {
+        const f = await loadFlow();
+        if (!f) return failed(null, { kind: "expired" });
+        busy();
+        const r = await post("/verify", { flow_id: f.flowId, code });
+        return r.ok ? next(r.body, f) : failed(f, r.error);
+      },
+      async sendSms() {
+        const f = await loadFlow();
+        if (!f) return failed(null, { kind: "expired" });
+        busy();
+        const r = await post("/second-factor/sms", { flow_id: f.flowId });
+        if (!r.ok) return failed(f, r.error);
+        const g: Flow = { ...f, smsSent: true };
+        await storage.set(FLOW, g);
+        return set(fromFlow(g));
+      },
+      async verifySecondFactor(method, code) {
+        const f = await loadFlow();
+        if (!f) return failed(null, { kind: "expired" });
+        busy();
+        const r = await post("/second-factor", { flow_id: f.flowId, method, code });
+        return r.ok ? next(r.body, f) : failed(f, r.error);
+      },
+      async resend() {
+        const f = await loadFlow();
+        const email = f?.email ?? ("email" in state ? state.email : undefined);
+        if (!email) return set({ step: "email", busy: false });
+        return this.start(email);
+      },
+      async restart() {
+        await forget();
+        return set({ step: "email", busy: false });
+      },
+    };
+  }
+
+  return api;
 }
 
 function subOf(idToken: string): string | null {
@@ -364,6 +558,8 @@ export function popupAuth(auth: BidAuth, runtime: RuntimeApi = chromeRuntime()):
     },
     session: (options) => auth.session(options),
     logout: () => auth.logout(),
+    // The embedded login runs in the popup itself (no window takes focus); its flow survives a closed popup in storage.
+    ...(auth.embedded ? { embedded: () => auth.embedded!() } : {}),
   };
 }
 
