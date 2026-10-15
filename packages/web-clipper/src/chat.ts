@@ -939,9 +939,61 @@ export function createPerplexityReader(): Extractor {
   };
 }
 
+// ── Microsoft 365 Copilot (F099.22) ──────────────────────────────────────────
+// Read from the SCREEN: the page's data does not come over a fetch the sample could see, and the
+// message list is virtualised (only what is near the viewport exists). Structure measured 15/10 on
+// the owner's own conversation (copilot.cloud.microsoft, jam form extract): Fluent AI components —
+// .fai-UserMessage and .fai-CopilotMessage (role=article), the answer in .fai-CopilotMessage__content,
+// each with a visually-hidden accessible heading that must not reach the turn text.
+
+function copilotIds(url: URL): { conversation?: string } {
+  const m = url.pathname.match(/\/chat\/conversation\/([0-9a-z-]{8,})/i);
+  return m ? { conversation: m[1] } : {};
+}
+
+/** The text of a user message without its accessible heading, buttons and toolbars. */
+function copilotUserText(el: HTMLElement): string {
+  const own = el.querySelector<HTMLElement>(".fai-UserMessage__content");
+  const box = (own ?? el).cloneNode(true) as HTMLElement;
+  for (const x of Array.from(box.querySelectorAll('[class*="__accessibleHeading"], button, [role="toolbar"], [aria-hidden="true"]'))) x.remove();
+  return (box.textContent ?? "").trim();
+}
+
+/** The turns on screen, in order. Exported for tests. */
+export function copilotScreen(doc: Document): Turn[] {
+  const turns: Turn[] = [];
+  for (const el of Array.from(doc.querySelectorAll<HTMLElement>(".fai-UserMessage, .fai-CopilotMessage"))) {
+    if (el.classList.contains("fai-UserMessage")) turns.push({ role: "user", text: copilotUserText(el) });
+    else {
+      const body = el.querySelector<HTMLElement>(".fai-CopilotMessage__content");
+      turns.push({ role: "assistant", text: body ? htmlToMarkdown(body.innerHTML) : "" });
+    }
+  }
+  return turns;
+}
+
+export function createCopilotReader(): Extractor {
+  return {
+    id: "copilot",
+    matches: (url) => url.hostname === "copilot.cloud.microsoft" && !!copilotIds(url).conversation,
+    async extract(doc, url) {
+      const units = toUnits(copilotScreen(doc));
+      if (!units.length) throw new NothingToClipError(url.href);
+      return {
+        url: url.href,
+        title: doc.title.replace(/\s*[-–|]\s*(Microsoft 365 )?Copilot.*$/i, "").trim() || "Copilot",
+        anchor: copilotIds(url).conversation!,
+        units,
+        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — Copilot viser kun en del af samtalen ad gangen, og dens data kan endnu ikke hentes." },
+      };
+    },
+  };
+}
+
 export const chatgptReader: Extractor = createChatgptReader();
 export const claudeReader: Extractor = createClaudeReader();
 export const geminiReader: Extractor = createGeminiReader();
 export const perplexityReader: Extractor = createPerplexityReader();
+export const copilotReader: Extractor = createCopilotReader();
 /** Every chat reader, ready for runContentScript(chatReaders). */
-export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader];
+export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader, copilotReader];
