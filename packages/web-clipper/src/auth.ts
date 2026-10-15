@@ -382,7 +382,11 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
       stopListening();
       busy();
       const r = await post("/passkey/complete", { flow_id: f.flowId });
-      return r.ok ? next(r.body, f) : failed(f, r.error);
+      if (r.ok) return next(r.body, f);
+      const s = await failed(f, r.error);
+      // Still on the step (no connection, say): the frame's button can be pressed again, so hear it.
+      if (s.step === "passkey") listen(f);
+      return s;
     }
 
     /** One call to /embedded/*: the body on 200, or the contract's error as data. */

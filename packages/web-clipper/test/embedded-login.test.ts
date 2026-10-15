@@ -178,6 +178,25 @@ describe("F099.25 — passkey login (contract v2)", () => {
     expect(bid2.log.some((c) => c.path === "/embedded/passkey/complete")).toBe(false);
   });
 
+  it("complete fails for a moment (no connection) → stays on the passkey step with the error and still hears the frame — the next tap logs in", async () => {
+    const bid = contractBid(); let down = true;
+    const fetchImpl = (async (input: unknown, init?: RequestInit) => {
+      if (down && new URL(String(input)).pathname === "/embedded/passkey/complete") { down = false; throw new TypeError("Failed to fetch"); }
+      return bid.fetchImpl(input as RequestInfo, init);
+    }) as typeof fetch;
+    const win = new EventTarget() as never as Pick<Window, "addEventListener" | "removeEventListener"> & EventTarget;
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: memory(), fetchImpl, now: () => 1_800_000_000_000, messages: win });
+    const login = auth.embedded!();
+    await login.passkeyStart();
+    const flowId = [...bid.passkeys.keys()][0]!;
+    bid.confirmPasskey(flowId);
+    const ok = () => win.dispatchEvent(new MessageEvent("message", { data: { type: "bid-embedded-passkey", flow_id: flowId, ok: true }, origin: ISS }));
+    ok();
+    expect(await settle(login, "passkey")).toMatchObject({ step: "passkey", error: { kind: "unavailable", message: "BID did not answer: Failed to fetch" } });
+    ok();
+    expect((await settle(login, "signed_in")).step).toBe("signed_in");
+  });
+
   it("a frame_url off BID's origin is refused — the popup never frames (and grants the passkey permission to) another site", async () => {
     const bid = contractBid();
     const fetchImpl = (async (input: unknown, init?: RequestInit) =>
