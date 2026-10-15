@@ -240,6 +240,31 @@ try {
 - **Needs `SSO_CLIENT_SECRET`** — a public client cannot introspect. Since 0.18.0 (F084.160) that is `SsoConfigError`, thrown before any request (0.17.0 called it `SsoIntrospectionUnavailableError`, which sent callers down the 503-and-retry path for a fault that never goes away). Answer 500 and fix the setup; never retry. A wrong secret is reported as unavailable with "client id/secret was refused" — measured against id.broberg.ai.
 - **Cache** (optional, `cacheMs`): an active answer is reused up to that long and never past the token's `exp`; an inactive answer is never cached. The token itself never appears in an error message.
 
+## Login and signup in YOUR design — `client.embedded` (0.19.0, F084.165)
+
+For an app BID has allowed to draw its own login (BID F084.166 v1.1 + F084.167 — owner's exception,
+Jam first). Runs on YOUR SERVER as a confidential client (`clientSecret` required — BID gets
+`Authorization: Basic client_id:client_secret`). Ends in the SAME `LoginResult` as `completeLogin`,
+so your `signSession` step does not change.
+
+```ts
+const s = await client.embedded.start({ email, endUserIp, intent: "signup", name, termsVersion }); // intent/name/termsVersion only for signup
+if (s.ok) setCookie("bid_flow", await sealEmbeddedFlow(s.flow, cookieSecret), { httpOnly: true, maxAge: EMBEDDED_FLOW_MAX_AGE });
+// later, with the code from the mail:
+const f = await openEmbeddedFlow(getCookie("bid_flow"), cookieSecret);           // { ok, flow } | { ok:false, reason: absent|expired|unreadable }
+const step = f.ok ? await client.embedded.verify(f.flow, code) : null;          // done → step.result is a LoginResult
+// second_factor → client.embedded.sendSms(flow) / verifySecondFactor(flow, "totp"|"sms", code)
+const terms = await client.embedded.terms("da");                                // show terms.text + links VERBATIM at the signup button
+```
+
+- The PKCE verifier and nonce stay server-side in the sealed flow cookie (10 min, same signing as the login
+  transaction); the id_token's `nonce` must match the flow's, or `verify` throws.
+- Errors are data: `invalid_code {attemptsLeft}`, `expired`, `locked {retryAfter}`, `too_many_requests {retryAfter}`,
+  `not_embedded` (403/404 — fall back to the normal redirect login), `signup_not_enabled`, `terms_outdated {version}`
+  (re-fetch `terms()`), `invalid_request`, `unavailable`.
+- A 401 from BID is YOUR configuration (wrong client id/secret) and THROWS `SsoError` — it is never shown to the
+  user as a wrong code.
+
 ## What it will never do
 
 No passwords. No passkey registration. No social-provider keys. No email

@@ -36,6 +36,19 @@ export {
 } from "./client.js";
 
 export {
+  sealEmbeddedFlow,
+  openEmbeddedFlow,
+  EMBEDDED_FLOW_MAX_AGE,
+  type EmbeddedClient,
+  type EmbeddedError,
+  type EmbeddedFlow,
+  type EmbeddedStart,
+  type EmbeddedStartInput,
+  type EmbeddedStep,
+  type EmbeddedTerms,
+} from "./embedded.js";
+
+export {
   fetchTicket,
   createTicketClient,
   NoWorkloadIdentityError,

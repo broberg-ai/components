@@ -21,6 +21,7 @@
  * client somebody eventually uses to do it — and then the identity rules exist
  * in two places and drift.
  */
+import { embeddedError, type EmbeddedClient, type EmbeddedFlow, type EmbeddedStep } from "./embedded.js";
 import { decodeProtectedHeader, jwtVerify, type JWTPayload } from "jose";
 import { SsoConfigError, type SsoConfig } from "./config.js";
 import { createJwksCache, type JwksCache } from "./jwks.js";
@@ -254,6 +255,12 @@ export interface SsoClient {
     nonce: string;
   }): Promise<LoginResult>;
   verifyIdToken(idToken: string, options?: { nonce?: string }): Promise<SsoClaims>;
+  /**
+   * components-F084.165 — the embedded login and signup (BID F084.166 v1.1 + F084.167), called
+   * from YOUR SERVER as a confidential client (needs `clientSecret`). Ends in the same
+   * LoginResult as completeLogin. Keep the returned flow in a cookie with sealEmbeddedFlow.
+   */
+  embedded: EmbeddedClient;
   logoutUrl(options?: { idTokenHint?: string; postLogoutRedirectUri?: string }): Promise<string>;
   /**
    * Does this address belong to the signed-in user's BID account, and is it
@@ -845,9 +852,191 @@ export function createSsoClient(
     return result;
   }
 
+  /**
+   * The authorization code → tokens → verified claims, shared by completeLogin and the embedded
+   * login (components-F084.165) so both end in the SAME LoginResult.
+   */
+  async function exchangeCode(code: string, codeVerifier: string, nonce: string): Promise<LoginResult> {
+      const { token_endpoint } = await discovery();
+    const res = await fetchImpl(token_endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: config.redirectUri,
+        client_id: config.clientId,
+        // ALWAYS sent, secret or not. See SsoConfig.clientSecret: the two
+        // prove different things, so a confidential client keeps PKCE.
+        code_verifier: codeVerifier,
+        ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+      }),
+    });
+
+    // STATUS FIRST, PARSE SECOND — and the order IS the fix (components-F084.52).
+    //
+    // This used to be `await res.json()`, which runs BEFORE the `if (!res.ok)`
+    // below. So when the issuer answered with something that is not JSON — an
+    // empty 500 body, an HTML error page from a proxy, a gateway timeout — the
+    // parse threw `SyntaxError: Unexpected end of JSON input` and the careful
+    // message underneath was never reached. In the one case it exists for.
+    //
+    // The cost is not cosmetic. BID's own public guide (id.broberg.ai/docs §4b)
+    // tells every consumer to wrap completeLogin in try/catch and redirect
+    // instead of returning 500, so this string is ALL a consumer has: the user
+    // sees a redirect, and the diagnosis lives only in what they logged. A line
+    // reading "Unexpected end of JSON input" sends that reader into their own
+    // code to look for a fault that is in the server.
+    //
+    // Reported by broberg-id, who measured production first: a real
+    // `POST /oauth2/token` with a bad code answers 400 + JSON, so the good path
+    // was never affected. This only fires against a broken or outdated issuer —
+    // which is exactly where somebody is already debugging.
+    //
+    // NOT a try/catch around res.json(): that catches the throw and still loses
+    // res.status, which is the one fact that says WHICH end is at fault.
+    const raw = await res.text();
+    let body: {
+      id_token?: string;
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+      error_description?: string;
+    };
+    try {
+      body = raw.trim() === "" ? {} : (JSON.parse(raw) as typeof body);
+    } catch {
+      throw new SsoError(
+        `token exchange failed (${res.status}): the response body is not JSON` +
+          `${res.headers.get("content-type") ? ` (content-type: ${res.headers.get("content-type")})` : ""}` +
+          ` — ${excerptForLog(raw, config.clientSecret)}`,
+      );
+    }
+    // An EMPTY body parses to {} and falls through to the check below, which
+    // reports the status and "no id_token in response" — right for a 500 with
+    // no body, and right for a 200 that returned nothing.
+    if (!res.ok || !body.id_token) {
+      throw new SsoError(
+        `token exchange failed (${res.status}): ${body.error ?? "no id_token in response"}` +
+          (body.error_description ? ` — ${body.error_description}` : "") +
+          invalidClientHint(body.error, config.clientSecret !== undefined),
+      );
+    }
+
+    const claims = await verifyIdToken(body.id_token, { nonce });
+
+    const merged = body.access_token
+      ? await withUserInfo(claims, body.access_token)
+      : { claims, unverifiedClaims: [] };
+    return {
+      claims: merged.claims,
+      unverifiedClaims: merged.unverifiedClaims,
+      idToken: body.id_token,
+      ...(body.access_token ? { accessToken: body.access_token } : {}),
+      ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}),
+      ...(typeof body.expires_in === "number" ? { expiresIn: body.expires_in } : {}),
+    };
+  }
+
+  /** components-F084.165 — one call to BID's /embedded/*, as this confidential client. */
+  async function embeddedCall(
+    method: "GET" | "POST",
+    path: string,
+    body?: Record<string, unknown>,
+  ): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; status: number; body: Record<string, unknown> }> {
+    if (!config.clientSecret) throw new SsoError("the embedded login runs from the server as a confidential client — set clientSecret (SSO_CLIENT_SECRET)");
+    const url = new URL(`/embedded${path}`, config.issuer).toString();
+    let res: Response;
+    try {
+      res = await fetchImpl(url, {
+        method,
+        headers: {
+          authorization: `Basic ${btoa(`${config.clientId}:${config.clientSecret}`)}`,
+          accept: "application/json",
+          ...(body ? { "content-type": "application/json" } : {}),
+        },
+        ...(body ? { body: JSON.stringify({ client_id: config.clientId, ...body }) } : {}),
+      });
+    } catch (e) {
+      return { ok: false, status: 0, body: { error: "network", message: e instanceof Error ? e.message : String(e) } };
+    }
+    const raw = await res.text();
+    let json: Record<string, unknown> = {};
+    try {
+      json = raw.trim() ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    } catch {
+      // not JSON — the status says enough
+    }
+    if (res.status === 401) {
+      // Our credentials, not the user's: never something to show a person as «wrong code».
+      throw new SsoError(`BID refused this app's client credentials on /embedded${path} (401 ${typeof json.error === "string" ? json.error : "invalid_client"}) — check SSO_CLIENT_ID / SSO_CLIENT_SECRET`);
+    }
+    return res.ok ? { ok: true, body: json } : { ok: false, status: res.status, body: json };
+  }
+
+  const toError = (r: { status: number; body: Record<string, unknown> }) =>
+    r.status === 0 ? { kind: "unavailable" as const, message: `BID did not answer: ${String(r.body.message ?? "")}` } : embeddedError(r.status, r.body);
+
+  async function embeddedNext(r: Awaited<ReturnType<typeof embeddedCall>>, flow: EmbeddedFlow): Promise<EmbeddedStep> {
+    if (!r.ok) return { kind: "error", error: toError(r) };
+    if (r.body.next === "done" && typeof r.body.code === "string") {
+      return { kind: "done", result: await exchangeCode(r.body.code, flow.codeVerifier, flow.nonce) };
+    }
+    if (r.body.next === "second_factor") {
+      const methods = (Array.isArray(r.body.methods) ? r.body.methods : []).filter((m): m is "totp" | "sms" => m === "totp" || m === "sms");
+      return { kind: "second_factor", methods };
+    }
+    return { kind: "error", error: { kind: "unavailable", message: "BID's answer names no next step" } };
+  }
+
+  const embedded: EmbeddedClient = {
+    async start(input) {
+      const codeVerifier = randomToken();
+      const nonce = randomToken(16);
+      const r = await embeddedCall("POST", "/start", {
+        email: input.email,
+        code_challenge: await challengeFor(codeVerifier),
+        code_challenge_method: "S256",
+        nonce,
+        ...(input.intent === "signup" ? { intent: "signup", name: input.name, terms_version: input.termsVersion } : {}),
+        ...(input.endUserIp ? { end_user_ip: input.endUserIp } : {}),
+      });
+      if (!r.ok) return { ok: false, error: toError(r) };
+      if (typeof r.body.flow_id !== "string") return { ok: false, error: { kind: "unavailable", message: "BID's answer has no flow_id" } };
+      return {
+        ok: true,
+        flow: { flowId: r.body.flow_id, codeVerifier, nonce, email: input.email },
+        expiresIn: typeof r.body.expires_in === "number" ? r.body.expires_in : 600,
+      };
+    },
+    async verify(flow, code) {
+      return embeddedNext(await embeddedCall("POST", "/verify", { flow_id: flow.flowId, code }), flow);
+    },
+    async sendSms(flow) {
+      const r = await embeddedCall("POST", "/second-factor/sms", { flow_id: flow.flowId });
+      return r.ok ? { ok: true } : { ok: false, error: toError(r) };
+    },
+    async verifySecondFactor(flow, method, code) {
+      return embeddedNext(await embeddedCall("POST", "/second-factor", { flow_id: flow.flowId, method, code }), flow);
+    },
+    async terms(lang) {
+      const r = await embeddedCall("GET", `/terms?lang=${lang}`);
+      const b = r.body;
+      if (!r.ok || typeof b.version !== "string" || typeof b.text !== "string") {
+        throw new SsoError(`BID did not answer the signup terms (${r.ok ? "no version/text" : r.status})`);
+      }
+      const links = (Array.isArray(b.links) ? b.links : []).filter(
+        (l): l is { label: string; url: string } => typeof l === "object" && l !== null && typeof (l as { label?: unknown }).label === "string" && typeof (l as { url?: unknown }).url === "string",
+      );
+      return { version: b.version, text: b.text, links: links.map((l) => ({ label: l.label, url: l.url })) };
+    },
+  };
+
   return {
     discovery,
     introspectToken,
+    embedded,
     get jwks() {
       if (!jwksCache) throw new SsoError("the key cache is created on first verification");
       return jwksCache;
@@ -897,87 +1086,7 @@ export function createSsoClient(
 
       const code = params.get("code");
       if (!code) throw new SsoError("callback carried neither an error nor a code");
-
-      const { token_endpoint } = await discovery();
-      const res = await fetchImpl(token_endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: config.redirectUri,
-          client_id: config.clientId,
-          // ALWAYS sent, secret or not. See SsoConfig.clientSecret: the two
-          // prove different things, so a confidential client keeps PKCE.
-          code_verifier: codeVerifier,
-          ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
-        }),
-      });
-
-      // STATUS FIRST, PARSE SECOND — and the order IS the fix (components-F084.52).
-      //
-      // This used to be `await res.json()`, which runs BEFORE the `if (!res.ok)`
-      // below. So when the issuer answered with something that is not JSON — an
-      // empty 500 body, an HTML error page from a proxy, a gateway timeout — the
-      // parse threw `SyntaxError: Unexpected end of JSON input` and the careful
-      // message underneath was never reached. In the one case it exists for.
-      //
-      // The cost is not cosmetic. BID's own public guide (id.broberg.ai/docs §4b)
-      // tells every consumer to wrap completeLogin in try/catch and redirect
-      // instead of returning 500, so this string is ALL a consumer has: the user
-      // sees a redirect, and the diagnosis lives only in what they logged. A line
-      // reading "Unexpected end of JSON input" sends that reader into their own
-      // code to look for a fault that is in the server.
-      //
-      // Reported by broberg-id, who measured production first: a real
-      // `POST /oauth2/token` with a bad code answers 400 + JSON, so the good path
-      // was never affected. This only fires against a broken or outdated issuer —
-      // which is exactly where somebody is already debugging.
-      //
-      // NOT a try/catch around res.json(): that catches the throw and still loses
-      // res.status, which is the one fact that says WHICH end is at fault.
-      const raw = await res.text();
-      let body: {
-        id_token?: string;
-        access_token?: string;
-        refresh_token?: string;
-        expires_in?: number;
-        error?: string;
-        error_description?: string;
-      };
-      try {
-        body = raw.trim() === "" ? {} : (JSON.parse(raw) as typeof body);
-      } catch {
-        throw new SsoError(
-          `token exchange failed (${res.status}): the response body is not JSON` +
-            `${res.headers.get("content-type") ? ` (content-type: ${res.headers.get("content-type")})` : ""}` +
-            ` — ${excerptForLog(raw, config.clientSecret)}`,
-        );
-      }
-      // An EMPTY body parses to {} and falls through to the check below, which
-      // reports the status and "no id_token in response" — right for a 500 with
-      // no body, and right for a 200 that returned nothing.
-      if (!res.ok || !body.id_token) {
-        throw new SsoError(
-          `token exchange failed (${res.status}): ${body.error ?? "no id_token in response"}` +
-            (body.error_description ? ` — ${body.error_description}` : "") +
-            invalidClientHint(body.error, config.clientSecret !== undefined),
-        );
-      }
-
-      const claims = await verifyIdToken(body.id_token, { nonce });
-
-      const merged = body.access_token
-        ? await withUserInfo(claims, body.access_token)
-        : { claims, unverifiedClaims: [] };
-      return {
-        claims: merged.claims,
-        unverifiedClaims: merged.unverifiedClaims,
-        idToken: body.id_token,
-        ...(body.access_token ? { accessToken: body.access_token } : {}),
-        ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}),
-        ...(typeof body.expires_in === "number" ? { expiresIn: body.expires_in } : {}),
-      };
+      return exchangeCode(code, codeVerifier, nonce);
     },
 
     async refreshTokens(refreshToken) {
