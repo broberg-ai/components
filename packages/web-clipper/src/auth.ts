@@ -46,6 +46,8 @@ export interface BidAuthOptions {
   storage?: KeyValueStorage;
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** F099.25 — where BID's passkey frame posts its answer. Default: the popup's own window. */
+  messages?: Pick<Window, "addEventListener" | "removeEventListener">;
   /** Renew this long before expiry. Default 60 s. */
   skewMs?: number;
 }
@@ -69,12 +71,16 @@ export type EmbeddedError =
   | { kind: "too_many_requests"; retryAfter?: number }
   | { kind: "not_embedded" }
   | { kind: "invalid_request" }
+  /** F099.25 — the passkey frame said no: no key for this site on this device, or the check failed. Mail code still works. */
+  | { kind: "passkey"; reason: "not_found" | "failed" }
   | { kind: "unavailable"; message: string };
 
 /** F099.24 — where the embedded login stands. `busy` while a call is out; `error` from the last call. */
 export type EmbeddedState = { busy: boolean; error?: EmbeddedError } & (
   | { step: "email" }
   | { step: "code"; email: string; expiresAt: number }
+  /** F099.25 — show `<iframe src={frameUrl} allow="publickey-credentials-get">`; BID's frame draws the button. */
+  | { step: "passkey"; frameUrl: string; expiresAt: number }
   | { step: "second_factor"; email: string; methods: ("totp" | "sms")[]; smsSent: boolean }
   | { step: "signed_in"; session: Session }
 );
@@ -91,6 +97,11 @@ export interface EmbeddedLogin {
   resume(): Promise<EmbeddedState>;
   /** Send a code to this address. The answer is the same whether the account exists or not. */
   start(email: string): Promise<EmbeddedState>;
+  /**
+   * F099.25 — log in with a passkey (BID F084.166 contract v2): a new flow whose frame the popup shows.
+   * The engine listens for the frame's answer itself and ends in signed_in like the mail code.
+   */
+  passkeyStart(): Promise<EmbeddedState>;
   /** The code from the mail. */
   verify(code: string): Promise<EmbeddedState>;
   /** Ask for the second-factor code by SMS (when `methods` has "sms"). */
@@ -321,7 +332,7 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
   /** F099.24 — the embedded login against BID's /embedded/* (F084.166 contract v1). */
   function embeddedLogin(): EmbeddedLogin {
     const FLOW = `${KEY}:embedded`;
-    interface Flow { flowId: string; verifier: string; email: string; expiresAt: number; step: "code" | "second_factor"; methods?: ("totp" | "sms")[]; smsSent?: boolean }
+    interface Flow { flowId: string; verifier: string; email: string; expiresAt: number; step: "code" | "second_factor" | "passkey"; methods?: ("totp" | "sms")[]; smsSent?: boolean; frameUrl?: string }
     let state: EmbeddedState = { step: "email", busy: false };
     const subs = new Set<(s: EmbeddedState) => void>();
     const set = (next: EmbeddedState): EmbeddedState => {
@@ -330,14 +341,49 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
       return state;
     };
     const fromFlow = (f: Flow, error?: EmbeddedError): EmbeddedState =>
-      f.step === "code"
+      f.step === "passkey"
+        ? { step: "passkey", frameUrl: f.frameUrl ?? "", expiresAt: f.expiresAt, busy: false, ...(error ? { error } : {}) }
+        : f.step === "code"
         ? { step: "code", email: f.email, expiresAt: f.expiresAt, busy: false, ...(error ? { error } : {}) }
         : { step: "second_factor", email: f.email, methods: f.methods ?? [], smsSent: f.smsSent ?? false, busy: false, ...(error ? { error } : {}) };
     const loadFlow = async (): Promise<Flow | null> => {
       const f = (await storage.get(FLOW)) as Flow | null | undefined;
       return f && typeof f.flowId === "string" && typeof f.verifier === "string" ? f : null;
     };
-    const forget = () => storage.remove(FLOW);
+    const forget = () => {
+      stopListening();
+      return storage.remove(FLOW);
+    };
+
+    // F099.25 — the passkey frame's answer. Only BID's own origin, only this message type, only OUR flow:
+    // any other window can post to the popup, and must never be able to complete a login.
+    const bidOrigin = new URL(issuer).origin;
+    const messages = opts.messages ?? (typeof (globalThis as { addEventListener?: unknown }).addEventListener === "function" ? (globalThis as unknown as Window) : undefined);
+    let listener: ((e: MessageEvent) => void) | null = null;
+    function stopListening() {
+      if (listener) messages?.removeEventListener("message", listener as EventListener);
+      listener = null;
+    }
+    function listen(f: Flow) {
+      stopListening();
+      listener = (e: MessageEvent) => {
+        const d = e.data as { type?: unknown; flow_id?: unknown; ok?: unknown; error?: unknown } | null;
+        if (e.origin !== bidOrigin || !d || d.type !== "bid-embedded-passkey" || d.flow_id !== f.flowId) return;
+        void onPasskey(f, d.ok === true, d.error);
+      };
+      messages?.addEventListener("message", listener as EventListener);
+    }
+    async function onPasskey(f: Flow, ok: boolean, error: unknown): Promise<EmbeddedState> {
+      if (!ok) {
+        // cancelled: the frame's button is ready again — no error to show.
+        if (error === "cancelled") return set(fromFlow(f));
+        return set(fromFlow(f, { kind: "passkey", reason: error === "not_found" ? "not_found" : "failed" }));
+      }
+      stopListening();
+      busy();
+      const r = await post("/passkey/complete", { flow_id: f.flowId });
+      return r.ok ? next(r.body, f) : failed(f, r.error);
+    }
 
     /** One call to /embedded/*: the body on 200, or the contract's error as data. */
     async function post(path: string, body: Record<string, unknown>): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; error: EmbeddedError }> {
@@ -410,9 +456,11 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
           await forget();
           return set({ step: "email", busy: false, error: { kind: "expired" } });
         }
+        if (f.step === "passkey") listen(f);
         return set(fromFlow(f));
       },
       async start(email) {
+        stopListening();
         busy();
         const verifier = randomString(64);
         const r = await post("/start", { client_id: opts.clientId, email, code_challenge: await s256(verifier), code_challenge_method: "S256" });
@@ -422,6 +470,22 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
         const expiresIn = typeof r.body.expires_in === "number" ? r.body.expires_in : 600;
         const f: Flow = { flowId, verifier, email, expiresAt: now() + expiresIn * 1000, step: "code" };
         await storage.set(FLOW, f);
+        return set(fromFlow(f));
+      },
+      async passkeyStart() {
+        stopListening();
+        busy();
+        const verifier = randomString(64);
+        const r = await post("/passkey/start", { client_id: opts.clientId, code_challenge: await s256(verifier), code_challenge_method: "S256" });
+        if (!r.ok) return failed(null, r.error);
+        const { flow_id: flowId, frame_url: frameUrl } = r.body;
+        if (typeof flowId !== "string" || typeof frameUrl !== "string") return failed(null, { kind: "unavailable", message: "BID's answer has no flow_id/frame_url" });
+        // The frame must be BID's own page — never show (and grant the passkey permission to) anything else.
+        if (new URL(frameUrl, issuer).origin !== bidOrigin) return failed(null, { kind: "unavailable", message: "BID's frame_url is not on BID's origin" });
+        const expiresIn = typeof r.body.expires_in === "number" ? r.body.expires_in : 600;
+        const f: Flow = { flowId, verifier, email: "", expiresAt: now() + expiresIn * 1000, step: "passkey", frameUrl: new URL(frameUrl, issuer).toString() };
+        await storage.set(FLOW, f);
+        listen(f);
         return set(fromFlow(f));
       },
       async verify(code) {

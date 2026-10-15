@@ -18,6 +18,7 @@ export async function s256(v: string) {
 export function contractBid(o: { secondFactor?: ("totp" | "sms")[]; embedded?: boolean } = {}) {
   const flows = new Map<string, { email: string; challenge: string; wrong: number; stage: "code" | "second"; smsSent: boolean }>();
   const codes = new Map<string, string>(); // authorization code → challenge
+  const passkeys = new Map<string, { challenge: string; confirmed: boolean }>();
   const log: { path: string; body: Record<string, unknown>; credentials?: RequestCredentials }[] = [];
   let n = 0;
   const err = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -42,6 +43,20 @@ export function contractBid(o: { secondFactor?: ("totp" | "sms")[]; embedded?: b
       flows.set(id, { email: body.email, challenge: String(body.code_challenge), wrong: 0, stage: "code", smsSent: false });
       return Response.json({ flow_id: id, expires_in: 600 });
     }
+    // F099.25 — contract v2 (broberg-ai/broberg-id@3c8e6bc «KONTRAKT v2»): the frame confirms the key at BID; complete swaps it for a code.
+    if (url.pathname === "/embedded/passkey/start") {
+      if (body.code_challenge_method !== "S256" || typeof body.code_challenge !== "string") return err(400, { error: "invalid_request" });
+      const id = `pk-${++n}`;
+      passkeys.set(id, { challenge: body.code_challenge, confirmed: false });
+      return Response.json({ flow_id: id, frame_url: `${ISS}/embedded/passkey/frame?flow=${id}`, expires_in: 600 });
+    }
+    if (url.pathname === "/embedded/passkey/complete") {
+      const p = passkeys.get(String(body.flow_id));
+      if (!p) return err(400, { error: "expired" });
+      if (!p.confirmed) return err(400, { error: "invalid_request" });
+      passkeys.delete(String(body.flow_id));
+      return issue(p.challenge);
+    }
     const f = flows.get(String(body.flow_id));
     if (!f) return err(400, { error: "expired" });
     const wrong = () => { f.wrong++; return f.wrong >= 5 ? err(429, { error: "locked", retry_after: 900 }) : err(400, { error: "invalid_code", attempts_left: 5 - f.wrong }); };
@@ -57,5 +72,7 @@ export function contractBid(o: { secondFactor?: ("totp" | "sms")[]; embedded?: b
     }
     return err(404, {});
   }) as typeof fetch;
-  return { fetchImpl, log, flows };
+  /** What BID's frame does when the user's Face ID succeeds: the key is confirmed at BID for this flow. */
+  const confirmPasskey = (flowId: string) => { const p = passkeys.get(flowId); if (p) p.confirmed = true; };
+  return { fetchImpl, log, flows, passkeys, confirmPasskey };
 }
