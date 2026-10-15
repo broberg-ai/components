@@ -895,8 +895,53 @@ export function createGeminiReader(): Extractor {
   };
 }
 
+// ── Perplexity (F099.22) ─────────────────────────────────────────────────────
+// Read from the SCREEN for now. The data exists (GET /rest/thread/<slug>…, one entry per turn,
+// measured 15/10 on the owner's own logged-in thread) but the block carrying the answer text was
+// not yet in the sample — no reader is written against a guessed shape. Structure measured on the
+// same sample: the question is [data-message-bubble], the answer [data-renderer] (prose markdown).
+
+function perplexityIds(url: URL): { conversation?: string } {
+  const m = url.pathname.match(/^\/search\/([0-9a-z._-]{6,})/i);
+  return m ? { conversation: m[1] } : {};
+}
+
+/** The turns on screen, in order. Exported for tests. */
+export function perplexityScreen(doc: Document): Turn[] {
+  const turns: Turn[] = [];
+  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[data-message-bubble], [data-renderer]"))) {
+    if (el.hasAttribute("data-message-bubble")) {
+      if (el.parentElement?.closest("[data-message-bubble]")) continue;
+      turns.push({ role: "user", text: (el.textContent ?? "").trim() });
+    } else {
+      if (el.parentElement?.closest("[data-renderer]")) continue;
+      turns.push({ role: "assistant", text: htmlToMarkdown(el.innerHTML) });
+    }
+  }
+  return turns;
+}
+
+export function createPerplexityReader(): Extractor {
+  return {
+    id: "perplexity",
+    matches: (url) => /(^|\.)perplexity\.ai$/.test(url.hostname) && !!perplexityIds(url).conversation,
+    async extract(doc, url) {
+      const units = toUnits(perplexityScreen(doc));
+      if (!units.length) throw new NothingToClipError(url.href);
+      return {
+        url: url.href,
+        title: doc.title.replace(/\s*[-–|]\s*Perplexity.*$/i, "").trim() || "Perplexity",
+        anchor: perplexityIds(url).conversation!,
+        units,
+        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — Perplexitys samtaledata kan endnu ikke hentes i sin helhed." },
+      };
+    },
+  };
+}
+
 export const chatgptReader: Extractor = createChatgptReader();
 export const claudeReader: Extractor = createClaudeReader();
 export const geminiReader: Extractor = createGeminiReader();
+export const perplexityReader: Extractor = createPerplexityReader();
 /** Every chat reader, ready for runContentScript(chatReaders). */
-export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader];
+export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader];
