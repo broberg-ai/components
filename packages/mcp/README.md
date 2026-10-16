@@ -165,7 +165,7 @@ const provider = createOAuthProvider({
   secret: process.env.OAUTH_SECRET!,                      // openssl rand -hex 32
   issuer: "https://mcp.example",
   clients: createInMemoryClientStore(),                   // DCR; back with shared storage for multi-replica
-  approve: async (client, params) => isAllowed(client, params), // REQUIRED since 0.9.0 — `() => true` only if you mean it
+  approve: async (client, params) => isAllowed(client, params), // REQUIRED since 0.9.1 — `() => true` only if you mean it
 });
 mountOAuthRouter(app, { provider, issuerUrl: "https://mcp.example" });
 app.post("/mcp", bearerAuth(provider, ["read"]), mcpRoute);
@@ -175,7 +175,7 @@ The SDK ships the endpoints (`/authorize`, `/token`, `/register`, `/revoke`,
 `/.well-known/*`) and does the PKCE S256 compare; this provider issues stateless
 HS256 tokens (auth-code / access / refresh) so there's no token database.
 
-### SECURITY — 0.9.0: `approve` is required in `@broberg/mcp/oauth` (2026-W41 H1)
+### SECURITY — 0.9.1: `approve` is required in `@broberg/mcp/oauth` (2026-W41 H1)
 
 Up to 0.8.0 `createOAuthProvider` approved every authorization request when you did not pass
 `approve` — anyone who asked got a code and a token with the scope they asked for, with no login.

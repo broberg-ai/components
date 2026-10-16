@@ -29,7 +29,7 @@ type MaybePromise<T> = T | Promise<T>;
 
 export interface OAuthProviderConfig extends OAuthCoreConfig {
   /**
-   * Decide whether to approve an authorization request. REQUIRED (0.9.0): up to 0.8.0 a missing
+   * Decide whether to approve an authorization request. REQUIRED (0.9.1): up to 0.8.0 a missing
    * `approve` approved every request, so anyone who asked got a code and a token with the scope they
    * asked for, with no login (security review 2026-W41, H1). Return false to deny with `access_denied`.
    * Auto-approval is still possible, but only said out loud: `approve: () => true`. For a real consent

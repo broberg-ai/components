@@ -58,12 +58,12 @@ the build fails.
 > The claim was written in two places and true in neither, and nothing checked
 > that the manifest and the code agreed. See **Versioning** for the 0.2.0 move.
 
-## SECURITY — 0.7.0: the rate limit counts per real client IP, and 2FA guessing is capped (2026-W41 H2)
+## SECURITY — 0.7.1: the rate limit counts per real client IP, and 2FA guessing is capped (2026-W41 H2)
 
 Up to 0.6.x this package allowed Better Auth 1.6.0, which read the client's IP from the leftmost
 `X-Forwarded-For` value — a header the client writes — and switched rate limiting OFF when that
 value was not an IP. TOTP had no per-account counter either. So whoever knew a password could try
-6-digit codes (and passwords) without limit. 0.7.0:
+6-digit codes (and passwords) without limit. 0.7.1:
 
 - requires **better-auth ≥ 1.6.22** (the first release with 2FA `accountLockout` — 10 consecutive
   wrong codes lock 2FA for 15 minutes — and with a forged `X-Forwarded-For` no longer disabling the limit);
