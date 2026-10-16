@@ -30,6 +30,7 @@ function provider(config?: Partial<Parameters<typeof createOAuthProvider>[0]>) {
     secret: SECRET,
     issuer: "https://mcp.example",
     clients: createInMemoryClientStore([client]),
+    approve: () => true,
     ...config,
   });
 }
@@ -59,6 +60,19 @@ describe("createOAuthProvider — authorization-code flow", () => {
     expect(info.clientId).toBe("client-1");
     expect(info.scopes).toEqual(["read", "write"]);
     expect(info.expiresAt).toBeTypeOf("number");
+  });
+
+  it("SECURITY (2026-W41 H1): no `approve` → createOAuthProvider refuses to build — never a provider that approves everyone", () => {
+    expect(() => createOAuthProvider({ secret: SECRET, issuer: "https://mcp.example", clients: createInMemoryClientStore([client]) } as never)).toThrow(/needs `approve`/);
+  });
+
+  it("a non-true answer from approve (undefined, a truthy object) denies — only `true` approves", async () => {
+    for (const answer of [undefined, "yes", 1]) {
+      const p = provider({ approve: () => answer as never });
+      const redirect = vi.fn();
+      await p.authorize(client, params(), { redirect } as unknown as Response);
+      expect(new URL(redirect.mock.calls[0][1] as string).searchParams.get("error")).toBe("access_denied");
+    }
   });
 
   it("authorize denies (access_denied) when approve returns false, preserving state", async () => {

@@ -29,12 +29,13 @@ type MaybePromise<T> = T | Promise<T>;
 
 export interface OAuthProviderConfig extends OAuthCoreConfig {
   /**
-   * Decide whether to auto-approve an authorization request. Default: approve
-   * (MCP first-party clients). Return false to deny with `access_denied`. For a
-   * real consent screen / member login, render it on your own `authorize` route
-   * (or use `@broberg/mcp/oauth-web`, which has a first-class authorize callback).
+   * Decide whether to approve an authorization request. REQUIRED (0.9.0): up to 0.8.0 a missing
+   * `approve` approved every request, so anyone who asked got a code and a token with the scope they
+   * asked for, with no login (security review 2026-W41, H1). Return false to deny with `access_denied`.
+   * Auto-approval is still possible, but only said out loud: `approve: () => true`. For a real consent
+   * screen / member login, use `@broberg/mcp/oauth-web`, which has a first-class authorize callback.
    */
-  approve?: (client: OAuthClientInformationFull, params: AuthorizationParams) => MaybePromise<boolean>;
+  approve: (client: OAuthClientInformationFull, params: AuthorizationParams) => MaybePromise<boolean>;
 }
 
 /**
@@ -42,6 +43,12 @@ export interface OAuthProviderConfig extends OAuthCoreConfig {
  * {@link mountOAuthRouter} and protect your MCP route with {@link bearerAuth}.
  */
 export function createOAuthProvider(config: OAuthProviderConfig): OAuthServerProvider {
+  if (typeof config.approve !== "function") {
+    throw new Error(
+      "@broberg/mcp/oauth: createOAuthProvider needs `approve` — without it every authorization request would be approved with no login. " +
+        "Pass your check, or `approve: () => true` if auto-approval is really what you want.",
+    );
+  }
   const core = createOAuthCore(config);
 
   return {
@@ -51,7 +58,7 @@ export function createOAuthProvider(config: OAuthProviderConfig): OAuthServerPro
 
     async authorize(client, params, res: ExpressResponse) {
       const redirect = new URL(params.redirectUri);
-      const approved = config.approve ? await config.approve(client, params) : true;
+      const approved = (await config.approve(client, params)) === true;
       if (!approved) {
         redirect.searchParams.set("error", "access_denied");
         if (params.state) redirect.searchParams.set("state", params.state);

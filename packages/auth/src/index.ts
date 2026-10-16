@@ -216,6 +216,24 @@ function assertSigningSecret(
   }
 }
 
+/**
+ * Where the client's IP is read for Better Auth's rate limit (security review 2026-W41, H2).
+ *
+ * Better Auth's default is `x-forwarded-for`, which the CLIENT writes. Up to 1.6.20 its leftmost
+ * value was trusted, and a value that was not an IP switched rate limiting off — so `/sign-in` and
+ * `/two-factor/*` could be tried without limit. From 1.6.21 a spoofed or multi-hop header no longer
+ * switches it off, but on Fly the header carries more than one hop, so every user then shares ONE
+ * bucket: one attacker can lock everybody out of signing in. `Fly-Client-IP` is set by Fly's edge
+ * from the real connection. Off Fly the header is absent and Better Auth falls back to that shared
+ * bucket — safe, but set `extend.advanced.ipAddress` to your own proxy's header.
+ */
+export const CLIENT_IP_HEADERS: readonly string[] = ["fly-client-ip"];
+
+/** Our IP default under whatever `advanced` the consumer passes — their `ipAddress` wins key by key. */
+function advancedWithClientIp(advanced: BetterAuthOptions["advanced"]): NonNullable<BetterAuthOptions["advanced"]> {
+  return { ...advanced, ipAddress: { ipAddressHeaders: [...CLIENT_IP_HEADERS], ...advanced?.ipAddress } };
+}
+
 /** Assemble `BetterAuthOptions` from the fleet config: dark-ship unconfigured
  *  social providers, and register the magic-link plugin only when a mailer is
  *  given. Exported (separately from `createAuth`) so the assembly is unit-
@@ -233,6 +251,7 @@ export function buildAuthOptions(config: AuthConfig): BetterAuthOptions {
     socialProviders,
     ...(plugins.length ? { plugins } : {}),
     ...config.extend,
+    advanced: advancedWithClientIp(config.extend?.advanced),
   };
 }
 
@@ -283,6 +302,7 @@ export function createTypedAuth<const P extends AuthPlugin[]>(
     ...(config.emailPassword ? { emailAndPassword: { enabled: true } } : {}),
     socialProviders,
     plugins,
+    advanced: advancedWithClientIp(undefined),
   });
 }
 

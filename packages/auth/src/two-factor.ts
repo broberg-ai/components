@@ -13,9 +13,16 @@ import { renderSVG } from "uqr";
  *
  * Better Auth's plugin owns all of the crypto, and it already handles the
  * things a hand-rolled TOTP gets wrong: the secret is encrypted at rest,
- * recovery codes are encrypted by default, enrolment requires a valid code
- * before 2FA switches on, and repeated failures lock the account rather than
- * allowing an online brute-force.
+ * recovery codes are encrypted by default, and enrolment requires a valid code
+ * before 2FA switches on.
+ *
+ * **Guessing is capped twice — on Better Auth ≥ 1.6.22, the floor this package requires.** 10
+ * consecutive wrong codes lock the account's 2FA for 15 minutes (`accountLockout`, per account,
+ * across factors), and the rate limit counts per real client IP (`CLIENT_IP_HEADERS`). This comment
+ * used to promise the lockout while the package allowed 1.6.0, where TOTP had NO per-account
+ * counter and a forged `X-Forwarded-For` switched the rate limit off: a known password plus
+ * unlimited 6-digit guesses (security review 2026-W41, H2). Tune it with
+ * `options: { accountLockout: { maxFailedAttempts, durationSeconds } }`; never set `enabled: false`.
  *
  * ⚠️ **READ {@link AuthConfig.secrets} BEFORE YOU SHIP THIS.** The TOTP secret
  * and the recovery codes are both encrypted with the app's key. On a lone
