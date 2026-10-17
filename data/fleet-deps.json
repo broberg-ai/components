@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-14T09:36:30.439Z",
+ "scanned_at": "2026-10-17T08:38:23.864Z",
  "repos_scanned": 77,
  "repos_failed": 0,
- "manifests_read": 269,
+ "manifests_read": 268,
  "manifests_unreadable": 0,
- "edges": 338,
+ "edges": 339,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -526,7 +526,7 @@
   },
   "broberg-ai/cardmem": {
    "branch": "main",
-   "manifests": 13,
+   "manifests": 12,
    "unreadable": 0,
    "deps": {
     "@broberg/ai-sdk": [
@@ -534,11 +534,6 @@
       "range": "0.56.0",
       "field": "dependencies",
       "at": "apps/agent/package.json"
-     },
-     {
-      "range": "0.56.0",
-      "field": "dependencies",
-      "at": "apps/lens-cloud/package.json"
      },
      {
       "range": "0.56.0",
@@ -553,7 +548,7 @@
     ],
     "@broberg/lens-daemon": [
      {
-      "range": "0.1.10",
+      "range": "0.1.24",
       "field": "dependencies",
       "at": "apps/agent/package.json"
      }
@@ -563,11 +558,6 @@
       "range": "0.10.0",
       "field": "dependencies",
       "at": "apps/agent/package.json"
-     },
-     {
-      "range": "0.10.0",
-      "field": "dependencies",
-      "at": "apps/lens-cloud/package.json"
      }
     ],
     "@upmetrics/sdk": [
@@ -1003,42 +993,42 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.36.6",
+      "range": "0.63.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
     ],
     "@broberg/config": [
      {
-      "range": "^0.2.0",
+      "range": "0.2.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
     ],
     "@broberg/cron": [
      {
-      "range": "^0.1.0",
+      "range": "0.2.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
     ],
     "@broberg/db-sdk": [
      {
-      "range": "^0.1.0",
+      "range": "0.2.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
     ],
     "@broberg/media": [
      {
-      "range": "^0.1.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
     ],
     "@broberg/media-transform": [
      {
-      "range": "^0.1.0",
+      "range": "0.1.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -1052,14 +1042,21 @@
     ],
     "@broberg/secret-scan": [
      {
-      "range": "0.1.7",
+      "range": "0.14.2",
+      "field": "dependencies",
+      "at": "apps/web/package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.19.1",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
     ],
     "@broberg/theme": [
      {
-      "range": "^0.3.1",
+      "range": "0.13.3",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -1270,7 +1267,7 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.62.0",
+      "range": "0.63.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -1284,7 +1281,7 @@
     ],
     "@broberg/app-shell": [
      {
-      "range": "0.15.0",
+      "range": "0.22.4",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -1354,7 +1351,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.15.0",
+      "range": "0.18.3",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -1579,7 +1576,7 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "0.47.1",
+      "range": "0.63.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1693,7 +1690,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.18.2",
+      "range": "0.18.3",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1747,24 +1744,24 @@
     ],
     "@broberg/web-clipper": [
      {
-      "range": "0.8.3",
+      "range": "0.19.0",
       "field": "dependencies",
       "at": "apps/clipper/package.json"
      },
      {
-      "range": "0.8.3",
+      "range": "0.11.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "0.62.0",
+      "range": "0.63.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      },
      {
-      "range": "0.62.0",
+      "range": "0.63.0",
       "field": "devDependencies",
       "at": "package.json"
      }
@@ -1785,7 +1782,7 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.18.0",
+      "range": "0.18.3",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -1811,7 +1808,7 @@
       "at": "apps/cloud/package.json"
      },
      {
-      "range": "0.56.0",
+      "range": "0.63.0",
       "field": "dependencies",
       "at": "packages/daemon/package.json"
      },
@@ -1823,7 +1820,7 @@
     ],
     "@broberg/lens-engine": [
      {
-      "range": "0.12.0",
+      "range": "0.13.0",
       "field": "dependencies",
       "at": "apps/cloud/package.json"
      },
@@ -2358,12 +2355,12 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.18.0",
+      "range": "0.18.3",
       "field": "dependencies",
       "at": "apps/admin-server/package.json"
      },
      {
-      "range": "0.18.0",
+      "range": "0.18.3",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
@@ -2466,7 +2463,7 @@
     ],
     "@broberg/web-clipper": [
      {
-      "range": "0.8.3",
+      "range": "0.18.1",
       "field": "dependencies",
       "at": "apps/web-clipper/package.json"
      }
@@ -3276,7 +3273,7 @@
    "deps": {
     "@broberg/consent-cookie": [
      {
-      "range": "0.7.0",
+      "range": "0.7.1",
       "field": "dependencies",
       "at": "package.json"
      }
