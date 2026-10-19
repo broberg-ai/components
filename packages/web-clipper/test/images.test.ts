@@ -106,3 +106,76 @@ describe("F099.23 — imageSize reads the header", () => {
     expect(imageSize(new TextEncoder().encode("not an image at all, really"))).toBeUndefined();
   });
 });
+
+// F099.27 — jam #3566 19/10: fdaalborg.dk (WordPress + SiteOrigin slider) has 6 <img> and 10 photos that exist ONLY as
+// inline style="background-image:url(…)" in <main> (Lens e4ebb5de: .sow-slider-image-overlay, .panel-background-overlay).
+// Readability strips style attributes, so up to 0.19 the clip held the 6 and never the 10.
+describe("F099.27 — background images", () => {
+  const wp = (main: string, footer = "") => {
+    document.title = "Forside";
+    document.head.innerHTML = `<base href="https://fd.example.dk/">`;
+    document.body.innerHTML = `<header><div style="background-image:url('https://fd.example.dk/header-bg.jpg')"></div></header>
+      <main id="main"><div class="sow-slider-base">${main}</div>
+      <article><h1>Velkommen</h1><p>${"Et afsnit med nok tekst til at Readability tager det. ".repeat(20)}</p>
+      <p><img src="https://fd.example.dk/foto.jpg" alt="Foto"></p><p>${"Mere tekst. ".repeat(30)}</p></article></main>
+      <footer><div style="background-image:url(https://fd.example.dk/footer-bg.jpg)"></div>${footer}</footer>`;
+    return document;
+  };
+  const slide = (u: string, extra = "") => `<div class="sow-slider-image-overlay sow-slider-image-cover" style="opacity:0.5;background-image: url(${u});${extra}"></div>`;
+  const big = img(png(1200, 600));
+
+  it("slider and panel backgrounds in <main> come as assets and as ![](url) at the end of the page unit; header/footer, gradients, svg, hidden and a duplicate of an <img> do not", async () => {
+    const doc = wp(
+      slide("https://fd.example.dk/s1.jpg") +
+      slide("'/s2.jpg'") +
+      `<div class="panel-background-overlay" style="background: linear-gradient(#000,#fff), url(&quot;https://fd.example.dk/panel.jpg&quot;) center/cover"></div>` +
+      `<div style="background-image: linear-gradient(red, blue)"></div>` +
+      slide("https://fd.example.dk/icon.svg") +
+      slide("data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=") +
+      slide("https://fd.example.dk/hidden.jpg", "display:none") +
+      `<div hidden>${slide("https://fd.example.dk/hidden2.jpg")}</div>` +
+      slide("https://fd.example.dk/foto.jpg") +
+      slide("https://fd.example.dk/s1.jpg"),
+    );
+    const { f, calls } = fetcher({
+      "https://fd.example.dk/foto.jpg": big, "https://fd.example.dk/s1.jpg": big, "https://fd.example.dk/s2.jpg": big, "https://fd.example.dk/panel.jpg": big,
+    });
+    const clip = await createArticleExtractor({ images: true, fetch: f }).extract(doc, new URL("https://fd.example.dk/"));
+    const unit = clip.units[0]!;
+    expect(unit.assets!.map((a) => a.url)).toStrictEqual(["https://fd.example.dk/foto.jpg", "https://fd.example.dk/s1.jpg", "https://fd.example.dk/s2.jpg", "https://fd.example.dk/panel.jpg"]);
+    expect(calls.map((c) => c.url).sort()).toStrictEqual(["https://fd.example.dk/foto.jpg", "https://fd.example.dk/panel.jpg", "https://fd.example.dk/s1.jpg", "https://fd.example.dk/s2.jpg"]);
+    expect(unit.content.endsWith("![](https://fd.example.dk/s1.jpg)\n\n![](https://fd.example.dk/s2.jpg)\n\n![](https://fd.example.dk/panel.jpg)")).toBe(true);
+    expect(unit.content.match(/foto\.jpg/g)!.length).toBe(1);
+    expect("completeness" in clip).toBe(false);
+  });
+
+  it("the same caps hold: backgrounds count toward maxImages, an over-cap one is NAMED; a background that does not load is named, not appended", async () => {
+    const doc = wp(slide("https://fd.example.dk/s1.jpg") + slide("https://fd.example.dk/s2.jpg") + slide("https://fd.example.dk/broken.jpg"));
+    const { f } = fetcher({ "https://fd.example.dk/foto.jpg": big, "https://fd.example.dk/s1.jpg": big, "https://fd.example.dk/s2.jpg": big });
+    const clip = await createArticleExtractor({ images: true, fetch: f, maxImages: 2 }).extract(doc, new URL("https://fd.example.dk/"));
+    expect(clip.units[0]!.assets!.map((a) => a.url)).toStrictEqual(["https://fd.example.dk/foto.jpg", "https://fd.example.dk/s1.jpg"]);
+    expect(clip.units[0]!.content).not.toContain("s2.jpg");
+    expect(clip.completeness).toMatchObject({ complete: false, missing: "files" });
+    expect((clip.completeness as { problems: string[] }).problems.join(" | ")).toMatch(/s2\.jpg.*loftet på 2.*broken\.jpg.*loftet på 2/);
+  });
+
+  it("NEGATIVE CONTROL: no <main>/<article> → the body minus header/nav/footer; images off → no background is fetched at all", async () => {
+    document.body.innerHTML = `<header style="background-image:url(https://fd.example.dk/h.jpg)"></header>
+      <div>${slide("https://fd.example.dk/body.jpg")}<p>${"Et afsnit med nok tekst til at Readability tager det. ".repeat(30)}</p></div>
+      <nav><div style="background-image:url(https://fd.example.dk/nav.jpg)"></div></nav>`;
+    const { f, calls } = fetcher({ "https://fd.example.dk/body.jpg": big });
+    const clip = await createArticleExtractor({ images: true, fetch: f }).extract(document, new URL("https://fd.example.dk/"));
+    expect(clip.units[0]!.assets!.map((a) => a.url)).toStrictEqual(["https://fd.example.dk/body.jpg"]);
+    expect(calls.map((c) => c.url)).toStrictEqual(["https://fd.example.dk/body.jpg"]);
+    const off = fetcher({});
+    await createArticleExtractor({ fetch: off.f }).extract(wp(slide("https://fd.example.dk/s1.jpg")), new URL("https://fd.example.dk/"));
+    expect(off.calls.length).toBe(0);
+  });
+
+  it("a placeholder src (\"data:,\" on a lazy image) is not the image — the srcset is", async () => {
+    const doc = page(`<p><img src="data:," srcset="https://wiki.example.com/logo.png 1x, https://wiki.example.com/logo@2x.png 2x" alt="Logo"></p>`);
+    const { f } = fetcher({ "https://wiki.example.com/logo.png": img(png(300, 120)) });
+    const clip = await createArticleExtractor({ images: true, fetch: f }).extract(doc, URL_);
+    expect(clip.units[0]!.assets!.map((a) => a.url)).toStrictEqual(["https://wiki.example.com/logo.png"]);
+  });
+});

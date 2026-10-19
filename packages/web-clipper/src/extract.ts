@@ -229,9 +229,15 @@ export function createArticleExtractor(o: ArticleExtractorOptions = {}): Extract
       const article = new Readability(doc.cloneNode(true) as Document, { keepClasses: false, charThreshold: 0 }).parse();
       if (!article) throw new NothingToClipError(url.href);
       const html = article.content ?? "";
-      const markdown = htmlToMarkdown(html);
+      let markdown = htmlToMarkdown(html);
       const minImageSize = o.minImageSize ?? DEFAULT_MIN_IMAGE_SIZE;
-      const refs = contentImages(html, doc.baseURI || url.href, minImageSize);
+      const base = doc.baseURI || url.href;
+      const inline = contentImages(html, base, minImageSize);
+      // F099.27 — Readability strips style attributes, so a slider/hero/card photo set as a CSS
+      // background never reaches its output: read those off the ORIGINAL page, before it ran.
+      const seen = new Set(inline.map((r) => r.url));
+      const backgrounds = backgroundImages(doc, base).filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
+      const refs = [...inline, ...backgrounds];
       const f = o.fetch ?? fetch.bind(globalThis);
       const { assets, problems } = await fetchImages(f, refs, {
         maxImages: o.maxImages ?? DEFAULT_MAX_IMAGES,
@@ -239,6 +245,10 @@ export function createArticleExtractor(o: ArticleExtractorOptions = {}): Extract
         maxImageFileBytes: o.maxImageFileBytes ?? MAX_FILE_BYTES,
         minImageSize,
       });
+      // Readability dropped them from the text, so they are listed at the end — each `![](url)` is the asset's url.
+      const fetched = new Set(assets.map((a) => a.url));
+      const tail = backgrounds.filter((r) => fetched.has(r.ref)).map((r) => `![](${r.ref})`);
+      if (tail.length) markdown = `${markdown.trimEnd()}\n\n${tail.join("\n\n")}`;
       const incomplete = imagesIncomplete(problems);
       return {
         url: url.href,
@@ -259,7 +269,10 @@ function contentImages(html: string, base: string, minSize: number): ImageRef[] 
   const seen = new Set<string>();
   for (const img of Array.from(tpl.querySelectorAll("img"))) {
     if (img.getAttribute("role") === "presentation" || img.getAttribute("aria-hidden") === "true") continue;
-    const ref = img.getAttribute("src") || img.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s+/)[0] || "";
+    // F099.27 — a placeholder src ("data:," on a lazy logo) is not an image: the srcset is.
+    const src = img.getAttribute("src") || "";
+    const live = src && !/^data:(?!image\/[a-z])/i.test(src) ? src : "";
+    const ref = live || img.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s+/)[0] || "";
     if (!ref || /^data:image\/svg/i.test(ref) || (/\.svg(\?|#|$)/i.test(ref) && ref.includes("#"))) continue;
     let abs: URL;
     try { abs = new URL(ref, base); } catch { continue; }
@@ -271,6 +284,42 @@ function contentImages(html: string, base: string, minSize: number): ImageRef[] 
     seen.add(abs.href);
     const alt = img.getAttribute("alt") || undefined;
     out.push({ url: abs.href, ref, ...(alt ? { alt } : {}), ...(width ? { width } : {}), ...(height ? { height } : {}) });
+  }
+  return out;
+}
+
+/**
+ * F099.27 — photos set as an inline CSS background (`style="background-image:url(…)"`) in the page's main
+ * region: `main`/`[role=main]`, else `article`, else the body minus header/nav/footer. Gradients carry no
+ * url and fall out; svg, hidden elements and page chrome are left out. Only inline style — a background
+ * from a stylesheet is not read (not measured on a real page yet). `ref` = the absolute url, which is
+ * also what the markdown `![](url)` and the asset's `url` carry.
+ */
+function backgroundImages(doc: Document, base: string): ImageRef[] {
+  const mains = Array.from(doc.querySelectorAll<HTMLElement>("main, [role=main]"));
+  const roots = mains.length ? mains : Array.from(doc.querySelectorAll<HTMLElement>("article"));
+  const scope = roots.length ? roots : doc.body ? [doc.body] : [];
+  const out: ImageRef[] = [];
+  const seen = new Set<string>();
+  const hidden = '[hidden], [aria-hidden="true"], [style*="display:none"], [style*="display: none"], [style*="visibility:hidden"], [style*="visibility: hidden"]';
+  for (const root of scope) {
+    for (const el of [root, ...Array.from(root.querySelectorAll<HTMLElement>("[style]"))]) {
+      const style = el.getAttribute("style") ?? "";
+      if (!/background/i.test(style)) continue;
+      if (el.closest(hidden) || el.closest("header, nav, footer, svg")) continue;
+      for (const m of style.matchAll(/background(?:-image)?\s*:[^;]*/gi)) {
+        for (const u of m[0].matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) {
+          const raw = (u[2] ?? "").trim();
+          if (!raw || /^data:image\/svg/i.test(raw) || /\.svg(\?|#|$)/i.test(raw)) continue;
+          let abs: URL;
+          try { abs = new URL(raw, base); } catch { continue; }
+          if (abs.protocol !== "http:" && abs.protocol !== "https:" && abs.protocol !== "data:") continue;
+          if (seen.has(abs.href)) continue;
+          seen.add(abs.href);
+          out.push({ url: abs.href, ref: abs.href });
+        }
+      }
+    }
   }
   return out;
 }
