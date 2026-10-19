@@ -1121,12 +1121,61 @@ export function createLeChatReader(o: ChatReaderOptions = {}): Extractor {
 }
 
 // ── DeepSeek (F099.22) ───────────────────────────────────────────────────────
-// Read from the SCREEN. The data exists (GET /api/v0/chat/history_messages?chat_session_id=…), but in
-// the owner's sample (jam docs/clipper-shapes/deepseek.json, 19/10) it answered {code, data:null, msg}
-// — the call needs DeepSeek's bearer token, which the sample's replay did not carry — so its message
-// shape is unmeasured and no reader is written against a guess. Structure measured on the same page:
-// a virtual list (only turns near the viewport exist) of .ds-message; the answer is
-// .ds-markdown.ds-assistant-message-main-content, the question a .ds-message without it.
+// Read from the DATA: GET /api/v0/chat/history_messages?chat_session_id=<id> with DeepSeek's own bearer
+// token (localStorage "userToken" → {value}) — cookies alone answer data:null. Measured 20/10 on the
+// owner's conversation (jam form extract, third press): {code, data:{biz_code, biz_data:{chat_session:
+// {title, current_message_id}, chat_messages:[{message_id, parent_id, inserted_at, fragments:[{type:
+// "REQUEST"|"RESPONSE", content}]}]}}}. Only chat_session_id is sent: the page's cache_version /
+// cache_reset_at make DeepSeek answer an EMPTY list ("your cache is current"). The tree gives branches.
+// Screen fallback (measured 19/10): a virtual list of .ds-message; the answer .ds-markdown.
+
+/** DeepSeek's bearer token from its own localStorage ({value} JSON, or a bare string). */
+function deepseekToken(): string | undefined {
+  let raw: string | null = null;
+  // The PAGE's storage (window.localStorage): a bare global can be a different store (Node 25 ships one).
+  try { raw = (globalThis as { window?: Window }).window?.localStorage?.getItem("userToken") ?? null; } catch { return undefined; }
+  if (!raw) return undefined;
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (isObj(v) && typeof v.value === "string" && v.value) return v.value;
+    if (typeof v === "string" && v) return v;
+  } catch { /* not JSON — the token itself */ }
+  return raw;
+}
+
+/** The turns from history_messages: the current line, and every other leaf as a branch. Exported for tests. */
+export function deepseekTurns(data: unknown): { title: string; turns: Turn[]; branches: Turn[][]; skipped: string[] } {
+  if (!isObj(data) || data.code !== 0 || !isObj(data.data) || data.data.biz_code !== 0 || !isObj(data.data.biz_data)) throw new ShapeError("DeepSeek did not answer the conversation (code/biz_code)");
+  const biz = data.data.biz_data;
+  if (!Array.isArray(biz.chat_messages) || !isObj(biz.chat_session)) throw new ShapeError("history_messages holds no chat_messages/chat_session");
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const m of biz.chat_messages) if (isObj(m) && typeof m.message_id === "number") byId.set(String(m.message_id), m);
+  if (!byId.size) throw new ShapeError("history_messages holds no messages");
+  const parentOf = (m: Record<string, unknown>) => (typeof m.parent_id === "number" ? String(m.parent_id) : null);
+  const order = (m: Record<string, unknown>) => (typeof m.inserted_at === "number" ? m.inserted_at : 0);
+  const leaf = String(biz.chat_session.current_message_id);
+  const path = lineTo(byId, parentOf, leaf);
+  if (!path.length) throw new ShapeError("the current message is not in the conversation");
+  const skipped = new Set<string>();
+  const read = (m: Record<string, unknown>): Turn | undefined => {
+    if (!Array.isArray(m.fragments)) throw new ShapeError("a DeepSeek message without fragments");
+    const user: string[] = [];
+    const answer: string[] = [];
+    for (const fr of m.fragments) {
+      if (!isObj(fr) || typeof fr.content !== "string") continue;
+      if (fr.type === "REQUEST") user.push(fr.content);
+      else if (fr.type === "RESPONSE") answer.push(fr.content);
+      else if (!/THINK/i.test(String(fr.type))) skipped.add(`en del af typen «${String(fr.type)}» i DeepSeek er ikke klippet`);
+    }
+    if (user.length) return { role: "user", text: user.join("\n\n") };
+    if (answer.length) return { role: "assistant", text: answer.join("\n\n") };
+    return undefined;
+  };
+  const readLine = lineReader(read, () => undefined, () => undefined);
+  const turns = readLine(path);
+  const branches = otherLeaves(byId, parentOf, order, leaf).map((id) => readLine(lineTo(byId, parentOf, id)));
+  return { title: str(biz.chat_session.title) || "DeepSeek", turns, branches, skipped: [...skipped] };
+}
 
 function deepseekIds(url: URL): { conversation?: string } {
   const m = url.pathname.match(/\/a\/chat\/s\/([0-9a-f-]{8,})/i);
@@ -1145,20 +1194,27 @@ export function deepseekScreen(doc: Document): Turn[] {
   return turns;
 }
 
-export function createDeepSeekReader(): Extractor {
+export function createDeepSeekReader(o: ChatReaderOptions & { token?: () => string | undefined } = {}): Extractor {
   return {
     id: "deepseek",
     matches: (url) => url.hostname === "chat.deepseek.com" && !!deepseekIds(url).conversation,
     async extract(doc, url) {
-      const units = toUnits(deepseekScreen(doc));
-      if (!units.length) throw new NothingToClipError(url.href);
-      return {
-        url: url.href,
-        title: doc.title.replace(/\s*[-–|]\s*DeepSeek.*$/i, "").trim() || "DeepSeek",
-        anchor: deepseekIds(url).conversation!,
-        units,
-        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — DeepSeek viser kun en del af samtalen ad gangen, og dens data kan endnu ikke hentes." },
-      };
+      const f = o.fetch ?? fetch.bind(globalThis);
+      const id = deepseekIds(url).conversation!;
+      return dataOrScreen(
+        async () => {
+          const token = (o.token ?? deepseekToken)();
+          if (!token) throw new Error("DeepSeek's login token was not found (localStorage userToken)");
+          const data = await getJson(f, `${url.origin}/api/v0/chat/history_messages?chat_session_id=${encodeURIComponent(id)}`, { headers: { authorization: `Bearer ${token}` } });
+          const { title, turns, branches, skipped } = deepseekTurns(data);
+          const incomplete = incompleteFrom(skipped, []);
+          const units = toUnits(turns);
+          return { title, units, branches: branchUnits(units, branches), ...(incomplete ? { incomplete } : {}) };
+        },
+        () => ({ title: doc.title.replace(/\s*[-–|]\s*DeepSeek.*$/i, "").trim() || "DeepSeek", units: toUnits(deepseekScreen(doc)) }),
+        url,
+        { anchor: id },
+      );
     },
   };
 }
