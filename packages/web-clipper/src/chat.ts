@@ -1137,6 +1137,58 @@ export function createDeepSeekReader(): Extractor {
   };
 }
 
+// ── NotebookLM (F099.22) ─────────────────────────────────────────────────────
+// Read from the SCREEN. The data comes through Google's batchexecute, and no sample has yet caught
+// what the page ASKS (rpcid arguments), so it cannot be replayed. Structure measured 19/10 by Lens on
+// the test account's notebook (jam docs/clipper-shapes/notebooklm-lens-chat.json, flow 1f9317df):
+// chat-message.individual-message, the question inside .from-user-container, the answer inside
+// .to-user-container as labs-tailwind-structural-element-view-v2 blocks; a collapsed
+// thinking-chain-view comes first and is not answer text; button.citation-marker sits inline.
+
+function notebooklmIds(url: URL): { notebook?: string } {
+  const m = url.pathname.match(/\/notebook\/([0-9a-z-]{8,})/i);
+  return m ? { notebook: m[1] } : {};
+}
+
+/** The turns on screen, in order. Exported for tests. */
+export function notebooklmScreen(doc: Document): Turn[] {
+  const turns: Turn[] = [];
+  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("chat-message"))) {
+    const body = el.querySelector<HTMLElement>(".message-text-content");
+    if (!body) continue;
+    if (el.querySelector(".from-user-container")) {
+      turns.push({ role: "user", text: (body.textContent ?? "").trim() });
+    } else if (el.querySelector(".to-user-container")) {
+      const box = body.cloneNode(true) as HTMLElement;
+      for (const x of Array.from(box.querySelectorAll("thinking-chain-view"))) x.remove();
+      for (const c of Array.from(box.querySelectorAll("button.citation-marker"))) c.replaceWith(`[${(c.textContent ?? "").trim()}]`);
+      const blocks = Array.from(box.querySelectorAll<HTMLElement>("labs-tailwind-structural-element-view-v2"));
+      const text = blocks.length ? blocks.map((b) => htmlToMarkdown(b.innerHTML).trim()).filter(Boolean).join("\n\n") : htmlToMarkdown(box.innerHTML);
+      turns.push({ role: "assistant", text });
+    }
+  }
+  return turns;
+}
+
+export function createNotebookLMReader(): Extractor {
+  return {
+    id: "notebooklm",
+    matches: (url) => (url.hostname === "notebooklm.google.com" || url.hostname === "notebook.google.com") && !!notebooklmIds(url).notebook,
+    async extract(doc, url) {
+      const units = toUnits(notebooklmScreen(doc));
+      if (!units.length) throw new NothingToClipError(url.href);
+      const cover = (doc.querySelector(".cover-title")?.textContent ?? "").trim();
+      return {
+        url: url.href,
+        title: cover || doc.title.replace(/\s*[-–|]\s*NotebookLM.*$/i, "").trim() || "NotebookLM",
+        anchor: notebooklmIds(url).notebook!,
+        units,
+        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — NotebookLMs samtaledata kan endnu ikke hentes, og notesbogens kilder er ikke med." },
+      };
+    },
+  };
+}
+
 export const chatgptReader: Extractor = createChatgptReader();
 export const claudeReader: Extractor = createClaudeReader();
 export const geminiReader: Extractor = createGeminiReader();
@@ -1144,5 +1196,6 @@ export const perplexityReader: Extractor = createPerplexityReader();
 export const copilotReader: Extractor = createCopilotReader();
 export const lechatReader: Extractor = createLeChatReader();
 export const deepseekReader: Extractor = createDeepSeekReader();
+export const notebooklmReader: Extractor = createNotebookLMReader();
 /** Every chat reader, ready for runContentScript(chatReaders). */
-export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader, copilotReader, lechatReader, deepseekReader];
+export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader, copilotReader, lechatReader, deepseekReader, notebooklmReader];
