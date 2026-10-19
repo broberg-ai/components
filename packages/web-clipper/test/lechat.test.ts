@@ -67,6 +67,29 @@ describe("F099.22 — Le Chat reader (data)", () => {
     ]);
   });
 
+  it("19/10 shape (jam lechat-9031c9e5.json): chat.byId carries NO items, the messages come only from message.all — the owner's clip that came back empty now reads", async () => {
+    const batch = conversation({ canvases: [] });
+    const chat = batch[0]!.result.data.json as Record<string, unknown>;
+    const items = chat.items;
+    delete chat.items;
+    delete chat.nextCursor;
+    batch[1] = { result: { data: { json: { items, nextCursor: null } } } };
+    const clip = await createLeChatReader({ fetch: serve(batch) }).extract(document, URL_);
+    expect(clip.units.map((x) => [x.role, x.content])).toStrictEqual([
+      ["user", "Lav et budget for 2027"],
+      ["assistant", "Her er et **udkast**."],
+      ["user", "Gør det til et dokument"],
+      ["assistant", "Jeg har lavet et canvas."],
+    ]);
+    expect(clip.completeness).toStrictEqual({ complete: true, source: "data" });
+  });
+
+  it("NEGATIVE CONTROL: neither chat.byId nor message.all holds messages → never a clip, and the error says so", async () => {
+    const batch = conversation({ items: [], canvases: [] });
+    const err = await createLeChatReader({ fetch: serve(batch) }).extract(document, URL_).then(() => { throw new Error("expected a failure"); }, (e: unknown) => e as Error & { dataError?: string });
+    expect(err.dataError).toBe("neither chat.byId nor message.all holds messages");
+  });
+
   it("message.all may carry messages chat.byId lacks — each message once", async () => {
     const clip = await createLeChatReader({ fetch: serve(conversation({ items: [msg({ id: "m1", role: "user", content: "Hej", turn: 0 })], messages: { items: [msg({ id: "m1", role: "user", content: "Hej", turn: 0 }), msg({ id: "m2", role: "assistant", content: "Hej igen", turn: 1 })], nextCursor: null }, canvases: [] })) }).extract(document, URL_);
     expect(clip.units.map((x) => [x.role, x.content])).toStrictEqual([["user", "Hej"], ["assistant", "Hej igen"]]);

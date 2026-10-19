@@ -995,7 +995,8 @@ export function createCopilotReader(): Extractor {
 // GET /api/trpc/chat.byId,message.all,canva.all?batch=1&input={"0":{"json":{"id"}},"1":{"json":{"chatId"}},
 // "2":{"json":{"chatId"}}}. Measured 15/10 on the owner's own conversation (jam docs/clipper-shapes/lechat.json):
 // chat.byId → {title, items:[{id, role, content, contentChunks:[{type:"text",text}|{type:"tool_call"}|{type:"canva"}],
-// turn, version, versionCount, nextVersion, files}]}, canva.all → canvases {id, type:"text/markdown", title,
+// turn, version, versionCount, nextVersion, files}]} — from 19/10 WITHOUT items: the same messages then come
+// only from message.all → {items, nextCursor} (jam lechat-9031c9e5.json) — canva.all → canvases {id, type:"text/markdown", title,
 // content, messageId, version}. What the sample did not show is NAMED in the clip, never guessed: older
 // versions of an edited message, attached files, a further page (nextCursor). No screen fallback: the sample
 // only shows the answers' container, and a clip that calls every turn an answer is worse than none.
@@ -1016,8 +1017,12 @@ export function lechatTurns(data: unknown): { title: string; turns: Turn[]; skip
   if (!Array.isArray(data)) throw new ShapeError("Le Chat's answer is not a tRPC batch");
   const json = data.map((r) => (isObj(r) && isObj(r.result) && isObj(r.result.data) ? r.result.data.json : undefined));
   const chat = json[0];
-  if (!isObj(chat) || !Array.isArray(chat.items)) throw new ShapeError("chat.byId holds no items");
+  if (!isObj(chat)) throw new ShapeError("chat.byId answered no chat");
   const listOf = (j: unknown): unknown[] => (Array.isArray(j) ? j : isObj(j) && Array.isArray(j.items) ? j.items : []);
+  // Measured 19/10 (jam lechat-9031c9e5.json): chat.byId no longer carries items — the messages come
+  // only from message.all. 15/10 they came in both. Read both; only neither is a shape we do not know.
+  const messages = [...listOf(chat), ...listOf(json[1])];
+  if (!messages.length) throw new ShapeError("neither chat.byId nor message.all holds messages");
   const title = str(chat.title) ?? str(chat.userTitle) ?? str(chat.generatedTitle) ?? "Le Chat";
   const skipped: string[] = [];
   const filesSkipped: FileIssue[] = [];
@@ -1026,7 +1031,7 @@ export function lechatTurns(data: unknown): { title: string; turns: Turn[]; skip
   const latest = new Map<string, Record<string, unknown>>();
   const versions = new Map<string, { seen: Set<number>; count: number }>();
   const ver = (m: Record<string, unknown>) => (typeof m.version === "number" ? m.version : 0);
-  for (const m of [...chat.items, ...listOf(json[1])]) {
+  for (const m of messages) {
     if (!isObj(m) || typeof m.id !== "string" || typeof m.role !== "string") throw new ShapeError("a Le Chat message without id/role");
     const prev = latest.get(m.id);
     if (!prev || ver(m) > ver(prev)) latest.set(m.id, m);
