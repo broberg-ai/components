@@ -896,10 +896,11 @@ export function createGeminiReader(): Extractor {
 }
 
 // ── Perplexity (F099.22) ─────────────────────────────────────────────────────
-// Read from the SCREEN for now. The data exists (GET /rest/thread/<slug>…, one entry per turn,
-// measured 15/10 on the owner's own logged-in thread) but the block carrying the answer text was
-// not yet in the sample — no reader is written against a guessed shape. Structure measured on the
-// same sample: the question is [data-message-bubble], the answer [data-renderer] (prose markdown).
+// Read from the DATA (owner's sample 19/10, jam form extract of thread 0e07f168): GET /rest/thread/<slug>
+// → {entries:[{query_str, thread_title, entry_created_datetime, blocks:[{intended_usage:"ask_text",
+// markdown_block:{answer}}…]}], has_next_page, next_cursor}. The sample keeps the query parameter NAMES
+// but not their values, so the values below are chosen, not measured — if Perplexity refuses them, the
+// screen reader (question [data-message-bubble], answer [data-renderer], measured 15/10) still clips.
 
 function perplexityIds(url: URL): { conversation?: string } {
   const m = url.pathname.match(/^\/search\/([0-9a-z._-]{6,})/i);
@@ -921,20 +922,45 @@ export function perplexityScreen(doc: Document): Turn[] {
   return turns;
 }
 
-export function createPerplexityReader(): Extractor {
+/** The thread request. Parameter names as the page sends them; the values are ours (not in the sample). */
+export function perplexityUrl(origin: string, slug: string): string {
+  const q = new URLSearchParams({ with_parent_info: "true", with_schematized_response: "true", version: "2.18", source: "default", limit: "100", offset: "0", from_first: "true" });
+  return `${origin}/rest/thread/${encodeURIComponent(slug)}?${q}`;
+}
+
+/** The turns from /rest/thread. Exported for tests. */
+export function perplexityTurns(data: unknown): { title: string; turns: Turn[]; skipped: string[] } {
+  if (!isObj(data) || !Array.isArray(data.entries)) throw new ShapeError("the thread holds no entries");
+  const entries = data.entries.filter(isObj).sort((a, b) => String(a.entry_created_datetime ?? "").localeCompare(String(b.entry_created_datetime ?? "")));
+  const turns: Turn[] = [];
+  for (const e of entries) {
+    if (typeof e.query_str !== "string" || !Array.isArray(e.blocks)) throw new ShapeError("a thread entry without query_str/blocks");
+    turns.push({ role: "user", text: e.query_str });
+    const answer = e.blocks.find((b) => isObj(b) && b.intended_usage === "ask_text" && isObj(b.markdown_block) && typeof b.markdown_block.answer === "string");
+    if (answer) turns.push({ role: "assistant", text: (answer.markdown_block as { answer: string }).answer });
+  }
+  const skipped = data.has_next_page === true ? ["Perplexity har flere ture end dem der blev hentet"] : [];
+  const first = entries[0];
+  return { title: (first && str(first.thread_title)) || "Perplexity", turns, skipped };
+}
+
+export function createPerplexityReader(o: ChatReaderOptions = {}): Extractor {
   return {
     id: "perplexity",
     matches: (url) => /(^|\.)perplexity\.ai$/.test(url.hostname) && !!perplexityIds(url).conversation,
     async extract(doc, url) {
-      const units = toUnits(perplexityScreen(doc));
-      if (!units.length) throw new NothingToClipError(url.href);
-      return {
-        url: url.href,
-        title: doc.title.replace(/\s*[-–|]\s*Perplexity.*$/i, "").trim() || "Perplexity",
-        anchor: perplexityIds(url).conversation!,
-        units,
-        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — Perplexitys samtaledata kan endnu ikke hentes i sin helhed." },
-      };
+      const f = o.fetch ?? fetch.bind(globalThis);
+      const slug = perplexityIds(url).conversation!;
+      return dataOrScreen(
+        async () => {
+          const { title, turns, skipped } = perplexityTurns(await getJson(f, perplexityUrl(url.origin, slug)));
+          const incomplete = incompleteFrom(skipped, []);
+          return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
+        },
+        () => ({ title: doc.title.replace(/\s*[-–|]\s*Perplexity.*$/i, "").trim() || "Perplexity", units: toUnits(perplexityScreen(doc)) }),
+        url,
+        { anchor: slug },
+      );
     },
   };
 }
