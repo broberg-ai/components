@@ -850,11 +850,13 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
 }
 
 // ── Gemini (F099.22) ─────────────────────────────────────────────────────────
-// Gemini fetches a conversation through Google's internal RPC (POST batchexecute), whose request
-// has not been measured yet — so this reader reads the SCREEN and says so: complete:false,
-// source:"dom". Structure measured 15/10 on a real page (jam docs/clipper-shapes/gemini.json):
-// div.conversation-container › user-query (.query-text p.query-text-line) + model-response
-// (message-content div.markdown). A long conversation keeps only part of itself on screen.
+// Read from the DATA: POST /_/BardChatUi/data/batchexecute?rpcids=hNvQHb — the call the page makes to
+// load a conversation. The ANSWER is measured (owner's conversation 20/10, jam form extract, second
+// press): payload[0] = one entry per turn: [ids, ids, [[question], …], [[[candidate_id, [answer], …]], …],
+// [seconds, nanos]]. The REQUEST body was not captured (the probe saw no f.req), so its form —
+// f.req=[[["hNvQHb","[\"c_<id>\",100,null,1,[0],[4],null,1]",null,"generic"]]], the page's `at` token,
+// bl and f.sid read from the page — follows the publicly known shape, NOT a measurement. If Google
+// refuses it, the screen reader (measured 15/10: user-query + model-response) still clips.
 
 function geminiIds(url: URL): { conversation?: string } {
   const m = url.pathname.match(/\/app\/([0-9a-z_-]{6,})/i) ?? url.pathname.match(/^\/(?:u\/\d+\/)?gem\/[^/]+\/([0-9a-z_-]{6,})/i);
@@ -877,20 +879,76 @@ export function geminiScreen(doc: Document): Turn[] {
   return turns;
 }
 
-export function createGeminiReader(): Extractor {
+/** Turns asked for in one call. Fewer back than this = the whole conversation. */
+const GEMINI_PAGE = 100;
+
+/** The page's own session values, from its inline WIZ data. */
+function geminiSession(doc: Document): { at: string; bl: string; fsid: string } {
+  const html = doc.documentElement?.innerHTML ?? "";
+  const pick = (key: string) => html.match(new RegExp(`"${key}":"([^"]+)"`))?.[1];
+  const at = pick("SNlM0e"), bl = pick("cfb2h"), fsid = pick("FdrFJe");
+  if (!at || !bl || !fsid) throw new Error("Gemini's session values (SNlM0e/cfb2h/FdrFJe) were not found on the page");
+  return { at, bl, fsid };
+}
+
+/** The hNvQHb payload out of a batchexecute answer: ")]}'" then length-prefixed JSON chunks. Exported for tests. */
+export function geminiPayload(text: string): unknown {
+  for (const line of text.replace(/^\)\]\}'\s*/, "").split("\n")) {
+    if (!line.startsWith("[")) continue;
+    let rows: unknown;
+    try { rows = JSON.parse(line); } catch { continue; }
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (Array.isArray(r) && r[0] === "wrb.fr" && r[1] === "hNvQHb" && typeof r[2] === "string") return JSON.parse(r[2]);
+    }
+  }
+  throw new ShapeError("the batchexecute answer holds no hNvQHb payload");
+}
+
+/** The turns from the hNvQHb payload, oldest first. Exported for tests. */
+export function geminiTurns(payload: unknown): { turns: Turn[]; skipped: string[] } {
+  if (!Array.isArray(payload) || !Array.isArray(payload[0])) throw new ShapeError("hNvQHb holds no turns");
+  const entries = payload[0].filter(Array.isArray) as unknown[][];
+  const at = (e: unknown[]) => (Array.isArray(e[4]) && typeof e[4][0] === "number" ? e[4][0] : 0);
+  const turns: Turn[] = [];
+  for (const e of [...entries].sort((a, b) => at(a) - at(b))) {
+    const q = Array.isArray(e[2]) && Array.isArray(e[2][0]) ? e[2][0][0] : undefined;
+    const cand = Array.isArray(e[3]) && Array.isArray(e[3][0]) && Array.isArray(e[3][0][0]) ? e[3][0][0] : undefined;
+    const a = cand && Array.isArray(cand[1]) ? cand[1][0] : undefined;
+    if (typeof q !== "string" || typeof a !== "string") throw new ShapeError("a Gemini turn without question/answer text");
+    turns.push({ role: "user", text: q }, { role: "assistant", text: a });
+  }
+  const skipped = entries.length >= GEMINI_PAGE ? [`Gemini gav ${GEMINI_PAGE} ture — samtalen kan have flere`] : [];
+  return { turns, skipped };
+}
+
+export function createGeminiReader(o: ChatReaderOptions = {}): Extractor {
   return {
     id: "gemini",
     matches: (url) => url.hostname === "gemini.google.com" && !!geminiIds(url).conversation,
     async extract(doc, url) {
-      const units = toUnits(geminiScreen(doc));
-      if (!units.length) throw new NothingToClipError(url.href);
-      return {
-        url: url.href,
-        title: doc.title.replace(/\s*[-–|]\s*Gemini.*$/i, "").trim() || "Gemini",
-        anchor: geminiIds(url).conversation!,
-        units,
-        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — Geminis samtaledata kan endnu ikke hentes i sin helhed." },
-      };
+      const f = o.fetch ?? fetch.bind(globalThis);
+      const id = geminiIds(url).conversation!;
+      const title = doc.title.replace(/\s*[-–|]\s*Gemini.*$/i, "").trim() || "Gemini";
+      return dataOrScreen(
+        async () => {
+          const s = geminiSession(doc);
+          const q = new URLSearchParams({ rpcids: "hNvQHb", "source-path": url.pathname, bl: s.bl, "f.sid": s.fsid, hl: doc.documentElement?.lang || "en", _reqid: String(100000 + Math.floor(Math.random() * 800000)), rt: "c" });
+          const freq = JSON.stringify([[["hNvQHb", JSON.stringify([`c_${id}`, GEMINI_PAGE, null, 1, [0], [4], null, 1]), null, "generic"]]]);
+          const res = await f(`${url.origin}/_/BardChatUi/data/batchexecute?${q}`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "content-type": "application/x-www-form-urlencoded;charset=UTF-8" },
+            body: new URLSearchParams({ "f.req": freq, at: s.at }),
+          });
+          if (!res.ok) throw new Error(`batchexecute answered ${res.status}`);
+          const { turns, skipped } = geminiTurns(geminiPayload(await res.text()));
+          const incomplete = incompleteFrom(skipped, []);
+          return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
+        },
+        () => ({ title, units: toUnits(geminiScreen(doc)) }),
+        url,
+        { anchor: id },
+      );
     },
   };
 }
