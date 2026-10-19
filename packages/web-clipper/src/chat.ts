@@ -1089,11 +1089,55 @@ export function createLeChatReader(o: ChatReaderOptions = {}): Extractor {
   };
 }
 
+// ── DeepSeek (F099.22) ───────────────────────────────────────────────────────
+// Read from the SCREEN. The data exists (GET /api/v0/chat/history_messages?chat_session_id=…), but in
+// the owner's sample (jam docs/clipper-shapes/deepseek.json, 19/10) it answered {code, data:null, msg}
+// — the call needs DeepSeek's bearer token, which the sample's replay did not carry — so its message
+// shape is unmeasured and no reader is written against a guess. Structure measured on the same page:
+// a virtual list (only turns near the viewport exist) of .ds-message; the answer is
+// .ds-markdown.ds-assistant-message-main-content, the question a .ds-message without it.
+
+function deepseekIds(url: URL): { conversation?: string } {
+  const m = url.pathname.match(/\/a\/chat\/s\/([0-9a-f-]{8,})/i);
+  return m ? { conversation: m[1] } : {};
+}
+
+/** The turns on screen, in order. Exported for tests. */
+export function deepseekScreen(doc: Document): Turn[] {
+  const turns: Turn[] = [];
+  // The action buttons sit BESIDE .ds-message in the sample, not inside it, so a turn's text is its own.
+  for (const el of Array.from(doc.querySelectorAll<HTMLElement>(".ds-message"))) {
+    const answer = el.querySelector<HTMLElement>(".ds-assistant-message-main-content, .ds-markdown");
+    if (answer) turns.push({ role: "assistant", text: htmlToMarkdown(answer.innerHTML) });
+    else turns.push({ role: "user", text: (el.textContent ?? "").trim() });
+  }
+  return turns;
+}
+
+export function createDeepSeekReader(): Extractor {
+  return {
+    id: "deepseek",
+    matches: (url) => url.hostname === "chat.deepseek.com" && !!deepseekIds(url).conversation,
+    async extract(doc, url) {
+      const units = toUnits(deepseekScreen(doc));
+      if (!units.length) throw new NothingToClipError(url.href);
+      return {
+        url: url.href,
+        title: doc.title.replace(/\s*[-–|]\s*DeepSeek.*$/i, "").trim() || "DeepSeek",
+        anchor: deepseekIds(url).conversation!,
+        units,
+        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — DeepSeek viser kun en del af samtalen ad gangen, og dens data kan endnu ikke hentes." },
+      };
+    },
+  };
+}
+
 export const chatgptReader: Extractor = createChatgptReader();
 export const claudeReader: Extractor = createClaudeReader();
 export const geminiReader: Extractor = createGeminiReader();
 export const perplexityReader: Extractor = createPerplexityReader();
 export const copilotReader: Extractor = createCopilotReader();
 export const lechatReader: Extractor = createLeChatReader();
+export const deepseekReader: Extractor = createDeepSeekReader();
 /** Every chat reader, ready for runContentScript(chatReaders). */
-export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader, copilotReader, lechatReader];
+export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader, copilotReader, lechatReader, deepseekReader];
