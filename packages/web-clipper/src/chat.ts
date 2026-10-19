@@ -362,7 +362,7 @@ async function dataOrScreen(
     return { url: url.href, title: d.title, ...base, units: d.units, ...(d.branches?.length ? { branches: d.branches } : {}), completeness };
   } catch (e) {
     const s = fromScreen();
-    if (!s.units.length) throw new NothingToClipError(url.href);
+    if (!s.units.length) throw new NothingToClipError(url.href, e instanceof Error ? e.message : String(e));
     const reason = `Kun det der er synligt på skærmen blev klippet — samtalen kunne ikke hentes i sin helhed (${e instanceof Error ? e.message : String(e)}).`;
     const completeness: Completeness = { complete: false, source: "dom", reason, missing: "turns" };
     return { url: url.href, title: s.title, ...base, units: s.units, completeness };

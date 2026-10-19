@@ -141,9 +141,12 @@ export interface Extractor {
 
 /** Thrown when a page yields nothing to clip — Readability found no article. */
 export class NothingToClipError extends Error {
-  constructor(url: string) {
-    super(`nothing to clip on ${url}`);
+  /** F099.22 — why the site's own data could not be read, when a data reader tried first (jam 19/10: a Le Chat clip said only «nothing to clip», and the cause was gone). */
+  readonly dataError?: string;
+  constructor(url: string, dataError?: string) {
+    super(`nothing to clip on ${url}${dataError ? ` — the conversation data could not be read: ${dataError}` : ""}`);
     this.name = "NothingToClipError";
+    if (dataError) this.dataError = dataError;
   }
 }
 

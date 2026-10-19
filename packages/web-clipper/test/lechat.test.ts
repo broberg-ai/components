@@ -84,6 +84,15 @@ describe("F099.22 — Le Chat reader (data)", () => {
     await expect(createLeChatReader({ fetch: serve(conversation({ items, canvases: [] })) }).extract(document, URL_)).rejects.toThrow();
   });
 
+  it("when the data cannot be read, the error SAYS why (jam 19/10: a failed clip said only «nothing to clip»)", async () => {
+    const failing = (async () => new Response("{}", { status: 403 })) as unknown as typeof fetch;
+    const err = await createLeChatReader({ fetch: failing }).extract(document, URL_).then(() => { throw new Error("expected a failure"); }, (e: unknown) => e as Error & { dataError?: string });
+    expect(err.message).toMatch(/nothing to clip on https:\/\/chat\.mistral\.ai\/work\/.+ — the conversation data could not be read: .*answered 403/);
+    expect(err.dataError).toMatch(/answered 403$/);
+    const shape = await createLeChatReader({ fetch: serve(conversation({ items: [{ id: "m1", content: "Hej" }] })) }).extract(document, URL_).then(() => { throw new Error("expected a failure"); }, (e: unknown) => e as Error & { dataError?: string });
+    expect(shape.dataError).toBe("a Le Chat message without id/role");
+  });
+
   it("chatReaders picks it for /work/<id> and /chat/<id>; NEGATIVE CONTROL: Le Chat's start page is not a conversation", () => {
     expect(pickExtractor(URL_, chatReaders).id).toBe("lechat");
     expect(pickExtractor(new URL(`https://chat.mistral.ai/chat/${ID}`), chatReaders).id).toBe("lechat");
