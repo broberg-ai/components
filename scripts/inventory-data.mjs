@@ -228,11 +228,12 @@ export const INFRA = [
   },
   {
     id: "supabase", name: "Supabase", role: "Postgres + auth (sanne, xrt81, fds, fdaa)",
-    kw: ["supabase","postgres","postgresql","database","db","auth","authentication","storage","rls","row level security","sql"],
+    kw: ["supabase","postgres","postgresql","database","db","auth","authentication","storage","rls","row level security","sql","dual","dual db","reserve","upcloud","ip guard"],
     region: "Always arn (Stockholm)",
     notes: "Supabase (Postgres + auth) backs several consumer apps. Provision in region arn. For Cardmem Lens to screenshot authed surfaces, mint a short-lived read-only session via @broberg/lens (keep ONLY your Supabase-specific signInWithPassword in createSession; the package owns bearer/ship-dark/TTL/cookie-domain). Watch the cookie-domain-behind-proxy trap: deriving cookie domain from the Host header yields 'localhost' behind Apache/Fly proxies, so the browser never sends the cookie to the real domain — pin LENS_COOKIE_DOMAIN. Keep the service-role key server-side only.",
     tips: [
       { t: "Provision in region arn (Stockholm) — same as Fly.", by: "components", tag: "region" },
+      { t: "Dual DB (Supabase primary + UpCloud copy): the IP guard for it is reserve-ip-guard — copy broberg-id src/reserve-ip-guard.ts @ edb8feb verbatim (bid + fd-sundhed run it). A COPY, not a package, until a third repo needs it; then ask components to make it one.", by: "bid", tag: "dual-db" },
       { t: "Authed Lens capture → @broberg/lens; keep only your signInWithPassword in createSession, package owns the rest.", by: "components", tag: "lens" },
       { t: "Cookie-domain trap: behind a proxy the Host header is 'localhost' → cookie never reaches the real domain. Pin LENS_COOKIE_DOMAIN.", by: "fds", tag: "gotcha" },
       { t: "service_role key is server-side ONLY — never ship it to the browser. Use a read-only/anon key client-side.", by: "components", tag: "security" },
