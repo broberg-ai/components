@@ -91,4 +91,14 @@ describe("F099.22 — Perplexity reader (data)", () => {
     expect(clip.completeness).toMatchObject({ complete: false, source: "dom", missing: "turns" });
     expect((clip.completeness as { reason: string }).reason).toMatch(/a thread entry without query_str\/blocks/);
   });
+
+  // Lens 20/10, anonymous thread 2a3e44b1: blocks were plan / answer_tabs / pending_followups — no ask_text.
+  it("NEGATIVE CONTROL: an entry whose answer is not an ask_text block never becomes a questions-only clip — the screen is read instead", async () => {
+    document.body.innerHTML = `<main>${turn("Hvor er den bedste kaffe i Aalborg?", "<p>Café X.</p>")}</main>`;
+    const e = { ...entry("Hvor er den bedste kaffe i Aalborg?", "ubrugt", "2026-10-15T18:02:00Z"), blocks: [block("plan", { plan_block: {} }), block("answer_tabs", { answer_tabs_block: {} }), block("pending_followups", { pending_followups_block: {} })] };
+    const clip = await createPerplexityReader(serve({ has_next_page: false, entries: [e] })).extract(document, URL_);
+    expect(clip.units.map((u) => [u.role, u.content])).toStrictEqual([["user", "Hvor er den bedste kaffe i Aalborg?"], ["assistant", "Café X."]]);
+    expect(clip.completeness).toMatchObject({ complete: false, source: "dom", missing: "turns" });
+    expect((clip.completeness as { reason: string }).reason).toMatch(/without an ask_text answer/);
+  });
 });

@@ -853,10 +853,11 @@ export function createClaudeReader(o: ChatReaderOptions = {}): Extractor {
 // Read from the DATA: POST /_/BardChatUi/data/batchexecute?rpcids=hNvQHb — the call the page makes to
 // load a conversation. The ANSWER is measured (owner's conversation 20/10, jam form extract, second
 // press): payload[0] = one entry per turn: [ids, ids, [[question], …], [[[candidate_id, [answer], …]], …],
-// [seconds, nanos]]. The REQUEST body was not captured (the probe saw no f.req), so its form —
-// f.req=[[["hNvQHb","[\"c_<id>\",100,null,1,[0],[4],null,1]",null,"generic"]]], the page's `at` token,
-// bl and f.sid read from the page — follows the publicly known shape, NOT a measurement. If Google
-// refuses it, the screen reader (measured 15/10: user-query + model-response) still clips.
+// [seconds, nanos]]. The REQUEST form — f.req=[[["hNvQHb","[\"c_<id>\",100,null,1,[0],[4],null,1]",
+// null,"generic"]]], the page's `at` token, bl and f.sid read from the page — matches the SHAPE Lens
+// measured 20/10 on one test conversation ([string(18), number, null, number, [number], [number], null,
+// number]); the number values are still ours. If Google refuses them, the screen reader (measured
+// 15/10: user-query + model-response) still clips.
 
 function geminiIds(url: URL): { conversation?: string } {
   const m = url.pathname.match(/\/app\/([0-9a-z_-]{6,})/i) ?? url.pathname.match(/^\/(?:u\/\d+\/)?gem\/[^/]+\/([0-9a-z_-]{6,})/i);
@@ -995,7 +996,10 @@ export function perplexityTurns(data: unknown): { title: string; turns: Turn[]; 
     if (typeof e.query_str !== "string" || !Array.isArray(e.blocks)) throw new ShapeError("a thread entry without query_str/blocks");
     turns.push({ role: "user", text: e.query_str });
     const answer = e.blocks.find((b) => isObj(b) && b.intended_usage === "ask_text" && isObj(b.markdown_block) && typeof b.markdown_block.answer === "string");
-    if (answer) turns.push({ role: "assistant", text: (answer.markdown_block as { answer: string }).answer });
+    // Lens measured a thread (20/10) whose answer was in answer_tabs_block with no ask_text block at all:
+    // dropping it would clip the questions alone and call that complete.
+    if (!answer) throw new ShapeError("a thread entry without an ask_text answer");
+    turns.push({ role: "assistant", text: (answer.markdown_block as { answer: string }).answer });
   }
   const skipped = data.has_next_page === true ? ["Perplexity har flere ture end dem der blev hentet"] : [];
   const first = entries[0];
