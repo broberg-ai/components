@@ -1028,11 +1028,16 @@ export function createPerplexityReader(o: ChatReaderOptions = {}): Extractor {
 }
 
 // ── Microsoft 365 Copilot (F099.22) ──────────────────────────────────────────
-// Read from the SCREEN: the page's data does not come over a fetch the sample could see, and the
-// message list is virtualised (only what is near the viewport exists). Structure measured 15/10 on
-// the owner's own conversation (copilot.cloud.microsoft, jam form extract): Fluent AI components —
-// .fai-UserMessage and .fai-CopilotMessage (role=article), the answer in .fai-CopilotMessage__content,
-// each with a visually-hidden accessible heading that must not reach the turn text.
+// Read from the DATA (owner's conversation 20/10, jam form extract after a conversation switch): the
+// page GETs its own address, /chat/conversation/<id>?es=…, same origin, cookie only, and gets JSON:
+// {store:{rawConversationResponse:{chatName, conversationId, messages:[…]}}}. A message is
+// {author:"user"|"bot", text, createdAt, messageType?, …}. Measured: the bot messages that carry a
+// messageType (with addToChainOfThought) are progress/thinking steps; the answer is the bot message
+// WITHOUT one; a trailing bot message with empty text is a placeholder. The request headers were not
+// captured, so `accept: application/json` is ours — if the page answers HTML instead, the screen is read.
+// The SCREEN (measured 15/10, still present 20/10): Fluent AI components — .fai-UserMessage and
+// .fai-CopilotMessage (role=article), the answer in .fai-CopilotMessage__content, each with a
+// visually-hidden accessible heading that must not reach the turn text. The list is virtualised.
 
 function copilotIds(url: URL): { conversation?: string } {
   const m = url.pathname.match(/\/chat\/conversation\/([0-9a-z-]{8,})/i);
@@ -1060,20 +1065,45 @@ export function copilotScreen(doc: Document): Turn[] {
   return turns;
 }
 
-export function createCopilotReader(): Extractor {
+/** The conversation request: the page's own address, as JSON. Exported for tests. */
+export function copilotUrl(url: URL): string {
+  return `${url.origin}${url.pathname}${url.search || "?es"}`;
+}
+
+/** The turns from rawConversationResponse, in the order Copilot keeps them. Exported for tests. */
+export function copilotTurns(data: unknown): { title: string; turns: Turn[]; skipped: string[] } {
+  const store = isObj(data) && isObj(data.store) ? data.store : undefined;
+  const raw = store && isObj(store.rawConversationResponse) ? store.rawConversationResponse : undefined;
+  if (!raw || !Array.isArray(raw.messages)) throw new ShapeError("the page data holds no rawConversationResponse.messages");
+  const turns: Turn[] = [];
+  const skipped: string[] = [];
+  for (const m of raw.messages) {
+    if (!isObj(m) || typeof m.text !== "string") throw new ShapeError("a Copilot message without text");
+    if (m.author === "user") turns.push({ role: "user", text: m.text });
+    else if (m.author === "bot") {
+      if (m.messageType !== undefined) continue; // a thinking/progress step (the empty placeholder is dropped by toUnits)
+      turns.push({ role: "assistant", text: m.text });
+    } else skipped.push(`en Copilot-besked fra «${String(m.author)}» blev ikke forstået`);
+  }
+  return { title: str(raw.chatName) || "Copilot", turns, skipped };
+}
+
+export function createCopilotReader(o: ChatReaderOptions = {}): Extractor {
   return {
     id: "copilot",
     matches: (url) => url.hostname === "copilot.cloud.microsoft" && !!copilotIds(url).conversation,
     async extract(doc, url) {
-      const units = toUnits(copilotScreen(doc));
-      if (!units.length) throw new NothingToClipError(url.href);
-      return {
-        url: url.href,
-        title: doc.title.replace(/\s*[-–|]\s*(Microsoft 365 )?Copilot.*$/i, "").trim() || "Copilot",
-        anchor: copilotIds(url).conversation!,
-        units,
-        completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — Copilot viser kun en del af samtalen ad gangen, og dens data kan endnu ikke hentes." },
-      };
+      const f = o.fetch ?? fetch.bind(globalThis);
+      return dataOrScreen(
+        async () => {
+          const { title, turns, skipped } = copilotTurns(await getJson(f, copilotUrl(url), { headers: { accept: "application/json" } }));
+          const incomplete = incompleteFrom(skipped, []);
+          return { title, units: toUnits(turns), ...(incomplete ? { incomplete } : {}) };
+        },
+        () => ({ title: doc.title.replace(/\s*[-–|]\s*(Microsoft 365 )?Copilot.*$/i, "").trim() || "Copilot", units: toUnits(copilotScreen(doc)) }),
+        url,
+        { anchor: copilotIds(url).conversation! },
+      );
     },
   };
 }
