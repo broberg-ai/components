@@ -30,6 +30,7 @@
       "packages": [
         "@broberg/app-shell",
         "@broberg/feature-stats",
+        "@broberg/seal",
         "@broberg/greppable",
         "@broberg/logger",
         "@broberg/notify",
@@ -44,6 +45,7 @@
       "min_tests": {
         "@broberg/app-shell": 24,
         "@broberg/feature-stats": 17,
+        "@broberg/seal": 4,
         "@broberg/greppable": 8,
         "@broberg/logger": 16,
         "@broberg/notify": 4,
