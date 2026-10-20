@@ -12,7 +12,10 @@ hitting the NextAuth login wall or hand-rolling a scheduler.
   touches its own repo's jobs (cross-scope → 404).
 - **Secrets stay server-side.** Put a target secret in a per-job `headers` entry;
   it's stored on the cron service and forwarded verbatim on each tick — never in
-  the URL or a log.
+  the URL or a log. **But until cronjobs F013 ships, headers are stored in
+  plaintext and returned UNMASKED by `GET /api/jobs`, `/api/jobs/:id` and
+  `/api/jobs/export`** — anyone with access to the job can read the secret. Use a
+  least-privilege, short-lived token.
 
 > **Not yet on npm.** v0.1.0 bootstrap-publish is pending Christian's go +
 > Trusted Publisher (the standard `@broberg/*` ship path). Built against the live
