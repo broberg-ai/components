@@ -39,13 +39,6 @@ describe("rasterizeIconSet", () => {
       expect(p.at(1, 1)).toEqual([0x14, 0x19, 0x69, 255]); // the background in the corner
     }
     expect(out.appleTouchIcon).toBe("/icons/icon-180.png");
-    // F021.11 — the two ROOT paths iOS asks for on its own, with the 180 PNG's bytes.
-    const png180 = out.files.find((f) => f.path === "/icons/icon-180.png")!;
-    expect(out.rootFiles.map((f) => [f.path, f.size, f.type])).toStrictEqual([
-      ["/apple-touch-icon.png", 180, "image/png"],
-      ["/apple-touch-icon-precomposed.png", 180, "image/png"],
-    ]);
-    for (const f of out.rootFiles) expect(Buffer.from(f.content).equals(Buffer.from(png180.content))).toBe(true);
     expect(out.icons).toEqual([
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
@@ -59,6 +52,33 @@ describe("rasterizeIconSet", () => {
     let white = 0;
     for (let i = 0; i < p.raw.length; i += 4) if (p.raw[i]! > 200 && p.raw[i + 1]! > 200 && p.raw[i + 2]! > 200) white++;
     expect(white).toBeGreaterThan(500);
+  });
+});
+
+describe("F021.11 — the iPhone asks the web ROOT for its icon", () => {
+  it("rasterizeIconSet().rootFiles: /apple-touch-icon.png and -precomposed.png, the 180 PNG's exact bytes", async () => {
+    const out = await rasterizeIconSet(buildIconSet({ svg: LOGO, background: "#141969" }));
+    const png180 = out.files.find((f) => f.path === "/icons/icon-180.png")!;
+    expect(out.rootFiles.map((f) => [f.path, f.size, f.type])).toStrictEqual([
+      ["/apple-touch-icon.png", 180, "image/png"],
+      ["/apple-touch-icon-precomposed.png", 180, "image/png"],
+    ]);
+    for (const f of out.rootFiles) expect(Buffer.from(f.content).equals(Buffer.from(png180.content))).toBe(true);
+  });
+
+  it("pwa-icons writes them to the web root (the parent of --out), not into /icons", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pwa-root-"));
+    const svgFile = join(dir, "logo.svg");
+    writeFileSync(svgFile, LOGO);
+    const orig = console.log;
+    console.log = () => {};
+    try {
+      expect(await main(["--svg", svgFile, "--out", join(dir, "icons")])).toBe(0);
+    } finally {
+      console.log = orig;
+    }
+    expect(readdirSync(dir).filter((n) => n.startsWith("apple-touch-icon")).sort()).toStrictEqual(["apple-touch-icon-precomposed.png", "apple-touch-icon.png"]);
+    expect(readdirSync(join(dir, "icons")).some((n) => n.startsWith("apple-touch-icon"))).toBe(false);
   });
 });
 
@@ -81,8 +101,6 @@ describe("pwa-icons CLI", () => {
       "icon-maskable-512.png", "icon-maskable-512.svg",
     ]);
     expect([...readFileSync(join(out, "icon-180.png")).subarray(0, 8)]).toEqual(PNG_SIG);
-    // F021.11 — the root icons land in the parent of --out (the web root), not in /icons.
-    expect(readdirSync(dir).filter((n) => n.startsWith("apple-touch-icon")).sort()).toStrictEqual(["apple-touch-icon-precomposed.png", "apple-touch-icon.png"]);
     const printed = JSON.parse(logs.join("\n"));
     expect(printed.appleTouchIcon).toBe("/icons/icon-180.png");
     expect(printed.icons.every((i: { type: string }) => i.type === "image/png")).toBe(true);
