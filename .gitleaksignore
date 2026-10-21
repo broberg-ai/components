@@ -18,3 +18,5 @@ f736035f199338c2274e40963891846eb4d3ab7a:packages/secret-scan/test/secret-scan.t
 1924a1b7d9e1f51aa68c21c2b0392468bda54147:packages/lens/test/write-mint.test.ts:generic-api-key:11
 # 7/10 2026: "uk_TEST-SECRET-0123456789" — a fake Upmetrics key in a stubbed contract test; read and judged a fixture.
 e5cc266a07bc32ac4b3b373ed6fe552b9e091393:packages/app-shell/test/upmetrics-contract.test.ts:generic-api-key:11
+# 21/10 2026: "a-secret-that-is-long-enough-for-hs256-…" — a fake LiveKit API secret in @broberg/voice tests (signs and verifies test tickets); read and judged a fixture.
+c9377fd9000cec3403e2c068bd4aaf4293b314fe:packages/voice/test/server.test.ts:generic-api-key:6
