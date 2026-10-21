@@ -1,7 +1,7 @@
 # F104 — `@broberg/voice`: infrastruktur-specifikation
 
 > **Ordre:** Christian 21/10 2026, ordret: «b) byg begge og giv mig en infrastruktur spec på voice».
-> **Status:** SPEC TIL GODKENDELSE. Intet er sat op. Fly-app, IP-adresse, DNS og hemmeligheder oprettes først på ejerens GO til denne fil (Harness-kontrakten: infrastruktur kræver hans egne ord).
+> **Status:** GODKENDT af ejeren 21/10 2026, ordret: «Én fælles server til en start det er kun Jam der skal bruge det initialt, voice.broberg.ai, budget OK GO». Svar på de åbne spørgsmål står nederst. `@broberg/voice` 0.1.0 er udgivet (F104.3) før serveren, på ejerens ord samme aften («gør den anden pakke klar så begge kommer ud»).
 > **Konfidens:** priser, Fly-UDP-detaljer og kapacitetstal er `[Likely]` — læst, ikke målt. De måles i F104.2's prøve, før noget går i drift.
 
 ## 1. Hvad der skal kunne lade sig gøre
@@ -123,11 +123,24 @@ En maskine bør kunne bære mange samtidige lyd-rum; det reelle loft måles i pr
 
 Derefter: F104.2-prøven (afsnit 8), og først når den er grøn, pakken og Jam.
 
-## Åbne spørgsmål til ejeren
+## Åbne spørgsmål til ejeren — BESVARET 21/10
+
+**Svar:** (1) én fælles server — kun jam bruger den i starten; isolation pr. app genovervejes når app nr. 2 kommer. (2) `voice.broberg.ai`. (3) budget OK.
+
 
 1. **Én fælles mediaserver for alle apps, eller én pr. app?** Fælles er billigst og nok i starten; pr. app giver fuld isolation (afsnit 5).
 2. **Domæne:** `voice.broberg.ai`?
 3. **Budget:** ~15–20 USD/md ved let brug — OK?
+
+## Fly-opsætningen (målt af andre, gentages i F104.2)
+
+Fly bærer UDP kun på en **dedikeret IPv4**, og appen skal lytte på den særlige `fly-global-services`-adresse — lytter den på alle adresser (`0.0.0.0`), forsvinder svarene lydløst. For LiveKit er der to steder: `rtc.ips.includes` (opkaldstrafikken) og `turn.bind_addresses` (TURN). Adressen er forskellig pr. maskine, så den læses fra `/etc/hosts` ved opstart. Kilde: community.fly.io «Running LiveKit … fly-global-services UDP bind requirement» — der blev et rigtigt opkald gennemført efter rettelsen. `[Likely — ikke målt af os endnu]`
+
+Porte: 443 (signalering, TLS hos Fly) · 7881/tcp (opkald over TCP) · 7882/udp (opkald) · 3478/udp (TURN) · 5349/tcp (TURN over TLS, TLS hos Fly). **Kendt begrænsning:** TURN-over-TLS ligger på 5349, ikke 443, fordi 443 bruges af signaleringen og Fly ikke kan fordele samme port efter domænenavn. Et firmanet der KUN tillader 443, kan derfor ikke ringe endnu — det måles i testplanen, og løsningen (en anden IP eller en EU-VM med Caddy-SNI) vælges først hvis det viser sig at ramme.
+
+## Video og optagelse — senere, samme server
+
+Ejeren spurgte 21/10. **Video:** samme LiveKit; billetten får lov til `camera` (og evt. `screen_share`), pakken får `enableCamera()`, og simulcast holder klienterne nede. Trafikken stiger ~10–30×. **Optagelse:** LiveKit Egress som egen tjeneste (headless Chrome + Redis), filer til et EU-lager (Tigris arn), ~+15–30 USD/md `[Likely]`. Persondata: synlig optage-indikator, hvem må starte, opbevaringstid — ejerens beslutninger når det bestilles.
 
 ## Reuse
 

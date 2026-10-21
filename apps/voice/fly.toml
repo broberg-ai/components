@@ -1,0 +1,63 @@
+# F104.2 — shared LiveKit media server. Owner's GO 21/10 2026: «Én fælles server
+# til en start … voice.broberg.ai, budget OK GO». One machine: LiveKit without
+# Redis is one node, and a stopped machine would drop every call.
+app = "broberg-voice"
+primary_region = "arn"
+
+[env]
+  # The app's dedicated IPv4 (UDP needs one). Set after `fly ips allocate-v4`.
+  VOICE_PUBLIC_IP = "169.155.59.174"
+
+# Signalling + API: https/wss on 443, TLS by Fly (cert for voice.broberg.ai).
+[[services]]
+  internal_port = 7880
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    method = "get"
+    path = "/"
+
+# Media over UDP (the normal path).
+[[services]]
+  internal_port = 7882
+  protocol = "udp"
+  [[services.ports]]
+    port = 7882
+
+# Media over TCP when UDP is blocked. Raw TCP: WebRTC is already encrypted.
+[[services]]
+  internal_port = 7881
+  protocol = "tcp"
+  [[services.ports]]
+    port = 7881
+
+# TURN over UDP.
+[[services]]
+  internal_port = 3478
+  protocol = "udp"
+  [[services.ports]]
+    port = 3478
+
+# TURN over TLS: Fly terminates TLS and passes the client address in PROXY v2.
+[[services]]
+  internal_port = 5349
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5349
+    handlers = ["tls", "proxy_proto"]
+    proxy_proto_options = { version = "v2" }
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
