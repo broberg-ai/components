@@ -132,6 +132,13 @@ const MUTATIONS = [
     replace: "",
     expect: ["leave disconnects"],
   },
+  {
+    name: "a refused microphone leaves the room connected",
+    file: CLIENT,
+    find: "    await room.disconnect();\n    throw e;",
+    replace: "    throw e;",
+    expect: ["rejects, disconnects and leaves no listener"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "vcmut-"));

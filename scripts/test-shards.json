@@ -48,7 +48,7 @@
         "@broberg/app-shell": 24,
         "@broberg/feature-stats": 17,
         "@broberg/realtime": 12,
-        "@broberg/voice": 19,
+        "@broberg/voice": 20,
         "@broberg/seal": 4,
         "@broberg/greppable": 8,
         "@broberg/logger": 16,

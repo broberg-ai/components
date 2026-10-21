@@ -52,6 +52,7 @@ await call.leave();                                  // disconnects; no callback
 ```
 
 - The microphone opens with **noise suppression, echo cancellation and auto gain** on.
+- If joining fails — the microphone is refused, the ticket is rejected — `joinVoice` rejects AND disconnects first, so nobody is left in the room listening without a way to leave.
 - Other people's audio is attached to hidden `<audio>` elements and removed when they leave.
 - Reconnection after a network drop (ICE restart, resume) is LiveKit's own.
 - The package draws no UI. If you build one, give every control a `data-testid`.

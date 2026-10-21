@@ -86,10 +86,19 @@ export async function joinVoice({ url, token }: JoinOptions): Promise<VoiceCall>
   ];
   for (const [event, fn] of handlers) room.on(event, fn);
 
-  await room.connect(url, token);
-  await room.localParticipant.setMicrophoneEnabled(true, { ...AUDIO_CAPTURE });
-  // joinVoice is called from a click; this is the gesture browsers require before audio may play.
-  await room.startAudio();
+  try {
+    await room.connect(url, token);
+    await room.localParticipant.setMicrophoneEnabled(true, { ...AUDIO_CAPTURE });
+    // joinVoice is called from a click; this is the gesture browsers require before audio may play.
+    await room.startAudio();
+  } catch (e) {
+    // A refused microphone must not leave the person connected and listening
+    // with no handle to leave — the caller only gets the rejection.
+    left = true;
+    for (const [event, fn] of handlers) room.off(event, fn);
+    await room.disconnect();
+    throw e;
+  }
 
   return {
     get muted() { return muted; },

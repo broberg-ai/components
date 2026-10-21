@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in for livekit-client's Room: records what joinVoice asks of it and
 // lets the test fire the room's events.
-const state = vi.hoisted(() => ({ room: undefined as any }));
+const state = vi.hoisted(() => ({ room: undefined as any, micError: undefined as Error | undefined }));
 
 vi.mock("livekit-client", async () => {
   const RoomEvent = {
@@ -18,7 +18,7 @@ vi.mock("livekit-client", async () => {
     options: any;
     listeners = new Map<string, Set<(...a: any[]) => void>>();
     remoteParticipants = new Map<string, any>();
-    localParticipant = { identity: "me", name: "Me", micCalls: [] as any[], setMicrophoneEnabled: vi.fn(async function (this: any, on: boolean, opts?: any) { state.room.localParticipant.micCalls.push([on, opts]); }) };
+    localParticipant = { identity: "me", name: "Me", micCalls: [] as any[], setMicrophoneEnabled: vi.fn(async function (this: any, on: boolean, opts?: any) { if (state.micError) throw state.micError; state.room.localParticipant.micCalls.push([on, opts]); }) };
     connect = vi.fn(async () => {});
     startAudio = vi.fn(async () => {});
     disconnect = vi.fn(async () => {});
@@ -51,6 +51,7 @@ function audioTrack() {
 const appended: unknown[] = [];
 beforeEach(() => {
   appended.length = 0;
+  state.micError = undefined;
   (globalThis as any).document = { body: { appendChild: (el: unknown) => appended.push(el) } };
 });
 
@@ -153,6 +154,15 @@ describe("joinVoice", () => {
     room.emit("participantConnected", remote("z"));
     expect(speaking).not.toHaveBeenCalled();
     expect(people).not.toHaveBeenCalled();
+  });
+});
+
+describe("joinVoice when the microphone is refused", () => {
+  it("rejects, disconnects and leaves no listener — nobody is left in the call listening", async () => {
+    state.micError = new Error("NotAllowedError: Permission denied");
+    await expect(joinVoice({ url: "u", token: "t" })).rejects.toThrow("Permission denied");
+    expect(state.room.disconnect).toHaveBeenCalledTimes(1);
+    expect(state.room.listenerCount()).toBe(0);
   });
 });
 
