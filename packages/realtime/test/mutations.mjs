@@ -77,6 +77,13 @@ const MUTATIONS = [
     expect: ["over the NOTIFY limit is refused"],
   },
   {
+    name: "a failed LISTEN is left unhandled",
+    file: SERVER,
+    find: "        listening = null;\n        onError(err);",
+    replace: "        listening = null;\n        throw err;",
+    expect: ["reported through onError"],
+  },
+  {
     name: "a publish is also delivered locally besides the bus (twice on its own hub)",
     file: SERVER,
     find: "      await bus.publish({ channel, event });\n    },\n\n    stream(",

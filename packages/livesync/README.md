@@ -2,7 +2,11 @@
 
 Real-time collaborative editing for the fleet, on **Yjs**: several people (or devices) edit the same document at the same time, nobody overwrites anybody, and an editor who goes offline keeps working and merges when they are back. Epic F100.
 
-> **0.0.1 on npm is an empty placeholder.** The first usable version is 0.1.0. This README describes the code in this repository.
+```bash
+npm i @broberg/livesync
+```
+
+> 0.1.0 is the first usable version; 0.0.1 was an empty placeholder that reserved the name.
 
 **Owner decisions (12/10):** each app runs its **own** sync server on its own database — there is no shared fleet service — and **offline editing is on**.
 

@@ -3,7 +3,7 @@
 // what was SAVED reads the store back through load() into a fresh Y.Doc — never
 // the server's in-memory copy, which is exactly what a broken save would leave intact.
 import "fake-indexeddb/auto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { createLivesync, type Persistence, type Principal } from "../src/server";
 import { connect } from "../src/client";
@@ -96,18 +96,27 @@ describe("F100.3 AC1 — edited, left, unloaded, reopened", () => {
   });
 
   it("several edits within the debounce become ONE store", async () => {
-    const store = memoryStore();
-    const server = createLivesync({ insecureNoAuth: true, persistence: store, storeDebounceMs: 80, unloadAfterIdleMs: 10_000 });
-    const net = network(server);
-    const a = connect({ url: "ws://x/sync/deb", socket: net.factory });
-    await settle();
-    for (let i = 0; i < 5; i++) a.doc.getArray("nodes").push([{ id: `n${i}` }]);
-    await settle(6);
-    expect(store.stores()).toBe(0);
-    await tick(100);
-    expect(store.stores()).toBe(1);
-    expect(ids(await readBack(store, "deb"))).toStrictEqual(["n0", "n1", "n2", "n3", "n4"]);
-    a.destroy();
+    // Fake timers: on wall-clock time a loaded machine stretched the "short" wait
+    // past the debounce and stored early (seen once in a full run, 21/10). The
+    // claim is about the debounce, so the clock is the test's, not the machine's.
+    vi.useFakeTimers();
+    try {
+      const store = memoryStore();
+      const server = createLivesync({ insecureNoAuth: true, persistence: store, storeDebounceMs: 80, unloadAfterIdleMs: 10_000 });
+      const net = network(server);
+      const a = connect({ url: "ws://x/sync/deb", socket: net.factory });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(store.stores()).toBe(0);
+      for (let i = 0; i < 5; i++) a.doc.getArray("nodes").push([{ id: `n${i}` }]);
+      await vi.advanceTimersByTimeAsync(79);
+      expect(store.stores()).toBe(0);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(store.stores()).toBe(1);
+      expect(ids(await readBack(store, "deb"))).toStrictEqual(["n0", "n1", "n2", "n3", "n4"]);
+      a.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("flush() stores at once — what an app calls before a deploy restarts it", async () => {

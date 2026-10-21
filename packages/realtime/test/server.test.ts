@@ -171,6 +171,14 @@ describe("several machines: postgresBus", () => {
     expect(e.code).toBe("payload_too_large");
     expect(notified).toStrictEqual([]);
   });
+  it("a LISTEN that fails is reported through onError, not left as an unhandled rejection", async () => {
+    const errors: unknown[] = [];
+    const sql = { listen: async () => { throw new Error("db down"); }, notify: async () => {} };
+    const rt = createRealtime({ bus: postgresBus(sql, { onError: (e) => errors.push(e) }) });
+    await flush();
+    expect(errors.map((e) => (e as Error).message)).toStrictEqual(["db down"]);
+    rt.close();
+  });
 });
 
 describe("presence", () => {

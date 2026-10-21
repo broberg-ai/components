@@ -29,7 +29,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (69)
+## Packages by category (70)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.13.3 — The design-token foundation every surface inherits, plus prePaintScript(): the <head> string that sets the theme before the first paint, so no app …. `npm i @broberg/theme`
@@ -88,6 +88,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/seal** v0.1.0 — Encrypt the secrets an app must STORE AND READ BACK. `npm i @broberg/seal`
 - **@broberg/mail-templates** v0.1.0 — The engine behind a mail template, extracted from cardmem F298 (four projects' measured rules). `npm i @broberg/mail-templates`
 - **@broberg/realtime** v0.1.0 — Live channels for chat and anything that should feel instant, harvested from xrt81 F074. `npm i @broberg/realtime`
+- **@broberg/livesync** v0.0.1 — Several people (or devices) edit the same document at the same time without overwriting each other, on Yjs. `npm i @broberg/livesync`
 - **@broberg/greppable** v0.3.0 — A cc-session grep is NOT /usr/bin/grep. `npm i @broberg/greppable`
 - **@broberg/seti-client** v0.4.0 — The SETI streaming-chat client. `npm i @broberg/seti-client`
 - **@broberg/seti-server** v0.2.5 — The SETI proxy router. `npm i @broberg/seti-server`

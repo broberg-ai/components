@@ -1,7 +1,7 @@
 {
   "name": "@broberg/livesync",
-  "version": "0.0.1",
-  "description": "PLACEHOLDER on npm (0.0.1 has no code) — the fleet's shared real-time collaborative editing on Yjs: a sync server that runs inside your own app, a browser client that keeps working offline and merges on reconnect. Epic F100. First usable version: 0.1.0.",
+  "version": "0.1.0",
+  "description": "Real-time collaborative editing on Yjs for the fleet: a sync server that runs inside your own app (login check before the first byte, read/write per document, load/store hooks in your own database), and a browser client that reconnects, keeps working offline (IndexedDB) and merges on reconnect, with presence (who is here, cursors). Epic F100.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,

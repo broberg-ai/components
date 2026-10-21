@@ -57,8 +57,16 @@ export const NOTIFY_MAX_BYTES = 7999;
  * every publish is a NOTIFY. A payload over the NOTIFY limit is refused with a
  * named error BEFORE it is sent — publish the message's id, not the message.
  */
-export function postgresBus(sql: PostgresListenNotify, opts: { pgChannel?: string } = {}): RealtimeBus {
+export function postgresBus(
+  sql: PostgresListenNotify,
+  opts: {
+    pgChannel?: string;
+    /** A LISTEN that failed (e.g. Postgres down at boot). The hub then receives nothing until the next subscribe retries. Default: console.error. */
+    onError?: (err: unknown) => void;
+  } = {},
+): RealtimeBus {
   const pgChannel = opts.pgChannel ?? "broberg_realtime";
+  const onError = opts.onError ?? ((err: unknown) => console.error(`[@broberg/realtime] LISTEN ${pgChannel} failed — this hub receives no events`, err));
   const handlers = new Set<(msg: BusMessage) => void>();
   let listening: Promise<unknown> | null = null;
   return {
@@ -89,6 +97,10 @@ export function postgresBus(sql: PostgresListenNotify, opts: { pgChannel?: strin
             /* one hub's failure is not another's */
           }
         }
+      }).catch((err: unknown) => {
+        // Unhandled, this rejection crashes Node — and before that, the hub is deaf with no sign of it.
+        listening = null;
+        onError(err);
       });
       return () => handlers.delete(h);
     },

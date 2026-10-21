@@ -37,6 +37,7 @@ rt.presence.list(`jam:${id}`);
 
 - **Durable vs ephemeral.** An event with `id` is durable: after a reconnect, `replay` sends what was missed, then the stream goes live — an event published while the replay runs arrives exactly once. Without `id` it is ephemeral (typing, presence) and is never replayed.
 - **One path.** `publish` always goes through the bus, also on the machine that published, so no machine delivers its own event twice.
+- **A failed LISTEN** (Postgres down at boot) is reported through `postgresBus(sql, { onError })` (default `console.error`) — that hub receives nothing until it subscribes again.
 - **Postgres NOTIFY carries at most 7999 bytes.** A bigger event is refused (`RealtimeError` `payload_too_large`) before it is sent: publish the id, let clients fetch the body.
 - **Heartbeat.** A `$ping` every 15 s keeps proxies from closing a quiet stream, and lets the client notice a dead one.
 - **Access is yours.** The package does not know who may see a channel — check before `stream()` and before `publish()`.
