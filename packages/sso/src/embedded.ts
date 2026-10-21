@@ -41,8 +41,17 @@ export interface EmbeddedStartInput {
 export type EmbeddedStart = { ok: true; flow: EmbeddedFlow; expiresIn: number } | { ok: false; error: EmbeddedError };
 
 /** After a code: signed in (the same result as completeLogin), a second factor, or an error. */
+/** F084.179 — BID offers to create a passkey (BID F084.178) when the user has none. */
+export interface EmbeddedPasskeySetup {
+  setupId: string;
+  /** Show it in an `<iframe allow="publickey-credentials-create">`. Always on the issuer's own origin. */
+  frameUrl: string;
+  /** Seconds the offer lives. */
+  expiresIn: number;
+}
+
 export type EmbeddedStep =
-  | { kind: "done"; result: LoginResult }
+  | { kind: "done"; result: LoginResult; passkeySetup?: EmbeddedPasskeySetup }
   | { kind: "second_factor"; methods: ("totp" | "sms")[] }
   | { kind: "error"; error: EmbeddedError };
 

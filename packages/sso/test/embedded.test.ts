@@ -23,14 +23,14 @@ async function challenge(v: string) {
 }
 
 /** BID per the written contract. Mail code 481072, app 123456, SMS 777777; 5 wrong lock. */
-async function contractBid(o: { secondFactor?: boolean; signup?: boolean; nonceOverride?: string } = {}) {
+async function contractBid(o: { secondFactor?: boolean; signup?: boolean; nonceOverride?: string; passkeySetup?: Record<string, unknown> } = {}) {
   const pair = await generateKeyPair("RS256", { extractable: true });
   const flows = new Map<string, { challenge: string; nonce: string; email: string; wrong: number; sms: boolean; intent: string; name?: string }>();
   const codes = new Map<string, { challenge: string; nonce: string; sub: string }>();
-  const log: { path: string; auth: string | null; body: Record<string, unknown> }[] = [];
+  const log: { path: string; auth: string | null; body: Record<string, unknown>; query?: Record<string, string> }[] = [];
   let n = 0;
   const err = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-  const issue = (f: { challenge: string; nonce: string; email: string }) => { const c = `ac-${++n}`; codes.set(c, { challenge: f.challenge, nonce: f.nonce, sub: `sub-${f.email}` }); return Response.json({ next: "done", code: c }); };
+  const issue = (f: { challenge: string; nonce: string; email: string }) => { const c = `ac-${++n}`; codes.set(c, { challenge: f.challenge, nonce: f.nonce, sub: `sub-${f.email}` }); return Response.json({ next: "done", code: c, ...(o.passkeySetup ? { passkey_setup: o.passkeySetup } : {}) }); };
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input instanceof Request ? input.url : input));
     const headers = new Headers(init?.headers);
@@ -47,7 +47,7 @@ async function contractBid(o: { secondFactor?: boolean; signup?: boolean; nonceO
       return Response.json({ id_token, access_token: "at-emb", refresh_token: "rt-emb", expires_in: 3600 });
     }
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
-    log.push({ path: url.pathname, auth: headers.get("authorization"), body });
+    log.push({ path: url.pathname, auth: headers.get("authorization"), body, query: Object.fromEntries(url.searchParams) });
     // Basic client_id:client_secret, and client_id in Basic = the body's
     const basic = headers.get("authorization")?.match(/^Basic (.+)$/)?.[1];
     const [bid, bsecret] = basic ? atob(basic).split(":").map(decodeURIComponent) : []; // RFC 6749 §2.3.1
@@ -195,5 +195,50 @@ describe("components-F084.165 — the flow cookie", () => {
     t.now += 601_000;
     expect(await openEmbeddedFlow(sealed, "k".repeat(64), { now: () => t.now })).toStrictEqual({ ok: false, reason: "expired" });
     expect(await openEmbeddedFlow(undefined, "k".repeat(64))).toStrictEqual({ ok: false, reason: "absent" });
+  });
+});
+
+// F084.179 — BID F084.178 (passkey offer at done) and F084.177 (client_id on terms), broberg-id@7b714cc.
+describe("components-F084.179 — passkey offer and the app's name on the terms", () => {
+  const offer = { setup_id: "setup-1", frame_url: `${ISSUER}/embedded/passkey-setup-frame?setup_id=setup-1`, expires_in: 600 };
+
+  test("done with passkey_setup carries passkeySetup {setupId, frameUrl, expiresIn} — after verify AND after a second factor", async () => {
+    const bid = await contractBid({ passkeySetup: offer }); const sso = client(bid);
+    const s = await sso.embedded.start({ email: "anne@eksempel.dk" });
+    if (!s.ok) throw new Error("start failed");
+    const step = await sso.embedded.verify(s.flow, "481072");
+    if (step.kind !== "done") throw new Error(step.kind);
+    expect(step.passkeySetup).toStrictEqual({ setupId: "setup-1", frameUrl: `${ISSUER}/embedded/passkey-setup-frame?setup_id=setup-1`, expiresIn: 600 });
+
+    const bid2 = await contractBid({ secondFactor: true, passkeySetup: offer }); const sso2 = client(bid2);
+    const s2 = await sso2.embedded.start({ email: "anne@eksempel.dk" });
+    if (!s2.ok) throw new Error("start failed");
+    await sso2.embedded.verify(s2.flow, "481072");
+    const step2 = await sso2.embedded.verifySecondFactor(s2.flow, "totp", "123456");
+    expect(step2.kind === "done" && step2.passkeySetup?.setupId).toBe("setup-1");
+  });
+
+  test("a relative frame_url is made absolute against the issuer", async () => {
+    const bid = await contractBid({ passkeySetup: { ...offer, frame_url: "/embedded/passkey-setup-frame?setup_id=setup-1" } }); const sso = client(bid);
+    const s = await sso.embedded.start({ email: "anne@eksempel.dk" });
+    if (!s.ok) throw new Error("start failed");
+    const step = await sso.embedded.verify(s.flow, "481072");
+    expect(step.kind === "done" && step.passkeySetup?.frameUrl).toBe(`${ISSUER}/embedded/passkey-setup-frame?setup_id=setup-1`);
+  });
+
+  test("NEGATIVE CONTROL: a frame_url on another origin is DROPPED, and without an offer done is unchanged", async () => {
+    for (const passkeySetup of [{ ...offer, frame_url: "https://evil.example/frame?setup_id=setup-1" }, undefined]) {
+      const bid = await contractBid(passkeySetup ? { passkeySetup } : {}); const sso = client(bid);
+      const s = await sso.embedded.start({ email: "anne@eksempel.dk" });
+      if (!s.ok) throw new Error("start failed");
+      const step = await sso.embedded.verify(s.flow, "481072");
+      expect(Object.keys(step).sort()).toStrictEqual(["kind", "result"]);
+    }
+  });
+
+  test("terms(lang) sends the app's client_id so BID can name the app", async () => {
+    const bid = await contractBid(); const sso = client(bid);
+    await sso.embedded.terms("da");
+    expect(bid.log.find((c) => c.path === "/embedded/terms")!.query).toStrictEqual({ lang: "da", client_id: CLIENT_ID });
   });
 });

@@ -21,7 +21,7 @@
  * client somebody eventually uses to do it — and then the identity rules exist
  * in two places and drift.
  */
-import { embeddedError, type EmbeddedClient, type EmbeddedFlow, type EmbeddedStep } from "./embedded.js";
+import { embeddedError, type EmbeddedClient, type EmbeddedFlow, type EmbeddedPasskeySetup, type EmbeddedStep } from "./embedded.js";
 import { decodeProtectedHeader, jwtVerify, type JWTPayload } from "jose";
 import { SsoConfigError, type SsoConfig } from "./config.js";
 import { createJwksCache, type JwksCache } from "./jwks.js";
@@ -980,10 +980,28 @@ export function createSsoClient(
   const toError = (r: { status: number; body: Record<string, unknown> }) =>
     r.status === 0 ? { kind: "unavailable" as const, message: `BID did not answer: ${String(r.body.message ?? "")}` } : embeddedError(r.status, r.body);
 
+  /** F084.179 — BID's passkey offer, or undefined. A frame_url off the issuer's origin is dropped:
+   *  a frame from another domain asking to create a passkey is not something to pass on. */
+  function readPasskeySetup(v: unknown): EmbeddedPasskeySetup | undefined {
+    if (typeof v !== "object" || v === null) return undefined;
+    const o = v as Record<string, unknown>;
+    if (typeof o.setup_id !== "string" || !o.setup_id || typeof o.frame_url !== "string") return undefined;
+    let frame: URL;
+    try {
+      frame = new URL(o.frame_url, config.issuer);
+    } catch {
+      return undefined;
+    }
+    if (frame.origin !== new URL(config.issuer).origin) return undefined;
+    return { setupId: o.setup_id, frameUrl: frame.toString(), expiresIn: typeof o.expires_in === "number" ? o.expires_in : 600 };
+  }
+
   async function embeddedNext(r: Awaited<ReturnType<typeof embeddedCall>>, flow: EmbeddedFlow): Promise<EmbeddedStep> {
     if (!r.ok) return { kind: "error", error: toError(r) };
     if (r.body.next === "done" && typeof r.body.code === "string") {
-      return { kind: "done", result: await exchangeCode(r.body.code, flow.codeVerifier, flow.nonce) };
+      const result = await exchangeCode(r.body.code, flow.codeVerifier, flow.nonce);
+      const passkeySetup = readPasskeySetup(r.body.passkey_setup);
+      return passkeySetup ? { kind: "done", result, passkeySetup } : { kind: "done", result };
     }
     if (r.body.next === "second_factor") {
       const methods = (Array.isArray(r.body.methods) ? r.body.methods : []).filter((m): m is "totp" | "sms" => m === "totp" || m === "sms");
@@ -1023,7 +1041,8 @@ export function createSsoClient(
       return embeddedNext(await embeddedCall("POST", "/second-factor", { flow_id: flow.flowId, method, code }), flow);
     },
     async terms(lang) {
-      const r = await embeddedCall("GET", `/terms?lang=${lang}`);
+      // F084.177 — client_id lets BID name the app in the consent text («hos Jam»).
+      const r = await embeddedCall("GET", `/terms?${new URLSearchParams({ lang, client_id: config.clientId })}`);
       const b = r.body;
       if (!r.ok || typeof b.version !== "string" || typeof b.text !== "string") {
         throw new SsoError(`BID did not answer the signup terms (${r.ok ? "no version/text" : r.status})`);

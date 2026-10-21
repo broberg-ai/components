@@ -264,6 +264,12 @@ const terms = await client.embedded.terms("da");                                
   (re-fetch `terms()`), `invalid_request`, `unavailable`.
 - A 401 from BID is YOUR configuration (wrong client id/secret) and THROWS `SsoError` — it is never shown to the
   user as a wrong code.
+- **Passkey offer (0.20.0, BID F084.178).** When the user has no passkey, a `done` step also carries
+  `passkeySetup: { setupId, frameUrl, expiresIn }`. Show `frameUrl` in an `<iframe allow="publickey-credentials-create">`.
+  `frameUrl` is always on the issuer's own origin — an offer pointing anywhere else is dropped, not passed on.
+  No offer → the step is exactly `{ kind: "done", result }` as before.
+- **The app's name on the terms (0.20.0, BID F084.177).** `terms(lang)` sends your `client_id`, so BID's consent text
+  can say «hos <your app>».
 
 ## What it will never do
 
@@ -665,3 +671,28 @@ await fetch("https://discovery.broberg.ai/api/fleet", { headers: { authorization
 - **Cached** per audience + scope until 30 s before exp (BID issues 5 min), and concurrent calls share one exchange. `createTicketClient({...})` gives you your own cache and injectable platform/fetch for tests.
 - **Errors:** `TicketExchangeError` (BID refused — `code` is BID's name for it, `status` the HTTP status; permanent, fix the rule) · `TicketUnavailableError` (BID or the platform unreachable / 5xx; transient) · `NoWorkloadIdentityError`. BID's codes include `no_rule_for_audience`, `scope_not_allowed`, `service_not_registered`, `audience_unknown`, `workflow_not_allowed`, `fly_org_untrusted`, `fly_audience_mismatch`, `github_owner_untrusted`, `client_mismatch`, `issuer_unknown`.
 - The ticket is never logged or put in an error message.
+
+## A ticket on behalf of a USER — `exchangeUserToken` (0.20.0, F084.179, BID F087.37)
+
+A signed-in user's BID access token, exchanged for a ticket to ONE receiver. Same ticket format as the
+machines' (`ver` 1), with `principal_type: "user"`, `sub` = the user and `client_id` = your app — so the
+receiver checks it with `createTicketVerifier`, the same as a machine ticket.
+
+```ts
+import { exchangeUserToken } from "@broberg/sso";
+
+const { token, exp } = await exchangeUserToken({
+  clientId: "jam",
+  clientSecret: process.env.SSO_CLIENT_SECRET,   // omit for a public app (a browser extension): client_id goes in the body
+  subjectToken: userAccessToken,                 // the user's BID access token — never logged, never in an error
+  resource: "https://cardmem.com",               // or audience: "<BID's name for the receiver>" — one is required
+  scope: "cardmem:mockups:read",
+  // dpopKey: await createDpopKey(),             // optional: bind the ticket to a key
+});
+```
+
+- **Not cached** — it is per user. When it expires, exchange again with the user's (renewed) access token.
+- **Errors** are the same classes as `fetchTicket`. BID's codes for this path include `subject_token_inactive`
+  (the user's BID login has ended — «log ud» means log out), `client_mismatch` (the token belongs to another app),
+  `subject_is_ticket`, `session_ended`, `no_rule_for_audience`, `scope_not_allowed`, `client_unauthenticated`.
+- BID issues nothing without a rule for (your app, the receiver). Ask broberg-id for the rule.

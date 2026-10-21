@@ -115,6 +115,28 @@ function jwtExp(token: string): number | null {
   }
 }
 
+/**
+ * Read BID's answer to a token exchange — ONE reader for machine and user tickets,
+ * so the two cannot drift on what a refusal or an outage looks like.
+ */
+async function readTicketResponse(res: Response, issuer: string, target: string, now: () => number): Promise<{ token: string; exp: number }> {
+  let body: { access_token?: string; expires_in?: number; error?: string; error_description?: string } = {};
+  try {
+    body = (await res.json()) as typeof body;
+  } catch {
+    /* a non-JSON answer is handled by the status checks below */
+  }
+  if (res.status >= 500) throw new TicketUnavailableError(`${issuer} answered ${res.status}`);
+  if (!res.ok || !body.access_token) {
+    const desc = body.error_description ?? "";
+    const code = desc.includes(":") ? desc.slice(0, desc.indexOf(":")).trim() : body.error ?? "exchange_refused";
+    throw new TicketExchangeError(`BID refused the ticket for ${target}: ${desc || body.error || res.status}`, code, res.status);
+  }
+  const nowSec = Math.floor(now() / 1000);
+  const exp = jwtExp(body.access_token) ?? nowSec + (body.expires_in ?? 300);
+  return { token: body.access_token, exp };
+}
+
 export function createTicketClient(options: TicketClientOptions = {}): TicketClient {
   const issuer = (options.issuer ?? DEFAULT_ISSUER).replace(/\/+$/, "");
   const renewBeforeSec = options.renewBeforeSec ?? 30;
@@ -169,21 +191,7 @@ export function createTicketClient(options: TicketClientOptions = {}): TicketCli
     } catch (e) {
       throw new TicketUnavailableError(`${issuer} unreachable: ${e instanceof Error ? e.message : String(e)}`);
     }
-    let body: { access_token?: string; expires_in?: number; error?: string; error_description?: string } = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      /* a non-JSON answer is handled by the status checks below */
-    }
-    if (res.status >= 500) throw new TicketUnavailableError(`${issuer} answered ${res.status}`);
-    if (!res.ok || !body.access_token) {
-      const desc = body.error_description ?? "";
-      const code = desc.includes(":") ? desc.slice(0, desc.indexOf(":")).trim() : body.error ?? "exchange_refused";
-      throw new TicketExchangeError(`BID refused the ticket for ${audience}: ${desc || body.error || res.status}`, code, res.status);
-    }
-    const nowSec = Math.floor(now() / 1000);
-    const exp = jwtExp(body.access_token) ?? nowSec + (body.expires_in ?? 300);
-    return { token: body.access_token, exp };
+    return readTicketResponse(res, issuer, audience, now);
   }
 
   const client: TicketClient = {
@@ -216,4 +224,69 @@ let shared: TicketClient | null = null;
 export function fetchTicket(opts: { audience: string; scope?: string }): Promise<string> {
   shared ??= createTicketClient();
   return shared.get(opts);
+}
+
+export interface ExchangeUserTokenOptions {
+  issuer?: string;
+  /** The app that holds the user's token — it must be the token's own client (BID refuses otherwise). */
+  clientId: string;
+  /** A confidential app proves itself with its secret (Basic). A public app (an extension) omits it. */
+  clientSecret?: string;
+  /** The user's BID access token. Never logged, never in an error. */
+  subjectToken: string;
+  /** The receiver as a URL (RFC 8707) … */
+  resource?: string;
+  /** … or as BID's short name. One of the two is required. */
+  audience?: string;
+  /** Space-separated; never more than BID's rule for (client, receiver) allows. */
+  scope?: string;
+  /** Bind the ticket to this key (DPoP). The receiver then needs a proof per call. */
+  dpopKey?: DpopKey;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+}
+
+/**
+ * F084.179 — exchange a USER's BID login for a ticket to ONE receiver (BID F087.37).
+ *
+ * Same ticket format as the machines' (`ver` 1), with `principal_type: "user"`,
+ * `sub` = the user and `client_id` = this app, so the receiver checks it with
+ * createTicketVerifier. Not cached: the ticket is per user, and a cache would
+ * have to be keyed on the user's token. When it expires, exchange again.
+ *
+ * Refusals (4xx) are TicketExchangeError with BID's own code — e.g.
+ * `subject_token_inactive` (the login ended: «log ud» means log out),
+ * `client_mismatch` (the token belongs to another app), `no_rule_for_audience`.
+ */
+export async function exchangeUserToken(opts: ExchangeUserTokenOptions): Promise<{ token: string; exp: number }> {
+  const issuer = (opts.issuer ?? DEFAULT_ISSUER).replace(/\/+$/, "");
+  const target = opts.resource ?? opts.audience;
+  if (!target) throw new TicketExchangeError("exchangeUserToken needs a receiver: resource (its URL) or audience (BID's name for it)", "malformed_request", 0);
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const now = opts.now ?? (() => Date.now());
+  const form = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+    subject_token: opts.subjectToken,
+    subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
+  });
+  if (opts.resource) form.set("resource", opts.resource);
+  if (opts.audience) form.set("audience", opts.audience);
+  if (opts.scope) form.set("scope", opts.scope);
+  const tokenUrl = `${issuer}/oauth2/token`;
+  const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded" };
+  if (opts.clientSecret) {
+    // Form-encoded before base64 (RFC 6749 §2.3.1), exactly like introspectToken and
+    // client.embedded — a secret with ":" or "%" must not mean two different things.
+    headers.authorization = `Basic ${btoa(`${encodeURIComponent(opts.clientId)}:${encodeURIComponent(opts.clientSecret)}`)}`;
+  } else {
+    form.set("client_id", opts.clientId);
+  }
+  if (opts.dpopKey) headers.dpop = await createDpopProof(opts.dpopKey, { method: "POST", url: tokenUrl, now });
+  let res: Response;
+  try {
+    res = await fetchImpl(tokenUrl, { method: "POST", headers, body: form });
+  } catch (e) {
+    throw new TicketUnavailableError(`${issuer} unreachable: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return readTicketResponse(res, issuer, target, now);
 }

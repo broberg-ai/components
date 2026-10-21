@@ -45,12 +45,14 @@ export {
   type EmbeddedStart,
   type EmbeddedStartInput,
   type EmbeddedStep,
+  type EmbeddedPasskeySetup,
   type EmbeddedTerms,
 } from "./embedded.js";
 
 export {
   fetchTicket,
   createTicketClient,
+  exchangeUserToken,
   NoWorkloadIdentityError,
   TicketExchangeError,
   TicketUnavailableError,
@@ -58,6 +60,7 @@ export {
   type TicketClient,
   type TicketClientOptions,
   type TicketAuthHeaders,
+  type ExchangeUserTokenOptions,
 } from "./fetch-ticket.js";
 
 export {
