@@ -58,7 +58,9 @@ export interface PwaUpdateBannerLabels {
 
 const DEFAULT_LABELS: Required<PwaUpdateBannerLabels> = {
   title: "New version available",
-  body: "Reload to get the latest version.",
+  // F021.11 — empty by default: the title says it, and an English default line
+  // leaked into every app that translated title/update/dismiss (jam, measured).
+  body: "",
   update: "Update",
   dismiss: "Later",
   close: "Close",

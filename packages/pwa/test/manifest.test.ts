@@ -123,7 +123,7 @@ describe("pwaMetaTags", () => {
     const manifest = tags.find((t) => t.tag === "link" && t.attrs.rel === "manifest");
     expect(manifest?.attrs.href).toBe("/manifest.webmanifest");
     expect(tags.find((t) => t.attrs.name === "theme-color")?.attrs.content).toBe("#ffffff");
-    expect(tags.find((t) => t.attrs.rel === "apple-touch-icon")?.attrs.href).toBe("/icons/icon-180.svg");
+    expect(tags.find((t) => t.attrs.rel === "apple-touch-icon")?.attrs).toStrictEqual({ rel: "apple-touch-icon", sizes: "180x180", href: "/icons/icon-180.svg" });
     expect(tags.find((t) => t.attrs.name === "apple-mobile-web-app-capable")?.attrs.content).toBe("yes");
     expect(tags.find((t) => t.attrs.name === "mobile-web-app-capable")).toBeTruthy();
   });

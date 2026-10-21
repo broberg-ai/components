@@ -24,6 +24,13 @@ export interface RasterIconSet {
   icons: ManifestIcon[];
   /** Href for `<link rel="apple-touch-icon">` — pass it to `pwaMetaTags({ appleTouchIcon })`. Undefined when 180 was not generated. */
   appleTouchIcon?: string;
+  /**
+   * F021.11 — the same 180 PNG at the two ROOT paths iOS asks for on its own
+   * (`/apple-touch-icon.png`, `/apple-touch-icon-precomposed.png`). Write them to
+   * your web root, NOT next to the other icons. Without them iOS fell back to a
+   * letter («J») on a real home screen (jam, measured). Empty when 180 was not generated.
+   */
+  rootFiles: RasterIcon[];
 }
 
 export interface RasterizeOptions {
@@ -55,5 +62,8 @@ export async function rasterizeIconSet(set: IconSet, opts: RasterizeOptions = {}
   });
   const icons = set.icons.map((i) => ({ ...i, src: toPng(i.src), type: "image/png" }));
   const apple = files.find((f) => f.size === 180 && f.purpose === "any");
-  return { files, icons, appleTouchIcon: apple?.path };
+  const rootFiles: RasterIcon[] = apple
+    ? ["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"].map((path) => ({ ...apple, path }))
+    : [];
+  return { files, icons, appleTouchIcon: apple?.path, rootFiles };
 }

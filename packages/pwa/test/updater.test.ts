@@ -14,16 +14,25 @@ class FakeWorker extends EventTarget {
   registration: FakeRegistration | null = null;
   setState(state: string) {
     this.state = state;
-    // THE SPEC, WHICH THE OLD FAKE DID NOT MODEL: a worker that finishes
-    // installing while another is ACTIVE becomes `registration.waiting`. With
-    // nothing active it activates directly and never waits. The old fake left
-    // `.waiting` null forever, so a test of the updatefound path asserted
-    // against a state a browser cannot produce — and that is exactly the state
-    // the old implementation read from.
+    // THE SPEC (Service Workers, Install algorithm): a worker that finishes
+    // installing becomes `registration.waiting` and fires `statechange` →
+    // `installed` — ALWAYS, also on a first install. Only AFTER that does Try
+    // Activate promote it when nothing is active. F021.11: the previous fake
+    // promoted it directly on a first install, which built the unverified
+    // assumption «waiting ⇒ not a first install» into the test, so the banner
+    // vn-leker saw on a first visit could not show up here.
     if (state === "installed" && this.registration) {
-      if (this.registration.active) this.registration.waiting = this;
-      else this.registration.active = this;
-      this.registration.installing = null;
+      const reg = this.registration;
+      reg.waiting = this;
+      reg.installing = null;
+      this.dispatchEvent(new Event("statechange"));
+      if (!reg.active) {
+        reg.waiting = null;
+        reg.active = this;
+        this.state = "activated";
+        this.dispatchEvent(new Event("statechange"));
+      }
+      return;
     }
     this.dispatchEvent(new Event("statechange"));
   }
@@ -69,6 +78,7 @@ afterEach(() => {
 describe("createPwaUpdater", () => {
   it("flags updateReady when a worker is already waiting at registration", async () => {
     container.registration.waiting = new FakeWorker("installed");
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater();
     await flush();
     expect(updater.getState().updateReady).toBe(true);
@@ -106,6 +116,7 @@ describe("createPwaUpdater", () => {
   it("applyUpdate posts SKIP_WAITING to the waiting worker", async () => {
     const worker = new FakeWorker("installed");
     container.registration.waiting = worker;
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater();
     await flush();
     updater.applyUpdate();
@@ -139,6 +150,7 @@ describe("createPwaUpdater", () => {
     container.controller = null; // shift-reload, or the first page after registration
     const worker = new FakeWorker("installed");
     container.registration.waiting = worker;
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater();
     await flush();
     expect(updater.getState().updateReady).toBe(true); // the banner was shown
@@ -150,6 +162,7 @@ describe("createPwaUpdater", () => {
   it("F054.9: the first-install guard still holds when nobody pressed anything", async () => {
     container.controller = null;
     container.registration.waiting = new FakeWorker("installed");
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     createPwaUpdater();
     await flush();
     container.dispatchEvent(new Event("controllerchange"));
@@ -160,6 +173,7 @@ describe("createPwaUpdater", () => {
     container.controller = null;
     const worker = new FakeWorker("installed");
     container.registration.waiting = worker;
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater();
     await flush();
     // the earlier press's reload was lost; the worker is now active, not waiting
@@ -181,6 +195,7 @@ describe("createPwaUpdater", () => {
     container.controller = null;
     const worker = new FakeWorker("installed");
     container.registration.waiting = worker;
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater();
     await flush();
     updater.applyUpdate();
@@ -193,6 +208,7 @@ describe("createPwaUpdater", () => {
     container.controller = null;
     const worker = new FakeWorker("installed");
     container.registration.waiting = worker;
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater({ reloadOnControllerChange: false });
     await flush();
     updater.applyUpdate();
@@ -227,6 +243,7 @@ describe("createPwaUpdater", () => {
 
   it("attaches to the existing registration via .ready when register:false", async () => {
     container.registration.waiting = new FakeWorker("installed");
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater({ register: false });
     await flush();
     expect(container.register).not.toHaveBeenCalled();
@@ -274,6 +291,7 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
       // A worker becomes waiting with NO updatefound and NO statechange — the
       // state a second tab, or a backgrounded tab, actually finds itself in.
       container.registration.waiting = new FakeWorker("installed");
+      container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
 
       await vi.advanceTimersByTimeAsync(1000);
       expect(updater.getState().updateReady).toBe(true);
@@ -295,6 +313,7 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
       container.controller = {};
       container.registration.update = vi.fn(() => new Promise<void>(() => {})); // never resolves
       container.registration.waiting = new FakeWorker("installed");
+      container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
       const updater = createPwaUpdater({
         pollIntervalMs: 1000,
         snoozeMs: 5000,
@@ -319,6 +338,8 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
     expect(updater.getState().updateReady).toBe(false);
 
     container.registration.waiting = new FakeWorker("installed");
+
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     fakeWindow.dispatchEvent(new Event("focus"));
     await flush();
 
@@ -334,6 +355,8 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
     updater.subscribe((s) => seen.push(s.updateReady));
 
     container.registration.waiting = new FakeWorker("installed");
+
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     updater.check();
     updater.snooze();          // "Later" → down
     await vi.waitFor(() => expect(seen.length).toBeGreaterThanOrEqual(2));
@@ -347,6 +370,7 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
     try {
       container.controller = {};
       container.registration.waiting = new FakeWorker("installed");
+      container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
       const updater = createPwaUpdater({
         pollIntervalMs: 1000,
         snoozeMs: 5000,
@@ -378,6 +402,7 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
     };
     container.controller = {};
     container.registration.waiting = new FakeWorker("installed");
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
 
     const first = createPwaUpdater({ pollIntervalMs: 0, snoozeMs: 60_000, snoozeStorage });
     await flush();
@@ -394,6 +419,7 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
   it("takes the banner DOWN when the waiting worker is gone (it could only ever go up)", async () => {
     container.controller = {};
     container.registration.waiting = new FakeWorker("installed");
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater({ pollIntervalMs: 0, snoozeStorage: null });
     await flush();
     expect(updater.getState().updateReady).toBe(true);
@@ -413,6 +439,7 @@ describe("F054.8 — re-derive from registration.waiting, do not wait to be told
     };
     container.controller = {};
     container.registration.waiting = new FakeWorker("installed");
+    container.registration.active ??= new FakeWorker("activated"); // an update replaces an ACTIVE worker
     const updater = createPwaUpdater({ pollIntervalMs: 0, snoozeStorage: hostile });
     await flush();
     expect(updater.getState().updateReady).toBe(true);

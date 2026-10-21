@@ -190,6 +190,7 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
     const waiting = registrationRef?.waiting ?? null;
     const next = shouldOfferUpdate({
       waiting,
+      active: registrationRef?.active ?? null,
       snoozedUntil: readSnooze(),
       now: Date.now(),
     });
@@ -234,9 +235,9 @@ export function createPwaUpdater(options: PwaUpdaterOptions = {}): PwaUpdater {
     const installing = registration.installing;
     if (!installing) return;
     installing.addEventListener("statechange", () => {
-      // A new worker reaching `installed` WHILE a controller already exists is
-      // an update. Reaching `installed` with no controller is the FIRST install
-      // — nothing to update, so we stay quiet.
+      // A new worker reaching `installed` WHILE another is active is an update.
+      // On a FIRST install it is briefly `waiting` too (spec), with nothing
+      // active — shouldOfferUpdate's `active` term keeps that quiet (F021.11).
       if (installing.state === "installed") check();
     });
   };

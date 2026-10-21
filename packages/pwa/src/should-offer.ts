@@ -12,6 +12,8 @@
 export interface ShouldOfferInput {
   /** `registration.waiting` — read fresh at the moment of the decision. */
   waiting: unknown;
+  /** `registration.active` — the worker an update would REPLACE. Read fresh too. */
+  active: unknown;
   /** Epoch ms until which the user has snoozed the offer, or null. */
   snoozedUntil: number | null;
   /** Epoch ms now. Passed in so the function stays pure and testable. */
@@ -21,36 +23,26 @@ export interface ShouldOfferInput {
 /**
  * Should the consumer be offered the update right now?
  *
- * WHY `controller` IS NOT A TERM HERE, though the sketch we were shown had one
- * and the old code checked it on one of its two paths.
+ * Three terms: something WAITING, something ACTIVE for it to replace, and no
+ * snooze.
  *
- * The old updater answered this question inconsistently: the attach path
- * (`if (registration.waiting)`) offered with no controller check, while the
- * `updatefound` path required `container.controller` to suppress a first
- * install. Same situation, two answers, depending on which path happened to see
- * it. Making them agree is part of this fix — the question is which way.
+ * F021.11 — THE `active` TERM, and why the earlier reasoning here was wrong.
+ * This comment used to argue that `registration.waiting` being non-null already
+ * implied «not a first install», and said in as many words that it had not been
+ * verified against a real service worker. The spec's Install algorithm says
+ * otherwise: the installed worker is set as `registration.waiting` and fires
+ * `statechange` → `installed` on EVERY install, and only afterwards does Try
+ * Activate promote it when nothing is active. The updater checks on exactly that
+ * `installed` event, so a first visit raised «Ny version klar» (vn-leker,
+ * measured in production) and kept it up until the next check.
  *
- * Requiring a controller would be the tighter rule, and it would REMOVE a banner
- * that some consumer sees today: a page that is not yet controlled (no
- * `clientsClaim`, or a hard reload) but has a genuine update waiting. With
- * fd-sundhed live to 16,838 people on the current version, a change in that
- * direction is not one to make on an unverified reading.
- *
- * And the reading in question is this: a worker only enters `waiting` when
- * another worker is already ACTIVE — on a first install there is nothing to wait
- * behind, so it activates directly. If that is right, `registration.waiting`
- * being non-null already implies this is not a first install, and the controller
- * term is redundant rather than protective. **I have not verified that against a
- * real service worker.** So the old, more permissive behaviour stays as the
- * floor, and first-install suppression rides on the same fact rather than on a
- * second guard that could disagree with it.
- *
- * If someone later measures that a first-install worker CAN sit in `waiting`,
- * this is the function to add the term to — and the test to write first is the
- * one that fails today.
+ * `active`, not `controller`: a page that is not yet controlled (shift-reload, no
+ * clientsClaim) but has a genuine update waiting still has the OLD worker active,
+ * so it keeps its banner (the F054.9 case). Only a first install has nothing active.
  */
-export function shouldOfferUpdate({ waiting, snoozedUntil, now }: ShouldOfferInput): boolean {
+export function shouldOfferUpdate({ waiting, active, snoozedUntil, now }: ShouldOfferInput): boolean {
   if (!waiting) return false;
+  if (!active) return false;
   if (snoozedUntil !== null && snoozedUntil > now) return false;
   return true;
 }

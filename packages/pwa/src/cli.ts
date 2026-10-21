@@ -2,12 +2,12 @@
 // F021.9 — `pwa-icons`: SVG + PNG icon set in one command, so no app keeps its
 // own sharp script. Prints the manifest icons[] and the apple-touch href.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { buildIconSet } from "./manifest.js";
 import { rasterizeIconSet } from "./raster.js";
 
 const USAGE =
-  "usage: pwa-icons (--svg <file> | --monogram <text>) [--background <hex>] [--color <hex>] [--out public/icons] [--base-path /icons]";
+  "usage: pwa-icons (--svg <file> | --monogram <text>) [--background <hex>] [--color <hex>] [--out public/icons] [--base-path /icons] [--root <web root, default: the parent of --out>]";
 
 export async function main(argv: string[]): Promise<number> {
   const arg = (name: string) => {
@@ -38,6 +38,9 @@ export async function main(argv: string[]): Promise<number> {
   mkdirSync(out, { recursive: true });
   for (const f of set.files) writeFileSync(join(out, basename(f.path)), f.content);
   for (const f of raster.files) writeFileSync(join(out, basename(f.path)), f.content);
+  // F021.11 — iOS asks the web ROOT for these on its own.
+  const root = arg("root") ?? dirname(out);
+  for (const f of raster.rootFiles) writeFileSync(join(root, basename(f.path)), f.content);
   console.log(JSON.stringify({ icons: raster.icons, appleTouchIcon: raster.appleTouchIcon }, null, 2));
   return 0;
 }

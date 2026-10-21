@@ -48,6 +48,14 @@ describe("PwaUpdateBanner (preact)", () => {
     expect(screen.getByTestId("pwa-update-confirm").textContent).toBe("Opdatér");
     expect(screen.getByTestId("pwa-update-banner").getAttribute("style")).toBeNull();
   });
+
+  it("F021.11 — no body line by default (an English default leaked into translated banners); a given body renders", () => {
+    render(<PwaUpdateBanner updateReady onUpdate={() => {}} labels={{ title: "Ny version", update: "Opdatér", dismiss: "Senere" }} />);
+    expect(screen.queryByTestId("pwa-update-body")).toBeNull();
+    cleanup();
+    render(<PwaUpdateBanner updateReady onUpdate={() => {}} labels={{ body: "Genindlæs for at få den nye version." }} />);
+    expect(screen.getByTestId("pwa-update-body").textContent).toBe("Genindlæs for at få den nye version.");
+  });
 });
 
 describe("usePwaUpdate (preact)", () => {

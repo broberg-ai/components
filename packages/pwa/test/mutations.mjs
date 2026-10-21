@@ -25,6 +25,8 @@ const PREACT = join(HERE, 'src/preact.tsx');
 const CORE = join(HERE, 'src/index.ts');
 const RASTER = join(HERE, 'src/raster.ts');
 const CLI = join(HERE, 'src/cli.ts');
+const OFFER = join(HERE, 'src/should-offer.ts');
+const MANIFEST = join(HERE, 'src/manifest.ts');
 
 /** The 0.2.2 shape, verbatim: four names, and the two that mattered missing. */
 const OLD_LIST = `    const updater = createPwaUpdater({
@@ -161,6 +163,43 @@ const MUTATIONS = [
     file: CORE,
     from: "      if (updateReady) reloadOnce();",
     to: "",
+  },
+  // F021.11 — the four fixes the fleet reported.
+  {
+    name: "F021.11 a first install (waiting, nothing active) raises «Ny version klar» again",
+    file: OFFER,
+    from: "  if (!active) return false;\n",
+    to: "",
+  },
+  {
+    name: "F021.11 the English default body line is back",
+    file: REACT,
+    from: '  body: "",',
+    to: '  body: "Reload to get the latest version.",',
+  },
+  {
+    name: "F021.11 the PREACT banner gets the English default body back",
+    file: PREACT,
+    from: '  body: "",',
+    to: '  body: "Reload to get the latest version.",',
+  },
+  {
+    name: "F021.11 no root apple-touch icons (iOS shows a letter again)",
+    file: RASTER,
+    from: '["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"].map((path) => ({ ...apple, path }))',
+    to: "[]",
+  },
+  {
+    name: "F021.11 the CLI never writes the root icons",
+    file: CLI,
+    from: "  for (const f of raster.rootFiles) writeFileSync(join(root, basename(f.path)), f.content);\n",
+    to: "",
+  },
+  {
+    name: "F021.11 the apple-touch link loses sizes",
+    file: MANIFEST,
+    from: 'rel: "apple-touch-icon", sizes: "180x180",',
+    to: 'rel: "apple-touch-icon",',
   },
 ];
 

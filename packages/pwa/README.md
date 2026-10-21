@@ -8,6 +8,25 @@ as one small, framework- and bundler-agnostic package instead of a fifth copy.
 npm i @broberg/pwa
 ```
 
+## 0.7.0 — four fixes reported by the fleet (F021.11)
+
+- **No banner on a first visit.** A brand-new worker is briefly `registration.waiting` on EVERY install (the spec's
+  Install algorithm), and the updater checked at exactly that moment — so a first visit showed «Ny version klar»
+  (vn-leker). An update now needs an ACTIVE worker to replace. A real update always has one, also on a page with
+  no controller, so no genuine banner is lost.
+- **No English body line by default.** `labels.body` is empty unless you set it; the title says it. (A banner with
+  translated title/buttons used to show «Reload to get the latest version.» underneath — jam.)
+- **The iPhone home-screen icon.** `rasterizeIconSet()` now also returns `rootFiles`: the 180 PNG at
+  `/apple-touch-icon.png` and `/apple-touch-icon-precomposed.png`. iOS asks the web ROOT for these on its own;
+  without them it fell back to a letter. Write them to your web root (the `pwa-icons` bin does, into the parent of
+  `--out` or `--root`). `pwaMetaTags` now puts `sizes="180x180"` on the apple-touch link.
+- **Only PNG in the manifest.** Put **`rasterizeIconSet().icons` — and nothing else — in the manifest `icons[]`.**
+  The SVG set from `buildIconSet()` is source material for the rasterizer; SVG entries in `icons[]` gave a letter on
+  iOS 26 (jam), and every fleet app that works has PNG only. Pass `rasterizeIconSet().appleTouchIcon` to
+  `pwaMetaTags({ appleTouchIcon })`.
+- **Use `pwaMetaTags` for the head**, not only your framework's metadata: it writes `apple-mobile-web-app-capable`,
+  which Next 16's `appleWebApp.capable` does not (it writes `mobile-web-app-capable` only).
+
 ## 0.6.0 — a classic service worker can use it too: `pwa-sw.global.js` (F021.10)
 
 A service worker in `public/` is a static file and cannot `import` — so

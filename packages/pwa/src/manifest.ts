@@ -257,7 +257,8 @@ export function pwaMetaTags(opts: MetaTagsOptions = {}): MetaTag[] {
   const tags: MetaTag[] = [];
   tags.push({ tag: "link", attrs: { rel: "manifest", href: opts.manifest ?? "/manifest.webmanifest" } });
   tags.push({ tag: "meta", attrs: { name: "theme-color", content: opts.themeColor ?? "#ffffff" } });
-  tags.push({ tag: "link", attrs: { rel: "apple-touch-icon", href: opts.appleTouchIcon ?? "/icons/icon-180.svg" } });
+  // F021.11 — sizes: the icon is 180; iOS picks by it when several are linked.
+  tags.push({ tag: "link", attrs: { rel: "apple-touch-icon", sizes: "180x180", href: opts.appleTouchIcon ?? "/icons/icon-180.svg" } });
   if (opts.capable !== false) {
     tags.push({ tag: "meta", attrs: { name: "mobile-web-app-capable", content: "yes" } });
     tags.push({ tag: "meta", attrs: { name: "apple-mobile-web-app-capable", content: "yes" } });
