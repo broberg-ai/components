@@ -1,6 +1,6 @@
 {
   "name": "@broberg/voice",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Voice calls for 2–10 people on a self-hosted LiveKit SFU: the app's server mints a short-lived, room-bound, microphone-only ticket and verifies LiveKit's signed webhooks; the browser joins with noise suppression, echo cancellation and auto gain, and gets mute, output mute, device choice, per-person volume, who-is-speaking and the participant list.",
   "type": "module",
   "license": "MIT",
