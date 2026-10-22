@@ -7,6 +7,7 @@ import { registerTools } from "./register";
 import { SessionRegistry } from "./session-registry";
 import type { AnyToolDef, ToolContext } from "./types";
 import type { AuditFn } from "./audit";
+import { serverInfo, type ServerIdentityOptions } from "./server-info";
 
 const ENCODER = new TextEncoder();
 
@@ -81,7 +82,7 @@ class WebSseServerTransport implements Transport {
   }
 }
 
-export interface WebSseMcpOptions<Ctx = unknown> {
+export interface WebSseMcpOptions<Ctx = unknown> extends ServerIdentityOptions {
   name: string;
   version: string;
   tools: AnyToolDef<Ctx>[];
@@ -143,7 +144,7 @@ export function createWebSseMcpHandler<Ctx = unknown>(
 
       const transport = new WebSseServerTransport(messagesPath);
       const server = new Server(
-        { name: opts.name, version: opts.version },
+        serverInfo(opts),
         { capabilities: { tools: {} }, instructions: opts.instructions },
       );
       registerTools(server, opts.tools, { getContext: () => context, audit: opts.audit });

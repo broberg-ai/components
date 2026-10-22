@@ -5,8 +5,9 @@ import { registerTools } from "./register";
 import { SessionRegistry } from "./session-registry";
 import type { AnyToolDef, ToolContext } from "./types";
 import type { AuditFn } from "./audit";
+import { serverInfo, type ServerIdentityOptions } from "./server-info";
 
-export interface SseMcpOptions<Ctx = unknown> {
+export interface SseMcpOptions<Ctx = unknown> extends ServerIdentityOptions {
   name: string;
   version: string;
   tools: AnyToolDef<Ctx>[];
@@ -69,7 +70,7 @@ export function createSseMcpHandler<Ctx = unknown>(opts: SseMcpOptions<Ctx>): Ss
 
       const transport = new SSEServerTransport(messagesPath, res);
       const server = new Server(
-        { name: opts.name, version: opts.version },
+        serverInfo(opts),
         { capabilities: { tools: {} }, instructions: opts.instructions },
       );
       registerTools(server, opts.tools, { getContext: () => context, audit: opts.audit });

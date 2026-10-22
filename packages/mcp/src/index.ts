@@ -51,6 +51,7 @@ export { createStdioMcpServer } from "./stdio";
 export type { StdioMcpOptions, StdioMcpServer } from "./stdio";
 export { createHttpMcpHandler } from "./http";
 export type { HttpMcpOptions } from "./http";
+export type { ServerIcon, ServerIdentityOptions } from "./server-info";
 export { SessionRegistry } from "./session-registry";
 export type { SessionRegistryOptions } from "./session-registry";
 export { createSseMcpHandler } from "./sse";

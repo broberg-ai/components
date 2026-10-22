@@ -4,8 +4,9 @@ import { registerMcpServerTools } from "./register";
 import { guardSubagents } from "./guard";
 import type { AnyToolDef, ToolContext } from "./types";
 import type { AuditFn } from "./audit";
+import { serverInfo, type ServerIdentityOptions } from "./server-info";
 
-export interface StdioMcpOptions<Ctx = unknown> {
+export interface StdioMcpOptions<Ctx = unknown> extends ServerIdentityOptions {
   name: string;
   version: string;
   tools: AnyToolDef<Ctx>[];
@@ -49,7 +50,7 @@ export function createStdioMcpServer<Ctx = unknown>(
   if (opts.guardSubagents) guardSubagents();
 
   const server = new McpServer(
-    { name: opts.name, version: opts.version },
+    serverInfo(opts),
     { instructions: opts.instructions },
   );
   registerMcpServerTools(server, opts.tools, {

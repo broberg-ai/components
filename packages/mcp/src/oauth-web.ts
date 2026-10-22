@@ -106,6 +106,17 @@ export interface OAuthWebConfig extends OAuthCoreConfig {
    * always allowed; every other host must be https.
    */
   allowedRedirectHosts?: string[];
+  /**
+   * F007.16 — hosts a Client ID Metadata Document may be fetched from, when a
+   * `client_id` is an https URL instead of a registered id (claude.ai's default
+   * "use Claude's published identity"). Default {@link DEFAULT_CLIENT_METADATA_HOSTS}.
+   * A different trust question from `allowedRedirectHosts` ("whose document do
+   * we fetch" vs "where may a code land"), so it is its own list. `[]` turns
+   * CIMD off.
+   */
+  allowedClientMetadataHosts?: string[];
+  /** F007.16 — how long a fetched client metadata document is reused. Default 10 min. */
+  clientMetadataCacheMs?: number;
   /** F007.14 — language of the built-in consent page. Default "da". */
   consentLang?: "da" | "en";
   /**
@@ -114,13 +125,24 @@ export interface OAuthWebConfig extends OAuthCoreConfig {
    * `decision` with value `approve` or `deny`. The package sets the framing
    * headers; return the full HTML document.
    */
-  renderConsent?: (info: ConsentInfo) => string;
+  renderConsent?: (info: ConsentInfo, ctx: ConsentContext) => MaybePromise<string>;
   /**
    * F007.14 — mark an authorization code used. Return true the FIRST time a
    * `jti` is seen, false after. Default: in-memory (correct for one instance);
    * pass a database-backed one when you run several replicas.
    */
   consumeCode?: (jti: string, expiresAt: number) => MaybePromise<boolean>;
+}
+
+/**
+ * F007.18 — who and what the consent page is rendered FOR, so your own page can
+ * show the signed-in member and use their language. `sub` is exactly what your
+ * `authorize` callback returned; `request` is the incoming /authorize request
+ * (cookies, Accept-Language). Look the member up yourself — async is fine.
+ */
+export interface ConsentContext {
+  request: Request;
+  sub: string;
 }
 
 /** What the consent page shows. All strings are raw; escape them when rendering. */
@@ -135,6 +157,10 @@ export interface ConsentInfo {
 
 /** Connector hosts allowed by default (F007.14). Loopback is always allowed in addition. */
 export const DEFAULT_REDIRECT_HOSTS: readonly string[] = ["claude.ai", "claude.com", "chatgpt.com", "chat.openai.com"];
+/** Hosts a CIMD client_id may point at by default (F007.16). */
+export const DEFAULT_CLIENT_METADATA_HOSTS: readonly string[] = ["claude.ai", "claude.com"];
+const CIMD_MAX_BYTES = 64 * 1024;
+const CIMD_TIMEOUT_MS = 5000;
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const CONSENT_TTL_MS = 5 * 60 * 1000;
 
@@ -164,6 +190,60 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
     if (LOOPBACK.has(u.hostname)) return u.protocol === "http:" || u.protocol === "https:";
     return u.protocol === "https:" && allowedHosts.includes(u.hostname);
   };
+
+  // F007.16 — Client ID Metadata Documents. The server fetches a URL a stranger
+  // chose, so this is the SSRF surface: only allowed hosts, only https, no
+  // redirects followed, a timeout and a size cap — and NOTHING is fetched when
+  // the host is not allowed. Cached per URL; a cache lost on restart is harmless.
+  const cimdHosts = config.allowedClientMetadataHosts ?? DEFAULT_CLIENT_METADATA_HOSTS;
+  const cimdTtl = config.clientMetadataCacheMs ?? 10 * 60 * 1000;
+  const cimdCache = new Map<string, { client: OAuthClientInformationFull; exp: number }>();
+  const isCimdId = (id: string) => id.startsWith("https://");
+  async function fetchCimdClient(id: string): Promise<{ client: OAuthClientInformationFull } | { reason: string }> {
+    let url: URL;
+    try {
+      url = new URL(id);
+    } catch {
+      return { reason: "client_metadata_host_not_allowed" };
+    }
+    if (url.protocol !== "https:" || !cimdHosts.includes(url.hostname)) return { reason: "client_metadata_host_not_allowed" };
+    const hit = cimdCache.get(id);
+    if (hit && hit.exp > Date.now()) return { client: hit.client };
+
+    let doc: Record<string, unknown>;
+    try {
+      const res = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(CIMD_TIMEOUT_MS), headers: { accept: "application/json" } });
+      if (!res.ok || !res.body) return { reason: "client_metadata_fetch_failed" };
+      if (Number(res.headers.get("content-length") ?? 0) > CIMD_MAX_BYTES) return { reason: "client_metadata_fetch_failed" };
+      const reader = res.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > CIMD_MAX_BYTES) {
+          await reader.cancel();
+          return { reason: "client_metadata_fetch_failed" };
+        }
+        chunks.push(value);
+      }
+      doc = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      return { reason: "client_metadata_fetch_failed" };
+    }
+    if (!doc || typeof doc !== "object" || doc.client_id !== id) return { reason: "client_metadata_mismatch" };
+    const redirectUris = Array.isArray(doc.redirect_uris) ? doc.redirect_uris.filter((u): u is string => typeof u === "string") : [];
+    if (redirectUris.length === 0) return { reason: "client_metadata_mismatch" };
+    const client = {
+      client_id: id,
+      client_name: typeof doc.client_name === "string" ? doc.client_name : undefined,
+      redirect_uris: redirectUris,
+      token_endpoint_auth_method: "none",
+    } as OAuthClientInformationFull;
+    cimdCache.set(id, { client, exp: Date.now() + cimdTtl });
+    return { client };
+  }
 
   // Single-use codes. In-memory default: correct for one instance; consumers
   // with replicas pass consumeCode backed by their database.
@@ -224,6 +304,7 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
+    client_id_metadata_document_supported: cimdHosts.length > 0,
     ...(config.scopesSupported ? { scopes_supported: config.scopesSupported } : {}),
   });
 
@@ -267,7 +348,12 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
     const q = isPost ? new URLSearchParams(await req.clone().text()) : new URL(req.url).searchParams;
     const clientId = q.get("client_id") ?? "";
     const redirectUri = q.get("redirect_uri") ?? "";
-    const client = clientId ? await config.clients.getClient(clientId) : undefined;
+    let client = clientId ? await config.clients.getClient(clientId) : undefined;
+    if (!client && isCimdId(clientId)) {
+      const r = await fetchCimdClient(clientId);
+      if ("reason" in r) return json(400, { error: "invalid_client", error_description: r.reason });
+      client = r.client;
+    }
 
     // Validate client + redirect_uri BEFORE any redirect (open-redirect guard).
     if (!client) return json(400, { error: "invalid_client", error_description: "unknown client_id" });
@@ -333,7 +419,8 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
         fields,
         lang: config.consentLang ?? "da",
       };
-      return consentResponse((config.renderConsent ?? renderConsentPage)(info));
+      const html = config.renderConsent ? await config.renderConsent(info, { request: req, sub: decision.sub }) : renderConsentPage(info);
+      return consentResponse(html);
     }
 
     // POST: the decision. The token must be ours, unexpired, and bound to the

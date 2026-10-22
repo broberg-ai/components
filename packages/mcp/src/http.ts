@@ -3,8 +3,9 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { registerTools } from "./register";
 import type { AnyToolDef, ToolContext } from "./types";
 import type { AuditFn } from "./audit";
+import { serverInfo, type ServerIdentityOptions } from "./server-info";
 
-export interface HttpMcpOptions<Ctx = unknown> {
+export interface HttpMcpOptions<Ctx = unknown> extends ServerIdentityOptions {
   name: string;
   version: string;
   tools: AnyToolDef<Ctx>[];
@@ -45,7 +46,7 @@ export function createHttpMcpHandler<Ctx = unknown>(
 
     // Fresh server + transport per request — the stateless, leak-free path.
     const server = new Server(
-      { name: opts.name, version: opts.version },
+      serverInfo(opts),
       { capabilities: { tools: {} }, instructions: opts.instructions },
     );
     registerTools(server, opts.tools, { getContext: () => context, audit: opts.audit });

@@ -136,6 +136,21 @@ createHttpMcpHandler({
 });
 ```
 
+They also accept **`icons`** and **`websiteUrl`** (0.10.0, F007.17), sent in
+`serverInfo` (MCP 2025-11-25) so a client can show your app's own icon:
+
+```ts
+createHttpMcpHandler({
+  name: "jam", version: "1.0.0", tools,
+  icons: [{ src: "https://jam.example/apple-touch-icon.png", mimeType: "image/png", sizes: ["180x180"] }],
+  websiteUrl: "https://jam.example",
+});
+```
+
+Without them `serverInfo` is exactly `{ name, version }`, as before. **Not
+measured:** whether claude.ai shows `serverInfo.icons` or the favicon of the
+registrable domain.
+
 ## Pick an auth model
 
 `authenticate(req)` resolves a `ToolContext` ({ principal, ctx }); throw to 401.
@@ -251,6 +266,26 @@ app.all("/mcp", async (c) => {
   return mcp(c.req.raw);
 });
 ```
+
+**Claude's published identity (CIMD, 0.10.0, F007.16).** claude.ai's "Add custom
+connector" now defaults to a `client_id` that is an https URL to a client
+metadata document instead of registering (DCR). `oauth-web` fetches that
+document — only from `allowedClientMetadataHosts` (default `claude.ai`,
+`claude.com`; `[]` turns CIMD off), only over https, never following a
+redirect, with a 5 s timeout and a 64 KB cap, cached `clientMetadataCacheMs`
+(default 10 min) — requires `client_id` in the document to equal the URL, and
+accepts only a `redirect_uri` that is in the document AND on
+`allowedRedirectHosts`. The consent page is unchanged; DCR still works.
+Refusals name their reason in `error_description`
+(`client_metadata_host_not_allowed`, `client_metadata_fetch_failed`,
+`client_metadata_mismatch`).
+
+**Your own consent page with the signed-in member (0.10.0, F007.18).**
+`renderConsent(info, { request, sub })` may be async: `sub` is exactly what your
+`authorize` callback returned and `request` is the incoming /authorize request
+(cookies, Accept-Language), so you can look the member up and use their
+language. A one-argument synchronous `renderConsent(info)` keeps working. If it
+throws, no page and no code are produced.
 
 `routes.handle()` serves the two `.well-known` metadata docs + `/register` +
 `/authorize` + `/token` + `/revoke`; `challenge()` is the 401 that points
