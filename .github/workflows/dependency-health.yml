@@ -65,6 +65,9 @@ jobs:
           AFTER=$(node -e "$strip" < data/dependency-health.json)
           if [ "${{ github.event_name }}" = "push" ] && [ "$BEFORE" = "$AFTER" ]; then echo "no change"; exit 0; fi
           node scripts/build-onboarding.mjs
+          # pnpm install armed .githooks; its secret gate refuses to commit until the
+          # scanner (and its workspace dependency) is built. Build it, never bypass it.
+          pnpm turbo run build --filter="@broberg/secret-scan..."
           git add data/dependency-health.json docs/llms.txt docs/llms-full.txt
           git commit -m "chore(deps): refresh the dependency health of every package" -m "Automated by .github/workflows/dependency-health.yml (F082.5)."
           git pull --rebase origin main
