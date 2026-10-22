@@ -131,4 +131,7 @@ jobs:
             "$SUMMARY" \
             "Automated by .github/workflows/fleet-deps.yml (F083.3). The FLEET roster is derived from every repo's real package.json rather than from a hand-written list, so this commit is what keeps discovery.broberg.ai current." > /tmp/msg
           git commit -F /tmp/msg
+          # F083.6: main moves while the scan runs (measured 22/10: a docs commit
+          # landed mid-run and the push was rejected). Replay ours on top.
+          git pull --rebase origin main
           git push
