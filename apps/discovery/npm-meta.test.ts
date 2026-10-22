@@ -54,10 +54,20 @@ describe("npmMeta — three provenance states, never a guess", () => {
 
 describe("the committed build", () => {
   const html = readFileSync(new URL("../../docs/inventory.html", import.meta.url), "utf8");
-  const shippedNpm = (DATA as { items?: { pkg?: string }[] }[]).flatMap((L) => L.items ?? []).filter((it) => Boolean(npmUrl(it)) && String(it.pkg).startsWith("@broberg/"));
+  const shippedNpm = (DATA as { items?: { pkg?: string; f?: string }[] }[]).flatMap((L) => L.items ?? []).filter((it) => Boolean(npmUrl(it)) && String(it.pkg).startsWith("@broberg/"));
 
   it("one visible npm link per published @broberg package card", () => {
     expect(html.match(/data-testid="card-npm-[^"]+"/g)?.length).toBe(shippedNpm.length);
+  });
+
+  it("the drawer of every published package says when it was published, its provenance, and when consumers were scanned", () => {
+    const detail = JSON.parse(html.match(/var DETAIL=(\{.*?\});\n/)![1]) as Record<string, string>;
+    for (const it of shippedNpm as { f?: string }[]) {
+      const d = detail[it.f!]!;
+      expect(d).toContain(`data-testid="d-published-${it.f!.toLowerCase()}"`);
+      expect(d).toContain(`data-testid="d-provenance-${it.f!.toLowerCase()}"`);
+      expect(d).toMatch(/data-testid="d-scanned-[^"]+">\d\d\.\d\d\.\d{4} kl\. \d\d\.\d\d \(dansk tid\)</);
+    }
   });
 
   it("every card row has a publish time and a provenance label", () => {

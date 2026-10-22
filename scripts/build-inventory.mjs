@@ -19,7 +19,7 @@ let FLEET_SCAN = { repos: {} };
 try { FLEET_SCAN = JSON.parse(readScan(new URL("../data/fleet-deps.json", import.meta.url), "utf8")); } catch {}
 const FLEET_ROWS = fleetRows(FLEET_SCAN);
 import { fetchLatestReleases } from "./npm-latest.mjs";
-import { npmMeta, npmMetaRow } from "./npm-meta.mjs";
+import { npmMeta, npmMetaRow, daTime, PROVENANCE_LABEL } from "./npm-meta.mjs";
 import { writeFileSync as writeMeta } from "node:fs";
 
 // F038.7 + F038.31 — asked of the registry once, BEFORE the cards render, so each
@@ -77,6 +77,17 @@ function detailHtml(it, layerN, layerT){
   if(it.grad) facts += `<dt>Graduate</dt><dd>⬆ gets its own repo + cardmem project</dd>`;
   facts += `<dt>Best source</dt><dd><code>${it.src}</code></dd>`;
   facts += `<dt>Owner</dt><dd>${it.own}</dd>`;
+  // F038.31 — when the data behind this drawer is from. Each line names its own
+  // source time; there is deliberately no "page built at" line, because that
+  // would change on every build and fail the docs-in-sync gate (F083.6).
+  if (npmUrl(it) && String(it.pkg).startsWith("@broberg/")) {
+    const meta = npmMeta(it.pkg, releases);
+    const when = daTime(meta.publishedAt);
+    facts += `<dt>Udgivet</dt><dd data-testid="d-published-${it.f.toLowerCase()}">${meta.version ? `v${meta.version} · ` : ""}${when ?? "ukendt"}</dd>`;
+    facts += `<dt>Trusted Publisher</dt><dd data-testid="d-provenance-${it.f.toLowerCase()}">${PROVENANCE_LABEL[meta.provenance]}</dd>`;
+  }
+  const scanWhen = daTime(FLEET_SCAN.scanned_at);
+  facts += `<dt>Forbrugere scannet</dt><dd data-testid="d-scanned-${it.f.toLowerCase()}">${scanWhen ?? "aldrig"}</dd>`;
   const nUrl = npmUrl(it), rUrl = repoUrl(it), fid = it.f.toLowerCase();
   if(nUrl || rUrl){
     const links = [
