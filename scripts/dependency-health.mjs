@@ -24,14 +24,20 @@ const SEVERITIES = ["critical", "high", "moderate", "low"];
 const zero = () => ({ critical: 0, high: 0, moderate: 0, low: 0 });
 
 /** `pnpm audit --json` → { "<importer dir>": { critical, high, moderate, low } }.
- *  A finding's path starts with the importer, e.g. "packages__auth>better-auth>…". */
-export function summarizeAudit(audit) {
+ *  A finding's path starts with the importer, e.g. "packages__auth>better-auth>…".
+ *  `counts(importer, directDep)` decides which paths count; default all.
+ *  @param {any} audit @param {(importer: string, directDep: string) => boolean} [counts] */
+export function summarizeAudit(audit, counts = () => true) {
   const by = {};
   for (const a of Object.values(audit?.advisories ?? {})) {
     if (!SEVERITIES.includes(a.severity)) continue;
     // Count an advisory ONCE per importer, however many paths lead to it.
     const importers = new Set();
-    for (const f of a.findings ?? []) for (const p of f.paths ?? []) importers.add(String(p).split(">")[0].replace(/__/g, "/"));
+    for (const f of a.findings ?? []) for (const p of f.paths ?? []) {
+      const [imp, dep] = String(p).split(">");
+      const dir = imp.replace(/__/g, "/");
+      if (counts(dir, dep)) importers.add(dir);
+    }
     for (const imp of importers) (by[imp] ??= zero())[a.severity]++;
   }
   return by;
@@ -86,9 +92,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     .map((p) => ({ ...p, json: JSON.parse(readFileSync(p.file, "utf8")) }))
     .filter((p) => String(p.json.name ?? "").startsWith("@broberg/") && !p.json.private);
 
-  let prod = null, all = null, auditError = null;
+  // A peer dependency is the APP's install, not ours: pnpm auto-installs it here
+  // for tests, and `audit --prod` reports it as if the package shipped it. Measured
+  // 23/10: all 5 critical + 14 high of @broberg/auth came through its optional
+  // peer `next`. So only `dependencies` count as shipped; peer findings are kept
+  // apart (row.peer) — the app's own audit is where they get fixed.
+  const shipped = new Map(pkgs.map((p) => [p.dir, new Set(Object.keys(p.json.dependencies ?? {}))]));
+  const peerOnly = new Map(pkgs.map((p) => [p.dir, new Set(Object.keys(p.json.peerDependencies ?? {}).filter((d) => !(d in (p.json.dependencies ?? {}))))]));
+  let prod = null, peer = null, all = null, auditError = null;
   try {
-    prod = summarizeAudit(runJson("pnpm", ["audit", "--prod", "--json"], root));
+    const prodAudit = runJson("pnpm", ["audit", "--prod", "--json"], root);
+    prod = summarizeAudit(prodAudit, (dir, dep) => shipped.get(dir)?.has(dep) ?? true);
+    peer = summarizeAudit(prodAudit, (dir, dep) => peerOnly.get(dir)?.has(dep) ?? false);
     all = summarizeAudit(runJson("pnpm", ["audit", "--json"], root));
   } catch (e) {
     auditError = e.message;
@@ -96,13 +111,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const packages = {};
   for (const p of pkgs) {
-    const row = { version: p.json.version, status: "ok", prod: zero(), dev: zero(), outdated: { total: 0, shipped: 0, deprecated: 0 } };
+    const row = { version: p.json.version, status: "ok", prod: zero(), peer: zero(), dev: zero(), outdated: { total: 0, shipped: 0, deprecated: 0 } };
     if (auditError) { row.status = "error"; row.error = auditError; }
     else {
       row.prod = prod[p.dir] ?? zero();
+      row.peer = peer[p.dir] ?? zero();
       const a = all[p.dir] ?? zero();
-      // dev = everything the full audit found minus what ships.
-      row.dev = Object.fromEntries(SEVERITIES.map((s) => [s, Math.max(0, a[s] - row.prod[s])]));
+      // dev = everything the full audit found minus what ships and what the app supplies.
+      row.dev = Object.fromEntries(SEVERITIES.map((s) => [s, Math.max(0, a[s] - row.prod[s] - row.peer[s])]));
     }
     try {
       row.outdated = summarizeOutdated(runJson("pnpm", ["outdated", "--format", "json"], `${root}${p.dir}`));

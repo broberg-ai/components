@@ -1,10 +1,16 @@
 {
- "checked_at": "2026-10-22T23:17:52.069Z",
+ "checked_at": "2026-10-22T23:47:38.692Z",
  "packages": {
   "@broberg/apikey": {
    "version": "0.3.1",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -32,6 +38,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 2,
     "high": 4,
@@ -49,6 +61,12 @@
    "version": "0.7.1",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 5,
     "high": 14,
     "moderate": 11,
@@ -65,12 +83,18 @@
     "shipped": 0,
     "deprecated": 0
    },
-   "verdict": "sårbar"
+   "verdict": "OK"
   },
   "@broberg/bodymap": {
    "version": "0.12.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -98,6 +122,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -115,6 +145,12 @@
    "version": "0.1.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -142,6 +178,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -159,6 +201,12 @@
    "version": "0.7.1",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -186,6 +234,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 8,
@@ -203,6 +257,12 @@
    "version": "0.3.1",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -230,6 +290,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -247,6 +313,12 @@
    "version": "0.3.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -274,6 +346,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -291,6 +369,12 @@
    "version": "0.3.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -318,6 +402,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -335,6 +425,12 @@
    "version": "0.4.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -362,6 +458,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -379,6 +481,12 @@
    "version": "0.3.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -406,6 +514,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -423,6 +537,12 @@
    "version": "0.3.1",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -450,6 +570,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -467,6 +593,12 @@
    "version": "0.2.3",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -494,6 +626,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -511,6 +649,12 @@
    "version": "0.9.1",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -538,6 +682,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -555,6 +705,12 @@
    "version": "0.1.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -582,6 +738,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 1,
     "high": 11,
@@ -599,6 +761,12 @@
    "version": "0.6.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -626,6 +794,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -643,6 +817,12 @@
    "version": "0.4.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -670,6 +850,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -687,6 +873,12 @@
    "version": "0.7.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -714,6 +906,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -731,6 +929,12 @@
    "version": "0.1.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -758,6 +962,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -775,6 +985,12 @@
    "version": "0.4.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -802,6 +1018,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -819,6 +1041,12 @@
    "version": "0.2.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -846,6 +1074,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -863,6 +1097,12 @@
    "version": "0.1.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -890,6 +1130,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -907,6 +1153,12 @@
    "version": "0.21.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -934,6 +1186,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -951,6 +1209,12 @@
    "version": "0.2.1",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -978,6 +1242,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 1,
@@ -995,6 +1265,12 @@
    "version": "0.2.3",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -1022,6 +1298,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -1039,6 +1321,12 @@
    "version": "0.26.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,
@@ -1066,6 +1354,12 @@
     "moderate": 0,
     "low": 0
    },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
    "dev": {
     "critical": 0,
     "high": 0,
@@ -1083,6 +1377,12 @@
    "version": "0.6.0",
    "status": "ok",
    "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
     "critical": 0,
     "high": 0,
     "moderate": 0,

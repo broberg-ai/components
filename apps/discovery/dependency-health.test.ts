@@ -7,6 +7,7 @@ import { summarizeAudit, summarizeOutdated, verdict, findingsToCard } from "../.
 process.env.ENROLL_DB_URL = ":memory:";
 import { app } from "./server";
 import { getEnrollStore } from "./enroll";
+import { depText } from "./packages-page";
 
 const AUDIT = {
   advisories: {
@@ -20,6 +21,26 @@ describe("summarizeAudit", () => {
   it("counts each advisory ONCE per package, by severity; info is ignored", () => {
     expect(summarizeAudit(AUDIT)).toEqual({
       "packages/auth": { critical: 1, high: 1, moderate: 0, low: 0 },
+      "packages/media-transform": { critical: 0, high: 1, moderate: 0, low: 0 },
+    });
+  });
+});
+
+describe("summarizeAudit — a peer the app supplies is not what the package ships", () => {
+  // Measured 23/10: @broberg/auth's 5 critical + 14 high all came through its
+  // optional peer `next`, which pnpm auto-installs here for tests.
+  const PEER_AUDIT = {
+    advisories: {
+      "1": { severity: "critical", findings: [{ paths: ["packages__auth>next"] }] },
+      "2": { severity: "high", findings: [{ paths: ["packages__media-transform>sharp"] }] },
+      "3": { severity: "high", findings: [{ paths: ["packages__auth>next>postcss", "packages__auth>jose"] }] },
+    },
+  };
+  const shipped: Record<string, string[]> = { "packages/auth": ["jose"], "packages/media-transform": ["sharp"] };
+  const counts = (dir: string, dep: string) => shipped[dir]?.includes(dep) ?? true;
+  it("drops a finding reached only through a peer, keeps one a real dependency also reaches", () => {
+    expect(summarizeAudit(PEER_AUDIT, counts)).toEqual({
+      "packages/auth": { critical: 0, high: 1, moderate: 0, low: 0 },
       "packages/media-transform": { critical: 0, high: 1, moderate: 0, low: 0 },
     });
   });
@@ -70,7 +91,8 @@ describe("/packages shows the dependency status", () => {
     const data = JSON.parse(readFileSync(new URL("../../data/dependency-health.json", import.meta.url), "utf8"));
     const auth = data.packages["@broberg/auth"];
     const row = html.match(/<tr data-testid="pkg-row-\d+" data-name="@broberg\/auth"[^>]*>.*?<\/tr>/)![0];
-    expect(row).toContain(`${auth.verdict} (kritisk ${auth.prod.critical} · høj ${auth.prod.high} · middel ${auth.prod.moderate})`);
+    const cell = row.match(/data-testid="pkg-deps-\d+"[^>]*>([^<]*)</)![1];
+    expect(cell).toBe(depText({ verdict: auth.verdict, prod: auth.prod, checkedAt: data.checked_at }));
     const vulnerable = Object.values(data.packages).filter((p: any) => p.verdict === "sårbar").length;
     expect(html).toContain(`${vulnerable} med sårbare afhængigheder`);
   });

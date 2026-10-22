@@ -68,7 +68,7 @@ jobs:
           # pnpm install armed .githooks; its secret gate refuses to commit until the
           # scanner (and its workspace dependency) is built. Build it, never bypass it.
           pnpm turbo run build --filter="@broberg/secret-scan..."
-          git add data/dependency-health.json docs/llms.txt docs/llms-full.txt
+          git add data/dependency-health.json docs/onboarding.html docs/llms.txt docs/llms-full.txt
           git commit -m "chore(deps): refresh the dependency health of every package" -m "Automated by .github/workflows/dependency-health.yml (F082.5)."
           git pull --rebase origin main
           git push
