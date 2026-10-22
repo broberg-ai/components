@@ -229,3 +229,35 @@ export function createEventLog(store: LogStore, options: EventLogOptions = {}): 
     serverError: (summary, meta) => server({ kind: "server.error", level: "error", summary, metadata: meta }),
   };
 }
+
+// ── Audit trail inside the caller's transaction (F011.7) ──────────────────
+//
+// The fire-and-forget log above must never fail the user's action. An AUDIT
+// TRAIL is the opposite: a change without its audit row must not exist. So it
+// is a separate, explicit path — never a mode of createEventLog — and it
+// writes through the host's own transaction and THROWS, so the host's
+// transaction rolls back the change together with the audit row.
+
+export interface AuditTrailOptions<Tx> {
+  /** Write one entry using the host's transaction. Throw to fail it. */
+  appendTx: (tx: Tx, entry: LogEntry) => void | Promise<void>;
+}
+
+export interface AuditTrail<Tx> {
+  /**
+   * Build the entry (layer "audit", id + time stamped) and write it in `tx`.
+   * Resolves with the written entry; REJECTS when the write fails — let it
+   * propagate so the transaction rolls back.
+   */
+  appendIn(tx: Tx, input: Omit<LogInput, "layer">): Promise<LogEntry>;
+}
+
+export function createAuditTrail<Tx>(options: AuditTrailOptions<Tx>): AuditTrail<Tx> {
+  return {
+    async appendIn(tx, input) {
+      const entry = makeLogEntry({ ...input, layer: "audit" });
+      await options.appendTx(tx, entry);
+      return entry;
+    },
+  };
+}

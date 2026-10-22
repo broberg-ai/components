@@ -47,6 +47,32 @@ otherwise swallowed. Logging must never take the user's request down with it.
   `anonymizeContact(row, fields)` (Art. 17 → `[deleted]`).
 - **`LOG_CONFIG`** — `MAX_AGE_DAYS` / `MAX_LINES` retention knobs (one source).
 
+## Two write paths — pick by what a failed write should do (0.2.0)
+
+| | `createEventLog(store)` | `createAuditTrail({ appendTx })` |
+|---|---|---|
+| For | activity / server logs | an audit trail that must match the data |
+| A failed write | is swallowed (`onError`), the user's action goes on | **throws**, so your transaction rolls back |
+| Transaction | none — fire-and-forget | yours — the entry is written with your `tx` |
+
+```ts
+import { createAuditTrail } from "@broberg/event-log";
+
+const trail = createAuditTrail<Tx>({
+  appendTx: (tx, entry) => tx.insert(auditLog).values(entry), // your DB, your transaction
+});
+
+await db.transaction(async (tx) => {
+  await tx.update(docs).set(change).where(eq(docs.id, id));
+  await trail.appendIn(tx, { kind: "document.updated", actor, target: { type: "doc", id } });
+  // if appendIn throws, the update above is rolled back with it
+});
+```
+
+`appendIn` builds the entry exactly like the log does (id, time, `layer: "audit"`,
+level `info` unless given) and resolves with it. The package never sees a
+database driver — the transaction is yours.
+
 ## Adapters (follow-on)
 
 `@broberg/event-log-sqlite` (Drizzle bun:sqlite + Hono middleware),
