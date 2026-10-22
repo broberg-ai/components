@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // F083.2 — the merge, and the staleness banner that stops this defect recurring.
 //   node scripts/test-fleet-graph.mjs
-import { fleetRows, consumersOf, scanAge, STALE_AFTER_HOURS, REPO_SESSION } from "./fleet-graph.mjs";
+import { fleetRows, consumersOf, scanAge, scanLine, STALE_AFTER_HOURS, REPO_SESSION } from "./fleet-graph.mjs";
 import { FLEET } from "./inventory-data.mjs";
 
 let failures = 0;
@@ -80,6 +80,20 @@ check("a MISSING timestamp is stale, not fresh — the direction that matters", 
 check("every mapped repo name is unique — two repos sharing a session would silently merge", () => {
   const names = Object.values(REPO_SESSION);
   eq(names.length, new Set(names).size, "no duplicate session names in the mapping");
+});
+
+check("F083.6: a stale scan line is the SAME string an hour later — the committed page must not drift with the clock", () => {
+  const scan = { scanned_at: "2026-10-20T09:30:00.000Z", repos: {} };
+  const t0 = Date.parse("2026-10-22T14:05:00Z");
+  const a = scanLine(scan, t0);
+  const b = scanLine(scan, t0 + 61 * 60e3);
+  eq(b, a, "same input, two clocks an hour apart");
+  eq(a, '<span class="fstale">⚠ STALE</span> last scanned 2026-10-20 09:30 UTC. The daily job may have stopped; these numbers are not current.', "exact stale line");
+});
+
+check("F083.6 negative control: a FRESH scan still says scanned, not STALE", () => {
+  const scan = { scanned_at: "2026-10-22T09:30:00.000Z", manifests_read: 200, repos: {} };
+  eq(scanLine(scan, Date.parse("2026-10-22T14:05:00Z")), "scanned 2026-10-22 09:30 UTC · 200 package.json files", "fresh line");
 });
 
 console.log(failures ? `\n${failures} FAILED` : "\nall green");

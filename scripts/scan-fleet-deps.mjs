@@ -31,7 +31,35 @@ export const SHARED = /^@(broberg|upmetrics)\//;
  *  are different facts about a repo, so the field travels with the edge. */
 export const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 
-const ghCli = (path) => JSON.parse(execFileSync("gh", ["api", path], { encoding: "utf8", maxBuffer: 64e6 }));
+const ghRaw = (path) => JSON.parse(execFileSync("gh", ["api", path], { encoding: "utf8", maxBuffer: 64e6, stdio: ["ignore", "pipe", "pipe"] }));
+
+// F083.6 — the token's 5,000 calls/hour are SHARED with every fleet session on
+// the same GitHub user. Measured 21+22 Oct 2026: a busy morning used them up and
+// the scan recorded 73 of ~79 repos as failed. A rate-limit answer is not a
+// broken repo; it is "ask again after the reset". So we wait and ask again —
+// every other error still throws and is recorded as a failure.
+export const RATE_LIMIT = /rate limit exceeded|HTTP 429/i;
+/** Epoch ms when the core quota resets. `rate_limit` itself is not counted against it. */
+const ghResetAt = () => Number(execFileSync("gh", ["api", "rate_limit", "--jq", ".resources.core.reset"], { encoding: "utf8" }).trim()) * 1000;
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+export function waitOnRateLimit(call, { resetAt = ghResetAt, sleep = sleepSync, now = Date.now, maxWaitMs = 55 * 60e3, log = () => {} } = {}) {
+  return (path) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return call(path);
+      } catch (e) {
+        if (attempt >= 2 || !RATE_LIMIT.test(String(e?.message ?? e))) throw e;
+        const waitMs = Math.max(1000, resetAt() - now() + 5000);
+        if (waitMs > maxWaitMs) throw e;
+        log(`rate limit hit on ${path} — waiting ${Math.round(waitMs / 1000)}s for the reset`);
+        sleep(waitMs);
+      }
+    }
+  };
+}
+
+const ghCli = waitOnRateLimit(ghRaw, { log: (l) => console.error(l) });
 
 /**
  * WHICH repos to scan. Auto-discovered from the two work orgs, so a NEW repo is

@@ -3,7 +3,7 @@
 // whole defect being fixed is a confident number nobody watched fail.
 //
 //   node scripts/test-scan-fleet-deps.mjs
-import { scanRepo, scanFleet, SHARED, DEP_FIELDS } from "./scan-fleet-deps.mjs";
+import { scanRepo, scanFleet, waitOnRateLimit, SHARED, DEP_FIELDS } from "./scan-fleet-deps.mjs";
 
 let failures = 0;
 const check = (name, fn) => {
@@ -147,6 +147,35 @@ check("the summary counts are derived from the scan, not from the input list", (
   eq(r.manifests_read, 2, "manifests");
   eq(r.edges, 2, "distinct packages, not occurrences");
   if (!/^\d{4}-\d{2}-\d{2}T/.test(r.scanned_at)) throw new Error("scanned_at is an ISO timestamp");
+});
+
+// F083.6 — GitHub's shared quota ran out on 21+22 Oct 2026 and 73 repos were
+// recorded as failed. A rate-limit answer means "ask again after the reset".
+const rateLimitErr = () => new Error("Command failed: gh api repos/x/y\ngh: API rate limit exceeded for user ID 486755. (HTTP 403)");
+check("a rate-limited call waits for the reset and the repo is READ, not failed", () => {
+  let calls = 0; const slept = [];
+  const inner = fakeApi({ files: { "package.json": { dependencies: { "@broberg/mail": "1.0.0" } } } });
+  const api = waitOnRateLimit((p) => { if (++calls === 1) throw rateLimitErr(); return inner(p); },
+    { resetAt: () => 1_000_000 + 60_000, now: () => 1_000_000, sleep: (ms) => slept.push(ms) });
+  const scan = scanFleet(["broberg-ai/x"], api);
+  eq(scan.repos_failed, 0, "no failed repos");
+  eq(scan.edges, 1, "the dependency was read");
+  eq(slept, [65_000], "waited until reset + 5s");
+});
+check("negative control: a 404 is NOT waited on — it is still a failed repo", () => {
+  const slept = [];
+  const api = waitOnRateLimit(() => { throw new Error("Command failed: gh api repos/x/y\ngh: Not Found (HTTP 404)"); },
+    { resetAt: () => 0, now: () => 0, sleep: (ms) => slept.push(ms) });
+  const scan = scanFleet(["broberg-ai/x"], api);
+  eq(scan.repos_failed, 1, "one failed repo");
+  eq(slept, [], "never slept");
+});
+check("a reset further away than the cap is not waited for — the run fails loudly instead of hanging", () => {
+  const slept = [];
+  const api = waitOnRateLimit(() => { throw rateLimitErr(); },
+    { resetAt: () => 2 * 3600e3, now: () => 0, sleep: (ms) => slept.push(ms) });
+  eq(scanFleet(["broberg-ai/x"], api).repos_failed, 1, "failed");
+  eq(slept, [], "never slept");
 });
 
 console.log(failures ? `\n${failures} FAILED` : "\nall green");

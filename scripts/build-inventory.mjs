@@ -12,12 +12,11 @@ import { M, MODEL, EFFORT, DATA, FLEET, INFRA, npmUrl, repoUrl, oneLiner } from 
 // F083 — the FLEET section renders from the SCANNED manifests, not from a
 // hand-written array. Measured the day it changed: the array showed 15 of 149
 // real dependencies and omitted eight repos entirely.
-import { fleetRows, scanAge } from "./fleet-graph.mjs";
+import { fleetRows, scanLine } from "./fleet-graph.mjs";
 import { readFileSync as readScan } from "node:fs";
 let FLEET_SCAN = { repos: {} };
 try { FLEET_SCAN = JSON.parse(readScan(new URL("../data/fleet-deps.json", import.meta.url), "utf8")); } catch {}
 const FLEET_ROWS = fleetRows(FLEET_SCAN);
-const FLEET_AGE = scanAge(FLEET_SCAN);
 import { fetchLatestReleases } from "./npm-latest.mjs";
 
 
@@ -356,11 +355,7 @@ const fleetCard = (m) => {
 };
 const fleetHtml = `<section class="fleet">
       <div class="layer-h"><span class="n">FLEET</span><span class="t">Who builds &amp; consumes</span><span class="d">read from every repo's package.json — ${FLEET_SCAN.edges ?? 0} dependencies across ${FLEET_SCAN.repos_scanned ?? 0} repos</span></div>
-      <div class="fscan" data-testid="inv-fleet-scanned">${
-        FLEET_AGE.stale
-          ? `<span class="fstale">⚠ STALE</span> last scanned ${FLEET_AGE.at ? `${FLEET_AGE.at.slice(0,16).replace("T"," ")} UTC — ${Math.round(FLEET_AGE.hours)}h ago` : "never"}. The daily job may have stopped; these numbers are not current.`
-          : `scanned ${FLEET_AGE.at.slice(0,16).replace("T"," ")} UTC · ${FLEET_SCAN.manifests_read ?? 0} package.json files${FLEET_SCAN.repos_failed ? ` · ${FLEET_SCAN.repos_failed} repo(s) could not be read` : ""}`
-      }</div>
+      <div class="fscan" data-testid="inv-fleet-scanned">${scanLine(FLEET_SCAN)}</div>
       <div class="fgrid">${FLEET_ROWS.map(fleetCard).join("")}</div>
       <div class="flegend"><span class="fp pub">pkg</span> publishes · <span class="fp src">✦ pkg</span> originated the pattern · <span class="fp use">→ pkg</span> consumes</div>
     </section>`;

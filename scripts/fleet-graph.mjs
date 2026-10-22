@@ -66,6 +66,17 @@ export function scanAge(scan, now = Date.now()) {
   return { hours, stale: hours > STALE_AFTER_HOURS, at: scan.scanned_at };
 }
 
+/** The scan line under the FLEET heading. F083.6: absolute time only, never
+ *  "Nh ago" — the HTML is committed and CI rebuilds it to check it is in sync, so
+ *  a wall-clock-relative number made every Discovery commit red one hour later. */
+export function scanLine(scan, now = Date.now()) {
+  const age = scanAge(scan, now);
+  const at = age.at ? `${age.at.slice(0, 16).replace("T", " ")} UTC` : "never";
+  return age.stale
+    ? `<span class="fstale">⚠ STALE</span> last scanned ${at}. The daily job may have stopped; these numbers are not current.`
+    : `scanned ${at} · ${scan.manifests_read ?? 0} package.json files${scan.repos_failed ? ` · ${scan.repos_failed} repo(s) could not be read` : ""}`;
+}
+
 /**
  * Build the rows the FLEET section renders.
  * Every repo the scan found with at least one shared dependency gets a row, plus
