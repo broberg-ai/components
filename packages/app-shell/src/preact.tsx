@@ -1744,7 +1744,7 @@ export function AppShell(p: AppShellProps) {
         </main>
       </div>
       {mode === "bottom-nav" ? (
-        <BottomNav groups={p.groups} currentPath={p.currentPath} onNavigate={p.onNavigate} testId={p.mobileNavTestId} />
+        <BottomNav lang={p.lang} groups={p.groups} currentPath={p.currentPath} onNavigate={p.onNavigate} testId={p.mobileNavTestId} />
       ) : null}
     </div>
     </StringsContext.Provider>
@@ -1757,11 +1757,12 @@ export function AppShell(p: AppShellProps) {
  * so its tab links to its first child and is active anywhere in the section.
  * Hidden on desktop by CSS; the sidebar is hidden on the phone instead.
  */
-function BottomNav(p: { groups: PreactNavGroup[]; currentPath: string; onNavigate?: Navigate; testId?: string }) {
+function BottomNav(p: { lang: Lang; groups: PreactNavGroup[]; currentPath: string; onNavigate?: Navigate; testId?: string }) {
+  const t = useText(p.lang);
   const rootId = p.testId ?? "mobile-bottom-nav";
   const tabs = p.groups.flatMap((g) => g.items).map((it) => ({ it, href: it.children?.[0]?.href ?? it.href }));
   return (
-    <nav class="bas-bottomnav" data-testid={rootId}>
+    <nav class="bas-bottomnav" data-testid={rootId} aria-label={t.mainNavigation}>
       {tabs.map(({ it, href }) => {
         const active = isActivePath(it.href, p.currentPath) || !!it.children?.some((c) => isActivePath(c.href, p.currentPath));
         return (
@@ -1772,9 +1773,11 @@ function BottomNav(p: { groups: PreactNavGroup[]; currentPath: string; onNavigat
             class={"bas-bottomnav__tab" + (active ? " is-active" : "")}
             data-testid={`${rootId}-${it.id}`}
             aria-current={active ? "page" : undefined}
+            aria-label={it.shortLabel ? it.label : undefined}
+            title={it.shortLabel ? it.label : undefined}
           >
             {it.icon ? <span class="bas-bottomnav__icon">{it.icon}</span> : null}
-            <span class="bas-bottomnav__label">{it.label}</span>
+            <span class="bas-bottomnav__label">{it.shortLabel ?? it.label}</span>
           </NavLink>
         );
       })}

@@ -77,6 +77,10 @@ byte-identically to 0.22.4.
   sidebar and its button are hidden on the phone, and a `sidebar-footer` user
   menu moves to the content's top row there (otherwise it would be gone).
   Desktop is unchanged. Tokens: `--bas-bottomnav-h` (default 60px).
+  **0.24.0:** a nav item's `shortLabel` (e.g. `"Fields"` for `"Fields and
+  customers"`) is what its tab shows; the sidebar keeps `label`, and the tab
+  then carries the full `label` as `aria-label` + `title`. The bar itself is
+  named «Hovednavigation» / «Main navigation» (`strings` key `mainNavigation`).
 - **`userMenu.appearance: { palette?, surfaces? }`** — `false` hides that row.
 - **`userMenu.appearancePosition: "top" | "bottom"`** — default `"bottom"`.
 - **`strings`** — per language, any key of the shell's texts (`ShellText`);

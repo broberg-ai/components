@@ -161,3 +161,53 @@ describe("strings — the app's own shell texts", () => {
     expect(screen.getByTestId("user-menu-account").textContent).toBe("Konto");
   });
 });
+
+// F092.36 — short tab labels on the phone, and an accessible name on the tab bar.
+describe("bottom-nav: shortLabel + aria-label", () => {
+  const LONG: PreactNavGroup[] = [
+    { label: "Main", items: [
+      { id: "fields", label: "Fields and customers", shortLabel: "Fields", href: "/fields" },
+      { id: "trail", label: "Trail", href: "/trail" },
+    ] },
+  ];
+
+  it("a tab shows shortLabel; the sidebar keeps the full label", () => {
+    setMobile(true);
+    render(<AppShell lang="en" groups={LONG} currentPath="/fields" mobile="bottom-nav" />);
+    const tab = screen.getByTestId("mobile-bottom-nav-fields");
+    expect(tab.querySelector(".bas-bottomnav__label")!.textContent).toBe("Fields");
+    const sidebarLabels = [...document.querySelectorAll(".bas-sidebar .bas-item__label")].map((e) => e.textContent);
+    expect(sidebarLabels).toContain("Fields and customers");
+    expect(sidebarLabels).not.toContain("Fields");
+  });
+
+  it("with shortLabel, the tab's accessible name and tooltip are the full label", () => {
+    render(<AppShell lang="en" groups={LONG} currentPath="/" mobile="bottom-nav" />);
+    const tab = screen.getByTestId("mobile-bottom-nav-fields");
+    expect(tab.getAttribute("aria-label")).toBe("Fields and customers");
+    expect(tab.getAttribute("title")).toBe("Fields and customers");
+  });
+
+  it("without shortLabel a tab is exactly as in 0.23.0: the label, no aria-label, no title", () => {
+    render(<AppShell lang="en" groups={LONG} currentPath="/" mobile="bottom-nav" />);
+    const tab = screen.getByTestId("mobile-bottom-nav-trail");
+    expect(tab.querySelector(".bas-bottomnav__label")!.textContent).toBe("Trail");
+    expect(tab.hasAttribute("aria-label")).toBe(false);
+    expect(tab.hasAttribute("title")).toBe(false);
+  });
+
+  it("the tab bar is named in Danish by default", () => {
+    render(<AppShell lang="da" groups={LONG} currentPath="/" mobile="bottom-nav" />);
+    expect(screen.getByTestId("mobile-bottom-nav").getAttribute("aria-label")).toBe("Hovednavigation");
+  });
+
+  it("the tab bar is named in English by default", () => {
+    render(<AppShell lang="en" groups={LONG} currentPath="/" mobile="bottom-nav" />);
+    expect(screen.getByTestId("mobile-bottom-nav").getAttribute("aria-label")).toBe("Main navigation");
+  });
+
+  it("the tab bar's name can be overridden through strings", () => {
+    render(<AppShell lang="en" groups={LONG} currentPath="/" mobile="bottom-nav" strings={{ en: { mainNavigation: "Field sections" } }} />);
+    expect(screen.getByTestId("mobile-bottom-nav").getAttribute("aria-label")).toBe("Field sections");
+  });
+});

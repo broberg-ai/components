@@ -91,7 +91,8 @@ function App() {
         brand={<strong>Scout</strong>}
         groups={[{ label: "Samtaler", items: [
           { id: "new", label: "Ny samtale", href: "/", icon: <span>N</span> },
-          { id: "jobs", label: "Jobs", href: "/jobs", icon: <span>J</span> },
+          // F092.36 — ?field: a long label with a short tab label for the phone.
+          { id: "jobs", label: FIELD ? "Jobs og leverandøraftaler" : "Jobs", ...(FIELD ? { shortLabel: "Jobs" } : {}), href: "/jobs", icon: <span>J</span> },
           // F092.16 — children open in a flyout when the sidebar is folded to the icon rail.
           { id: "reports", label: "Rapporter", href: "/reports", icon: <span>R</span>, children: [
             { id: "reports-revenue", label: "Omsætning", href: "/reports/revenue" },

@@ -17,6 +17,12 @@
 export interface NavItem<Icon = unknown> {
   id: string;
   label: string;
+  /**
+   * F092.36 — a short label for the phone's bottom tab bar (e.g. "Fields" for
+   * "Fields and customers"). The sidebar always shows `label`; the tab then
+   * carries the full `label` as its accessible name and tooltip.
+   */
+  shortLabel?: string;
   href: string;
   icon?: Icon;
   /** A count shown on the item (99+ above 99). 0/undefined shows nothing. */
@@ -623,6 +629,7 @@ export const TEXT = {
     zoomIn: "Zoom ind",
     couldNotMarkAll: "Kunne ikke markere alle som læst. Prøv igen.",
     collapse: "Skjul sidemenu",
+    mainNavigation: "Hovednavigation",
     expand: "Vis sidemenu",
     notifications: "Notifikationer",
     markAllRead: "Markér alle læst",
@@ -698,6 +705,7 @@ export const TEXT = {
     zoomIn: "Zoom in",
     couldNotMarkAll: "Could not mark all as read. Try again.",
     collapse: "Hide sidebar",
+    mainNavigation: "Main navigation",
     expand: "Show sidebar",
     notifications: "Notifications",
     markAllRead: "Mark all read",
