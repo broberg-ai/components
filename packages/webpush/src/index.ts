@@ -22,6 +22,7 @@ export type {
   VapidConfig,
   PushSubscriptionJSON,
   PushMessage,
+  PushAction,
   SilentPushMessage,
   SendResult,
   // 0.4.1 — these were reachable structurally but could not be NAMED, so a
@@ -61,6 +62,10 @@ export function buildPayload(m: PushMessage): string {
     badge: m.badge,
     icon: m.icon,
     tag: m.tag,
+    // F067.10 — classic-SW only, and only when given: without actions the
+    // payload is byte-identical to 0.5.0.
+    ...(m.actions && m.actions.length ? { actions: m.actions } : {}),
+    ...(m.data ? { data: m.data } : {}),
   });
 }
 

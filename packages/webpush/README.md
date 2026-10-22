@@ -391,6 +391,56 @@ flag reaches only the people who read changelogs — which is the people who did
 not need it. If you send no `badge` in a payload, `badgeOnVisible` cannot affect
 you; there is a test that proves exactly that rather than asserting it.
 
+### Buttons on a notification — `actions` (v0.6.0, F067.10)
+
+Give a notification up to a couple of buttons. A tap on a button reaches YOUR
+service worker; a tap on the notification itself still opens the app.
+
+```ts
+// server
+await pusher.send(subs, {
+  title: "Ny mail fra Sanne", body: "Re: tilbud", tag: `mail-${id}`,
+  actions: [{ action: "read", title: "Markér som læst" }, { action: "archive", title: "Arkivér" }],
+  data: { mailId: id },                       // handed back to you on the tap — keep it small
+});
+```
+
+```ts
+// service worker — bundled
+import { createPushHandler, createNotificationClickHandler } from "@broberg/webpush/sw";
+const onAction = async ({ action, tag, data }) => {
+  await fetch(`/api/mail/${data.mailId}/${action}`, { method: "POST" });  // no window opened
+};
+self.addEventListener("push", createPushHandler());
+self.addEventListener("notificationclick", createNotificationClickHandler({ onAction }));
+
+// service worker — static public/sw.js
+importScripts("/sw.global.js");
+BrobergWebPush.configure({ onAction });       // replaces, never adds a listener
+```
+
+- **A button tap calls `onAction({ action, tag, data, event })` and opens nothing.** Its
+  promise is kept alive with `waitUntil`; a rejection is not swallowed (it shows in the
+  worker console).
+- **A tap on the notification itself** (`event.action === ""`) opens/focuses the app
+  exactly as before. **Without `onAction`**, a button tap does the same — never a dead tap.
+- **More buttons than the browser shows** are cut to `Notification.maxActions`, with a
+  `console.warn` naming the dropped ones.
+- **Platforms without buttons see no difference.** `actions` and `data` go only in the
+  classic half of the payload, never in the declarative Safari part, and the sender
+  sends the same message to every platform.
+- **Backwards compatible:** without `actions`/`data` the payload and the notification
+  are byte-identical to 0.5.0, and `handleNotificationClick` is unchanged.
+
+| Platform | Buttons |
+|---|---|
+| Chrome / Edge on Mac and Windows | shown (the Notifications API standard) |
+| Safari on Mac, iOS / iPadOS home-screen PWA | not shown — the notification appears without them |
+
+**Not measured on real devices yet** — the table is the platforms' documented
+behaviour, not a test on our hardware. The code paths are unit-tested; the first app
+to ship buttons (the WebHouse mail client) should confirm each row and correct it here.
+
 ## What you still own
 
 Subscriptions table, per-user notification prefs, notification history, dead-

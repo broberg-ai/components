@@ -29,7 +29,20 @@ export type PushMessage = {
   icon?: string;
   /** Coalescing tag — a newer notification with the same tag replaces the old. */
   tag?: string;
+  /**
+   * F067.10 — buttons on the notification, e.g. «Markér som læst». The tap
+   * reaches the app's service worker as `onAction({ action, tag, data })`.
+   * Shown by Chrome/Edge; platforms without buttons (iOS/iPadOS, Safari on a
+   * Mac) show the notification exactly as without them. Classic path only —
+   * never put in the declarative Safari payload.
+   */
+  actions?: PushAction[];
+  /** F067.10 — app data handed back with a button tap (e.g. `{ mailId }`). Keep it small. */
+  data?: Record<string, unknown>;
 };
+
+/** One notification button: `action` is the id the app gets back, `title` the label. */
+export type PushAction = { action: string; title: string };
 
 /** A data-only (SILENT) push: it sets the OS app-badge with NO banner. Used for
  *  cross-device read-sync — when a user clears a notification on one device, the

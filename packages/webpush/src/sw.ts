@@ -26,7 +26,23 @@ type PushPayload = {
   silent?: boolean;
   app_badge?: number;
   badge?: number;
+  /** F067.10 — notification buttons (classic path only). */
+  actions?: { action: string; title: string }[];
+  /** F067.10 — app data handed back to onAction. */
+  data?: Record<string, unknown>;
 };
+
+/** F067.10 — what the app's service worker is told when a notification BUTTON is tapped. */
+export interface NotificationActionEvent {
+  /** The button's `action` id, e.g. "read". */
+  action: string;
+  /** The notification's tag, if it had one. */
+  tag?: string;
+  /** The `data` the sender attached (e.g. `{ mailId }`). */
+  data?: Record<string, unknown>;
+  /** The raw event, for anything else (event.notification, etc.). */
+  event: NotificationEvent;
+}
 
 /** F067 — what a push handler may be configured with. Every one of these
  *  defaults to the SAFE-AND-ON value: a fix that ships behind a flag reaches
@@ -69,6 +85,15 @@ export interface PushHandlerOptions {
    * platform where push matters most.
    */
   defaultBadgeIcon?: string;
+  /**
+   * F067.10 — called when the user taps a notification BUTTON (not the
+   * notification itself). Do the work here — mark as read, archive — and no
+   * window is opened or focused. Its promise is kept alive with waitUntil; a
+   * rejection is NOT swallowed, so it shows in the worker's console.
+   * Without onAction, a button tap behaves like a tap on the notification
+   * (opens/focuses the app) — a tap never does nothing.
+   */
+  onAction?: (e: NotificationActionEvent) => void | Promise<void>;
 }
 
 const DEFAULTS: Required<Pick<PushHandlerOptions, 'defaultTitle' | 'defaultNavigate' | 'badgeOnVisible'>> = {
@@ -92,6 +117,20 @@ function syncBadge(count: number): Promise<void> {
   return Promise.resolve(count > 0 ? nav?.setAppBadge?.(count) : nav?.clearAppBadge?.()).catch(
     () => {},
   );
+}
+
+/** Keep what the browser can show; say so when buttons are dropped (never silently). */
+function limitActions(actions: PushPayload['actions']): { action: string; title: string }[] {
+  const list = (Array.isArray(actions) ? actions : []).filter(
+    (a) => a && typeof a.action === 'string' && a.action !== '' && typeof a.title === 'string',
+  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const max = (self as any).Notification?.maxActions as number | undefined;
+  if (typeof max === 'number' && list.length > max) {
+    console.warn(`[@broberg/webpush] ${list.length} notification buttons, this browser shows ${max} — dropped: ${list.slice(max).map((a) => a.action).join(', ')}`);
+    return list.slice(0, max);
+  }
+  return list;
 }
 
 /**
@@ -124,13 +163,17 @@ export function createPushHandler(options: PushHandlerOptions = {}): (event: Pus
     // failure by another route.
     const icon = data.icon || o.defaultIcon;
     const badgeIcon = data.badgeIcon || o.defaultBadgeIcon;
+    const actions = limitActions(data.actions);
     const show = reg.showNotification(n.title || o.defaultTitle, {
       body: n.body || '',
       ...(icon ? { icon } : {}),
       ...(badgeIcon ? { badge: badgeIcon } : {}),
       tag: data.tag,
-      data: { navigate: n.navigate ?? o.defaultNavigate },
-    });
+      // F067.10 — both keys absent unless the sender gave them, so a push
+      // without buttons renders exactly as in 0.5.0.
+      ...(actions.length ? { actions } : {}),
+      data: { navigate: n.navigate ?? o.defaultNavigate, ...(data.data ? { data: data.data } : {}) },
+    } as NotificationOptions);
     // A visible push carrying a count moves the icon NOW, rather than waiting
     // for a separate silent push after the message is read elsewhere. A payload
     // with no count is untouched — that is what keeps this backwards-safe.
@@ -148,7 +191,33 @@ export function createPushHandler(options: PushHandlerOptions = {}): (event: Pus
  */
 export const handlePush: (event: PushEvent) => void = createPushHandler();
 
+/**
+ * F067.10 — build a `notificationclick` listener. A tap on a BUTTON goes to
+ * `onAction` and opens nothing; a tap on the notification itself (or a button
+ * tap with no onAction) opens/focuses the app as before.
+ */
+export function createNotificationClickHandler(options: Pick<PushHandlerOptions, 'onAction'> = {}): (event: NotificationEvent) => void {
+  return function click(event: NotificationEvent): void {
+    if (event.action && options.onAction) {
+      event.notification.close();
+      const d = event.notification.data as { data?: Record<string, unknown> } | undefined;
+      event.waitUntil(
+        Promise.resolve(
+          options.onAction({ action: event.action, tag: event.notification.tag || undefined, data: d?.data, event }),
+        ),
+      );
+      return;
+    }
+    openFromNotification(event);
+  };
+}
+
+/** The listener most consumers wire directly: `createNotificationClickHandler()` with no onAction. */
 export function handleNotificationClick(event: NotificationEvent): void {
+  openFromNotification(event);
+}
+
+function openFromNotification(event: NotificationEvent): void {
   event.notification.close();
   // F067: fall back rather than leave a tap doing nothing. Before this, a
   // notification whose payload carried no `navigate` opened NOTHING when the

@@ -14,7 +14,7 @@
 // ADDITIVE, so this file's listener does not replace yours — it runs ALONGSIDE
 // it, and two handlers both calling showNotification produce TWO banners per
 // push. It will hit you exactly when you believe you are cleaning up.
-import { createPushHandler, handleNotificationClick, type PushHandlerOptions } from './sw';
+import { createNotificationClickHandler, createPushHandler, handleNotificationClick, type PushHandlerOptions } from './sw';
 
 // ONE registered listener, for the lifetime of the worker. Everything
 // configurable swaps what it DELEGATES to.
@@ -31,9 +31,12 @@ import { createPushHandler, handleNotificationClick, type PushHandlerOptions } f
 // express: configure() REPLACES what the single listener calls. You cannot
 // double-register through this package's own API.
 let current = createPushHandler();
+// F067.10 — the click listener delegates too, so configure({ onAction }) reaches it.
+let currentClick: (event: NotificationEvent) => void = handleNotificationClick;
 
 function configure(options: PushHandlerOptions = {}): void {
   current = createPushHandler(options);
+  currentClick = options.onAction ? createNotificationClickHandler(options) : handleNotificationClick;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,6 +47,7 @@ function configure(options: PushHandlerOptions = {}): void {
   // use configure() unless you have deliberately not let this file register.
   createPushHandler,
   handleNotificationClick,
+  createNotificationClickHandler,
   /** The live handler, for tests that want to drive it directly. */
   get handlePush() {
     return current;
@@ -51,4 +55,4 @@ function configure(options: PushHandlerOptions = {}): void {
 };
 
 self.addEventListener('push', ((event: PushEvent) => current(event)) as EventListener);
-self.addEventListener('notificationclick', handleNotificationClick as EventListener);
+self.addEventListener('notificationclick', ((event: NotificationEvent) => currentClick(event)) as EventListener);

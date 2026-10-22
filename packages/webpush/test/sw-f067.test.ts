@@ -154,6 +154,7 @@ describe('dist/sw.global.js — the file an unbundled service worker can use', (
     // It did its job — adding `configure` in 0.2.1 turned it red.
     expect(Object.keys(api).sort()).toEqual([
       'configure',
+      'createNotificationClickHandler',
       'createPushHandler',
       'handleNotificationClick',
       'handlePush',
