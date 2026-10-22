@@ -32,7 +32,11 @@ async function fetchOne(pkg) {
   if (!version || !published) {
     throw new Error(`npm lookup for ${pkg} returned no latest version or publish time`);
   }
-  return { pkg, version, published };
+  // F038.31 — published via Trusted Publisher (OIDC) ⇔ npm attached a SLSA
+  // provenance attestation to THIS version. Measured: event-log 0.1.0 (local
+  // bootstrap) has none, 0.2.1+ (CI) do.
+  const provenance = Boolean(doc?.versions?.[version]?.dist?.attestations?.provenance);
+  return { pkg, version, published, provenance };
 }
 
 /** Every package's latest release, newest first. Throws if ANY lookup fails —

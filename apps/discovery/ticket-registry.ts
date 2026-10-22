@@ -1,5 +1,9 @@
 import { SITE_CSS, topBar, THEME_JS } from "../../scripts/site-chrome.mjs";
 import { FAVICON } from "../../scripts/favicon.mjs";
+import { daTime as daTimeOrNull } from "../../scripts/npm-meta.mjs";
+
+/** Danish time, zone named — the site's one formatter (F038.31). */
+const daTime = (iso: string): string => daTimeOrNull(iso) ?? iso;
 // F038.29 — who logs in with BID tickets (F087 / WIF), read LIVE from BID.
 //
 // BID is the only source. Discovery fetches BID's registry endpoint with its
@@ -106,13 +110,6 @@ const TYPE_LABEL: Record<RuleType, string> = {
   user: "bruger-billet",
   login: "login med platform-ID",
 };
-
-/** Human-readable time for the page — Danish time, named (house rule: a server renders in UTC). */
-function daTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.toLocaleString("da-DK", { timeZone: "Europe/Copenhagen", dateStyle: "short", timeStyle: "short" })} (dansk tid)`;
-}
 
 /** Page-specific layout on top of the site's own tokens — no colour of its own. */
 const PAGE_CSS = `

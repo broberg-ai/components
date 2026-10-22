@@ -19,6 +19,16 @@ let FLEET_SCAN = { repos: {} };
 try { FLEET_SCAN = JSON.parse(readScan(new URL("../data/fleet-deps.json", import.meta.url), "utf8")); } catch {}
 const FLEET_ROWS = fleetRows(FLEET_SCAN);
 import { fetchLatestReleases } from "./npm-latest.mjs";
+import { npmMeta, npmMetaRow } from "./npm-meta.mjs";
+import { writeFileSync as writeMeta } from "node:fs";
+
+// F038.7 + F038.31 — asked of the registry once, BEFORE the cards render, so each
+// card can carry its own npm link, publish time and provenance.
+const SHIPPED_PKGS = DATA.flatMap((L) => L.items ?? [])
+  .filter((it) => it.s === "shipped" && String(it.pkg ?? "").startsWith("@broberg/"));
+const releases = await fetchLatestReleases(SHIPPED_PKGS.map((it) => it.pkg));
+// /api/packages and llms.txt read the same facts from here (one fetch, one source).
+writeMeta(new URL("../docs/npm-meta.json", import.meta.url), JSON.stringify(Object.fromEntries(SHIPPED_PKGS.map((it) => [it.pkg, npmMeta(it.pkg, releases)])), null, 1) + "\n");
 
 
 let total=0, ship=0, grad=0, mv=0;
@@ -38,7 +48,9 @@ function card(it, layer){
   const gr = it.grad ? '<span class="grad" title="graduate-candidate">⬆</span>' : "";
   const cls = "c" + (st==="shipped"?" shipped":"") + (moved?" moved":"");
   const tid = "inv-card-" + it.f.toLowerCase();
-  return `<div class="${cls}" data-status="${st}" data-layer="${layer}" data-model="${it.m}" data-grad="${it.grad?1:0}" data-f="${it.f}" data-testid="${tid}" role="button" tabindex="0" aria-haspopup="dialog"><div class="c-top"><span class="fnum">${it.f}</span><span class="nm">${it.nm}</span></div>${pkg}<div class="c-bot"><span class="model" title="${it.m}">${M[it.m]||""}</span>${ei}${own}${gr}${badge}</div></div>`;
+  // F038.31 — the npm link, publish time and provenance ON the card, not only in the drawer.
+  const npmRow = npmUrl(it) && String(it.pkg).startsWith("@broberg/") ? npmMetaRow(it.f.toLowerCase(), npmMeta(it.pkg, releases)) : "";
+  return `<div class="${cls}" data-status="${st}" data-layer="${layer}" data-model="${it.m}" data-grad="${it.grad?1:0}" data-f="${it.f}" data-testid="${tid}" role="button" tabindex="0" aria-haspopup="dialog"><div class="c-top"><span class="fnum">${it.f}</span><span class="nm">${it.nm}</span></div>${pkg}${npmRow}<div class="c-bot"><span class="model" title="${it.m}">${M[it.m]||""}</span>${ei}${own}${gr}${badge}</div></div>`;
 }
 const layersHtml = DATA.map(L =>
   `<div class="layer" data-layer="${L.n}"><div class="layer-h"><span class="n">${L.n}</span><span class="t">${L.t}</span><span class="d">— ${L.d}</span></div><div class="grid">${L.items.map(it=>card(it,L.n)).join("")}</div></div>`
@@ -196,10 +208,6 @@ const esc = (v) =>
 // This block used to be literal HTML naming @broberg/stripe v0.2.0. It was six
 // weeks and four releases out of date, and nothing could have told us: a
 // hardcoded value cannot report that it has gone stale.
-const SHIPPED_PKGS = DATA.flatMap((L) => L.items ?? [])
-  .filter((it) => it.s === "shipped" && String(it.pkg ?? "").startsWith("@broberg/"));
-
-const releases = await fetchLatestReleases(SHIPPED_PKGS.map((it) => it.pkg));
 const newest = releases[0];
 const featured = SHIPPED_PKGS.find((it) => it.pkg === newest.pkg);
 if (!featured) throw new Error(`newest published package ${newest.pkg} is not in the roster`);

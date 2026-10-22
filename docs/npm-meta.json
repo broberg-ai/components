@@ -1,0 +1,368 @@
+{
+ "@broberg/theme": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/theme",
+  "version": "0.13.3",
+  "publishedAt": "2026-10-11T10:22:42.276Z",
+  "provenance": "yes"
+ },
+ "@broberg/config": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/config",
+  "version": "0.2.0",
+  "publishedAt": "2026-06-22T18:17:12.574Z",
+  "provenance": "yes"
+ },
+ "@broberg/mail": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/mail",
+  "version": "0.16.0",
+  "publishedAt": "2026-10-03T15:58:43.836Z",
+  "provenance": "yes"
+ },
+ "@broberg/media": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/media",
+  "version": "0.6.0",
+  "publishedAt": "2026-10-13T23:35:43.931Z",
+  "provenance": "yes"
+ },
+ "@broberg/mail-core": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/mail-core",
+  "version": "0.9.1",
+  "publishedAt": "2026-10-22T15:43:37.252Z",
+  "provenance": "yes"
+ },
+ "@broberg/media-transform": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/media-transform",
+  "version": "0.1.0",
+  "publishedAt": "2026-06-24T01:08:18.391Z",
+  "provenance": "no"
+ },
+ "@broberg/cron": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/cron",
+  "version": "0.2.0",
+  "publishedAt": "2026-08-28T09:55:35.588Z",
+  "provenance": "yes"
+ },
+ "@broberg/chat": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/chat",
+  "version": "0.6.3",
+  "publishedAt": "2026-08-28T15:57:13.323Z",
+  "provenance": "yes"
+ },
+ "@broberg/webpush": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/webpush",
+  "version": "0.6.0",
+  "publishedAt": "2026-10-22T22:40:12.833Z",
+  "provenance": "yes"
+ },
+ "@broberg/mcp": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/mcp",
+  "version": "0.10.0",
+  "publishedAt": "2026-10-22T01:13:07.390Z",
+  "provenance": "yes"
+ },
+ "@broberg/secret-scan": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/secret-scan",
+  "version": "0.14.2",
+  "publishedAt": "2026-10-14T22:44:33.732Z",
+  "provenance": "yes"
+ },
+ "@broberg/lens": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/lens",
+  "version": "0.3.2",
+  "publishedAt": "2026-10-12T00:12:59.358Z",
+  "provenance": "no"
+ },
+ "@broberg/auth": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/auth",
+  "version": "0.7.1",
+  "publishedAt": "2026-10-16T09:05:22.404Z",
+  "provenance": "yes"
+ },
+ "@broberg/apikey": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/apikey",
+  "version": "0.3.1",
+  "publishedAt": "2026-08-07T08:37:50.514Z",
+  "provenance": "yes"
+ },
+ "@broberg/event-log": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/event-log",
+  "version": "0.3.0",
+  "publishedAt": "2026-10-22T16:19:42.064Z",
+  "provenance": "yes"
+ },
+ "@broberg/gravatar": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/gravatar",
+  "version": "0.2.1",
+  "publishedAt": "2026-08-22T18:30:32.671Z",
+  "provenance": "yes"
+ },
+ "@broberg/device-stats": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/device-stats",
+  "version": "0.3.0",
+  "publishedAt": "2026-08-28T10:44:30.481Z",
+  "provenance": "yes"
+ },
+ "@broberg/feature-stats": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/feature-stats",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-01T15:14:14.051Z",
+  "provenance": "no"
+ },
+ "@broberg/consent-cookie": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/consent-cookie",
+  "version": "0.7.1",
+  "publishedAt": "2026-10-14T21:17:29.863Z",
+  "provenance": "yes"
+ },
+ "@broberg/ui-controls-core": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/ui-controls-core",
+  "version": "0.2.3",
+  "publishedAt": "2026-09-10T13:25:29.859Z",
+  "provenance": "yes"
+ },
+ "@broberg/settings": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/settings",
+  "version": "0.2.0",
+  "publishedAt": "2026-10-11T12:35:41.702Z",
+  "provenance": "yes"
+ },
+ "@broberg/cmdk": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/cmdk",
+  "version": "0.1.0",
+  "publishedAt": "2026-07-11T17:01:27.542Z",
+  "provenance": "no"
+ },
+ "@broberg/i18n": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/i18n",
+  "version": "0.3.1",
+  "publishedAt": "2026-10-22T09:04:06.856Z",
+  "provenance": "yes"
+ },
+ "@broberg/speech-dictionary": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/speech-dictionary",
+  "version": "0.1.3",
+  "publishedAt": "2026-08-24T20:09:59.568Z",
+  "provenance": "yes"
+ },
+ "@broberg/sms": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/sms",
+  "version": "0.12.0",
+  "publishedAt": "2026-08-29T15:44:30.537Z",
+  "provenance": "yes"
+ },
+ "@broberg/notifications": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/notifications",
+  "version": "0.4.0",
+  "publishedAt": "2026-08-29T17:44:02.964Z",
+  "provenance": "yes"
+ },
+ "@broberg/app-shell": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/app-shell",
+  "version": "0.24.0",
+  "publishedAt": "2026-10-22T09:26:54.751Z",
+  "provenance": "yes"
+ },
+ "@broberg/notify": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/notify",
+  "version": "0.1.0",
+  "publishedAt": "2026-07-03T16:46:41.943Z",
+  "provenance": "no"
+ },
+ "@broberg/lens-engine": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/lens-engine",
+  "version": "0.14.0",
+  "publishedAt": "2026-10-22T01:48:24.467Z",
+  "provenance": "no"
+ },
+ "@broberg/lens-client": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/lens-client",
+  "version": "0.1.2",
+  "publishedAt": "2026-10-12T00:13:14.093Z",
+  "provenance": "no"
+ },
+ "@broberg/lens-daemon": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
+  "version": "0.1.30",
+  "publishedAt": "2026-10-22T11:37:08.138Z",
+  "provenance": "no"
+ },
+ "@broberg/lens-svg": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/lens-svg",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-12T09:21:57.225Z",
+  "provenance": "no"
+ },
+ "@broberg/webmcp": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/webmcp",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-11T23:30:18.809Z",
+  "provenance": "no"
+ },
+ "@broberg/web-clipper": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/web-clipper",
+  "version": "0.26.0",
+  "publishedAt": "2026-10-20T13:01:21.126Z",
+  "provenance": "yes"
+ },
+ "@broberg/editor": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/editor",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-13T21:47:20.278Z",
+  "provenance": "yes"
+ },
+ "@broberg/bodymap": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/bodymap",
+  "version": "0.12.0",
+  "publishedAt": "2026-08-29T08:38:43.704Z",
+  "provenance": "yes"
+ },
+ "@broberg/stripe": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/stripe",
+  "version": "0.4.1",
+  "publishedAt": "2026-09-08T16:00:32.730Z",
+  "provenance": "yes"
+ },
+ "@broberg/pwa": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/pwa",
+  "version": "0.7.0",
+  "publishedAt": "2026-10-21T17:28:00.393Z",
+  "provenance": "yes"
+ },
+ "@broberg/forms-turnstile": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/forms-turnstile",
+  "version": "0.4.0",
+  "publishedAt": "2026-10-22T21:54:56.986Z",
+  "provenance": "yes"
+ },
+ "@broberg/logger": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/logger",
+  "version": "0.2.3",
+  "publishedAt": "2026-09-10T19:36:26.596Z",
+  "provenance": "yes"
+ },
+ "@broberg/http": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/http",
+  "version": "0.1.0",
+  "publishedAt": "2026-07-18T00:38:22.437Z",
+  "provenance": "no"
+ },
+ "@broberg/sso": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/sso",
+  "version": "0.21.0",
+  "publishedAt": "2026-10-22T14:48:03.245Z",
+  "provenance": "yes"
+ },
+ "@broberg/seal": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/seal",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-20T08:52:10.220Z",
+  "provenance": "no"
+ },
+ "@broberg/mail-templates": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/mail-templates",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-21T15:27:21.239Z",
+  "provenance": "no"
+ },
+ "@broberg/realtime": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/realtime",
+  "version": "0.1.2",
+  "publishedAt": "2026-10-21T20:18:03.772Z",
+  "provenance": "yes"
+ },
+ "@broberg/voice": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/voice",
+  "version": "0.2.0",
+  "publishedAt": "2026-10-22T03:55:05.337Z",
+  "provenance": "yes"
+ },
+ "@broberg/livesync": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/livesync",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-21T23:29:28.473Z",
+  "provenance": "yes"
+ },
+ "@broberg/greppable": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/greppable",
+  "version": "0.3.0",
+  "publishedAt": "2026-08-31T18:35:07.199Z",
+  "provenance": "yes"
+ },
+ "@broberg/seti-client": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/seti-client",
+  "version": "0.4.0",
+  "publishedAt": "2026-08-11T16:55:36.747Z",
+  "provenance": "yes"
+ },
+ "@broberg/seti-server": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/seti-server",
+  "version": "0.2.5",
+  "publishedAt": "2026-06-17T22:39:15.542Z",
+  "provenance": "yes"
+ },
+ "@broberg/soundkit": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/soundkit",
+  "version": "0.1.0",
+  "publishedAt": "2026-07-11T16:58:47.794Z",
+  "provenance": "no"
+ },
+ "@broberg/deploy-core": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/deploy-core",
+  "version": "0.6.0",
+  "publishedAt": "2026-09-29T21:10:34.256Z",
+  "provenance": "yes"
+ },
+ "@broberg/tenant": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/tenant",
+  "version": "0.2.1",
+  "publishedAt": "2026-10-12T23:34:05.402Z",
+  "provenance": "yes"
+ },
+ "@broberg/data-table": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/data-table",
+  "version": "0.3.1",
+  "publishedAt": "2026-10-08T19:25:57.636Z",
+  "provenance": "yes"
+ },
+ "@broberg/db-sdk": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/db-sdk",
+  "version": "0.2.0",
+  "publishedAt": "2026-09-23T17:28:09.540Z",
+  "provenance": "no"
+ },
+ "@broberg/ai-sdk": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
+  "version": "0.65.0",
+  "publishedAt": "2026-10-22T13:46:36.912Z",
+  "provenance": "yes"
+ },
+ "@broberg/fleet-client": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/fleet-client",
+  "version": "0.1.0",
+  "publishedAt": "2026-06-08T19:29:45.975Z",
+  "provenance": "no"
+ },
+ "@broberg/fleet-contracts": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/fleet-contracts",
+  "version": "0.1.0",
+  "publishedAt": "2026-06-08T18:38:52.936Z",
+  "provenance": "no"
+ },
+ "@broberg/complimenta-sdk": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/complimenta-sdk",
+  "version": "0.3.0",
+  "publishedAt": "2026-08-11T08:25:35.357Z",
+  "provenance": "no"
+ },
+ "@broberg/cms-inline-edit": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/cms-inline-edit",
+  "version": "0.13.0",
+  "publishedAt": "2026-10-22T09:59:38.727Z",
+  "provenance": "yes"
+ },
+ "@broberg/cms-chat-client": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/cms-chat-client",
+  "version": "0.4.20",
+  "publishedAt": "2026-07-12T12:14:49.359Z",
+  "provenance": "yes"
+ }
+}

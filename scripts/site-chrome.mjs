@@ -65,6 +65,11 @@ export const SITE_CSS = `
   .pkg{font:11.5px ui-monospace,monospace;color:var(--muted)}
   .pkg.has{color:var(--green)}
   .pkg.none{color:var(--faint);opacity:.7}
+  .c-npm{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:11.5px;color:var(--muted);margin:6px 0 8px}
+  .c-npm a{color:var(--green);font-weight:600;text-decoration:none}
+  .c-npm a:hover{text-decoration:underline}
+  .c-tp-yes{color:var(--green)}
+  .c-tp-no,.c-tp-unknown{color:var(--amber)}
   .c-bot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto;font-size:11.5px;color:var(--muted)}
   .model{font-size:14px}
   .ei{color:var(--faint)}

@@ -6,6 +6,12 @@
 import { DATA, INFRA, npmUrl, oneLiner } from "./inventory-data.mjs";
 import { writeFileSync } from "node:fs";
 import { FAVICON_LINK } from "./favicon.mjs";
+import { readFileSync as readMetaFile } from "node:fs";
+import { npmMetaMd } from "./npm-meta.mjs";
+// F038.31 — written by build-inventory.mjs from ONE registry fetch (run it first).
+let NPM_META = {};
+try { NPM_META = JSON.parse(readMetaFile(new URL("../docs/npm-meta.json", import.meta.url), "utf8")); } catch (e) { console.warn("npm-meta.json missing — run build-inventory.mjs first; llms.txt ships without npm facts:", e.message); }
+const metaFor = (pkg) => (NPM_META[pkg] ? ` · ${npmMetaMd(NPM_META[pkg])}` : "");
 
 const esc = (s) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -309,7 +315,7 @@ const pkgLines = (c) =>
   c.packages
     .map(
       (p) =>
-        `- **${p.pkg}**${p.version ? ` v${p.version}` : " (planned)"} — ${p.oneLiner}. \`npm i ${p.pkg}\``,
+        `- **${p.pkg}**${p.version ? ` v${p.version}` : " (planned)"} — ${p.oneLiner}. \`npm i ${p.pkg}\`${metaFor(p.pkg)}`,
     )
     .join("\n");
 const pkgMd = categories
@@ -322,7 +328,7 @@ const pkgFullLines = (c) =>
   c.packages
     .map(
       (p) =>
-        `- **${p.pkg}**${p.version ? ` v${p.version}` : " (planned)"} · \`npm i ${p.pkg}\`\n  ${p.desc}`,
+        `- **${p.pkg}**${p.version ? ` v${p.version}` : " (planned)"} · \`npm i ${p.pkg}\`${metaFor(p.pkg)}\n  ${p.desc}`,
     )
     .join("\n");
 const pkgFullMd = categories

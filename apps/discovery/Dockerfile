@@ -6,6 +6,7 @@ WORKDIR /app
 # Single source of truth + the generators that render every served surface from it.
 COPY scripts/inventory-data.mjs ./scripts/inventory-data.mjs
 COPY scripts/npm-latest.mjs ./scripts/npm-latest.mjs
+COPY scripts/npm-meta.mjs ./scripts/npm-meta.mjs
 COPY scripts/favicon.mjs ./scripts/favicon.mjs
 COPY scripts/site-chrome.mjs ./scripts/site-chrome.mjs
 COPY scripts/build-inventory.mjs ./scripts/build-inventory.mjs

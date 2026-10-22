@@ -74,6 +74,10 @@ const components = LAYERS.flatMap((L) =>
   })),
 );
 
+// F038.31 — npm link / publish time / provenance per package, written at build.
+let NPM_META: Record<string, { publishedAt: string | null; provenance: "yes" | "no" | "unknown" }> = {};
+try { NPM_META = JSON.parse(readFileSync(new URL("../../docs/npm-meta.json", import.meta.url), "utf8")); } catch (e) { console.warn("[discovery] docs/npm-meta.json unreadable — every package reads provenance \"unknown\":", e instanceof Error ? e.message : e); }
+
 // The shipped npm packages (the "what can I install right now" view).
 const packages = components
   .filter((c) => c.package && c.status === "shipped")
@@ -92,6 +96,9 @@ const packages = components
     keywords: c.keywords,
     npmUrl: c.npmUrl,
     repoUrl: c.repoUrl,
+    // F038.31 — from the build's one registry fetch (docs/npm-meta.json).
+    publishedAt: NPM_META[c.package as string]?.publishedAt ?? null,
+    provenance: NPM_META[c.package as string]?.provenance ?? "unknown",
   }));
 
 // Known npm names — the enroll endpoint validates against these so the roster can't be polluted.
