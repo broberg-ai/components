@@ -1,0 +1,61 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "F105.2 (cardmem-F401.1) — keep Docker base images pinned and fresh. A repo opts in with: \"extends\": [\"github>broberg-ai/components//renovate/image-hygiene\"]",
+  "enabledManagers": [
+    "dockerfile",
+    "docker-compose",
+    "github-actions"
+  ],
+  "dependencyDashboard": true,
+  "timezone": "Europe/Copenhagen",
+  "schedule": [
+    "* 2-4 * * *"
+  ],
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "description": "Pin every Docker base image to a digest, so a rebuild cannot silently pick up a different image.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "pinDigests": true
+    },
+    {
+      "description": "Digest refreshes and digest pinning of base images: automerge, but ONLY through a PR whose own checks are green (Renovate never merges a red PR; ignoreTests is never set).",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "digest",
+        "pin",
+        "pinDigest"
+      ],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Patch, minor and major base-image updates are a decision: PR only, never automerged.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "major"
+      ],
+      "automerge": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "description": "Security fixes: PR immediately (outside the night window), automerged only when the repo's checks are green.",
+    "enabled": true,
+    "schedule": [
+      "at any time"
+    ],
+    "automerge": true,
+    "automergeType": "pr",
+    "labels": [
+      "security"
+    ]
+  }
+}
