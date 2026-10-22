@@ -57,11 +57,13 @@ jobs:
         run: |
           git config user.name  "dependency-health"
           git config user.email "noreply@broberg.ai"
-          # checked_at moves every run; compare without it.
+          # /packages shows checked_at as «tjekket»: a scheduled or manual run always
+          # commits, so a quiet week still shows THIS week's check. A lockfile push
+          # only commits when the result changed (checked_at stripped).
           strip='let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);delete j.checked_at;console.log(JSON.stringify(j))}catch{console.log("")}})'
           BEFORE=$(git show HEAD:data/dependency-health.json 2>/dev/null | node -e "$strip" || echo "")
           AFTER=$(node -e "$strip" < data/dependency-health.json)
-          if [ "$BEFORE" = "$AFTER" ]; then echo "no change"; exit 0; fi
+          if [ "${{ github.event_name }}" = "push" ] && [ "$BEFORE" = "$AFTER" ]; then echo "no change"; exit 0; fi
           node scripts/build-onboarding.mjs
           git add data/dependency-health.json docs/llms.txt docs/llms-full.txt
           git commit -m "chore(deps): refresh the dependency health of every package" -m "Automated by .github/workflows/dependency-health.yml (F082.5)."
