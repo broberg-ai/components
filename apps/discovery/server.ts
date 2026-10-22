@@ -32,7 +32,7 @@ import { getEnrollStore, type Role } from "./enroll";
 import { readDictionary, editDictionary, authenticateEditor, type EditDiff } from "./speech-dictionary";
 import { webmcpLab } from "./webmcp-lab";
 // F038.29 — who logs in with BID tickets, read live from BID (ship dark until wired).
-import { createTicketRegistry, renderTicketRegistryPage } from "./ticket-registry";
+import { createTicketRegistry, renderTicketRegistryPage, renderTicketRegistryMarkdown } from "./ticket-registry";
 
 const VERSION = "0.3.0";
 
@@ -442,9 +442,11 @@ app.get("/consent/:file", (c) => {
     "cache-control": "public, max-age=3600",
   });
 });
-app.get("/llms.txt", (c) => c.text(LLMS));
-app.get("/llms-full.txt", (c) => c.text(LLMS_FULL));
-app.get("/ai", (c) => c.text(LLMS)); // webhouse-style entry-point alias → the llms.txt map
+// F038.30 — the BID ticket list is appended LIVE when served (never a static
+// copy in docs/llms.txt: it would be wrong from BID's next rule).
+app.get("/llms.txt", async (c) => c.text(LLMS + renderTicketRegistryMarkdown(await ticketRegistry.get())));
+app.get("/llms-full.txt", async (c) => c.text(LLMS_FULL + renderTicketRegistryMarkdown(await ticketRegistry.get())));
+app.get("/ai", async (c) => c.text(LLMS + renderTicketRegistryMarkdown(await ticketRegistry.get()))); // webhouse-style entry-point alias → the llms.txt map
 
 app.get("/api", (c) => c.json(manifest()));
 

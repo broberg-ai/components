@@ -5,6 +5,8 @@ import { app, setTicketRegistryForTests } from "./server";
 import { getEnrollStore } from "./enroll";
 import { createTicketRegistry, NOT_CONFIGURED_MESSAGE } from "./ticket-registry";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { SITE_CSS } from "../../scripts/site-chrome.mjs";
 
 const BID = "https://id.example/api/tickets/registry";
 const FAKE = {
@@ -107,5 +109,53 @@ describe("/tickets and /api/tickets", () => {
     expect(html.match(/data-testid="tickets-row-\d+"/g)?.length).toBe(3);
     expect(html).toContain("<td>broberg-field</td><td>tjeneste (Fly OIDC)</td><td>cronjobs</td>");
     expect(html).toContain("<td>jam</td><td>bruger-billet</td>");
+  });
+});
+
+// F038.30 — Christian 23/10: same design as the site, in the menu, and in llms.txt.
+describe("F038.30 — /tickets in the site's design, in the menu, in llms.txt", () => {
+  const sha = (k: string) => createHash("sha256").update(k).digest("hex");
+  const login = async () => {
+    await (await getEnrollStore())!.bindSessionKey("t-reader2", sha("q".repeat(64)));
+    return { "x-discovery-session": "t-reader2", "x-enroll-key": "q".repeat(64) };
+  };
+  const okRegistry = () => createTicketRegistry({ url: BID, getToken: async () => "x", fetchImpl: (async () => json(FAKE)) as never });
+
+  it("/tickets carries the site's own CSS (one source) and its top bar, with itself marked as the current page", async () => {
+    setTicketRegistryForTests(okRegistry());
+    const html = await (await app.request("/tickets", { headers: await login() })).text();
+    expect(html).toContain(SITE_CSS);
+    expect(html).toContain('<div class="top"><div class="wrap">');
+    expect(html).toMatch(/<a href="\/tickets" data-testid="nav-tickets" aria-current="page"/);
+    expect(html).toContain('id="mode"');
+    expect(html.match(/data-testid="tickets-row-\d+"/g)?.length).toBe(3);
+  });
+
+  it("the landing page's menu links to /tickets — and so does the committed build", () => {
+    const landing = readFileSync(new URL("../../docs/inventory.html", import.meta.url), "utf8");
+    expect(landing).toMatch(/<a href="\/tickets" data-testid="nav-tickets"/);
+    expect(landing).toContain(SITE_CSS);
+  });
+
+  it("/llms.txt, /llms-full.txt and /ai end with the LIVE rules — one line each, count = /api/tickets", async () => {
+    setTicketRegistryForTests(okRegistry());
+    const h = await login();
+    const api = (await (await app.request("/api/tickets", { headers: h })).json()) as { rules: unknown[] };
+    for (const path of ["/llms.txt", "/llms-full.txt", "/ai"]) {
+      const txt = await (await app.request(path, { headers: h })).text();
+      const section = txt.slice(txt.indexOf("## Hvem logger ind med BID-billetter"));
+      expect(section.startsWith("## Hvem logger ind med BID-billetter (live fra BID)")).toBe(true);
+      expect(section.match(/^- \*\*/gm)?.length).toBe(api.rules.length);
+      expect(section).toContain("- **broberg-field** · tjeneste (Fly OIDC) · modtager cronjobs · scopes cronjobs:read, cronjobs:write · siden 2026-10-01");
+    }
+  });
+
+  it("BID down: llms.txt says so honestly — never an empty list that reads as 'nobody'", async () => {
+    setTicketRegistryForTests(createTicketRegistry({ url: BID, getToken: async () => "x", fetchImpl: (async () => json({}, 503)) as never }));
+    const txt = await (await app.request("/llms.txt", { headers: await login() })).text();
+    const section = txt.slice(txt.indexOf("## Hvem logger ind med BID-billetter"));
+    expect(section).toContain("Kunne ikke hente fra BID: BID answered 503");
+    expect(section).toContain("Listen er IKKE tom");
+    expect(section).not.toMatch(/^- \*\*/m);
   });
 });

@@ -1,3 +1,5 @@
+import { SITE_CSS, topBar, THEME_JS } from "../../scripts/site-chrome.mjs";
+import { FAVICON } from "../../scripts/favicon.mjs";
 // F038.29 — who logs in with BID tickets (F087 / WIF), read LIVE from BID.
 //
 // BID is the only source. Discovery fetches BID's registry endpoint with its
@@ -105,26 +107,57 @@ const TYPE_LABEL: Record<RuleType, string> = {
   login: "login med platform-ID",
 };
 
-/** The /tickets page. Plain HTML, read-only. */
+/** Human-readable time for the page — Danish time, named (house rule: a server renders in UTC). */
+function daTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.toLocaleString("da-DK", { timeZone: "Europe/Copenhagen", dateStyle: "short", timeStyle: "short" })} (dansk tid)`;
+}
+
+/** Page-specific layout on top of the site's own tokens — no colour of its own. */
+const PAGE_CSS = `
+  .tk-table{width:100%;border-collapse:collapse;margin:22px 0 60px;font-size:14px}
+  .tk-table th{text-align:left;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:10px 12px;border-bottom:1px solid var(--border)}
+  .tk-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  .tk-table tr:hover td{background:var(--panel)}
+  .tk-table code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--green);background:var(--panel);padding:2px 6px;border-radius:5px;margin:0 4px 4px 0;display:inline-block}
+  .tk-status{color:var(--muted);margin-top:14px}
+  .tk-status[data-status="error"],.tk-status[data-status="not_configured"]{color:var(--amber)}
+`;
+
+/** The /tickets page, in the site's own design (F038.30). */
 export function renderTicketRegistryPage(state: RegistryState): string {
   let body: string;
   if (state.status === "not_configured") {
-    body = `<p data-testid="tickets-status" data-status="not_configured">${esc(state.message)}. Registret vises her, så snart BID's læse-endepunkt er live — BID er eneste kilde.</p>`;
+    body = `<p class="tk-status" data-testid="tickets-status" data-status="not_configured">${esc(state.message)}. Registret vises her, så snart BID's læse-endepunkt er live — BID er eneste kilde.</p>`;
   } else if (state.status === "error") {
-    const last = state.lastGoodAt ? `Sidste gode svar: ${esc(state.lastGoodAt)} (UTC).` : "Der er aldrig hentet et godt svar.";
-    body = `<p data-testid="tickets-status" data-status="error">Kunne ikke hente fra BID: ${esc(state.error)}. ${last}</p>`;
+    const last = state.lastGoodAt ? `Sidste gode svar: ${esc(daTime(state.lastGoodAt))}.` : "Der er aldrig hentet et godt svar.";
+    body = `<p class="tk-status" data-testid="tickets-status" data-status="error">Kunne ikke hente fra BID: ${esc(state.error)}. ${last}</p>`;
   } else {
     const rows = state.rules
       .map(
         (r, i) =>
-          `<tr data-testid="tickets-row-${i}"><td>${esc(r.app)}</td><td>${esc(TYPE_LABEL[r.type])}</td><td>${esc(r.audience)}</td><td>${r.scopes.map((s) => `<code>${esc(s)}</code>`).join(" ")}</td><td>${esc(r.since)}</td></tr>`,
+          `<tr data-testid="tickets-row-${i}"><td>${esc(r.app)}</td><td>${esc(TYPE_LABEL[r.type])}</td><td>${esc(r.audience)}</td><td>${r.scopes.map((s) => `<code>${esc(s)}</code>`).join(" ")}</td><td>${esc(daTime(r.since))}</td></tr>`,
       )
       .join("");
     body =
-      `<p data-testid="tickets-status" data-status="ok">${state.rules.length} regler fra BID · genereret ${esc(state.generatedAt)} · hentet ${esc(state.fetchedAt)} (UTC).</p>` +
-      `<table data-testid="tickets-table"><thead><tr><th>App/platform</th><th>Type</th><th>Modtager</th><th>Scopes</th><th>Siden</th></tr></thead><tbody>${rows}</tbody></table>`;
+      `<p class="tk-status" data-testid="tickets-status" data-status="ok">${state.rules.length} regler fra BID · hentet ${esc(daTime(state.fetchedAt))}.</p>` +
+      `<table class="tk-table" data-testid="tickets-table"><thead><tr><th>App/platform</th><th>Type</th><th>Modtager</th><th>Scopes</th><th>Siden</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
-  return `<!doctype html><html lang="da"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BID-billetter — Discovery</title>
-<style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:6vh auto;padding:0 16px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #8884;vertical-align:top}code{font-size:13px}</style></head>
-<body><main data-testid="tickets-root"><h1>Hvem logger ind med BID-billetter</h1><p>Læst live fra Broberg ID (F087). Ingen håndskrevet liste.</p>${body}</main></body></html>`;
+  return `<!doctype html><html lang="da" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="${FAVICON}"><title>BID-billetter — Discovery</title>
+<style>${SITE_CSS}${PAGE_CSS}</style></head>
+<body>${topBar({ active: "/tickets" })}
+<div class="wrap"><main data-testid="tickets-root"><section class="hero"><h1><span class="at">Hvem logger ind med </span>BID-billetter</h1><p>Apps og platforme der beviser hvem de er med en BID-billet (workload identity) i stedet for en gemt nøgle. Læst live fra Broberg ID — ingen håndskrevet liste. Som data: <code>/api/tickets</code> · for AI: <code>/llms.txt</code>.</p></section>${body}</main></div>
+<script>(function(){${THEME_JS}})();</script></body></html>`;
+}
+
+/** F038.30 — the same live list as a markdown section for /llms.txt and /llms-full.txt. */
+export function renderTicketRegistryMarkdown(state: RegistryState): string {
+  const head = "\n\n## Hvem logger ind med BID-billetter (live fra BID)\n\nApps og platforme der beviser hvem de er med en BID-billet (workload identity, F087) i stedet for en gemt nøgle. Læst live fra Broberg ID ved hver hentning af denne fil (cache højst 5 min). Som JSON: /api/tickets · side: /tickets.\n\n";
+  if (state.status === "not_configured") return `${head}_${state.message}._\n`;
+  if (state.status === "error") {
+    return `${head}_Kunne ikke hente fra BID: ${state.error}. ${state.lastGoodAt ? `Sidste gode svar: ${state.lastGoodAt}.` : "Der er aldrig hentet et godt svar."} Listen er IKKE tom — den er ukendt lige nu._\n`;
+  }
+  const lines = state.rules.map((r) => `- **${r.app}** · ${TYPE_LABEL[r.type]} · modtager ${r.audience} · scopes ${r.scopes.join(", ")} · siden ${r.since.slice(0, 10)}`);
+  return `${head}${state.rules.length} regler (BID genererede ${state.generatedAt}):\n\n${lines.join("\n")}\n`;
 }
