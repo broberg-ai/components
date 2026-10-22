@@ -11,6 +11,7 @@ name: image-hygiene
 #     workflow_dispatch:
 #       inputs:
 #         reason: { type: choice, options: [nightly, manual], default: manual }
+#   permissions: { contents: read, id-token: write }
 #   jobs:
 #     hygiene:
 #       uses: broberg-ai/components/.github/workflows/image-hygiene.yml@v1
@@ -44,6 +45,10 @@ concurrency:
 
 permissions:
   contents: read
+  # To mint GitHub's OIDC token for cardmem (audience "cardmem"): cardmem verifies
+  # it against GitHub's JWKS and maps the repository claim to the project — no
+  # key in any repo (cardmem #3984). The CALLER's hygiene.yml must grant it too.
+  id-token: write
 
 jobs:
   hygiene:
@@ -112,6 +117,7 @@ jobs:
               status,
               reason: process.env.REASON,
               app: process.env.APP,
+              fly_app: process.env.APP,
               detail: {
                 critical_fixable: d.critical_fixable ?? null,
                 critical_unfixable: d.critical_unfixable ?? null,
@@ -125,6 +131,25 @@ jobs:
               `### image-hygiene · ${report.app} · ${status}\n\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\`\n`);
             console.log(JSON.stringify(report));
           '
+      - name: Send to cardmem
+        if: always()
+        # The deploy's outcome is decided above; a reporting hiccup never changes it.
+        continue-on-error: true
+        env:
+          CARDMEM_REPORT_URL: https://services.cardmem.com/api/pipeline/report
+        run: |
+          # GitHub's OIDC token, audience "cardmem" (needs id-token: write).
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "::warning::no OIDC token available (does the caller grant id-token: write?) — status is in the summary and status.json only"; exit 0
+          fi
+          TOKEN=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=cardmem" | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).value')
+          CODE=$(curl -sS -o resp.txt -w '%{http_code}' -X POST "$CARDMEM_REPORT_URL" \
+            -H "Authorization: Bearer $TOKEN" -H "content-type: application/json" --data @status.json || echo 000)
+          if [ "${CODE:0:1}" = "2" ]; then echo "reported to cardmem ($CODE)"; else
+            # A missing report never fails the deploy — it is said out loud instead.
+            echo "::warning::cardmem did not accept the report (HTTP $CODE): $(head -c 300 resp.txt)"
+          fi
+
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: image-hygiene-status, path: status.json }

@@ -48,6 +48,14 @@ check("the only Fly credential is the CALLER's own FLY_API_TOKEN", () => {
   const secrets = [...wf.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]);
   eq([...new Set(secrets)], ["FLY_API_TOKEN"], "secrets referenced");
 });
+check("reports to cardmem with GitHub's OIDC token (audience cardmem) — and a failed report never fails the run", () => {
+  if (!/id-token: write/.test(wf)) throw new Error("id-token: write missing");
+  if (!/audience=cardmem/.test(wf)) throw new Error("OIDC audience must be cardmem");
+  if (!/services\.cardmem\.com\/api\/pipeline\/report/.test(wf)) throw new Error("report endpoint missing");
+  const step = wf.slice(wf.indexOf("- name: Send to cardmem"), wf.indexOf("- uses: actions/upload-artifact"));
+  if (/exit 1/.test(step)) throw new Error("the report step must never fail the run");
+  if (!/continue-on-error: true/.test(step)) throw new Error("the report step needs continue-on-error: true (bash -e would otherwise fail it)");
+});
 check("build-only first, then deploy THAT image (no second build)", () => {
   const b = wf.indexOf("--build-only --push --no-cache"), d = wf.indexOf('--image "$IMAGE"');
   if (b < 0 || d < 0 || d < b) throw new Error("expected a build-only push before deploying --image");
