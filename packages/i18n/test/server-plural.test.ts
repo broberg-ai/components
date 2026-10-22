@@ -54,6 +54,16 @@ describe("plurals via Intl.PluralRules", () => {
     expect(translate(messages, "pl", "docs", { count: 5 })).toBe("5 dokumentów");
   });
 
+  it("an underscore locale code is normalised (en_US → en-US) instead of throwing", () => {
+    const m: Record<string, Dict> = { en_US: { d: { one: "{count} item", other: "{count} items" } } };
+    expect(translate(m, "en_US", "d", { count: 1 })).toBe("1 item");
+  });
+
+  it("a locale tag Intl rejects falls back to other instead of throwing", () => {
+    const m: Record<string, Dict> = { "not a tag": { d: { one: "one", other: "many" } } };
+    expect(translate(m, "not a tag", "d", { count: 1 })).toBe("many");
+  });
+
   it("a missing form falls back to other", () => {
     const m: Record<string, Dict> = { pl: { x: { one: "jeden", other: "inne" } } };
     expect(translate(m, "pl", "x", { count: 5 })).toBe("inne"); // pl 'many' missing

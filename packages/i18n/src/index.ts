@@ -105,12 +105,27 @@ export function isPlural(node: string | Dict | undefined): node is Dict {
   );
 }
 
+/**
+ * The CLDR category for `count` in `locale`. `Intl.PluralRules` throws a
+ * RangeError on a tag it rejects — and `en_US` (underscore) is a common app
+ * convention — so the underscore form is normalised first, and a tag Intl still
+ * rejects falls back to `other`. Translation must never take a page down: `t()`
+ * did not throw before plurals existed, and it must not start now.
+ */
+function pluralCategory(locale: string, count: number): string {
+  try {
+    return new Intl.PluralRules(locale.replace(/_/g, "-")).select(count);
+  } catch {
+    return "other";
+  }
+}
+
 /** Pick the string for `locale` from a node: a plain string, or a plural entry chosen by `count`. */
 function pick(node: string | Dict | undefined, locale: string, count: unknown): string | undefined {
   if (typeof node === "string") return node;
   if (!isPlural(node)) return undefined;
   if (typeof count !== "number") return node.other as string;
-  const form = node[new Intl.PluralRules(locale).select(count)];
+  const form = node[pluralCategory(locale, count)];
   return typeof form === "string" ? form : (node.other as string);
 }
 
