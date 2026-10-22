@@ -1,0 +1,81 @@
+diff --git a/apps/voice/entrypoint.sh b/apps/voice/entrypoint.sh
+index 58c1693..319d45b 100644
+--- a/apps/voice/entrypoint.sh
++++ b/apps/voice/entrypoint.sh
+@@ -12,7 +12,8 @@ if [ -z "$FGS_IP" ]; then
+ fi
+ : "${VOICE_PUBLIC_IP:?VOICE_PUBLIC_IP (the app's dedicated IPv4) must be set}"
+ : "${LIVEKIT_KEYS:?LIVEKIT_KEYS must be set as a Fly secret}"
+-sed -e "s/__FGS_IP__/$FGS_IP/g" -e "s/__PUBLIC_IP__/$VOICE_PUBLIC_IP/g" \
++: "${LIVEKIT_TURN_SECRET:?LIVEKIT_TURN_SECRET (shared with broberg-voice-turn) must be set as a Fly secret}"
++sed -e "s/__FGS_IP__/$FGS_IP/g" -e "s/__PUBLIC_IP__/$VOICE_PUBLIC_IP/g" -e "s/__TURN_SECRET__/$LIVEKIT_TURN_SECRET/g" \
+   /etc/livekit.template.yaml > /tmp/livekit.yaml
+ echo "entrypoint: UDP bound to fly-global-services $FGS_IP, advertising $VOICE_PUBLIC_IP"
+ exec /livekit-server --config /tmp/livekit.yaml
+diff --git a/apps/voice/fly.toml b/apps/voice/fly.toml
+index cdbaa7f..f2fe874 100644
+--- a/apps/voice/fly.toml
++++ b/apps/voice/fly.toml
+@@ -42,22 +42,6 @@ primary_region = "arn"
+   [[services.ports]]
+     port = 7881
+ 
+-# TURN over UDP.
+-[[services]]
+-  internal_port = 3478
+-  protocol = "udp"
+-  [[services.ports]]
+-    port = 3478
+-
+-# TURN over TLS: Fly terminates TLS and passes the client address in PROXY v2.
+-[[services]]
+-  internal_port = 5349
+-  protocol = "tcp"
+-  [[services.ports]]
+-    port = 5349
+-    handlers = ["tls", "proxy_proto"]
+-    proxy_proto_options = { version = "v2" }
+-
+ [[vm]]
+   size = "shared-cpu-2x"
+   memory = "2gb"
+diff --git a/apps/voice/livekit.template.yaml b/apps/voice/livekit.template.yaml
+index 82735c1..9b6b68b 100644
+--- a/apps/voice/livekit.template.yaml
++++ b/apps/voice/livekit.template.yaml
+@@ -12,19 +12,24 @@ rtc:
+   ips:
+     includes:
+       - __FGS_IP__/32
++  turn_servers:
++    - host: broberg-voice-turn.fly.dev
++      port: 443
++      protocol: tls
++      secret: __TURN_SECRET__
++    - host: broberg-voice-turn.fly.dev
++      port: 3478
++      protocol: udp
++      secret: __TURN_SECRET__
+ 
++# F104.5 — TURN lives in its own app (broberg-voice-turn, turn.broberg.ai) so
++# it can have port 443 to itself: a network that only lets 443 out can still
++# call. LiveKit's embedded TURN is off; clients get short-lived credentials
++# for the external one, minted from the shared secret (never stored here).
++# Host is the app's fly.dev name until turn.broberg.ai exists in DNS (same IPs,
++# Fly's own certificate) — switch to turn.broberg.ai once its cert is issued.
+ turn:
+-  enabled: true
+-  domain: voice.broberg.ai
+-  udp_port: 3478
+-  tls_port: 5349
+-  external_tls: true      # Fly terminates TLS (handler "tls") and forwards plain TCP
+-  proxy_protocol: true    # …with a PROXY v2 header, so TURN sees the client's address
+-  proxy_protocol_trusted_cidrs:
+-    - 172.16.0.0/12
+-    - fdaa::/16
+-  bind_addresses:
+-    - __FGS_IP__
++  enabled: false
+ 
+ room:
+   empty_timeout: 300

@@ -1,0 +1,39 @@
+# F104.5 — TURN over TLS on 443 for the shared voice server (owner's GO
+# 22/10 2026: «TURN-server på 443»). One small machine; a stopped machine
+# would drop relayed calls, so it never auto-stops.
+app = "broberg-voice-turn"
+primary_region = "arn"
+
+[env]
+  TURN_PUBLIC_IP = "169.155.58.91"
+  TURN_REALM = "turn.broberg.ai"
+
+# TURN over TLS: Fly terminates TLS on 443 and forwards plain TCP to coturn.
+[[services]]
+  internal_port = 3478
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  [[services.ports]]
+    port = 443
+    handlers = ["tls"]
+
+# TURN over UDP.
+[[services]]
+  internal_port = 3478
+  protocol = "udp"
+  [[services.ports]]
+    port = 3478
+
+# Relay ports: the media server answers the relay's public address here.
+[[services]]
+  internal_port = 49160
+  protocol = "udp"
+  [[services.ports]]
+    start_port = 49160
+    end_port = 49200
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
