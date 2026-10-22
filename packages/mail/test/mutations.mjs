@@ -50,6 +50,14 @@ for (const [name, file] of Object.entries(FILES)) {
 
 const MUTATIONS = [
   {
+    // F005.24 — the key dropped: a resumed queue would send the same mail twice.
+    name: "the Idempotency-Key header is not sent (a resumed queue sends twice)",
+    file: "index",
+    from: '            ...(message.idempotencyKey ? { "Idempotency-Key": message.idempotencyKey } : {}),\n',
+    to: "",
+    expect: ["goes out as the HTTP header Idempotency-Key, verbatim, and never into the mail itself"],
+  },
+  {
     // F005.18 — THE DEFECT, RESTORED: the check back below the skip gates, where
     // it never runs without an API key (dev, CI) or off the allowlist (staging).
     // Those are the three places a broken template is cheapest to find, and the

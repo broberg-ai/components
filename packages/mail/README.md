@@ -88,6 +88,18 @@ const mailer = createMailer({ apiKey, from: "noreply@webhouse.dk", mailId: "CM-3
 - **Idempotent**: a body already carrying the token is not double-stamped.
 - Absent `mailId` ⇒ no footer (backward compatible).
 
+## `idempotencyKey` (v0.17.0) — a resumed queue never sends the same mail twice
+
+```ts
+await mailer.send({ to, subject, html, idempotencyKey: `campaign:${campaignId}:${subscriptionId}` });
+```
+
+Sent as the HTTP header `Idempotency-Key` on the provider request — not as a
+mail header. Resend gives no new mail for the same key within 24 hours, so a
+worker that died after the provider took the mail can safely send again.
+The key is read verbatim; the package never makes one up. Absent ⇒ the request
+is unchanged.
+
 ## `mailer.mode` (v0.5.0) — assert at boot what the gate actually resolved to
 
 ```ts

@@ -195,6 +195,33 @@ describe("createMailer.send", () => {
   });
 });
 
+describe("createMailer.send — idempotencyKey (F005.24)", () => {
+  const base = { apiKey: "re_x", from: "n@webhouse.dk", live: true } as const;
+  function captureRequest() {
+    const reqs: { headers: Record<string, string>; body: string }[] = [];
+    const f = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      reqs.push({ headers: { ...(init?.headers as Record<string, string>) }, body: String(init?.body) });
+      return new Response(JSON.stringify({ id: "msg" }), { status: 200 });
+    }) as unknown as typeof fetch;
+    return { f, reqs };
+  }
+
+  it("goes out as the HTTP header Idempotency-Key, verbatim, and never into the mail itself", async () => {
+    const { f, reqs } = captureRequest();
+    const key = "campaign:c-42:sub-7";
+    await createMailer({ ...base, fetch: f }).send({ to: "u@example.com", subject: "s", text: "hi", idempotencyKey: key });
+    expect(reqs[0].headers["Idempotency-Key"]).toBe(key);
+    expect(reqs[0].body.includes(key)).toBe(false);
+    expect(JSON.parse(reqs[0].body).headers).toBeUndefined();
+  });
+
+  it("no key ⇒ no Idempotency-Key header (unchanged request)", async () => {
+    const { f, reqs } = captureRequest();
+    await createMailer({ ...base, fetch: f }).send({ to: "u@example.com", subject: "s", text: "hi" });
+    expect(Object.keys(reqs[0].headers).sort()).toEqual(["Authorization", "content-type"]);
+  });
+});
+
 describe("createMailer.send — MailID correlation footer (F040.1)", () => {
   const base = { apiKey: "re_x", from: "n@webhouse.dk", live: true } as const;
 

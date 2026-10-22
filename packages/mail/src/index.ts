@@ -77,6 +77,13 @@ export interface MailMessage {
    * generates it. Overrides MailerConfig.mailId for this one send.
    */
   mailId?: string;
+  /**
+   * F005.24 — sent as the HTTP header `Idempotency-Key` on the provider request
+   * (NOT a mail header): the same key within 24 hours gives no new mail. Lets a
+   * queue that died between "the provider took it" and "we saved the answer"
+   * send again without sending twice. Read verbatim; never generated here.
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -600,6 +607,7 @@ export function createMailer(config: MailerConfig = {}): Mailer {
           headers: {
             Authorization: `Bearer ${config.apiKey}`,
             "content-type": "application/json",
+            ...(message.idempotencyKey ? { "Idempotency-Key": message.idempotencyKey } : {}),
           },
           body: JSON.stringify(payload),
         });
