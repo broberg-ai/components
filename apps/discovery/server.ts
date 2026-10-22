@@ -16,7 +16,7 @@ import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, npmUrl, repoUrl } from "../
 // F083 — the FLEET roster is DERIVED from every repo's real package.json files,
 // refreshed by a daily job. The hand-written array survives only as role text
 // and `pub` (what a session publishes), which no manifest can tell us.
-import { fleetRows as buildFleetRows, scanAge } from "../../scripts/fleet-graph.mjs";
+import { fleetRows as buildFleetRows, scanAge, consumersOf } from "../../scripts/fleet-graph.mjs";
 let fleetScan: any = { repos: {} };
 try {
   fleetScan = JSON.parse(readFileSync(new URL("../../data/fleet-deps.json", import.meta.url), "utf8"));
@@ -33,6 +33,8 @@ import { readDictionary, editDictionary, authenticateEditor, type EditDiff } fro
 import { webmcpLab } from "./webmcp-lab";
 // F038.29 — who logs in with BID tickets, read live from BID (ship dark until wired).
 import { createTicketRegistry, renderTicketRegistryPage, renderTicketRegistryMarkdown } from "./ticket-registry";
+// F038.32 — «Packages»: every published package on one sortable page.
+import { renderPackagesPage, type PackageRow } from "./packages-page";
 
 const VERSION = "0.3.0";
 
@@ -475,6 +477,27 @@ app.get("/api/components/:id", (c) => {
   const hit = components.find((x) => x.id.toLowerCase() === id);
   if (!hit) return c.json({ error: "not_found", id }, 404);
   return c.json(hit);
+});
+
+app.get("/packages", (c) => {
+  // One row per PACKAGE: the roster lists some packages under two components
+  // (mail-core is F023 and F043) — measured 63 rows for 61 packages.
+  const seen = new Set<string>();
+  const rows: PackageRow[] = packages
+    .filter((p) => String(p.name ?? "").startsWith("@broberg/") && p.dist !== "spm")
+    .filter((p) => !seen.has(p.name as string) && (seen.add(p.name as string), true))
+    .map((p) => ({
+      name: p.name as string,
+      version: p.version ?? null,
+      npmUrl: p.npmUrl ?? null,
+      publishedAt: p.publishedAt,
+      provenance: p.provenance,
+      layer: p.layer ?? null,
+      owner: p.owner ?? null,
+      install: p.install,
+      consumers: consumersOf(fleetScan, p.name),
+    }));
+  return c.html(withConsent(renderPackagesPage(rows, (fleetScan as { scanned_at?: string })?.scanned_at ?? null)));
 });
 
 app.get("/api/packages", (c) => {

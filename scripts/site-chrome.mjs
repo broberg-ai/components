@@ -195,6 +195,7 @@ export const SITE_CSS = `
 /** The top-bar menu. `extra` is page-specific controls (the landing's ⌘K search). */
 export const NAV = [
   { href: "/onboarding", label: "Start here ↗", testid: "inv-onboarding-link", title: "Start here — all packages by category + all tips" },
+  { href: "/packages", label: "Packages", testid: "nav-packages", title: "Alle udgivne @broberg-pakker samlet: version, npm, udgivet, Trusted Publisher, forbrugere" },
   { href: "/tickets", label: "BID-billetter", testid: "nav-tickets", title: "Hvilke apps og platforme logger ind med BID-billetter (WIF) — live fra BID" },
 ];
 
