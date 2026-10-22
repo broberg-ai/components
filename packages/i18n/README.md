@@ -126,6 +126,46 @@ translate(messages, "pl", "docs", { count: 5 }); // "5 dokumentów"
 Categories: `zero`, `one`, `two`, `few`, `many`, `other` (CLDR). An object is
 read as a plural entry only when it has a string `other` and no other keys.
 
+## Missing translations, and filling them with an LLM — 0.3.0
+
+```ts
+import { missingKeys } from "@broberg/i18n";
+// A CI gate: every key in Danish exists in English.
+expect(missingKeys(da, en)).toEqual([]);
+```
+
+`missingKeys(base, target)` lists every dot-path in `base` the target lacks (a
+plural entry counts as one key, missing until it has `other`). It pulls in
+nothing else.
+
+`@broberg/i18n/llm` fills **only** those keys:
+
+```ts
+import { createAI } from "@broberg/ai-sdk";
+import { fillMissing } from "@broberg/i18n/llm";
+const { result, filled, rejected } = await fillMissing({ base: da, target: en, from: "da", to: "en", ai: createAI() });
+```
+
+- **Existing keys are never touched** — that is how a human correction
+  survives the next run. The input is not mutated; `result` is a new object.
+- **Placeholders byte for byte.** A translation whose `{var}` set differs from
+  the source (renamed, dropped or added) is rejected for that key, reported in
+  `rejected`, and not written.
+- **EU route, no fallback**: every call is `override: { provider: "mistral",
+  model: "mistral-large-2512" }`. UI text is not personal data, but the house
+  rule is EU, and a fallback is a route that can leave it.
+- Plural entries: each source form is translated; the target falls back to
+  `other` for categories only its own language has.
+
+CLI (needs `@broberg/ai-sdk` installed in your project):
+
+```bash
+npx i18n-fill locales/da.json locales/en.json --from da --to en          # dry run
+npx i18n-fill locales/da.json locales/en.json --from da --to en --write  # save
+```
+
+Exit code 1 when any key was rejected, so it can gate CI.
+
 ## API
 
 ```ts

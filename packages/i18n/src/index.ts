@@ -96,7 +96,7 @@ function resolve(dict: Dict | undefined, path: string): string | Dict | undefine
 const PLURAL_CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);
 
 /** A node is a plural entry when it has a string `other` and every key is a CLDR plural category. */
-function isPlural(node: string | Dict | undefined): node is Dict {
+export function isPlural(node: string | Dict | undefined): node is Dict {
   return (
     typeof node === "object" &&
     node !== null &&
@@ -142,6 +142,31 @@ export function translate(
   const fb = opts?.fallbackLocale;
   const fallback = fb && fb !== locale ? pick(resolve(messages[fb], key), fb, count) : undefined;
   return interpolate(fallback ?? key, vars);
+}
+
+/**
+ * F019.10 — every dot-path in `base` that `target` lacks. A plural entry
+ * (`{ one?, …, other }`) counts as one key: missing when the target has no
+ * entry at that path, or one without `other`. Pure; meant for a CI test
+ * ("no missing keys in en") and as the input to `fillMissing`.
+ */
+export function missingKeys(base: Dict, target: Dict | undefined): string[] {
+  const out: string[] = [];
+  const walk = (b: Dict, t: Dict | undefined, prefix: string) => {
+    for (const [k, v] of Object.entries(b)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      const tv = t && typeof t === "object" ? t[k] : undefined;
+      if (typeof v === "string") {
+        if (typeof tv !== "string") out.push(path);
+      } else if (isPlural(v)) {
+        if (!isPlural(tv)) out.push(path);
+      } else {
+        walk(v, typeof tv === "object" ? tv : undefined, path);
+      }
+    }
+  };
+  walk(base, target, "");
+  return out;
 }
 
 const REGISTRY_KEY = "__broberg_i18n__";
