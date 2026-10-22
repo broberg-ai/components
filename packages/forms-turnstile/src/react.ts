@@ -18,6 +18,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createUseTurnstile } from "./use-turnstile-core";
 
-export type { TurnstileStatus, UseTurnstileResult } from "./use-turnstile-core";
+export type { TurnstileStatus, UseTurnstileResult, TurnstileRenderOptions } from "./use-turnstile-core";
 
 export const useTurnstile = createUseTurnstile({ useRef, useState, useEffect });

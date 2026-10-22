@@ -170,6 +170,19 @@ function ContactForm() {
 `siteKey` may be `null`/`undefined` while a runtime `/config` fetch is in
 flight — that reads as `loading`.
 
+### A low-key box — render options (v0.4.0)
+
+```tsx
+useTurnstile(siteKey, { appearance: "interaction-only", theme: "light", size: "flexible" });
+```
+
+Passed unchanged to `turnstile.render`: `appearance` (`"always" | "execute" |
+"interaction-only"`), `theme` (`"light" | "dark" | "auto"`), `size` (`"normal" |
+"flexible" | "compact"`), `language`. With `"interaction-only"` the box only
+appears when Cloudflare actually wants a click; otherwise `status` goes straight
+to `solved` with nothing visible. Options cannot replace the site key or the
+hook's callbacks. Without options the widget renders exactly as in 0.3.0.
+
 ### Gate the submit button on `status`, not on `token` (v0.2.0)
 
 | `status` | meaning |

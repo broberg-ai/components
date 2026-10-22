@@ -76,6 +76,19 @@ function loadTurnstileScript(): Promise<void> {
  */
 export type TurnstileStatus = "loading" | "ready" | "solved" | "failed";
 
+/**
+ * F024.10 — passed unchanged to `turnstile.render`. `appearance: "interaction-only"`
+ * shows the box only when Cloudflare actually wants a click; otherwise the hook
+ * goes straight to `solved` with nothing visible. Read when the widget renders
+ * (mount / siteKey change), so an inline object literal is fine.
+ */
+export interface TurnstileRenderOptions {
+  appearance?: "always" | "execute" | "interaction-only";
+  theme?: "light" | "dark" | "auto";
+  size?: "normal" | "flexible" | "compact";
+  language?: string;
+}
+
 export interface UseTurnstileResult {
   /** Attach to the container element the widget renders into. */
   widgetRef: { current: HTMLDivElement | null };
@@ -93,6 +106,16 @@ export interface UseTurnstileResult {
   reset: () => void;
 }
 
+/** Only the documented render options — anything else a caller slips in is dropped. */
+function pickRenderOptions(o: TurnstileRenderOptions | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!o) return out;
+  for (const k of ["appearance", "theme", "size", "language"] as const) {
+    if (typeof o[k] === "string") out[k] = o[k] as string;
+  }
+  return out;
+}
+
 /**
  * Build a `useTurnstile` bound to one framework's hooks.
  *
@@ -104,7 +127,7 @@ export interface UseTurnstileResult {
 export function createUseTurnstile(hooks: HooksApi) {
   const { useRef, useState, useEffect } = hooks;
 
-  return function useTurnstile(siteKey: string | null | undefined): UseTurnstileResult {
+  return function useTurnstile(siteKey: string | null | undefined, options?: TurnstileRenderOptions): UseTurnstileResult {
     const widgetRef = useRef<HTMLDivElement | null>(null);
     const widgetIdRef = useRef<string | null>(null);
     const [token, setToken] = useState("");
@@ -146,6 +169,9 @@ export function createUseTurnstile(hooks: HooksApi) {
           return;
         }
         widgetIdRef.current = ts.render(widgetRef.current, {
+          // Options FIRST, so they can never replace the sitekey or the
+          // hook's own callbacks below.
+          ...pickRenderOptions(options),
           sitekey: siteKey,
           callback: (tok: string) => {
             setToken(tok);

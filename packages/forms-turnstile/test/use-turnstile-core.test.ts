@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createUseTurnstile, type HooksApi, type UseTurnstileResult } from "../src/use-turnstile-core";
+import { createUseTurnstile, type HooksApi, type TurnstileRenderOptions, type UseTurnstileResult } from "../src/use-turnstile-core";
 
 /**
  * No jsdom, and none needed. The hooks arrive as a parameter, so a fake runtime
@@ -39,9 +39,9 @@ function harness() {
   const useTurnstile = createUseTurnstile(hooks);
   return {
     /** Re-read the hook's output, the way a re-render would. */
-    render(siteKey: string | null | undefined = "site-key"): UseTurnstileResult {
+    render(siteKey: string | null | undefined = "site-key", options?: TurnstileRenderOptions): UseTurnstileResult {
       cursor = 0;
-      return useTurnstile(siteKey);
+      return useTurnstile(siteKey, options);
     },
     unmount: () => cleanup?.(),
   };
@@ -247,5 +247,39 @@ describe("status — 'not solved yet' and 'will never work' must not look the sa
 
     h.unmount();
     expect(removed).toEqual(["widget-1"]);
+  });
+});
+
+// F024.10 — jam (22/10): a low-key box, shown only when Cloudflare wants a click.
+describe("render options reach turnstile.render", () => {
+  async function mountWith(options?: TurnstileRenderOptions) {
+    const { el } = stubDom({ scriptOutcome: "load" });
+    const h = harness();
+    h.render("site-key", options).widgetRef.current = el;
+    h.render("site-key", options);
+    await tick();
+    await tick();
+    return h;
+  }
+
+  it("appearance, theme, size and language are passed through unchanged", async () => {
+    await mountWith({ appearance: "interaction-only", theme: "light", size: "flexible", language: "da" });
+    const o = renderedOpts!;
+    expect([o.appearance, o.theme, o.size, o.language]).toEqual(["interaction-only", "light", "flexible", "da"]);
+    expect(o.sitekey).toBe("site-key");
+  });
+
+  it("negative control: without options the render call carries exactly what 0.3.0 sent", async () => {
+    await mountWith();
+    expect(Object.keys(renderedOpts!).sort()).toEqual(["callback", "error-callback", "expired-callback", "sitekey"]);
+  });
+
+  it("options cannot replace the hook's callbacks or sitekey — status still reaches 'solved'", async () => {
+    const sneaky = { appearance: "interaction-only", callback: () => {}, sitekey: "other" } as unknown as TurnstileRenderOptions;
+    const h = await mountWith(sneaky);
+    expect(renderedOpts!.sitekey).toBe("site-key");
+    (renderedOpts!.callback as (t: string) => void)("tok-1");
+    const r = h.render("site-key", sneaky);
+    expect([r.status, r.token]).toEqual(["solved", "tok-1"]);
   });
 });
