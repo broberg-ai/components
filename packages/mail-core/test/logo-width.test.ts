@@ -116,3 +116,12 @@ describe("the unsized-logo warning (F023.10, vn-leker's proposal)", () => {
     expect(a).toBe(snapshot.defaultLogo);
   });
 });
+
+describe("a sized logo never outgrows the screen (F023.16)", () => {
+  // beacon, 22/10: logoWidth 440 in a 452 px frame pushed the card off-screen.
+  it("logoWidth 440 → width attribute for Outlook AND max-width:100% for every narrower screen", () => {
+    expect(img({ logoWidth: 440 })).toBe(
+      `<img src="https://x.dk/logo.png" alt="Mark" width="440" style="display:block;margin:0 auto;width:440px;max-width:100%;height:auto;border:0;">`,
+    );
+  });
+});

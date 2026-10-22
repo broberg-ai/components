@@ -387,7 +387,7 @@ export function resolveLogoSrc(logo: LogoSource | undefined, fallbackUrl?: strin
  *  An HTML COMMENT rather than an attribute: comments survive every client we
  *  have measured, and an attribute on <html> is one of the first things a
  *  sanitising webmail rewrites. */
-export const SHELL_VERSION = "3";
+export const SHELL_VERSION = "4";
 // 3 (F023.13): where the accent was used as TEXT — the cta label, the eyebrow,
 // the footer link — the colour is now DERIVED for contrast. A brand that was
 // already legible renders byte-identically (proven against the published 0.7.0
@@ -462,7 +462,7 @@ export function renderShell(opts: ShellOpts): string {
   const logoBlock = logoSrc
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
     <tr><td>
-      <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}"${logoW ? ` width="${logoW}"` : ""} style="display:block;margin:0 auto;${logoW ? `width:${logoW}px` : "max-width:180px"};height:auto;border:0;">
+      <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}"${logoW ? ` width="${logoW}"` : ""} style="display:block;margin:0 auto;${logoW ? `width:${logoW}px;max-width:100%` : "max-width:180px"};height:auto;border:0;">
     </td></tr>
   </table>`
     : "";
