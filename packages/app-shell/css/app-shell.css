@@ -292,6 +292,34 @@ button.bas-group__label:hover { color: var(--bas-group-label-color, var(--fg-mut
   .bas-topbar__inner { padding: 0 12px; gap: 8px; }
   .bas-userbtn__name { display: none; }
 }
+/* ── F092.35 — bottom tab bar (mobile="bottom-nav") ── */
+.bas-bottomnav { display: none; }
+@media (max-width: 767px) {
+  .bas-root[data-mobile="bottom-nav"] .bas-sidebar,
+  .bas-root[data-mobile="bottom-nav"] .bas-trigger,
+  .bas-root[data-mobile="bottom-nav"] .bas-contenthead__sep { display: none; }
+  .bas-root[data-mobile="bottom-nav"] .bas-main { padding-bottom: calc(var(--bas-bottomnav-h, 60px) + env(safe-area-inset-bottom, 0px)); }
+  .bas-root[data-mobile="bottom-nav"] .bas-bottomnav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    min-height: var(--bas-bottomnav-h, 60px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--surface-panel, var(--bg)); border-top: 1px solid var(--border);
+  }
+  .bas-bottomnav__tab {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    padding: 6px 4px; color: var(--fg-muted); text-decoration: none;
+    font-size: calc(11px * var(--bas-font-scale, 1)); line-height: 1.2;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bas-bottomnav__tab:hover { color: var(--fg); }
+  .bas-bottomnav__tab:active { opacity: .7; }
+  .bas-bottomnav__tab.is-active { color: var(--fg); font-weight: 600; }
+  .bas-bottomnav__tab.is-active .bas-bottomnav__icon { color: var(--accent); }
+  .bas-bottomnav__tab:focus-visible { outline: 2px solid var(--accent, var(--fg)); outline-offset: -2px; }
+  .bas-bottomnav__icon { display: inline-flex; width: 22px; height: 22px; }
+  .bas-bottomnav__icon svg { width: 22px; height: 22px; }
+  .bas-bottomnav__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 @media (prefers-reduced-motion: reduce) {
   .bas-sidebar, .bas-sidebar.is-mobile-drawer, .bas-chev, .bas-item, .bas-iconbtn, .bas-group__action { transition: none; }
 }

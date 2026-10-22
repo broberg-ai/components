@@ -13,8 +13,8 @@
 // or compose the parts (Sidebar, TopBar, NotificationBell, UserMenu,
 // PageHeader, PageTabs) in your own layout.
 
-import type { ComponentChildren, JSX } from "preact";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import { createContext, type ComponentChildren, type JSX } from "preact";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { createBellShell } from "@broberg/notifications/shell";
 import { selectKeyReducer, type SelectState } from "@broberg/ui-controls-core";
 import {
@@ -83,6 +83,21 @@ export type PreactNavGroup = NavGroup<Icon>;
 export type Navigate = (href: string) => void;
 
 const MOBILE_QUERY = "(max-width: 767px)";
+
+// ── F092.35 — the app's own shell texts ─────────────────────────────────────
+/** Every text the shell shows, by key (see TEXT in the core). */
+export type ShellText = { [K in keyof (typeof TEXT)["en"]]: string };
+/** Per-language partial overrides, e.g. { da: { collapse: "Skjul menu", light: "Lyst" } }. */
+export type ShellStrings = Partial<Record<Lang, Partial<ShellText>>>;
+const StringsContext = createContext<ShellStrings | undefined>(undefined);
+function mergeText(lang: Lang, strings: ShellStrings | undefined): ShellText {
+  const own = strings?.[lang];
+  return (own ? { ...TEXT[lang], ...own } : TEXT[lang]) as ShellText;
+}
+/** The shell's texts in `lang`, with the overrides AppShell was given. */
+function useText(lang: Lang): ShellText {
+  return mergeText(lang, useContext(StringsContext));
+}
 
 /** True below 768px. Follows the window as it resizes. */
 export function useIsMobile(): boolean {
@@ -203,7 +218,7 @@ export interface ItemActionsMenuProps {
  * back from a submenu; Escape closes and returns focus to the anchor.
  */
 export function ItemActionsMenu(props: ItemActionsMenuProps) {
-  const t = TEXT[props.lang];
+  const t = useText(props.lang);
   const pre = props.testidPrefix ?? "item-actions";
   const menu = useRef<HTMLDivElement>(null);
   const first: RowView[] = [{ kind: "list", actions: props.actions }];
@@ -443,7 +458,7 @@ export function ItemActionsMenu(props: ItemActionsMenuProps) {
 
 // The sidebar row's «…»: a button plus ItemActionsMenu while open.
 function RowActions(props: { item: PreactNavItem; lang: Lang; onAction: (actionId: string, value?: string) => void }) {
-  const t = TEXT[props.lang];
+  const t = useText(props.lang);
   const id = props.item.id;
   const btn = useRef<HTMLButtonElement>(null);
   const [open, setOpenState] = useState(false);
@@ -517,7 +532,7 @@ export interface SidebarProps {
   /** Phone, drawer mode: is the drawer open. */
   mobileOpen?: boolean;
   onClose?: () => void;
-  mobile?: "drawer" | "rail";
+  mobile?: "drawer" | "rail" | "bottom-nav";
   /** Shown at the top of the sidebar (e.g. the brand on a phone). */
   header?: ComponentChildren;
   /** localStorage key for which groups are folded. */
@@ -537,6 +552,7 @@ export function Sidebar(p: SidebarProps) {
   const mode = p.mobile ?? "drawer";
   const collapseMode = p.collapse ?? (mode === "rail" ? "icon" : "offcanvas");
   const isMobile = useIsMobile();
+  const tx = useText(p.lang);
   // The rail: on a phone in rail mode, or on desktop when folded to icons.
   const railed = isMobile ? mode === "rail" : !!p.collapsed && collapseMode === "icon";
 
@@ -611,13 +627,13 @@ export function Sidebar(p: SidebarProps) {
         {active && !sub ? <span class="bas-item__bar" /> : null}
         {it.icon ? <span class="bas-item__icon">{it.icon}</span> : null}
         {it.marker === "working" ? (
-          <span class="bas-item__marker" data-testid={`sidebar-item-${it.id}-marker`} role="img" aria-label={TEXT[p.lang].working} />
+          <span class="bas-item__marker" data-testid={`sidebar-item-${it.id}-marker`} role="img" aria-label={tx.working} />
         ) : it.marker === "idle" ? (
           <span class="bas-item__marker bas-item__marker--idle" data-testid={`sidebar-item-${it.id}-marker`} aria-hidden="true" />
         ) : null}
         <span class="bas-item__label">{it.label}</span>
         {it.pinned ? (
-          <span class="bas-item__pin" data-testid={`sidebar-item-${it.id}-pinned`} role="img" aria-label={TEXT[p.lang].pinned}>
+          <span class="bas-item__pin" data-testid={`sidebar-item-${it.id}-pinned`} role="img" aria-label={tx.pinned}>
             <IconPin />
           </span>
         ) : null}
@@ -724,8 +740,8 @@ export function Sidebar(p: SidebarProps) {
                     onAfter={close}
                     class="bas-home"
                     data-testid="brand-mark-home"
-                    aria-label={p.homeLabel ?? TEXT[p.lang].home}
-                    title={p.homeLabel ?? TEXT[p.lang].home}
+                    aria-label={p.homeLabel ?? tx.home}
+                    title={p.homeLabel ?? tx.home}
                   >
                     {p.brandMark}
                   </NavLink>
@@ -819,7 +835,7 @@ export interface NotificationBellProps {
 }
 
 export function NotificationBell({ source, onNavigate, lang }: NotificationBellProps) {
-  const t = TEXT[lang];
+  const t = useText(lang);
   const mobile = useIsMobile();
   const [error, setError] = useState<string | null>(null);
   const lastCount = useRef(0);
@@ -1039,7 +1055,12 @@ export interface UserMenuProps {
    * `{ backdrop: true }`. Only apps that draw the neuron canvas
    * (mountConstellation — trail, cardmem) have anything for it to switch.
    */
-  appearance?: boolean | { backdrop?: boolean };
+  appearance?: boolean | { backdrop?: boolean; palette?: boolean; surfaces?: boolean };
+  /**
+   * F092.35 — where the appearance block sits: "bottom" (default, after your
+   * items and sections) or "top" (right after the identity, before «Konto»).
+   */
+  appearancePosition?: "top" | "bottom";
   /**
    * F092.11 — a «Sprog»/«Language» row with a segmented control, like the
    * appearance rows. The app owns the language; the shell shows and reports it.
@@ -1189,7 +1210,7 @@ function Dropdown<T extends string>(props: { testid: string; value: T; options: 
 }
 
 export function UserMenu(p: UserMenuProps) {
-  const t = TEXT[p.lang];
+  const t = useText(p.lang);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -1252,6 +1273,48 @@ export function UserMenu(p: UserMenuProps) {
   }, [open, inSidebar]);
   const zoom = p.zoom;
   const zMin = zoom?.min ?? 50, zMax = zoom?.max ?? 200, zStep = zoom?.step ?? 10;
+  // F092.35 — the appearance block, placed top or bottom; palette/surfaces can be hidden.
+  const appearancePos = p.appearancePosition ?? "bottom";
+  const appearanceOpts = typeof p.appearance === "object" ? p.appearance : undefined;
+  const showPalette = appearanceOpts?.palette !== false;
+  const showSurfaces = appearanceOpts?.surfaces !== false;
+  const appearanceBlock = p.appearance !== false ? (
+            <>
+              <div class="bas-sep" />
+              <div class="bas-prefs">
+                <div class="bas-pref">
+                  <span>{t.theme}</span>
+                  <Segmented
+                    testid="user-menu-theme"
+                    value={pref as "light" | "dark" | "system"}
+                    options={[["light", t.light], ["dark", t.dark], ["system", t.system]] as const}
+                    onChange={(v) => {
+                      setPreference(v);
+                      setPref(v);
+                    }}
+                  />
+                </div>
+                {showPalette ? (
+                <div class="bas-pref">
+                  <span>{t.palette}</span>
+                  <Dropdown testid="user-menu-palette" label={t.palette} value={palette} options={PALETTES.map((x) => [x, PALETTE_LABELS[x]] as const)} onChange={setPalette} />
+                </div>
+                ) : null}
+                {showSurfaces ? (
+                <div class="bas-pref">
+                  <span>{t.surfaces}</span>
+                  <Segmented testid="user-menu-surfaces" value={surfaces} options={[["flat", t.flat], ["layered", t.layered]] as const} onChange={setSurfaces} />
+                </div>
+                ) : null}
+                {typeof p.appearance === "object" && p.appearance.backdrop ? (
+                  <div class="bas-pref">
+                    <span>{t.backdrop}</span>
+                    <Segmented testid="user-menu-backdrop" value={backdrop} options={[["neurons", t.neurons], ["plain", t.plain]] as const} onChange={setBackdrop} />
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : null;
   return (
     <div class={"bas-usermenu" + (inSidebar ? " is-sidebar" : "")} ref={root}>
       <button
@@ -1290,6 +1353,7 @@ export function UserMenu(p: UserMenuProps) {
               ) : null}
             </div>
           </div>
+          {appearancePos === "top" ? appearanceBlock : null}
           <div class="bas-sep" />
           {p.accountHref ? (
             <NavLink href={p.accountHref} onNavigate={p.onNavigate} onAfter={() => setOpen(false)} class="bas-mi" data-testid="user-menu-account" role="menuitem">
@@ -1346,39 +1410,7 @@ export function UserMenu(p: UserMenuProps) {
               ))}
             </div>
           ))}
-          {p.appearance !== false ? (
-            <>
-              <div class="bas-sep" />
-              <div class="bas-prefs">
-                <div class="bas-pref">
-                  <span>{t.theme}</span>
-                  <Segmented
-                    testid="user-menu-theme"
-                    value={pref as "light" | "dark" | "system"}
-                    options={[["light", t.light], ["dark", t.dark], ["system", t.system]] as const}
-                    onChange={(v) => {
-                      setPreference(v);
-                      setPref(v);
-                    }}
-                  />
-                </div>
-                <div class="bas-pref">
-                  <span>{t.palette}</span>
-                  <Dropdown testid="user-menu-palette" label={t.palette} value={palette} options={PALETTES.map((x) => [x, PALETTE_LABELS[x]] as const)} onChange={setPalette} />
-                </div>
-                <div class="bas-pref">
-                  <span>{t.surfaces}</span>
-                  <Segmented testid="user-menu-surfaces" value={surfaces} options={[["flat", t.flat], ["layered", t.layered]] as const} onChange={setSurfaces} />
-                </div>
-                {typeof p.appearance === "object" && p.appearance.backdrop ? (
-                  <div class="bas-pref">
-                    <span>{t.backdrop}</span>
-                    <Segmented testid="user-menu-backdrop" value={backdrop} options={[["neurons", t.neurons], ["plain", t.plain]] as const} onChange={setBackdrop} />
-                  </div>
-                ) : null}
-              </div>
-            </>
-          ) : null}
+          {appearancePos === "bottom" ? appearanceBlock : null}
           {p.language ? (
             <>
               {p.appearance === false ? <div class="bas-sep" /> : null}
@@ -1450,7 +1482,7 @@ export interface TopBarProps {
 
 /** Brand left, actions, then the notification bell and the user menu ALWAYS last, in that order. */
 export function TopBar(p: TopBarProps) {
-  const t = TEXT[p.lang];
+  const t = useText(p.lang);
   return (
     <header class="bas-topbar" data-testid="topbar-root">
       <div class="bas-topbar__inner">
@@ -1563,8 +1595,19 @@ export interface AppShellProps {
    * (or the full-width bar). "sidebar-footer": the bottom of the sidebar, opening upward.
    */
   userMenuPlacement?: "topbar" | "sidebar-footer";
-  /** Phone behaviour: a slide-in drawer, or a 60px icon rail. */
-  mobile?: "drawer" | "rail";
+  /**
+   * Phone behaviour: a slide-in drawer, a 60px icon rail, or (F092.35) a fixed
+   * bottom tab bar of the top-level nav items — no sidebar on the phone.
+   */
+  mobile?: "drawer" | "rail" | "bottom-nav";
+  /** F092.35 — data-testid of the bottom tab bar's root. Default "mobile-bottom-nav". */
+  mobileNavTestId?: string;
+  /**
+   * F092.35 — the app's own wording for shell texts, per language. Only the keys
+   * you give change; the rest stays the package's. E.g.
+   * { da: { collapse: "Skjul menu", light: "Lyst", dark: "Mørkt" } }.
+   */
+  strings?: ShellStrings;
   /**
    * F092.6 — desktop fold: "offcanvas" hides the sidebar, "icon" keeps a 48px
    * icon rail with `brandMark` on top. Default: "icon" when `mobile` is "rail".
@@ -1603,7 +1646,8 @@ export function AppShell(p: AppShellProps) {
   const [collapsed, setCollapsed] = useState(() => readFlag(`${prefix}.collapsed`, false));
   const [drawer, setDrawer] = useState(false);
   const isMobile = useIsMobile();
-  const t = TEXT[p.lang];
+  // AppShell PROVIDES the overrides, so it reads its own props, not the context.
+  const t = mergeText(p.lang, p.strings);
   const toggle = () => {
     const next = !collapsed;
     setCollapsed(next);
@@ -1615,12 +1659,15 @@ export function AppShell(p: AppShellProps) {
   const expanded = drawerMode ? drawer : !collapsed;
   const triggerLabel = drawerMode ? (drawer ? t.closeMenu : t.openMenu) : collapsed ? t.expand : t.collapse;
   const heading = p.title ?? activeNavLabel(p.groups, p.footer, p.currentPath);
-  const userInSidebar = p.userMenuPlacement === "sidebar-footer";
+  // F092.35 — with the bottom tab bar the sidebar is hidden on a phone, so a
+  // sidebar-footer user menu moves to the content's top row there (else it is gone).
+  const userInSidebar = p.userMenuPlacement === "sidebar-footer" && !(isMobile && mode === "bottom-nav");
   const sidebarUser =
     userInSidebar && p.user ? (
       <UserMenu user={p.user} {...p.userMenu} placement="sidebar-footer" onNavigate={p.onNavigate} lang={p.lang} />
     ) : null;
   return (
+    <StringsContext.Provider value={p.strings}>
     <div
       class="bas-root"
       data-testid="app-shell"
@@ -1696,7 +1743,42 @@ export function AppShell(p: AppShellProps) {
           {p.children}
         </main>
       </div>
+      {mode === "bottom-nav" ? (
+        <BottomNav groups={p.groups} currentPath={p.currentPath} onNavigate={p.onNavigate} testId={p.mobileNavTestId} />
+      ) : null}
     </div>
+    </StringsContext.Provider>
+  );
+}
+
+/**
+ * F092.35 — the phone's bottom tab bar: one tab per top-level nav item. A
+ * parent is not a page (its href only says which section it covers, F092.5),
+ * so its tab links to its first child and is active anywhere in the section.
+ * Hidden on desktop by CSS; the sidebar is hidden on the phone instead.
+ */
+function BottomNav(p: { groups: PreactNavGroup[]; currentPath: string; onNavigate?: Navigate; testId?: string }) {
+  const rootId = p.testId ?? "mobile-bottom-nav";
+  const tabs = p.groups.flatMap((g) => g.items).map((it) => ({ it, href: it.children?.[0]?.href ?? it.href }));
+  return (
+    <nav class="bas-bottomnav" data-testid={rootId}>
+      {tabs.map(({ it, href }) => {
+        const active = isActivePath(it.href, p.currentPath) || !!it.children?.some((c) => isActivePath(c.href, p.currentPath));
+        return (
+          <NavLink
+            key={it.id}
+            href={href}
+            onNavigate={p.onNavigate}
+            class={"bas-bottomnav__tab" + (active ? " is-active" : "")}
+            data-testid={`${rootId}-${it.id}`}
+            aria-current={active ? "page" : undefined}
+          >
+            {it.icon ? <span class="bas-bottomnav__icon">{it.icon}</span> : null}
+            <span class="bas-bottomnav__label">{it.label}</span>
+          </NavLink>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -1740,7 +1822,7 @@ type Notice = { kind: "ok" | "error"; text: string } | null;
  * typed text, so nothing is lost and the error says why.
  */
 export function AccountPage({ lang, adapter, reauthHref, onProfileChange }: AccountPageProps) {
-  const t = TEXT[lang];
+  const t = useText(lang);
   const api = useMemo(() => adapter ?? createFetchAccountAdapter(), [adapter]);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [draft, setDraft] = useState("");
@@ -1946,7 +2028,7 @@ type AnalyticsLoad =
  * as a quiet month.
  */
 export function AnalyticsPage({ lang, adapter, periods = [7, 30, 90], initialDays }: AnalyticsPageProps) {
-  const t = TEXT[lang];
+  const t = useText(lang);
   const api = useMemo(() => adapter ?? createFetchAnalyticsAdapter(), [adapter]);
   const [days, setDays] = useState(initialDays ?? (periods.includes(30) ? 30 : periods[0]!));
   const [load, setLoad] = useState<AnalyticsLoad>({ state: "loading" });
@@ -2032,7 +2114,7 @@ function dayLabel(day: string, locale: string): string {
   return new Date(`${day}T12:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-function AnalyticsSeries({ data, t, locale, num }: { data: AnalyticsDay[]; t: (typeof TEXT)[Lang]; locale: string; num: (n: number) => string }) {
+function AnalyticsSeries({ data, t, locale, num }: { data: AnalyticsDay[]; t: ShellText; locale: string; num: (n: number) => string }) {
   const max = Math.max(1, ...data.map((d) => d.pageviews));
   const empty = data.every((d) => d.pageviews === 0);
   return (
@@ -2108,7 +2190,7 @@ const EDGE = 16;
  * With one organisation it is a plain label, not a menu.
  */
 export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch, roleLabel }: TenantSwitcherProps) {
-  const t = TEXT[lang];
+  const t = useText(lang);
   const api = useMemo(() => adapter ?? createFetchTenantAdapter(), [adapter]);
   const [rows, setRows] = useState<TenantMembershipRow[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);

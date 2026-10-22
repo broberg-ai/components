@@ -10,6 +10,8 @@ import { AppShell, ItemActionsMenu } from "@broberg/app-shell/preact";
 // F014.21 — the cookie banner on @broberg/theme's palette, as appkit composes it.
 import "@broberg/consent-cookie/element";
 
+const FIELD = new URLSearchParams(location.search).has("field");
+
 initTheme();
 initPalette();
 
@@ -120,6 +122,9 @@ function App() {
           document.body.dataset.lastAction = [item, action, value].filter((x) => x !== undefined).join(":");
         }}
         collapse="icon"
+        // F092.35 — ?field = Field's approved overview: bottom tab bar on a phone, only
+        // Light/Dark/System, the theme block before «Konto», and the app's own wording.
+        {...(FIELD ? { mobile: "bottom-nav" as const, mobileNavTestId: "overview-mobilenav", strings: { da: { collapse: "Skift sidemenu", light: "Lyst", dark: "Mørkt" } } } : {})}
         homeHref="/"
         homeLabel="Scout"
         currentPath="/"
@@ -132,6 +137,7 @@ function App() {
           sections,
           onSectionSelect: (s, i) => (s === "org" ? setOrg(i) : s === "unit" ? setUnit(i) : setArea(i)),
           zoom: { value: zoom, onChange: setZoom },
+          ...(FIELD ? { appearance: { palette: false, surfaces: false }, appearancePosition: "top" as const } : {}),
         }}
         title="Ny samtale"
       >

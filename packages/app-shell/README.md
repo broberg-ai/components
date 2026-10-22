@@ -53,6 +53,36 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.23.0 — bottom tab bar on a phone, a smaller Appearance block, the app's own wording (F092.35)
+
+Four additive options (Field's approved overview). Without them the shell renders
+byte-identically to 0.22.4.
+
+```tsx
+<AppShell
+  mobile="bottom-nav"                      // phone: a fixed tab bar instead of the sidebar
+  mobileNavTestId="overview-mobilenav"     // root testid; tabs are `<root>-<item id>`
+  strings={{ da: { collapse: "Skift sidemenu", light: "Lyst", dark: "Mørkt" } }}
+  userMenu={{
+    appearance: { palette: false, surfaces: false }, // only Light / Dark / System
+    appearancePosition: "top",                       // the theme block before «Konto»
+  }}
+  …
+/>
+```
+
+- **`mobile: "bottom-nav"`** — one tab per top-level nav item. A parent's tab
+  links to its first child and is active anywhere in its section; the active
+  tab carries `aria-current="page"`. The bar clears the phone's safe area, the
+  sidebar and its button are hidden on the phone, and a `sidebar-footer` user
+  menu moves to the content's top row there (otherwise it would be gone).
+  Desktop is unchanged. Tokens: `--bas-bottomnav-h` (default 60px).
+- **`userMenu.appearance: { palette?, surfaces? }`** — `false` hides that row.
+- **`userMenu.appearancePosition: "top" | "bottom"`** — default `"bottom"`.
+- **`strings`** — per language, any key of the shell's texts (`ShellText`);
+  keys you do not give stay the package's. Reaches every part inside the shell
+  (sidebar, user menu, bell).
+
 ## 0.14.0 — the «…» menu from the keyboard, fixed; «Slet» confirms in the menu (F092.22)
 
 **Upgrade from 0.13.x — a keyboard user could trigger the wrong action.** In
@@ -455,7 +485,7 @@ hamburger) are gone; `Sidebar` no longer takes `onToggleCollapse`.
   click closes the drawer. `homeLabel` names the icon-only `brandMark` link
   (default «Forside»/«Home»).
 
-## Phone: `mobile="drawer"` or `mobile="rail"`
+## Phone: `mobile="drawer"`, `mobile="rail"` or `mobile="bottom-nav"` (0.23.0)
 
 - **drawer** (cardmem): the sidebar button opens the sidebar over a backdrop; a tap on the backdrop or on a link closes it.
 - **rail** (trail): the sidebar is a 60px icon rail; the sidebar button is hidden (there is nothing to fold).
