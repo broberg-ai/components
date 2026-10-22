@@ -41,6 +41,12 @@ export interface RoomTokenOptions extends Credentials {
   name?: string;
   /** Seconds the ticket can be used to ENTER. Default 600, max 3600. A call in progress is not cut off when it expires. */
   ttl?: number;
+  /**
+   * F104.4 — `false` makes a LISTEN-ONLY ticket: the person can join and hear
+   * everyone but publish nothing (no microphone, no data). Default `true`.
+   * Pair it with `joinVoice({ publish: false })` in the browser.
+   */
+  canPublish?: boolean;
 }
 
 export const DEFAULT_TTL_SECONDS = 600;
@@ -66,12 +72,13 @@ export async function createRoomToken(opts: RoomTokenOptions): Promise<string> {
   }
 
   const token = new AccessToken(opts.apiKey, opts.apiSecret, { identity: opts.identity, name: opts.name, ttl });
+  const speak = opts.canPublish !== false;
   token.addGrant({
     room: opts.room,
     roomJoin: true,
     canSubscribe: true,
-    canPublish: true,
-    canPublishSources: [TrackSource.MICROPHONE],
+    canPublish: speak,
+    ...(speak ? { canPublishSources: [TrackSource.MICROPHONE] } : {}),
     canPublishData: false,
   });
   return token.toJwt();

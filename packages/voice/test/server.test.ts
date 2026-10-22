@@ -37,6 +37,12 @@ describe("createRoomToken", () => {
     });
   });
 
+  it("canPublish:false makes a listen-only ticket: join and hear, publish nothing", async () => {
+    const jwt = await createRoomToken({ ...creds, room: "jam:42", identity: "reader", canPublish: false });
+    const { video } = await new TokenVerifier(creds.apiKey, creds.apiSecret).verify(jwt);
+    expect(video).toEqual({ room: "jam:42", roomJoin: true, canSubscribe: true, canPublish: false, canPublishData: false });
+  });
+
   it("is valid for 10 minutes by default, and for the ttl given", async () => {
     const verify = (jwt: string) => new TokenVerifier(creds.apiKey, creds.apiSecret).verify(jwt);
     const d = await verify(await createRoomToken({ ...creds, room: "r", identity: "u" }));

@@ -28,9 +28,23 @@ const originals = { [SERVER]: readFileSync(SERVER, "utf8"), [CLIENT]: readFileSy
 
 const MUTATIONS = [
   {
+    name: "canPublish:false still grants publishing",
+    file: SERVER,
+    find: "const speak = opts.canPublish !== false;",
+    replace: "const speak = true;",
+    expect: ["canPublish:false makes a listen-only ticket"],
+  },
+  {
+    name: "a listener still opens the microphone",
+    file: CLIENT,
+    find: "    if (publish) await room.localParticipant.setMicrophoneEnabled(true, { ...AUDIO_CAPTURE });",
+    replace: "    await room.localParticipant.setMicrophoneEnabled(true, { ...AUDIO_CAPTURE });",
+    expect: ["publish:false joins as a listener"],
+  },
+  {
     name: "the ticket may publish any source (camera, screen), not only the microphone",
     file: SERVER,
-    find: "    canPublishSources: [TrackSource.MICROPHONE],\n",
+    find: "    ...(speak ? { canPublishSources: [TrackSource.MICROPHONE] } : {}),\n",
     replace: "",
     expect: ["binds one room, microphone only"],
   },

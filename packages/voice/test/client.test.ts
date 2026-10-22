@@ -66,6 +66,13 @@ describe("joinVoice", () => {
     expect(room.startAudio).toHaveBeenCalled();
   });
 
+  it("publish:false joins as a listener: the microphone is never opened", async () => {
+    const call = await joinVoice({ url: "u", token: "t", publish: false });
+    expect(state.room.localParticipant.micCalls).toEqual([]);
+    expect(call.muted).toBe(true);
+    expect(state.room.startAudio).toHaveBeenCalled();
+  });
+
   it("mute and unmute turn the microphone off and on", async () => {
     const call = await joinVoice({ url: "u", token: "t" });
     await call.mute();

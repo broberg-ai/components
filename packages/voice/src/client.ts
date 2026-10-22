@@ -22,6 +22,11 @@ export interface JoinOptions {
   url: string;
   /** A ticket from `createRoomToken` on the app's server. */
   token: string;
+  /**
+   * F104.4 — `false` joins as a listener: the microphone is never opened
+   * (a listen-only ticket would be refused if it tried). Default `true`.
+   */
+  publish?: boolean;
 }
 
 export interface VoiceCall {
@@ -43,14 +48,14 @@ export interface VoiceCall {
 
 export const AUDIO_CAPTURE = { noiseSuppression: true, echoCancellation: true, autoGainControl: true } as const;
 
-export async function joinVoice({ url, token }: JoinOptions): Promise<VoiceCall> {
+export async function joinVoice({ url, token, publish = true }: JoinOptions): Promise<VoiceCall> {
   const room = new Room({ audioCaptureDefaults: { ...AUDIO_CAPTURE } });
   const speakingCbs = new Set<(ids: string[]) => void>();
   const participantCbs = new Set<(ps: VoiceParticipant[]) => void>();
   const volumes = new Map<string, number>();
   const audioEls = new Map<RemoteTrack, HTMLMediaElement[]>();
   let outputMuted = false;
-  let muted = false;
+  let muted = !publish;
   let left = false;
 
   const participants = (): VoiceParticipant[] => [
@@ -88,7 +93,7 @@ export async function joinVoice({ url, token }: JoinOptions): Promise<VoiceCall>
 
   try {
     await room.connect(url, token);
-    await room.localParticipant.setMicrophoneEnabled(true, { ...AUDIO_CAPTURE });
+    if (publish) await room.localParticipant.setMicrophoneEnabled(true, { ...AUDIO_CAPTURE });
     // joinVoice is called from a click; this is the gesture browsers require before audio may play.
     await room.startAudio();
   } catch (e) {

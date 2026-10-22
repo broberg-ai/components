@@ -28,6 +28,7 @@ const event = await verifyWebhook(await req.text(), req.headers.get("authorizati
 if (event.event === "participant_joined") { /* … */ }
 ```
 
+- **Listen-only (0.2.0):** `createRoomToken({ …, canPublish: false })` gives a ticket that can join and hear everyone but publish nothing — pair it with `joinVoice({ url, token, publish: false })`, which never opens the microphone (`call.muted` is `true`; `unmute()` would be refused by the server).
 - The ticket admits to **one room**, may **only publish the microphone** (no camera, screen or data channel), and may listen to everyone in the room.
 - Missing `apiKey`/`apiSecret` is refused (`VoiceError` `missing_credentials`) — LiveKit's SDK would otherwise silently fall back to `LIVEKIT_*` from the environment.
 - Every rejection of a webhook (changed body, wrong secret, missing header) is `VoiceError` `invalid_webhook`.
