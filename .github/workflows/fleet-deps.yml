@@ -37,6 +37,9 @@ concurrency:
 
 permissions:
   contents: write
+  # F038.33 — to start the Discovery deploy after a changed graph lands. A push
+  # made with GITHUB_TOKEN starts no workflow on its own; a dispatch does.
+  actions: write
 
 jobs:
   scan:
@@ -135,3 +138,8 @@ jobs:
           # landed mid-run and the push was rejected). Replay ours on top.
           git pull --rebase origin main
           git push
+          # F038.33 — the push above deploys nothing by itself (GITHUB_TOKEN), so
+          # ask for the Discovery deploy explicitly.
+          gh workflow run inventory-fresh.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

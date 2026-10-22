@@ -51,6 +51,14 @@ on:
     workflows: [publish]
     types: [completed]
   workflow_dispatch:
+  # F038.33 — Christian 23/10: «Lav et cronjobs job der kører automatisk og henter
+  # data fra alle repo for at opdatere dine data.» A daily rebuild + deploy, after
+  # fleet-deps (04:17 UTC, may wait up to 55 min on GitHub's rate limit). Measured:
+  # a commit pushed by a workflow's GITHUB_TOKEN starts NO other workflow, so the
+  # daily fleet scan's commit never deployed itself — this clock is what does.
+  # A non-push event deploys regardless of paths (see the `f` step below).
+  schedule:
+    - cron: "47 5 * * *"
 
 jobs:
   check:
@@ -255,7 +263,7 @@ jobs:
           fi
 
           echo "$CHANGED" | sed 's/^/    /'
-          if echo "$CHANGED" | grep -Eq '^(scripts/inventory-data\.mjs|scripts/build-.*\.mjs|scripts/npm-latest\.mjs|apps/discovery/|docs/(inventory|onboarding)\.html|docs/llms.*\.txt|\.github/workflows/(inventory-fresh|fly-server-deploy)\.yml)'; then
+          if echo "$CHANGED" | grep -Eq '^(scripts/inventory-data\.mjs|scripts/build-.*\.mjs|scripts/npm-latest\.mjs|scripts/npm-meta\.mjs|scripts/site-chrome\.mjs|scripts/favicon\.mjs|scripts/fleet-graph\.mjs|apps/discovery/|docs/(inventory|onboarding)\.html|docs/llms.*\.txt|docs/npm-meta\.json|data/fleet-deps\.json|\.github/workflows/(inventory-fresh|fly-server-deploy)\.yml)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"

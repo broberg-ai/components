@@ -141,4 +141,26 @@ console.log(
     : "no workflow runs a bare `git push` where a tag could start it",
 );
 
-process.exit(failures || unsafe ? 1 : 0);
+// F038.33 — Discovery refreshes itself: a daily clock, and every file the site is
+// built from starts a deploy. The regex is read out of the workflow itself, so the
+// test cannot pass against a copy of it.
+let discovery = 0;
+{
+  const text = readFileSync(new URL("../.github/workflows/inventory-fresh.yml", import.meta.url), "utf8");
+  const doc = yaml.parse(text);
+  const on = doc.on ?? doc[true];
+  if (!Array.isArray(on.schedule) || !on.schedule.some((s) => /^\S+ \S+ \* \* \*$/.test(s.cron))) {
+    console.log("  ✗ inventory-fresh.yml has no daily schedule — Discovery would only refresh when someone pushes");
+    discovery++;
+  }
+  const m = text.match(/grep -Eq '([^']+)'/);
+  const re = m ? new RegExp(m[1]) : null;
+  for (const path of ["scripts/site-chrome.mjs", "scripts/npm-meta.mjs", "docs/npm-meta.json", "data/fleet-deps.json", "scripts/fleet-graph.mjs", "scripts/favicon.mjs"]) {
+    if (!re || !re.test(path)) { console.log(`  ✗ a change to ${path} would not deploy Discovery`); discovery++; }
+  }
+  const fleet = readFileSync(new URL("../.github/workflows/fleet-deps.yml", import.meta.url), "utf8");
+  if (!/gh workflow run inventory-fresh\.yml/.test(fleet)) { console.log("  ✗ fleet-deps commits with GITHUB_TOKEN and never asks for the Discovery deploy"); discovery++; }
+  if (!discovery) console.log("Discovery refreshes daily, and every source file starts a deploy");
+}
+
+process.exit(failures || unsafe || discovery ? 1 : 0);
