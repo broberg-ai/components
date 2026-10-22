@@ -1,0 +1,27 @@
+name: image-hygiene-selftest
+# F105.1 — the engine's decision and its load-bearing shape, tested on every
+# change to it. The engine itself is image-hygiene.yml (workflow_call).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/image-hygiene-decide.mjs"
+      - "scripts/test-image-hygiene.mjs"
+      - ".github/workflows/image-hygiene.yml"
+      - ".github/workflows/image-hygiene-selftest.yml"
+  pull_request:
+    paths:
+      - "scripts/image-hygiene-decide.mjs"
+      - ".github/workflows/image-hygiene.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scripts/test-image-hygiene.mjs

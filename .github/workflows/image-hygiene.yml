@@ -1,0 +1,141 @@
+name: image-hygiene
+# F105.1 (cardmem-F401.1) — rebuild a Fly app with no cache, scan the image,
+# deploy exactly that image, report to cardmem. Christian 23/10 2026: «Det
+# handler primært om sikkerhed og concurency for mig» and «lad job primært køre
+# om natten (DK tid) mellem 02-05 AM».
+#
+# A repo uses it with a ~10-line .github/workflows/hygiene.yml:
+#
+#   name: hygiene
+#   on:
+#     workflow_dispatch:
+#       inputs:
+#         reason: { type: choice, options: [nightly, manual], default: manual }
+#   jobs:
+#     hygiene:
+#       uses: broberg-ai/components/.github/workflows/image-hygiene.yml@v1
+#       with: { app: my-fly-app, reason: "${{ inputs.reason }}" }
+#       secrets: inherit
+#
+# SECURITY: the only Fly credential this workflow ever sees is the CALLING
+# repo's own FLY_API_TOKEN (deploy-scoped to that one app). Nothing central
+# holds keys to more than one app; cardmem's night scheduler only starts the
+# caller's workflow_dispatch.
+#
+# DECISION (scripts/image-hygiene-decide.mjs): a CRITICAL vulnerability that
+# HAS a fix blocks the deploy. A critical without a fix is deployed anyway (the
+# new image is no worse than the running one) and the run ends red.
+on:
+  workflow_call:
+    inputs:
+      app: { type: string, required: true, description: "Fly app name" }
+      config: { type: string, required: false, default: "fly.toml", description: "Path to fly.toml in the calling repo" }
+      dockerfile: { type: string, required: false, default: "", description: "Dockerfile path (empty = fly.toml decides)" }
+      context: { type: string, required: false, default: ".", description: "Build context" }
+      reason: { type: string, required: false, default: "manual", description: "nightly | manual" }
+      engine-ref: { type: string, required: false, default: "v1", description: "Ref of broberg-ai/components the decision script is read from" }
+    secrets:
+      FLY_API_TOKEN: { required: true }
+
+# One run per app at a time — a nightly and a manual run never race.
+concurrency:
+  group: image-hygiene-${{ inputs.app }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      APP: ${{ inputs.app }}
+      LABEL: hygiene-${{ github.sha }}-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: The engine's decision script
+        uses: actions/checkout@v4
+        with:
+          repository: broberg-ai/components
+          ref: ${{ inputs.engine-ref }}
+          path: .image-hygiene-engine
+          sparse-checkout: scripts/image-hygiene-decide.mjs
+          sparse-checkout-cone-mode: false
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Rebuild with no cache — build and push, do NOT deploy yet
+        run: |
+          DF=""; [ -n "${{ inputs.dockerfile }}" ] && DF="--dockerfile ${{ inputs.dockerfile }}"
+          flyctl deploy "${{ inputs.context }}" -a "$APP" -c "${{ inputs.config }}" $DF \
+            --build-only --push --no-cache --remote-only --image-label "$LABEL"
+          echo "IMAGE=registry.fly.io/$APP:$LABEL" >> "$GITHUB_ENV"
+
+      - name: Scan that image (Trivy)
+        run: |
+          flyctl auth docker
+          docker pull "$IMAGE"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" \
+            aquasec/trivy:0.57.1 image --format json --output /out/trivy.json \
+            --severity CRITICAL,HIGH --quiet "$IMAGE" || true
+
+      - name: Decide
+        id: decide
+        run: |
+          node .image-hygiene-engine/scripts/image-hygiene-decide.mjs trivy.json | tee decision.json
+          echo "deploy=$(node -p 'require("./decision.json").deploy')" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy exactly the scanned image
+        id: deploy
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          flyctl deploy -a "$APP" -c "${{ inputs.config }}" --image "$IMAGE" --remote-only
+          echo "release=$(flyctl releases -a "$APP" --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);console.log((r[0]&&(r[0].Version??r[0].version))??"")})')" >> "$GITHUB_OUTPUT"
+
+      - name: Report (cardmem contract)
+        if: always()
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          FLY_RELEASE: ${{ steps.deploy.outputs.release }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            let d = {}; try { d = JSON.parse(fs.readFileSync("decision.json", "utf8")); } catch { d = { status: "failed", error: "no decision" }; }
+            // A deploy that was attempted and failed overrides an ok decision.
+            const status = process.env.DEPLOY_OUTCOME === "failure" ? "failed" : d.status;
+            const report = {
+              pipeline: "image-hygiene",
+              status,
+              reason: process.env.REASON,
+              app: process.env.APP,
+              detail: {
+                critical_fixable: d.critical_fixable ?? null,
+                critical_unfixable: d.critical_unfixable ?? null,
+                high: d.high ?? null,
+                fly_release: process.env.FLY_RELEASE || null,
+                sha: process.env.GITHUB_SHA,
+              },
+            };
+            fs.writeFileSync("status.json", JSON.stringify(report, null, 2));
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `### image-hygiene · ${report.app} · ${status}\n\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\`\n`);
+            console.log(JSON.stringify(report));
+          '
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: image-hygiene-status, path: status.json }
+
+      - name: End red when the image carries criticals or the deploy did not happen
+        if: always()
+        run: |
+          node -e '
+            const r = require("./status.json");
+            if (r.status !== "ok" || (r.detail.critical_unfixable ?? 0) > 0) {
+              console.log(`::error::image-hygiene ${r.app}: status ${r.status}, criticals with fix ${r.detail.critical_fixable}, without fix ${r.detail.critical_unfixable}`);
+              process.exit(1);
+            }
+          '
