@@ -92,6 +92,40 @@ Either way, an explicit `setLocale()` from a language switcher always wins and
 is persisted — detection only ever decides the **first** render, before the user
 has chosen.
 
+## On the server (Next server components, Hono, Bun) — 0.2.0
+
+**Do not use the shared instance (`createI18n()` → `t()`/`getLocale()`) on the
+server.** It is one locale per process; with requests in different languages
+running at the same time, one user's language ends up on another user's page.
+Use one of these instead — neither touches `globalThis`:
+
+```ts
+import { translate, createI18n } from "@broberg/i18n";
+
+// A pure function: pass the request's locale every call.
+translate(messages, locale, "docs.count", { count: 3 }, { fallbackLocale: "da" });
+
+// Or a private instance per request, same API as in the browser.
+const i18n = createI18n({ locales: ["da", "en"], messages, locale: requestLocale, singleton: false });
+i18n.t("hello", { name });
+```
+
+## Plurals — 0.2.0
+
+A value can be a plural entry; the form is chosen with `Intl.PluralRules` for
+the locale, from `count`. Missing form → `other`. Works in `t()` and `translate()`.
+
+```ts
+const messages = {
+  da: { docs: { one: "{count} dokument", other: "{count} dokumenter" } },
+  pl: { docs: { one: "{count} dokument", few: "{count} dokumenty", many: "{count} dokumentów", other: "{count} dokumentu" } },
+};
+translate(messages, "pl", "docs", { count: 5 }); // "5 dokumentów"
+```
+
+Categories: `zero`, `one`, `two`, `few`, `many`, `other` (CLDR). An object is
+read as a plural entry only when it has a string `other` and no other keys.
+
 ## API
 
 ```ts

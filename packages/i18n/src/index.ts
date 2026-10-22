@@ -45,6 +45,18 @@ export interface I18nConfig {
    * you almost certainly want `detect: false`. See the README.
    */
   detect?: boolean;
+  /**
+   * F019.9 — start in this locale instead of detecting one. For a per-request
+   * instance on the server, where the request (cookie, URL, header) decides.
+   */
+  locale?: string;
+  /**
+   * F019.9 — `false` returns a fresh, private instance instead of the shared
+   * `globalThis` one. Use it on the SERVER: the shared instance is one locale
+   * per process, so with concurrent requests one user's language leaks into
+   * another user's page. Default `true` (the browser behaviour, unchanged).
+   */
+  singleton?: boolean;
 }
 
 export interface I18n {
@@ -71,19 +83,65 @@ function safeStorage(injected?: StorageLike): StorageLike | null {
   return null;
 }
 
-function lookup(dict: Dict | undefined, path: string): string | undefined {
+function resolve(dict: Dict | undefined, path: string): string | Dict | undefined {
   if (!dict) return undefined;
   let node: string | Dict | undefined = dict;
   for (const part of path.split(".")) {
     if (typeof node !== "object" || node === null) return undefined;
     node = (node as Dict)[part];
   }
-  return typeof node === "string" ? node : undefined;
+  return node;
+}
+
+const PLURAL_CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);
+
+/** A node is a plural entry when it has a string `other` and every key is a CLDR plural category. */
+function isPlural(node: string | Dict | undefined): node is Dict {
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    typeof node.other === "string" &&
+    Object.keys(node).every((k) => PLURAL_CATEGORIES.has(k))
+  );
+}
+
+/** Pick the string for `locale` from a node: a plain string, or a plural entry chosen by `count`. */
+function pick(node: string | Dict | undefined, locale: string, count: unknown): string | undefined {
+  if (typeof node === "string") return node;
+  if (!isPlural(node)) return undefined;
+  if (typeof count !== "number") return node.other as string;
+  const form = node[new Intl.PluralRules(locale).select(count)];
+  return typeof form === "string" ? form : (node.other as string);
 }
 
 function interpolate(template: string, vars?: Record<string, string | number>): string {
   if (!vars) return template;
   return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+}
+
+/**
+ * F019.9 — translate without any state: no singleton, no `globalThis`, no
+ * module variable. Safe on the server, where many requests in different
+ * languages run at the same time — pass the request's locale every call.
+ *
+ * Resolves `key` (dot-path) in `locale`, then `fallbackLocale`, then returns
+ * the raw key; interpolates `{var}`. A value may be a plural entry
+ * `{ zero?, one?, two?, few?, many?, other }`, chosen with
+ * `Intl.PluralRules(locale)` from `vars.count` (falls back to `other`).
+ */
+export function translate(
+  messages: Record<string, Dict>,
+  locale: string,
+  key: string,
+  vars?: Record<string, string | number>,
+  opts?: { fallbackLocale?: string },
+): string {
+  const count = vars?.count;
+  const own = pick(resolve(messages[locale], key), locale, count);
+  if (own !== undefined) return interpolate(own, vars);
+  const fb = opts?.fallbackLocale;
+  const fallback = fb && fb !== locale ? pick(resolve(messages[fb], key), fb, count) : undefined;
+  return interpolate(fallback ?? key, vars);
 }
 
 const REGISTRY_KEY = "__broberg_i18n__";
@@ -121,7 +179,7 @@ function buildI18n(config: I18nConfig): I18n {
     return defaultLocale;
   }
 
-  let current = detectInitial();
+  let current = config.locale && locales.includes(config.locale) ? config.locale : detectInitial();
   syncHtmlLang(current);
 
   return {
@@ -139,8 +197,7 @@ function buildI18n(config: I18nConfig): I18n {
       return () => listeners.delete(listener);
     },
     t(key: string, vars?: Record<string, string | number>) {
-      const hit = lookup(messages[current], key) ?? lookup(messages[fallbackLocale], key);
-      return interpolate(hit ?? key, vars);
+      return translate(messages, current, key, vars, { fallbackLocale });
     },
     bilingual(text: BilingualText | string) {
       if (typeof text === "string") return text;
@@ -157,6 +214,7 @@ function buildI18n(config: I18nConfig): I18n {
  * copies — so the active locale can never desync under pnpm hoisting.
  */
 export function createI18n(config: I18nConfig): I18n {
+  if (config.singleton === false) return buildI18n(config);
   const key = config.storageKey ?? "broberg-locale";
   const g = globalThis as unknown as { [REGISTRY_KEY]?: Map<string, I18n> };
   const registry = (g[REGISTRY_KEY] ??= new Map<string, I18n>());
