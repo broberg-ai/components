@@ -11,7 +11,15 @@ import { npmMetaMd } from "./npm-meta.mjs";
 // F038.31 — written by build-inventory.mjs from ONE registry fetch (run it first).
 let NPM_META = {};
 try { NPM_META = JSON.parse(readMetaFile(new URL("../docs/npm-meta.json", import.meta.url), "utf8")); } catch (e) { console.warn("npm-meta.json missing — run build-inventory.mjs first; llms.txt ships without npm facts:", e.message); }
-const metaFor = (pkg) => (NPM_META[pkg] ? ` · ${npmMetaMd(NPM_META[pkg])}` : "");
+// F082.5 — weekly dependency check (data/dependency-health.json).
+let DEP_HEALTH = { packages: {} };
+try { DEP_HEALTH = JSON.parse(readMetaFile(new URL("../data/dependency-health.json", import.meta.url), "utf8")); } catch (e) { console.warn("dependency-health.json missing — llms.txt ships without dependency status:", e.message); }
+const depFor = (pkg) => {
+  const d = DEP_HEALTH.packages?.[pkg];
+  if (!d) return "";
+  return ` · afhængigheder: ${d.verdict}${d.verdict === "sårbar" || d.verdict === "mindre fund" ? ` (kritisk ${d.prod.critical}, høj ${d.prod.high}, middel ${d.prod.moderate})` : ""}`;
+};
+const metaFor = (pkg) => (NPM_META[pkg] ? ` · ${npmMetaMd(NPM_META[pkg])}` : "") + depFor(pkg);
 
 const esc = (s) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

@@ -263,7 +263,7 @@ jobs:
           fi
 
           echo "$CHANGED" | sed 's/^/    /'
-          if echo "$CHANGED" | grep -Eq '^(scripts/inventory-data\.mjs|scripts/build-.*\.mjs|scripts/npm-latest\.mjs|scripts/npm-meta\.mjs|scripts/site-chrome\.mjs|scripts/favicon\.mjs|scripts/fleet-graph\.mjs|apps/discovery/|docs/(inventory|onboarding)\.html|docs/llms.*\.txt|docs/npm-meta\.json|data/fleet-deps\.json|\.github/workflows/(inventory-fresh|fly-server-deploy)\.yml)'; then
+          if echo "$CHANGED" | grep -Eq '^(scripts/inventory-data\.mjs|scripts/build-.*\.mjs|scripts/npm-latest\.mjs|scripts/npm-meta\.mjs|scripts/site-chrome\.mjs|scripts/favicon\.mjs|scripts/fleet-graph\.mjs|apps/discovery/|docs/(inventory|onboarding)\.html|docs/llms.*\.txt|docs/npm-meta\.json|data/fleet-deps\.json|data/dependency-health\.json|\.github/workflows/(inventory-fresh|fly-server-deploy)\.yml)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"

@@ -1,0 +1,1105 @@
+{
+ "checked_at": "2026-10-22T23:17:52.069Z",
+ "packages": {
+  "@broberg/apikey": {
+   "version": "0.3.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 3,
+    "high": 2,
+    "moderate": 9,
+    "low": 1
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/app-shell": {
+   "version": "0.24.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 2,
+    "high": 4,
+    "moderate": 8,
+    "low": 1
+   },
+   "outdated": {
+    "total": 8,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/auth": {
+   "version": "0.7.1",
+   "status": "ok",
+   "prod": {
+    "critical": 5,
+    "high": 14,
+    "moderate": 11,
+    "low": 1
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 9,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "sårbar"
+  },
+  "@broberg/bodymap": {
+   "version": "0.12.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 11,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/chat": {
+   "version": "0.6.3",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/cmdk": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/config": {
+   "version": "0.2.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/consent-cookie": {
+   "version": "0.7.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/cron": {
+   "version": "0.2.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 8,
+    "moderate": 2,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/data-table": {
+   "version": "0.3.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 6,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/deploy-core": {
+   "version": "0.6.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/device-stats": {
+   "version": "0.3.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/editor": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 12,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/event-log": {
+   "version": "0.3.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/feature-stats": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/forms-turnstile": {
+   "version": "0.4.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 8,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/gravatar": {
+   "version": "0.2.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 7,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/greppable": {
+   "version": "0.3.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/http": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/i18n": {
+   "version": "0.3.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/livesync": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/logger": {
+   "version": "0.2.3",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 6,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/mail": {
+   "version": "0.16.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/mail-core": {
+   "version": "0.9.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/mail-identity": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/mail-templates": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/mcp": {
+   "version": "0.10.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 1,
+    "high": 11,
+    "moderate": 13,
+    "low": 0
+   },
+   "outdated": {
+    "total": 8,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/media": {
+   "version": "0.6.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/media-transform": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 2,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "verdict": "sårbar"
+  },
+  "@broberg/notifications": {
+   "version": "0.4.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 10,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/notify": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/pwa": {
+   "version": "0.7.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 1,
+    "high": 2,
+    "moderate": 8,
+    "low": 1
+   },
+   "outdated": {
+    "total": 11,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/realtime": {
+   "version": "0.1.2",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/seal": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/secret-scan": {
+   "version": "0.14.2",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/seti-client": {
+   "version": "0.4.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/seti-server": {
+   "version": "0.2.5",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/settings": {
+   "version": "0.2.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 6,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/sms": {
+   "version": "0.12.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/soundkit": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 11,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/speech-dictionary": {
+   "version": "0.1.3",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/sso": {
+   "version": "0.21.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 3,
+    "low": 0
+   },
+   "outdated": {
+    "total": 6,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/stripe": {
+   "version": "0.4.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/tenant": {
+   "version": "0.2.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/theme": {
+   "version": "0.13.3",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 1,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 10,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/ui-controls-core": {
+   "version": "0.2.3",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/voice": {
+   "version": "0.2.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 6,
+    "shipped": 2,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/web-clipper": {
+   "version": "0.26.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 10,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/webmcp": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  },
+  "@broberg/webpush": {
+   "version": "0.6.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 3,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "verdict": "OK"
+  }
+ }
+}

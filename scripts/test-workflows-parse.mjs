@@ -155,7 +155,7 @@ let discovery = 0;
   }
   const m = text.match(/grep -Eq '([^']+)'/);
   const re = m ? new RegExp(m[1]) : null;
-  for (const path of ["scripts/site-chrome.mjs", "scripts/npm-meta.mjs", "docs/npm-meta.json", "data/fleet-deps.json", "scripts/fleet-graph.mjs", "scripts/favicon.mjs"]) {
+  for (const path of ["scripts/site-chrome.mjs", "scripts/npm-meta.mjs", "docs/npm-meta.json", "data/fleet-deps.json", "data/dependency-health.json", "scripts/fleet-graph.mjs", "scripts/favicon.mjs"]) {
     if (!re || !re.test(path)) { console.log(`  ✗ a change to ${path} would not deploy Discovery`); discovery++; }
   }
   const fleet = readFileSync(new URL("../.github/workflows/fleet-deps.yml", import.meta.url), "utf8");

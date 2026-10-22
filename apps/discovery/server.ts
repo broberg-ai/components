@@ -80,6 +80,10 @@ const components = LAYERS.flatMap((L) =>
 let NPM_META: Record<string, { publishedAt: string | null; provenance: "yes" | "no" | "unknown" }> = {};
 try { NPM_META = JSON.parse(readFileSync(new URL("../../docs/npm-meta.json", import.meta.url), "utf8")); } catch (e) { console.warn("[discovery] docs/npm-meta.json unreadable — every package reads provenance \"unknown\":", e instanceof Error ? e.message : e); }
 
+// F082.5 — weekly dependency check, written by .github/workflows/dependency-health.yml.
+let DEP_HEALTH: { checked_at: string; packages: Record<string, { verdict: string; prod: { critical: number; high: number; moderate: number; low: number } }> } = { checked_at: "", packages: {} };
+try { DEP_HEALTH = JSON.parse(readFileSync(new URL("../../data/dependency-health.json", import.meta.url), "utf8")); } catch (e) { console.warn("[discovery] data/dependency-health.json unreadable — every package reads «ikke tjekket»:", e instanceof Error ? e.message : e); }
+
 // The shipped npm packages (the "what can I install right now" view).
 const packages = components
   .filter((c) => c.package && c.status === "shipped")
@@ -496,6 +500,9 @@ app.get("/packages", (c) => {
       owner: p.owner ?? null,
       install: p.install,
       consumers: consumersOf(fleetScan, p.name),
+      deps: DEP_HEALTH.packages?.[p.name as string]
+        ? { ...DEP_HEALTH.packages[p.name as string], checkedAt: DEP_HEALTH.checked_at }
+        : null,
     }));
   return c.html(withConsent(renderPackagesPage(rows, (fleetScan as { scanned_at?: string })?.scanned_at ?? null)));
 });
