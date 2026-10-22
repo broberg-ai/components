@@ -25,6 +25,7 @@ import { embeddedError, type EmbeddedClient, type EmbeddedFlow, type EmbeddedPas
 import { decodeProtectedHeader, jwtVerify, type JWTPayload } from "jose";
 import { SsoConfigError, type SsoConfig } from "./config.js";
 import { createJwksCache, type JwksCache } from "./jwks.js";
+import { flyOidcOverSocket } from "./fetch-ticket.js";
 
 /* ── discovery ───────────────────────────────────────────────────────────── */
 
@@ -374,7 +375,12 @@ export interface CreateSsoClientOptions {
   timeoutMs?: number;
   /** Passed through to the key cache; see jwks.ts for why there is a floor. */
   minRefetchIntervalMs?: number;
+  /** components-F084.181 — fetch a Fly OIDC token for `aud`. Default: Fly's /.fly/api socket. */
+  flyOidc?: (aud: string) => Promise<string>;
 }
+
+/** BID F084.180's assertion type for a Fly OIDC token used as client authentication. */
+export const FLY_CLIENT_ASSERTION_TYPE = "urn:broberg:params:oauth:client-assertion-type:fly-oidc";
 
 /**
  * `invalid_client` is returned for two OPPOSITE mistakes, and the issuer cannot
@@ -467,6 +473,24 @@ export function createSsoClient(
 ): SsoClient {
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? 10_000;
+  const flyOidc = options.flyOidc ?? flyOidcOverSocket;
+
+  /**
+   * components-F084.181 — the client-authentication fields for a call to the
+   * token endpoint. With clientAuth "fly" the secret is NEVER sent here, even if
+   * one is configured: a failed Fly token fails the login with a named cause.
+   */
+  async function tokenEndpointAuth(tokenEndpoint: string): Promise<Record<string, string>> {
+    if (config.clientAuth !== "fly") return config.clientSecret ? { client_secret: config.clientSecret } : {};
+    let assertion: string;
+    try {
+      assertion = await flyOidc(tokenEndpoint);
+    } catch (e) {
+      throw new SsoError(`fly client assertion unavailable: could not get a Fly OIDC token for ${tokenEndpoint} — ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (!assertion) throw new SsoError(`fly client assertion unavailable: Fly returned an empty token for ${tokenEndpoint}`);
+    return { client_assertion_type: FLY_CLIENT_ASSERTION_TYPE, client_assertion: assertion };
+  }
 
   /** POST to one of BID's app-API routes: bounded in time, JSON in and out, loud on failure. */
   async function appPost(path: string, bearer: string, payload: unknown, what: string): Promise<unknown> {
@@ -869,7 +893,7 @@ export function createSsoClient(
         // ALWAYS sent, secret or not. See SsoConfig.clientSecret: the two
         // prove different things, so a confidential client keeps PKCE.
         code_verifier: codeVerifier,
-        ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+        ...(await tokenEndpointAuth(token_endpoint)),
       }),
     });
 
@@ -1119,7 +1143,7 @@ export function createSsoClient(
           grant_type: "refresh_token",
           refresh_token: refreshToken,
           client_id: config.clientId,
-          ...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+          ...(await tokenEndpointAuth(token_endpoint)),
         }),
       });
       // Status first, parse second (the F084.52 order). The message names the

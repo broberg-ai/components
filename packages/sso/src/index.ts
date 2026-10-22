@@ -17,6 +17,7 @@ export {
 
 export {
   createSsoClient,
+  FLY_CLIENT_ASSERTION_TYPE,
   SsoError,
   type SsoClient,
   type SsoClaims,

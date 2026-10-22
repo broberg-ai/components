@@ -87,6 +87,12 @@ export interface BackchannelOptions {
 
 export interface SsoRoutesOptions {
   /**
+   * components-F084.181 — "fly": prove this app at BID's token endpoint with its
+   * Fly identity instead of a client_secret (see SsoConfig.clientAuth). Overrides
+   * SSO_CLIENT_AUTH. Ignored when you pass your own `client`.
+   */
+  clientAuth?: "secret" | "fly";
+  /**
    * What «Log ud» in the app does (F084.152).
    * "app" (default): end THIS app's session and send the user to BID's login
    *   dialog (prompt=login). They stay signed in to BID — its own «Log ud» is
@@ -212,7 +218,8 @@ function safeReturnTo(raw: string | undefined, fallback: string): string {
 }
 
 export function ssoRoutes(options: SsoRoutesOptions = {}) {
-  const config = options.config ?? loadSsoConfig();
+  const baseConfig = options.config ?? loadSsoConfig();
+  const config = options.clientAuth ? { ...baseConfig, clientAuth: options.clientAuth } : baseConfig;
   const client = options.client ?? createSsoClient(config);
   const loginPath = options.loginPath ?? "/auth";
   const defaultReturnTo = options.defaultReturnTo ?? "/";

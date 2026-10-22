@@ -55,6 +55,18 @@ export interface SsoConfig {
    * the other — and there is a test that fails if anyone makes it one.
    */
   clientSecret?: string;
+  /**
+   * components-F084.181 — how this app proves itself at BID's token endpoint.
+   * "secret" (default): `client_secret` as above, exactly as before.
+   * "fly": no secret. The app fetches an OIDC token from Fly's machine API with
+   * `aud` = BID's token endpoint and sends it as a `client_assertion`
+   * (BID F084.180). BID must have this client registered as `fly_oidc`, bound to
+   * this Fly org and app. If the Fly token cannot be fetched the login FAILS —
+   * there is no fallback to `clientSecret` at the token endpoint.
+   * `clientSecret` is still used where BID needs it outside the token endpoint
+   * (introspection, the embedded login).
+   */
+  clientAuth?: "secret" | "fly";
 }
 
 /**
@@ -69,6 +81,13 @@ function required(env: NodeJS.ProcessEnv, name: string, hint: string): string {
     throw new SsoConfigError(`${name} is not set (or is blank). ${hint}`);
   }
   return raw.trim();
+}
+
+function parseClientAuth(raw: string | undefined): "secret" | "fly" | undefined {
+  const v = raw?.trim();
+  if (!v) return undefined;
+  if (v === "secret" || v === "fly") return v;
+  throw new SsoConfigError(`SSO_CLIENT_AUTH must be "secret" or "fly" (got ${JSON.stringify(raw)}).`);
 }
 
 /** Seconds in a week — the fleet default from F084.7. */
@@ -139,5 +158,6 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
     sessionMaxAge,
     postLogoutRedirectUri: env.SSO_POST_LOGOUT_REDIRECT_URI?.trim() || undefined,
     clientSecret: env.SSO_CLIENT_SECRET?.trim() || undefined,
+    clientAuth: parseClientAuth(env.SSO_CLIENT_AUTH),
   };
 }

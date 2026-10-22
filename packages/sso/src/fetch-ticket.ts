@@ -85,7 +85,8 @@ export interface TicketClient {
   authHeaders(opts: { audience: string; scope?: string; method: string; url: string }): Promise<TicketAuthHeaders>;
 }
 
-function flyOidcOverSocket(aud: string): Promise<string> {
+/** Fly's machine API: an OIDC token for `aud`, over the /.fly/api unix socket. */
+export function flyOidcOverSocket(aud: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ aud });
     const req = request(

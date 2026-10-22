@@ -696,3 +696,26 @@ const { token, exp } = await exchangeUserToken({
   (the user's BID login has ended — «log ud» means log out), `client_mismatch` (the token belongs to another app),
   `subject_is_ticket`, `session_ended`, `no_rule_for_audience`, `scope_not_allowed`, `client_unauthenticated`.
 - BID issues nothing without a rule for (your app, the receiver). Ask broberg-id for the rule.
+
+## Login without a client secret — `clientAuth: "fly"` (0.21.0, F084.181, BID F084.180)
+
+An app on Fly can prove itself at BID's token endpoint with its Fly identity instead of a
+`client_secret`. Nothing to store, nothing to rotate, nothing to leak.
+
+```ts
+const sso = ssoRoutes({ clientAuth: "fly", tokenStore });   // or SSO_CLIENT_AUTH=fly
+```
+
+- At the code exchange (and at refresh) the app asks Fly's machine API for an OIDC token with
+  `aud` = BID's **token endpoint** (not the issuer, so a ticket token cannot be replayed as a login
+  proof) and sends it as `client_assertion` with
+  `client_assertion_type=urn:broberg:params:oauth:client-assertion-type:fly-oidc`. PKCE is unchanged.
+- **No fallback.** With `"fly"`, `client_secret` is never sent to the token endpoint, even if one is
+  configured. If Fly cannot give a token, the login fails: the browser gets one generic 500, the log
+  gets `fly client assertion unavailable: …`.
+- **BID must be switched first**: the client registered as `token_endpoint_auth_method: fly_oidc`,
+  bound to your Fly org and app. Ask broberg-id. Switch the app, measure one login, then BID deletes
+  the secret.
+- `clientSecret` is still what introspection and the embedded login use — those are not the token
+  endpoint's code exchange.
+- Without the option nothing changes: the 0.20.0 request, byte for byte.
