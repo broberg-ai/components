@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { ssoRoutes, getSession } from "@broberg/sso/hono";
-import { loadSsoConfig, createTicketVerifier, JwksUnavailableError, type TicketVerifier, type TicketPrincipal } from "@broberg/sso";
+import { loadSsoConfig, createTicketVerifier, createTicketClient, JwksUnavailableError, type TicketVerifier, type TicketPrincipal } from "@broberg/sso";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createLogger } from "@broberg/logger";
@@ -31,6 +31,8 @@ import { getEnrollStore, type Role } from "./enroll";
 // edit: 503s until GITHUB_WRITE_TOKEN + SPEECH_DICT_EDIT_KEY are configured).
 import { readDictionary, editDictionary, authenticateEditor, type EditDiff } from "./speech-dictionary";
 import { webmcpLab } from "./webmcp-lab";
+// F038.29 — who logs in with BID tickets, read live from BID (ship dark until wired).
+import { createTicketRegistry, renderTicketRegistryPage } from "./ticket-registry";
 
 const VERSION = "0.3.0";
 
@@ -278,6 +280,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/infra", description: "infra platforms we run on + best-practice tips & gotchas", example: "/api/infra" },
     { method: "GET", path: "/api/infra/:id", description: "one platform with its full tips + long-form notes", example: "/api/infra/fly" },
     { method: "GET", path: "/api/fleet", description: "the fleet roster — who builds & consumes the shared library", example: "/api/fleet" },
+    { method: "GET", path: "/api/tickets", description: "who logs in with BID tickets (F087) — read live from Broberg ID; status ok | not_configured | error, never an empty list as success. Human page: /tickets", example: "/api/tickets" },
     { method: "GET", path: "/api/layers", description: "the inventory layers (L0 Rails … L4 Capstone, SDK)", example: "/api/layers" },
     { method: "GET", path: "/api/stats", description: "totals", example: "/api/stats" },
     { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
@@ -505,6 +508,26 @@ app.get("/api/fleet", (c) =>
     fleet: fleetRows,
   }),
 );
+
+// F038.29 — the BID ticket registry. BID is the only source; Discovery asks it
+// with its OWN service ticket (Fly workload identity via @broberg/sso). Dark until
+// BID_TICKET_REGISTRY_URL is set: the page then says so, never an empty list.
+let ticketRegistry = createTicketRegistry({
+  url: process.env.BID_TICKET_REGISTRY_URL,
+  getToken: process.env.BID_TICKET_REGISTRY_URL
+    ? (() => {
+        const client = createTicketClient({ issuer: process.env.BID_ISSUER });
+        return () => client.get({
+          audience: process.env.BID_TICKET_REGISTRY_AUDIENCE ?? "broberg-id",
+          scope: process.env.BID_TICKET_REGISTRY_SCOPE ?? "tickets:registry:read",
+        });
+      })()
+    : undefined,
+});
+/** Tests swap in a registry pointed at a fake BID. */
+export const setTicketRegistryForTests = (r: ReturnType<typeof createTicketRegistry>) => { ticketRegistry = r; };
+app.get("/api/tickets", async (c) => c.json(await ticketRegistry.get()));
+app.get("/tickets", async (c) => c.html(withConsent(renderTicketRegistryPage(await ticketRegistry.get()))));
 
 app.get("/api/layers", (c) => c.json({ count: layers.length, layers }));
 

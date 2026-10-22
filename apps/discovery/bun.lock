@@ -7,7 +7,7 @@
       "dependencies": {
         "@broberg/consent-cookie": "0.6.0",
         "@broberg/logger": "^0.1.1",
-        "@broberg/sso": "0.13.0",
+        "@broberg/sso": "0.20.0",
         "@libsql/client": "^0.17.3",
         "hono": "^4.6.14",
       },
@@ -25,7 +25,7 @@
 
     "@broberg/secret-scan": ["@broberg/secret-scan@0.1.8", "", {}, "sha512-tmtVyPvpDzQAkzpycOMhg0VOktsZY2gsOe6jpvazh97o1FyGAeyhUQOpRteKl5JlA7onLk1q/neqvM4qRT7U/w=="],
 
-    "@broberg/sso": ["@broberg/sso@0.13.0", "", { "dependencies": { "jose": "^6" }, "peerDependencies": { "hono": "^4" }, "optionalPeers": ["hono"] }, "sha512-6HtjUHHU69zheXzhod2Od8NHDKBAZb+3K3dp14xSiLjrFjsi9f+wXmeGW2DP5ELJDaOmQS75xLv/eQOZnlk13A=="],
+    "@broberg/sso": ["@broberg/sso@0.20.0", "", { "dependencies": { "jose": "^6" }, "peerDependencies": { "hono": "^4" }, "optionalPeers": ["hono"] }, "sha512-XRPGiWYeJt3kXSA6X2V0s23tyc4Pvkf5E4L8AsSAEuBk6k8g/ppnCdxCuYLRQtFBLlxwei5gSOAC3PVRCyTn7g=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.21.5", "", { "os": "aix", "cpu": "ppc64" }, "sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ=="],
 
