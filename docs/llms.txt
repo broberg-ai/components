@@ -73,7 +73,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify`
 - **@broberg/lens-engine** v0.14.0 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-engine`
 - **@broberg/lens-client** v0.1.2 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-client`
-- **@broberg/lens-daemon** v0.1.28 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-daemon`
+- **@broberg/lens-daemon** v0.1.30 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-daemon`
 - **@broberg/lens-svg** v0.1.0 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-svg`
 - **@broberg/webmcp** v0.1.0 — WebMCP for the fleet (epic F098): letting a customer's own AI find and use a site's booking, shop or order tools. `npm i @broberg/webmcp`
 - **@broberg/web-clipper** v0.26.0 — The fleet's one web-clipper base (epic F099, Christian's build order 12/10): Trail Web Clipper and Jam Clipper build on it, no forks. `npm i @broberg/web-clipper`
@@ -104,13 +104,13 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk`
-- **@broberg/ai-sdk** v0.64.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
+- **@broberg/ai-sdk** v0.64.2 — The fleet LLM SDK. `npm i @broberg/ai-sdk`
 - **@upmetrics/sdk** v0.11.2 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client`
 - **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts`
 - **@broberg/complimenta-sdk** v0.3.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk`
-- **@broberg/cms-inline-edit** v0.12.0 — Inline editing on live @webhouse/cms-sites including structural LIST editing (add/remove items), plus self-healing page links. `npm i @broberg/cms-inline-edit`
+- **@broberg/cms-inline-edit** v0.13.0 — Inline editing on live @webhouse/cms-sites including structural LIST editing (add/remove items), plus self-healing page links. `npm i @broberg/cms-inline-edit`
 - **@webhouse/cms** v0.4.27 — @webhouse/cms/enrich. `npm i @webhouse/cms`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client`
 
