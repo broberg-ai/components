@@ -250,6 +250,24 @@ export interface AuditTrail<Tx> {
    * propagate so the transaction rolls back.
    */
   appendIn(tx: Tx, input: Omit<LogInput, "layer">): Promise<LogEntry>;
+  /**
+   * F011.8 — the same, for a host whose transaction callback is SYNCHRONOUS
+   * (Drizzle on bun:sqlite, better-sqlite3). A failed write throws right here,
+   * synchronously, so the callback throws and the transaction rolls back.
+   * `appendIn` cannot do that: being async, it turns the throw into a rejected
+   * promise, the sync callback returns normally, and the change COMMITS without
+   * its audit row (measured by beacon, 22/10). Throws `AuditSyncError` if
+   * `appendTx` returns a promise — a sync transaction cannot wait for it.
+   */
+  appendInSync(tx: Tx, input: Omit<LogInput, "layer">): LogEntry;
+}
+
+/** appendInSync was given an appendTx that returned a promise. */
+export class AuditSyncError extends Error {
+  constructor() {
+    super("appendInSync: appendTx returned a promise — a synchronous transaction cannot wait for it. Use appendIn, or make appendTx synchronous.");
+    this.name = "AuditSyncError";
+  }
 }
 
 export function createAuditTrail<Tx>(options: AuditTrailOptions<Tx>): AuditTrail<Tx> {
@@ -257,6 +275,16 @@ export function createAuditTrail<Tx>(options: AuditTrailOptions<Tx>): AuditTrail
     async appendIn(tx, input) {
       const entry = makeLogEntry({ ...input, layer: "audit" });
       await options.appendTx(tx, entry);
+      return entry;
+    },
+    appendInSync(tx, input) {
+      const entry = makeLogEntry({ ...input, layer: "audit" });
+      const out = options.appendTx(tx, entry) as unknown;
+      if (out && typeof (out as { then?: unknown }).then === "function") {
+        // Do not leave the abandoned write's rejection unhandled.
+        (out as Promise<unknown>).catch(() => {});
+        throw new AuditSyncError();
+      }
       return entry;
     },
   };

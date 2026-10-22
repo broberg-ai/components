@@ -1,7 +1,7 @@
 // F011.7 — an audit trail written inside the caller's transaction: a failed
 // audit write fails the change. The fire-and-forget log is unchanged.
 import { describe, expect, it } from "vitest";
-import { createAuditTrail, createEventLog, type LogEntry, type LogStore } from "../src/index.js";
+import { AuditSyncError, createAuditTrail, createEventLog, type LogEntry, type LogStore } from "../src/index.js";
 
 /** A tiny fake database with all-or-nothing transactions. */
 function fakeDb() {
@@ -72,5 +72,68 @@ describe("the fire-and-forget log is unchanged", () => {
     process.off("unhandledRejection", onUnhandled);
     expect(errors.map((e) => (e as Error).message)).toEqual(["sync boom", "async boom"]);
     expect(unhandled).toEqual([]);
+  });
+});
+
+// F011.8 — beacon (22/10): bun:sqlite's db.transaction() callback is synchronous.
+describe("createAuditTrail.appendInSync", () => {
+  /** A fake database whose transactions are SYNCHRONOUS, like bun:sqlite. */
+  function fakeSyncDb() {
+    const rows = { docs: [] as string[], audit: [] as LogEntry[] };
+    type Tx = { docs: string[]; audit: LogEntry[] };
+    function transaction<T>(fn: (tx: Tx) => T): T {
+      const tx: Tx = { docs: [...rows.docs], audit: [...rows.audit] };
+      const out = fn(tx); // throws → rollback
+      rows.docs = tx.docs;
+      rows.audit = tx.audit;
+      return out;
+    }
+    return { rows, transaction };
+  }
+
+  it("a failed audit write throws SYNCHRONOUSLY, and the sync transaction rolls back change AND audit", () => {
+    const db = fakeSyncDb();
+    const trail = createAuditTrail<{ docs: string[]; audit: LogEntry[] }>({
+      appendTx: () => { throw new Error("audit table locked"); },
+    });
+    let caught: unknown = null;
+    try {
+      db.transaction((tx) => {
+        tx.docs.push("doc-1");
+        trail.appendInSync(tx, { kind: "document.created" });
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect((caught as Error)?.message).toBe("audit table locked");
+    expect(db.rows).toEqual({ docs: [], audit: [] });
+  });
+
+  it("writes and returns the built entry with the host's tx (and commits both)", () => {
+    const db = fakeSyncDb();
+    const seen: unknown[] = [];
+    const trail = createAuditTrail<{ docs: string[]; audit: LogEntry[] }>({
+      appendTx: (tx, entry) => { seen.push(tx); tx.audit.push(entry); },
+    });
+    const entry = db.transaction((tx) => {
+      tx.docs.push("doc-1");
+      return trail.appendInSync(tx, { kind: "document.created" });
+    });
+    expect(entry.layer).toBe("audit");
+    expect(db.rows.docs).toEqual(["doc-1"]);
+    expect(db.rows.audit).toEqual([entry]);
+    expect(seen).toHaveLength(1);
+  });
+
+  it("an async appendTx is refused with AuditSyncError instead of silently not waiting", () => {
+    const trail = createAuditTrail<null>({ appendTx: async () => { throw new Error("late"); } });
+    expect(() => trail.appendInSync(null, { kind: "x" })).toThrow(AuditSyncError);
+  });
+
+  it("negative control: appendIn still returns a promise (async path unchanged)", async () => {
+    const trail = createAuditTrail<null>({ appendTx: () => { throw new Error("boom"); } });
+    const p = trail.appendIn(null, { kind: "x" });
+    expect(p).toBeInstanceOf(Promise);
+    await expect(p).rejects.toThrow("boom");
   });
 });

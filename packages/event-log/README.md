@@ -73,6 +73,23 @@ await db.transaction(async (tx) => {
 level `info` unless given) and resolves with it. The package never sees a
 database driver — the transaction is yours.
 
+**Synchronous transaction? Use `appendInSync` (0.3.0).** Drizzle on bun:sqlite and
+better-sqlite3 run `db.transaction(cb)` with a callback that cannot await. There,
+`appendIn` is wrong: its throw becomes a rejected promise, the callback returns
+normally and the change commits WITHOUT its audit row.
+
+```ts
+db.transaction((tx) => {
+  tx.update(docs).set({ title }).where(eq(docs.id, id)).run();
+  trail.appendInSync(tx, { kind: "document.updated", actor, target: { type: "doc", id } });
+  // a failed audit write throws HERE, synchronously → the update rolls back
+});
+```
+
+`appendTx` must then be synchronous too; if it returns a promise, `appendInSync`
+throws `AuditSyncError` rather than silently not waiting. `entry.at` is an ISO
+string; `Date.parse(entry.at)` if your column is epoch-ms.
+
 ## Adapters (follow-on)
 
 `@broberg/event-log-sqlite` (Drizzle bun:sqlite + Hono middleware),
