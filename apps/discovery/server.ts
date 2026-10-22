@@ -518,7 +518,7 @@ let ticketRegistry = createTicketRegistry({
     ? (() => {
         const client = createTicketClient({ issuer: process.env.BID_ISSUER });
         return () => client.get({
-          audience: process.env.BID_TICKET_REGISTRY_AUDIENCE ?? "broberg-id",
+          audience: process.env.BID_TICKET_REGISTRY_AUDIENCE ?? "bid",
           scope: process.env.BID_TICKET_REGISTRY_SCOPE ?? "tickets:registry:read",
         });
       })()

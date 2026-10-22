@@ -17,6 +17,11 @@ primary_region = "arn"
   # BrobergID subjects allowed in (comma-separated). A BID account alone is not
   # access. Christian's sub, as bound by pitch (F053) — never his email.
   DISCOVERY_ALLOWED_SUBS = "i7luja5HkacmowtPnc9UVNnpa2IXoF2y"
+  # F038.29 — the ticket registry is read live from BID (BID d54b54e). The
+  # ticket must be FOR BID: audience "bid" (BID's own name in its registry),
+  # scope tickets:registry:read, principal svc:broberg-discovery.
+  BID_TICKET_REGISTRY_URL = "https://id.broberg.ai/api/tickets/registry"
+  BID_TICKET_REGISTRY_AUDIENCE = "bid"
 
 [http_service]
   internal_port = 8080
