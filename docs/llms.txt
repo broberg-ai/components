@@ -84,7 +84,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/forms-turnstile** v0.3.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile`
 - **@broberg/logger** v0.2.3 — Structured server logging for the fleet. `npm i @broberg/logger`
 - **@broberg/http** v0.1.0 — Framework-free, zero-dep HTTP header/response primitives for Node/Bun/edge. `npm i @broberg/http`
-- **@broberg/sso** v0.20.0 — Log ind gennem BID fra enhver app (opskrift: id.broberg.ai/docs.md): central login, ID-token mod JWKS, profil, session, logout, altid PKCE. `npm i @broberg/sso`
+- **@broberg/sso** v0.21.0 — Log ind gennem BID fra enhver app (opskrift: id.broberg.ai/docs.md): central login, ID-token mod JWKS, profil, session, logout, altid PKCE. `npm i @broberg/sso`
 - **@broberg/seal** v0.1.0 — Encrypt the secrets an app must STORE AND READ BACK. `npm i @broberg/seal`
 - **@broberg/mail-templates** v0.1.0 — The engine behind a mail template, extracted from cardmem F298 (four projects' measured rules). `npm i @broberg/mail-templates`
 - **@broberg/realtime** v0.1.2 — Live channels for chat and anything that should feel instant, harvested from xrt81 F074. `npm i @broberg/realtime`
