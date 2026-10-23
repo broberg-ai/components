@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { countVulns, decide } from "./image-hygiene-decide.mjs";
+import { parseOsRelease, lastFrom } from "./image-hygiene-base.mjs";
 
 let failures = 0;
 const check = (n, f) => { try { f(); console.log(`  ✓ ${n}`); } catch (e) { console.log(`  ✗ ${n}\n      ${e.message}`); failures++; } };
@@ -89,6 +90,39 @@ check("F105.3: node_version is measured on the SAME digest, is null when absent,
 check("the hygiene build passes BUILD_SHA, so /health keeps its build marker", () => {
   const build = wf.slice(wf.indexOf("- name: Rebuild with no cache"), wf.indexOf("- name: Scan that image"));
   if (!/--build-arg BUILD_SHA="\$\{\{ github\.sha \}\}"/.test(build)) throw new Error("build-only step must pass --build-arg BUILD_SHA=${{ github.sha }}");
+});
+
+check("F105.4: base_os comes out of the SAME digest without a shell, the script ships with the engine, and the report carries both fields", () => {
+  const scanStep = wf.slice(wf.indexOf("- name: Scan that image"), wf.indexOf("- name: Decide"));
+  if (!/docker create "\$IMAGE"/.test(scanStep)) throw new Error("os-release must be read from \"$IMAGE\" (the scanned digest)");
+  if (!/docker cp -L "\$CID:\/etc\/os-release"/.test(scanStep)) throw new Error("os-release must be copied out with docker cp -L (no shell in the image needed)");
+  if (!/image-hygiene-base\.mjs os-release "\$DFP" > base\.json 2>\/dev\/null \|\| echo/.test(scanStep)) throw new Error("the base script must never fail the run");
+  if (!/sparse-checkout: \|[\s\S]*scripts\/image-hygiene-base\.mjs/.test(wf)) throw new Error("the engine checkout must include image-hygiene-base.mjs");
+  if (!/base_os: base\.base_os \?\? null,/.test(wf) || !/base_image: base\.base_image \?\? null,/.test(wf)) throw new Error("report must send base_os + base_image, null when unknown");
+});
+
+// ── F105.4: base_os + base_image ─────────────────────────────────────────────
+// Real /etc/os-release texts (debian:12-slim, alpine:3.20, ubuntu:24.04).
+const DEBIAN = 'PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\nNAME="Debian GNU/Linux"\nVERSION_ID="12"\nVERSION="12 (bookworm)"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL="https://www.debian.org/"\n';
+const ALPINE = 'NAME="Alpine Linux"\nID=alpine\nVERSION_ID=3.20.3\nPRETTY_NAME="Alpine Linux v3.20"\n';
+const UBUNTU = 'PRETTY_NAME="Ubuntu 24.04.1 LTS"\nNAME="Ubuntu"\nVERSION_ID="24.04"\nID=ubuntu\nID_LIKE=debian\n';
+
+check("os-release → \"<ID> <VERSION_ID>\" for debian, alpine, ubuntu", () => {
+  eq([parseOsRelease(DEBIAN), parseOsRelease(ALPINE), parseOsRelease(UBUNTU)], ["debian 12", "alpine 3.20.3", "ubuntu 24.04"], "distros");
+});
+check("os-release without ID is unknown (null), without VERSION_ID it is the ID alone", () => {
+  eq([parseOsRelease('NAME="x"\n'), parseOsRelease(""), parseOsRelease("ID=distroless\n")], [null, null, "distroless"], "edges");
+});
+check("the LAST FROM wins in a multi-stage build; --platform and AS are skipped", () => {
+  const df = "FROM --platform=linux/amd64 node:24 AS build\nRUN npm ci\nFROM --platform=$TARGETPLATFORM node:24-slim AS run\nCOPY --from=build /app /app\n";
+  eq(lastFrom(df), "node:24-slim", "last stage");
+});
+check("a lowercase, indented or line-continued FROM is still a FROM; none → null", () => {
+  eq([lastFrom("  from oven/bun:1-slim\n"), lastFrom("FROM \\\n  node:24-slim\n"), lastFrom("RUN echo FROM x\n")], ["oven/bun:1-slim", "node:24-slim", null], "variants");
+});
+check("the CLI answers null for what it cannot read — never throws", () => {
+  const out = JSON.parse(execFileSync("node", [new URL("./image-hygiene-base.mjs", import.meta.url).pathname, "/nonexistent/os-release", "/nonexistent/Dockerfile"], { encoding: "utf8" }));
+  eq(out, { base_os: null, base_image: null }, "unknown");
 });
 
 console.log(failures ? `\n${failures} FAILED` : "\nall green");

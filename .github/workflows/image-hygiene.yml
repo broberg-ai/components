@@ -66,7 +66,9 @@ jobs:
           repository: broberg-ai/components
           ref: ${{ inputs.engine-ref }}
           path: .image-hygiene-engine
-          sparse-checkout: scripts/image-hygiene-decide.mjs
+          sparse-checkout: |
+            scripts/image-hygiene-decide.mjs
+            scripts/image-hygiene-base.mjs
           sparse-checkout-cone-mode: false
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - uses: actions/setup-node@v4
@@ -98,6 +100,21 @@ jobs:
           # the run: no node in the image (e.g. Bun) is recorded as null, not as an error.
           NV=$(docker run --rm --entrypoint node "$IMAGE" -v 2>/dev/null | tr -d '\r' | head -1 || true)
           if printf '%s' "$NV" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then echo "NODE_VERSION=$NV" >> "$GITHUB_ENV"; else echo "NODE_VERSION=" >> "$GITHUB_ENV"; fi
+          # F105.4 — what THIS digest is built on. os-release is copied out of the image
+          # (docker create + cp needs no shell inside it, so distroless works too); the
+          # base is the last FROM of the Dockerfile that was just built. Never fails the run.
+          CID=$(docker create "$IMAGE" 2>/dev/null || true)
+          if [ -n "$CID" ]; then
+            docker cp -L "$CID:/etc/os-release" os-release 2>/dev/null || docker cp -L "$CID:/usr/lib/os-release" os-release 2>/dev/null || true
+            docker rm "$CID" >/dev/null 2>&1 || true
+          fi
+          DFP="${{ inputs.dockerfile }}"
+          if [ -z "$DFP" ]; then
+            DFP=$(grep -E '^[[:space:]]*dockerfile[[:space:]]*=' "${{ inputs.config }}" 2>/dev/null | head -1 | sed -E 's/.*=[[:space:]]*"?([^"]*)"?.*/\1/' || true)
+            [ -n "$DFP" ] && DFP="$(dirname "${{ inputs.config }}")/$DFP" || DFP="${{ inputs.context }}/Dockerfile"
+          fi
+          node .image-hygiene-engine/scripts/image-hygiene-base.mjs os-release "$DFP" > base.json 2>/dev/null || echo '{"base_os":null,"base_image":null}' > base.json
+          cat base.json
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" \
             aquasec/trivy:0.57.1 image --format json --output /out/trivy.json \
             --severity CRITICAL,HIGH --quiet "$IMAGE" || true
@@ -125,6 +142,7 @@ jobs:
           node -e '
             const fs = require("fs");
             let d = {}; try { d = JSON.parse(fs.readFileSync("decision.json", "utf8")); } catch { d = { status: "failed", error: "no decision" }; }
+            let base = {}; try { base = JSON.parse(fs.readFileSync("base.json", "utf8")); } catch { base = {}; }
             // A deploy that was attempted and failed overrides an ok decision.
             const status = process.env.DEPLOY_OUTCOME === "failure" ? "failed" : d.status;
             const report = {
@@ -139,6 +157,8 @@ jobs:
                 high: d.high ?? null,
                 vulnerabilities: d.vulnerabilities ?? [],
                 node_version: process.env.NODE_VERSION || null,
+                base_os: base.base_os ?? null,
+                base_image: base.base_image ?? null,
                 fly_release: process.env.FLY_RELEASE || null,
                 sha: process.env.GITHUB_SHA,
               },

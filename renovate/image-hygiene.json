@@ -44,6 +44,26 @@
         "major"
       ],
       "automerge": false
+    },
+    {
+      "description": "F105.4 — the owner's slim standard (23/10): Node runs on an even-major (LTS) -slim tag, never odd, never full Debian, Alpine or :latest. A major bump (24 → 26) is still proposed as a PR once it exists; it just never leaves -slim.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "node"
+      ],
+      "allowedVersions": "/^\\d*[02468](\\.\\d+)*-slim$/"
+    },
+    {
+      "description": "F105.4 — Bun runs on oven/bun:<major>-slim; Renovate never proposes a tag without -slim.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "oven/bun"
+      ],
+      "allowedVersions": "/^\\d+(\\.\\d+)*-slim$/"
     }
   ],
   "vulnerabilityAlerts": {
