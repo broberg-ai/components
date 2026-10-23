@@ -91,7 +91,7 @@ export interface MonthGridOptions {
  * call site instead of removing it.
  *
  * @throws RangeError when `month` is not an integer in 1–12, or `year` is not
- *         an integer in 100–275760 (see the guard for why the floor is 100).
+ *         an integer in 100–275759 (see the guard for why the floor is 100).
  */
 export function buildMonthGrid(year: number, month: number, opts: MonthGridOptions = {}): DayCell[] {
   if (!Number.isInteger(month) || month < 1 || month > 12) {
@@ -108,14 +108,16 @@ export function buildMonthGrid(year: number, month: number, opts: MonthGridOptio
   //   NaN       every cell dated "NaN-NaN-NaN", inMonth 0   ← the silently empty grid again
   //   Infinity  same
   //   1.5       first cell 1901-04-29                       ← Date maps years 0-99 to 1900+
-  //   275760    the last year Date can represent
+  //   275760    Date ends at 275760-09-13, so this year's grid is mostly NaN
+  //             dates (measured: 87 NaN fields for September, 126 for December).
+  //             The ceiling is therefore 275759, whose whole grid is real.
   //
   // The 1.5 case is the nastiest: no error, no empty grid, just a calendar for
   // a different century. So the floor is 100, not 0 — a two-digit year is far
   // more likely a mistake than a request for the year 47.
-  if (!Number.isInteger(year) || year < 100 || year > 275760) {
+  if (!Number.isInteger(year) || year < 100 || year > 275759) {
     throw new RangeError(
-      `buildMonthGrid: year must be an integer in 100-275760, got ${year}. ` +
+      `buildMonthGrid: year must be an integer in 100-275759, got ${year}. ` +
         'A year below 100 is silently mapped to 1900+ by Date, and a non-finite year ' +
         'yields a full grid of NaN dates — both render as an ordinary calendar.',
     );

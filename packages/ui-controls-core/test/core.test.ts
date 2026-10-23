@@ -356,9 +356,16 @@ describe('buildMonthGrid — year is guarded too', () => {
     expect(() => buildMonthGrid(47, 5)).toThrow(/silently mapped to 1900/);
   });
 
+  it('the last year Date cannot finish (275760) throws instead of a grid of NaN dates', () => {
+    // Date ends at 275760-09-13; that year's grids were mostly "NaN-NaN-NaN".
+    expect(() => buildMonthGrid(275760, 12)).toThrow(RangeError);
+    const last = buildMonthGrid(275759, 12);
+    expect(last.filter((c) => JSON.stringify(c).includes('NaN'))).toEqual([]);
+  });
+
   it('NEGATIVE CONTROL: ordinary years are not refused', () => {
     // Without this, a guard that rejected everything would pass every test above.
-    for (const y of [100, 1900, 2026, 2100, 275760]) {
+    for (const y of [100, 1900, 2026, 2100, 275759]) {
       expect(() => buildMonthGrid(y, 5), `${y} must be accepted`).not.toThrow();
     }
     expect(buildMonthGrid(2026, 5).filter((c) => c.inMonth)).toHaveLength(31);

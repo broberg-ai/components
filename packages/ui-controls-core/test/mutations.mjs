@@ -79,7 +79,7 @@ const MUTATIONS = [
     // The year guard dropped: NaN/Infinity go back to a 42-cell grid of
     // "NaN-NaN-NaN", and a two-digit year to a calendar for another century.
     name: "the year guard is dropped (NaN dates and a 1901 calendar come back)",
-    from: "  if (!Number.isInteger(year) || year < 100 || year > 275760) {",
+    from: "  if (!Number.isInteger(year) || year < 100 || year > 275759) {",
     to: "  if (false) {",
     expect: ["NaN and Infinity throw instead of returning a grid of NaN dates"],
   },
@@ -87,7 +87,7 @@ const MUTATIONS = [
     // Only the non-finite half guarded — the easy fix, and it leaves the
     // WORST case open: 1.5 renders an ordinary calendar for April 1901.
     name: "only non-finite years are guarded (the two-digit-year century shift survives)",
-    from: "year < 100 || year > 275760",
+    from: "year < 100 || year > 275759",
     to: "year < -8.64e15",
     expect: ["a two-digit or fractional year throws rather than becoming another century"],
   },
@@ -95,9 +95,16 @@ const MUTATIONS = [
     // The over-strict direction: a guard that refuses everything passes every
     // test above and breaks every caller.
     name: "the year guard refuses ordinary years too (the over-strict direction)",
-    from: "!Number.isInteger(year) || year < 100 || year > 275760",
+    from: "!Number.isInteger(year) || year < 100 || year > 275759",
     to: "true",
     expect: ["NEGATIVE CONTROL: ordinary years are not refused"],
+  },
+  {
+    // The ceiling one year too high again: 275760 renders a grid of NaN dates.
+    name: "the year ceiling is 275760 (the last, unfinished year renders NaN dates)",
+    from: "year > 275759",
+    to: "year > 275760",
+    expect: ["the last year Date cannot finish (275760) throws instead of a grid of NaN dates"],
   },
 ];
 
