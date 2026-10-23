@@ -50,6 +50,8 @@ const PAGE_CSS = `
   .pk-yes,.pk-dep-ok{color:var(--green)} .pk-no,.pk-unknown,.pk-dep-minor,.pk-dep-unknown{color:var(--amber)}
   .pk-dep-bad{color:var(--amber);font-weight:700}
   .pk-wrap{overflow-x:auto}
+  .pk-table a.pk-npm{font-weight:400;font-size:12px;color:var(--muted);margin-left:6px}
+  .pk-table a.pk-npm:hover{color:var(--fg)}
   .pk-filter{display:flex;align-items:center;gap:14px;margin:22px 0 0;flex-wrap:wrap}
   .pk-filter input{flex:1;min-width:220px;font:inherit;font-size:15px;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:11px 14px;outline:none}
   .pk-filter input::placeholder{color:var(--faint)}
@@ -86,7 +88,7 @@ export function renderPackagesPage(rows: PackageRow[], scannedAt: string | null)
     .map((r, i) => {
       const when = daTime(r.publishedAt);
       return `<tr data-testid="pkg-row-${i}" data-name="${esc(r.name)}" data-version="${esc(r.version)}" data-published="${esc(r.publishedAt ?? "")}" data-provenance="${esc(r.provenance)}" data-layer="${esc(r.layer)}" data-owner="${esc(r.owner)}" data-consumers="${r.consumers.length}" data-deps="${esc(depRank(r.deps))}" data-haystack="${esc(haystack(r))}">` +
-        `<td>${r.npmUrl ? `<a href="${esc(r.npmUrl)}" target="_blank" rel="noopener" data-testid="pkg-npm-${i}">${esc(r.name)} ↗</a>` : esc(r.name)}<br><code>${esc(r.install)}</code></td>` +
+        `<td><a href="/packages/${esc(r.name)}" data-testid="pkg-link-${i}">${esc(r.name)}</a>${r.npmUrl ? ` <a class="pk-npm" href="${esc(r.npmUrl)}" target="_blank" rel="noopener" title="Åbn på npm" aria-label="${esc(r.name)} på npm" data-testid="pkg-npm-${i}">npm ↗</a>` : ""}<br><code>${esc(r.install)}</code></td>` +
         `<td>${esc(r.version ?? "—")}</td>` +
         `<td>${esc(when ?? "ukendt")}</td>` +
         `<td class="pk-${esc(r.provenance)}">${esc(PROVENANCE_LABEL[r.provenance])}</td>` +

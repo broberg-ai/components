@@ -35,6 +35,7 @@ import { webmcpLab } from "./webmcp-lab";
 import { createTicketRegistry, renderTicketRegistryPage, renderTicketRegistryMarkdown } from "./ticket-registry";
 // F038.32 — «Packages»: every published package on one sortable page.
 import { renderPackagesPage, type PackageRow } from "./packages-page";
+import { renderPackageDetail, renderPackageNotFound, consumerDetails } from "./package-detail-page";
 
 const VERSION = "0.3.0";
 
@@ -505,6 +506,50 @@ app.get("/packages", (c) => {
         : null,
     }));
   return c.html(withConsent(renderPackagesPage(rows, (fleetScan as { scanned_at?: string })?.scanned_at ?? null)));
+});
+
+// F038.35 — one page per package: every field Discovery has, and who in the fleet installs it.
+app.get("/packages/:scope/:name", async (c) => {
+  const name = `${c.req.param("scope")}/${c.req.param("name")}`;
+  const p = packages.find((x) => x.name === name && x.dist !== "spm");
+  if (!p) return c.html(withConsent(renderPackageNotFound(name)), 404);
+  const comp = components.find((x) => x.id === p.component) ?? null;
+  const store = await getEnrollStore();
+  const enrolled = store ? (await store.list()).filter((e) => e.pkg === name) : [];
+  const age = scanAge(fleetScan);
+  const health = DEP_HEALTH.packages?.[name] as Record<string, unknown> | undefined;
+  return c.html(withConsent(renderPackageDetail(
+    {
+      name,
+      version: p.version ?? null,
+      install: p.install,
+      description: p.description ?? null,
+      layer: p.layer ?? null,
+      layerName: comp?.layerName ?? null,
+      component: p.component ?? null,
+      componentName: comp?.name ?? null,
+      model: comp?.model ?? null,
+      modelDesc: comp?.modelDesc ?? null,
+      status: comp?.status ?? null,
+      owner: p.owner ?? null,
+      graduate: !!comp?.graduate,
+      note: comp?.note ?? null,
+      keywords: p.keywords ?? [],
+      npmUrl: p.npmUrl ?? null,
+      repoUrl: p.repoUrl ?? null,
+      publishedAt: p.publishedAt,
+      provenance: p.provenance,
+    },
+    health ? ({ ...health, checkedAt: DEP_HEALTH.checked_at } as never) : null,
+    consumerDetails(fleetScan, name),
+    enrolled,
+    {
+      scannedAt: (fleetScan as { scanned_at?: string })?.scanned_at ?? null,
+      stale: age.stale,
+      reposScanned: Number((fleetScan as { repos_scanned?: number })?.repos_scanned ?? 0),
+      reposFailed: Number((fleetScan as { repos_failed?: number })?.repos_failed ?? 0),
+    },
+  )));
 });
 
 app.get("/api/packages", (c) => {
