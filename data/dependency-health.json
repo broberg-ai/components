@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-22T23:47:38.692Z",
+ "checked_at": "2026-10-23T00:24:26.513Z",
  "packages": {
   "@broberg/apikey": {
    "version": "0.3.1",
@@ -618,7 +618,7 @@
    "verdict": "OK"
   },
   "@broberg/mail": {
-   "version": "0.16.0",
+   "version": "0.17.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -786,11 +786,11 @@
    "verdict": "OK"
   },
   "@broberg/media-transform": {
-   "version": "0.1.0",
+   "version": "0.1.1",
    "status": "ok",
    "prod": {
     "critical": 0,
-    "high": 2,
+    "high": 0,
     "moderate": 0,
     "low": 0
    },
@@ -807,11 +807,11 @@
     "low": 0
    },
    "outdated": {
-    "total": 5,
-    "shipped": 1,
+    "total": 4,
+    "shipped": 0,
     "deprecated": 0
    },
-   "verdict": "sårbar"
+   "verdict": "OK"
   },
   "@broberg/notifications": {
    "version": "0.4.0",
