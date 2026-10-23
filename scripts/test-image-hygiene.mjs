@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { countVulns, decide } from "./image-hygiene-decide.mjs";
 import { parseOsRelease, lastFrom, baseImageException } from "./image-hygiene-base.mjs";
+import { superseded } from "./image-hygiene-superseded.mjs";
 
 let failures = 0;
 const check = (n, f) => { try { f(); console.log(`  ✓ ${n}`); } catch (e) { console.log(`  ✗ ${n}\n      ${e.message}`); failures++; } };
@@ -122,6 +123,37 @@ check("F105.7: every job in the engine carries its own timeout-minutes (a caller
     return !/\n    timeout-minutes: \d+/.test(body);
   });
   eq(missing, [], "jobs without timeout-minutes");
+});
+
+// ── F105.8: never deploy older code than what runs ─────────────────────────
+const START = Date.parse("2026-10-23T15:38:00Z");
+const rel = (v, at, img = `registry.fly.io/cardmem:sha-${v}`) => ({ Version: v, CreatedAt: at, ImageRef: img });
+check("F105.8: cardmem's measured case — a release created DURING the run → skip, and it names the winner", () => {
+  const r = superseded({ releases: [rel(2928, "2026-10-23T15:32:00Z"), rel(2929, "2026-10-23T15:42:00Z")], runStartedMs: START, runSha: "9e79dca2", branchHeadSha: "9e79dca2", onDefaultBranch: true });
+  eq([r.skip, r.reason, r.winner.startsWith("release v2929")], [true, "superseded", true], "skip");
+});
+check("F105.8: the default branch moved during the run → skip, even with no new release yet", () => {
+  const r = superseded({ releases: [rel(2928, "2026-10-23T15:32:00Z")], runStartedMs: START, runSha: "9e79dca2", branchHeadSha: "e6dc8467", onDefaultBranch: true });
+  eq([r.skip, r.reason], [true, "superseded"], "skip");
+});
+check("F105.8: nothing newer → deploy", () => {
+  eq(superseded({ releases: [rel(2928, "2026-10-23T15:32:00Z")], runStartedMs: START, runSha: "9e79dca2", branchHeadSha: "9e79dca2", onDefaultBranch: true }).skip, false, "deploy");
+  eq(superseded({ releases: [rel(2928, "2026-10-23T15:32:00Z")], runStartedMs: START, runSha: "abc", branchHeadSha: null, onDefaultBranch: false }).skip, false, "off default branch, no new release");
+});
+check("F105.8: anything unreadable → skip, never deploy blind", () => {
+  eq([
+    superseded({ releases: null, runStartedMs: START, runSha: "a", branchHeadSha: "a", onDefaultBranch: true }).skip,
+    superseded({ releases: [rel(1, "not a date")], runStartedMs: START, runSha: "a", branchHeadSha: "a", onDefaultBranch: true }).skip,
+    superseded({ releases: [rel(1, "2026-10-23T15:00:00Z")], runStartedMs: START, runSha: "a", branchHeadSha: null, onDefaultBranch: true }).skip,
+  ], [true, true, true], "skip all");
+});
+check("F105.8: the workflow asks right before deploying, the deploy is gated on it, and skipped is not red", () => {
+  const between = wf.slice(wf.indexOf("- name: Decide"), wf.indexOf("- name: Deploy exactly the scanned image"));
+  if (!/image-hygiene-superseded\.mjs releases\.json "\$RUN_STARTED_MS"/.test(between)) throw new Error("the superseded check must run between Decide and Deploy");
+  if (!/if: steps\.decide\.outputs\.deploy == 'true' && steps\.superseded\.outputs\.skip != 'true'/.test(wf)) throw new Error("deploy must be gated on the superseded check");
+  if (!/RUN_STARTED_MS=\$\(date \+%s%3N\)/.test(wf.slice(0, wf.indexOf("- name: Rebuild with no cache")))) throw new Error("the start must be marked BEFORE the build");
+  if (!/r\.status !== "skipped"/.test(wf)) throw new Error("a skipped run must not end red");
+  if (!/sparse-checkout: \|[\s\S]*scripts\/image-hygiene-superseded\.mjs/.test(wf)) throw new Error("the engine checkout must include image-hygiene-superseded.mjs");
 });
 
 // ── F105.4: base_os + base_image ─────────────────────────────────────────────

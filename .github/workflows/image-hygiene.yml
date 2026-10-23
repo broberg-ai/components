@@ -59,6 +59,10 @@ jobs:
       APP: ${{ inputs.app }}
       LABEL: hygiene-${{ github.sha }}-${{ github.run_id }}
     steps:
+      # F105.8 — when this run started. A release created after this moment means newer
+      # code was deployed while we built, and our image must NOT go on top of it.
+      - name: Mark the start
+        run: echo "RUN_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - name: The engine's decision script
         uses: actions/checkout@v4
@@ -69,6 +73,7 @@ jobs:
           sparse-checkout: |
             scripts/image-hygiene-decide.mjs
             scripts/image-hygiene-base.mjs
+            scripts/image-hygiene-superseded.mjs
           sparse-checkout-cone-mode: false
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - uses: actions/setup-node@v4
@@ -125,9 +130,26 @@ jobs:
           node .image-hygiene-engine/scripts/image-hygiene-decide.mjs trivy.json | tee decision.json
           echo "deploy=$(node -p 'require("./decision.json").deploy')" >> "$GITHUB_OUTPUT"
 
+      - name: Has newer code overtaken this run?
+        id: superseded
+        if: steps.decide.outputs.deploy == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          # F105.8 (cardmem #4199): this run once deployed 9e79dca2 on top of a newer
+          # e6dc8467 — production went backwards, all green. Read it fresh, right here.
+          flyctl releases -a "$APP" --json > releases.json 2>/dev/null || echo "null" > releases.json
+          ON_DEFAULT=0; HEAD=""
+          if [ -n "$DEFAULT_BRANCH" ] && [ "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
+            ON_DEFAULT=1
+            HEAD=$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | cut -f1 || true)
+          fi
+          node .image-hygiene-engine/scripts/image-hygiene-superseded.mjs releases.json "$RUN_STARTED_MS" "${{ github.sha }}" "$HEAD" "$ON_DEFAULT" | tee superseded.json
+          echo "skip=$(node -p 'require("./superseded.json").skip')" >> "$GITHUB_OUTPUT"
+
       - name: Deploy exactly the scanned image
         id: deploy
-        if: steps.decide.outputs.deploy == 'true'
+        if: steps.decide.outputs.deploy == 'true' && steps.superseded.outputs.skip != 'true'
         run: |
           flyctl deploy -a "$APP" -c "${{ inputs.config }}" --image "$IMAGE" --remote-only
           echo "release=$(flyctl releases -a "$APP" --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);console.log((r[0]&&(r[0].Version??r[0].version))??"")})')" >> "$GITHUB_OUTPUT"
@@ -143,8 +165,10 @@ jobs:
             const fs = require("fs");
             let d = {}; try { d = JSON.parse(fs.readFileSync("decision.json", "utf8")); } catch { d = { status: "failed", error: "no decision" }; }
             let base = {}; try { base = JSON.parse(fs.readFileSync("base.json", "utf8")); } catch { base = {}; }
-            // A deploy that was attempted and failed overrides an ok decision.
-            const status = process.env.DEPLOY_OUTCOME === "failure" ? "failed" : d.status;
+            let sup = {}; try { sup = JSON.parse(fs.readFileSync("superseded.json", "utf8")); } catch { sup = {}; }
+            // A deploy that was attempted and failed overrides an ok decision; a run that
+            // newer code overtook (F105.8) deployed nothing on purpose and says so.
+            const status = process.env.DEPLOY_OUTCOME === "failure" ? "failed" : sup.skip ? "skipped" : d.status;
             const report = {
               pipeline: "image-hygiene",
               status,
@@ -158,6 +182,8 @@ jobs:
                 vulnerabilities: d.vulnerabilities ?? [],
                 vulnerabilities_unfixable: d.vulnerabilities_unfixable ?? [],
                 node_version: process.env.NODE_VERSION || null,
+                skip_reason: sup.skip ? sup.reason : null,
+                skip_winner: sup.skip ? sup.winner : null,
                 base_os: base.base_os ?? null,
                 base_image: base.base_image ?? null,
                 base_image_exception: base.base_image_exception ?? null,
@@ -202,7 +228,8 @@ jobs:
         run: |
           node -e '
             const r = require("./status.json");
-            if (r.status !== "ok" || (r.detail.critical_unfixable ?? 0) > 0) {
+            // F105.8 — "skipped" is not a failure: newer code is running, nothing was touched.
+            if ((r.status !== "ok" && r.status !== "skipped") || (r.detail.critical_unfixable ?? 0) > 0) {
               console.log(`::error::image-hygiene ${r.app}: status ${r.status}, criticals with fix ${r.detail.critical_fixable}, without fix ${r.detail.critical_unfixable}`);
               process.exit(1);
             }
