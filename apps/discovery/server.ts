@@ -45,6 +45,7 @@ type RawItem = {
   f: string; nm: string; m: string; desc?: string; pkg?: string; e?: string; i?: string;
   s?: string; ver?: string; src?: string; own?: string; grad?: number; ext?: number; note?: string; dist?: string;
   kw?: string[];
+  sum?: string;
 };
 type RawLayer = { n: string; t: string; d: string; items: RawItem[] };
 const LAYERS = DATA as RawLayer[];
@@ -71,6 +72,7 @@ const components = LAYERS.flatMap((L) =>
     external: !!it.ext,
     note: it.note ?? null,
     description: it.desc ?? null,
+    summary: it.sum ?? null, // F038.36 — one short human sentence: what the package is good for
     keywords: it.kw ?? [], // search aliases — natural-language / synonym terms a session might type
     npmUrl: npmUrl(it), // npmjs.com page (shipped npm packages)
     repoUrl: repoUrl(it), // github.com source — only when verified public, else null
@@ -100,6 +102,7 @@ const packages = components
     component: c.id,
     layer: c.layer,
     description: c.description,
+    summary: c.summary,
     keywords: c.keywords,
     npmUrl: c.npmUrl,
     repoUrl: c.repoUrl,
@@ -524,6 +527,7 @@ app.get("/packages/:scope/:name", async (c) => {
       version: p.version ?? null,
       install: p.install,
       description: p.description ?? null,
+      summary: p.summary ?? null,
       layer: p.layer ?? null,
       layerName: comp?.layerName ?? null,
       component: p.component ?? null,
