@@ -11,10 +11,11 @@ import { readFileSync } from "node:fs";
 
 /** Trivy JSON → counts. A vulnerability counted once per (id, package), however
  *  many layers or targets repeat it. `vulnerabilities` names the criticals WITH a
- *  fix (max 50) — the ones that block — so cardmem's card can say which. */
+ *  fix (max 50) — the ones that block — so cardmem's card can say which;
+ *  `vulnerabilities_unfixable` names the criticals WITHOUT one (F105.6). */
 export function countVulns(trivy) {
   const seen = new Set();
-  const c = { critical_fixable: 0, critical_unfixable: 0, high: 0, vulnerabilities: [] };
+  const c = { critical_fixable: 0, critical_unfixable: 0, high: 0, vulnerabilities: [], vulnerabilities_unfixable: [] };
   for (const r of trivy?.Results ?? []) {
     for (const v of r.Vulnerabilities ?? []) {
       const key = `${v.VulnerabilityID}|${v.PkgName}`;
@@ -25,7 +26,11 @@ export function countVulns(trivy) {
           c.critical_fixable++;
           if (c.vulnerabilities.length < 50) c.vulnerabilities.push({ id: v.VulnerabilityID, pkg: v.PkgName, fixed: v.FixedVersion });
         }
-        else c.critical_unfixable++;
+        else {
+          c.critical_unfixable++;
+          // F105.6 — the red without a fix gets a NAME too, so a red app can be explained.
+          if (c.vulnerabilities_unfixable.length < 50) c.vulnerabilities_unfixable.push({ id: v.VulnerabilityID, pkg: v.PkgName });
+        }
       } else if (v.Severity === "HIGH") c.high++;
     }
   }

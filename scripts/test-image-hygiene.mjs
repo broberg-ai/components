@@ -15,7 +15,7 @@ console.log("image-hygiene");
 
 check("a CRITICAL with a fix BLOCKS the deploy", () => {
   const c = countVulns({ Results: [{ Vulnerabilities: [v("CVE-1", "openssl", "CRITICAL", "3.0.15")] }] });
-  eq(c, { critical_fixable: 1, critical_unfixable: 0, high: 0, vulnerabilities: [{ id: "CVE-1", pkg: "openssl", fixed: "3.0.15" }] }, "counts");
+  eq(c, { critical_fixable: 1, critical_unfixable: 0, high: 0, vulnerabilities: [{ id: "CVE-1", pkg: "openssl", fixed: "3.0.15" }], vulnerabilities_unfixable: [] }, "counts");
   eq(decide(c), { status: "blocked", deploy: false, red: true }, "decision");
 });
 
@@ -24,6 +24,10 @@ check("a CRITICAL without a fix is DEPLOYED — and red", () => {
   eq(decide(c), { status: "ok", deploy: true, red: true }, "decision");
 });
 
+check("F105.6: a CRITICAL without a fix is NAMED in vulnerabilities_unfixable, the fixable list stays separate", () => {
+  const c = countVulns({ Results: [{ Vulnerabilities: [v("CVE-2", "zlib", "CRITICAL", ""), v("CVE-1", "openssl", "CRITICAL", "3.0.15"), v("CVE-3", "curl", "HIGH", "")] }] });
+  eq([c.vulnerabilities_unfixable, c.vulnerabilities.map((x) => x.id)], [[{ id: "CVE-2", pkg: "zlib" }], ["CVE-1"]], "lists");
+});
 check("only HIGH → deployed, not red", () => {
   const c = countVulns({ Results: [{ Vulnerabilities: [v("CVE-3", "curl", "HIGH", "8.1")] }] });
   eq(c.high, 1, "high");
@@ -99,6 +103,11 @@ check("F105.4: base_os comes out of the SAME digest without a shell, the script 
   if (!/image-hygiene-base\.mjs os-release "\$DFP" > base\.json 2>\/dev\/null \|\| echo/.test(scanStep)) throw new Error("the base script must never fail the run");
   if (!/sparse-checkout: \|[\s\S]*scripts\/image-hygiene-base\.mjs/.test(wf)) throw new Error("the engine checkout must include image-hygiene-base.mjs");
   if (!/base_os: base\.base_os \?\? null,/.test(wf) || !/base_image: base\.base_image \?\? null,/.test(wf) || !/base_image_exception: base\.base_image_exception \?\? null,/.test(wf)) throw new Error("report must send base_os + base_image + base_image_exception, null when unknown");
+});
+
+check("F105.6: the report sends vulnerabilities_unfixable and the Trivy JSON is kept as an artifact", () => {
+  if (!/vulnerabilities_unfixable: d\.vulnerabilities_unfixable \?\? \[\],/.test(wf)) throw new Error("report must send vulnerabilities_unfixable");
+  if (!/name: image-hygiene-trivy, path: trivy\.json/.test(wf)) throw new Error("trivy.json must be uploaded");
 });
 
 // ── F105.4: base_os + base_image ─────────────────────────────────────────────

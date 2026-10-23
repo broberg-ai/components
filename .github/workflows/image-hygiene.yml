@@ -156,6 +156,7 @@ jobs:
                 critical_unfixable: d.critical_unfixable ?? null,
                 high: d.high ?? null,
                 vulnerabilities: d.vulnerabilities ?? [],
+                vulnerabilities_unfixable: d.vulnerabilities_unfixable ?? [],
                 node_version: process.env.NODE_VERSION || null,
                 base_os: base.base_os ?? null,
                 base_image: base.base_image ?? null,
@@ -191,6 +192,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: image-hygiene-status, path: status.json }
+      # F105.6 — the whole Trivy report, so a red app can be read in full afterwards.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: image-hygiene-trivy, path: trivy.json, retention-days: 14, if-no-files-found: ignore }
 
       - name: End red when the image carries criticals or the deploy did not happen
         if: always()
