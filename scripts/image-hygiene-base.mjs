@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // F105.4 — what the deployed image is BUILT ON: the distro (from the image's own
 // /etc/os-release) and the base image (the Dockerfile's last FROM).
-//   node scripts/image-hygiene-base.mjs <os-release file> <Dockerfile>  → { base_os, base_image }
+//   node scripts/image-hygiene-base.mjs <os-release file> <Dockerfile>  → { base_os, base_image, base_image_exception }
 // Never throws on the CLI path: an unknown answer is null, and the run goes on.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -31,6 +31,12 @@ export function lastFrom(dockerfile) {
   return last;
 }
 
+/** The owner's escape hatch from the slim standard: "# base-image exception: <reason>". */
+export function baseImageException(dockerfile) {
+  const m = String(dockerfile ?? "").match(/^\s*#\s*base-image exception:\s*(.*\S)\s*$/im);
+  return m ? m[1] : null;
+}
+
 function readOrNull(path) {
   try { return path ? readFileSync(path, "utf8") : null; } catch { return null; }
 }
@@ -39,5 +45,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [osPath, dfPath] = process.argv.slice(2);
   const os = readOrNull(osPath);
   const df = readOrNull(dfPath);
-  console.log(JSON.stringify({ base_os: os == null ? null : parseOsRelease(os), base_image: df == null ? null : lastFrom(df) }));
+  console.log(JSON.stringify({
+    base_os: os == null ? null : parseOsRelease(os),
+    base_image: df == null ? null : lastFrom(df),
+    base_image_exception: df == null ? null : baseImageException(df),
+  }));
 }

@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { countVulns, decide } from "./image-hygiene-decide.mjs";
-import { parseOsRelease, lastFrom } from "./image-hygiene-base.mjs";
+import { parseOsRelease, lastFrom, baseImageException } from "./image-hygiene-base.mjs";
 
 let failures = 0;
 const check = (n, f) => { try { f(); console.log(`  ✓ ${n}`); } catch (e) { console.log(`  ✗ ${n}\n      ${e.message}`); failures++; } };
@@ -98,7 +98,7 @@ check("F105.4: base_os comes out of the SAME digest without a shell, the script 
   if (!/docker cp -L "\$CID:\/etc\/os-release"/.test(scanStep)) throw new Error("os-release must be copied out with docker cp -L (no shell in the image needed)");
   if (!/image-hygiene-base\.mjs os-release "\$DFP" > base\.json 2>\/dev\/null \|\| echo/.test(scanStep)) throw new Error("the base script must never fail the run");
   if (!/sparse-checkout: \|[\s\S]*scripts\/image-hygiene-base\.mjs/.test(wf)) throw new Error("the engine checkout must include image-hygiene-base.mjs");
-  if (!/base_os: base\.base_os \?\? null,/.test(wf) || !/base_image: base\.base_image \?\? null,/.test(wf)) throw new Error("report must send base_os + base_image, null when unknown");
+  if (!/base_os: base\.base_os \?\? null,/.test(wf) || !/base_image: base\.base_image \?\? null,/.test(wf) || !/base_image_exception: base\.base_image_exception \?\? null,/.test(wf)) throw new Error("report must send base_os + base_image + base_image_exception, null when unknown");
 });
 
 // ── F105.4: base_os + base_image ─────────────────────────────────────────────
@@ -120,9 +120,16 @@ check("the LAST FROM wins in a multi-stage build; --platform and AS are skipped"
 check("a lowercase, indented or line-continued FROM is still a FROM; none → null", () => {
   eq([lastFrom("  from oven/bun:1-slim\n"), lastFrom("FROM \\\n  node:24-slim\n"), lastFrom("RUN echo FROM x\n")], ["oven/bun:1-slim", "node:24-slim", null], "variants");
 });
+check("a \"# base-image exception: <reason>\" line is the exception; none → null", () => {
+  eq([
+    baseImageException("# base-image exception: python runtime for whisper\nFROM python:3.12-slim\n"),
+    baseImageException("FROM node:24-slim\n  #   Base-Image Exception:  needs glibc tools  \n"),
+    baseImageException("FROM node:24-slim\n# base image is slim\n"),
+  ], ["python runtime for whisper", "needs glibc tools", null], "exception");
+});
 check("the CLI answers null for what it cannot read — never throws", () => {
   const out = JSON.parse(execFileSync("node", [new URL("./image-hygiene-base.mjs", import.meta.url).pathname, "/nonexistent/os-release", "/nonexistent/Dockerfile"], { encoding: "utf8" }));
-  eq(out, { base_os: null, base_image: null }, "unknown");
+  eq(out, { base_os: null, base_image: null, base_image_exception: null }, "unknown");
 });
 
 console.log(failures ? `\n${failures} FAILED` : "\nall green");

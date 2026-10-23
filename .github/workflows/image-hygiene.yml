@@ -113,7 +113,7 @@ jobs:
             DFP=$(grep -E '^[[:space:]]*dockerfile[[:space:]]*=' "${{ inputs.config }}" 2>/dev/null | head -1 | sed -E 's/.*=[[:space:]]*"?([^"]*)"?.*/\1/' || true)
             [ -n "$DFP" ] && DFP="$(dirname "${{ inputs.config }}")/$DFP" || DFP="${{ inputs.context }}/Dockerfile"
           fi
-          node .image-hygiene-engine/scripts/image-hygiene-base.mjs os-release "$DFP" > base.json 2>/dev/null || echo '{"base_os":null,"base_image":null}' > base.json
+          node .image-hygiene-engine/scripts/image-hygiene-base.mjs os-release "$DFP" > base.json 2>/dev/null || echo '{"base_os":null,"base_image":null,"base_image_exception":null}' > base.json
           cat base.json
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" \
             aquasec/trivy:0.57.1 image --format json --output /out/trivy.json \
@@ -159,6 +159,7 @@ jobs:
                 node_version: process.env.NODE_VERSION || null,
                 base_os: base.base_os ?? null,
                 base_image: base.base_image ?? null,
+                base_image_exception: base.base_image_exception ?? null,
                 fly_release: process.env.FLY_RELEASE || null,
                 sha: process.env.GITHUB_SHA,
               },
