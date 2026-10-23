@@ -25,7 +25,9 @@ RUN mkdir -p docs && bun scripts/build-inventory.mjs && bun scripts/build-onboar
 # App deps.
 COPY apps/discovery/package.json ./apps/discovery/package.json
 WORKDIR /app/apps/discovery
-RUN bun install
+# F105.5 — production deps only: vitest/tinypool/esbuild in the image carried 5
+# fixable criticals and blocked the hygiene deploy (run 39946567182).
+RUN bun install --production
 
 # App source.
 COPY apps/discovery/server.ts ./server.ts
