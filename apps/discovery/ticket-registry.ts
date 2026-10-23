@@ -1,4 +1,4 @@
-import { SITE_CSS, topBar, THEME_JS } from "../../scripts/site-chrome.mjs";
+import { SITE_CSS, topBar, THEME_JS, SEARCH_MODAL, SEARCH_JS } from "../../scripts/site-chrome.mjs";
 import { FAVICON } from "../../scripts/favicon.mjs";
 import { daTime as daTimeOrNull } from "../../scripts/npm-meta.mjs";
 
@@ -145,7 +145,9 @@ export function renderTicketRegistryPage(state: RegistryState): string {
 <style>${SITE_CSS}${PAGE_CSS}</style></head>
 <body>${topBar({ active: "/tickets" })}
 <div class="wrap"><main data-testid="tickets-root"><section class="hero"><h1><span class="at">Hvem logger ind med </span>BID-billetter</h1><p>Apps og platforme der beviser hvem de er med en BID-billet (workload identity) i stedet for en gemt nøgle. Læst live fra Broberg ID — ingen håndskrevet liste. Som data: <code>/api/tickets</code> · for AI: <code>/llms.txt</code>.</p></section>${body}</main></div>
-<script>(function(){${THEME_JS}})();</script></body></html>`;
+${SEARCH_MODAL}
+<script>(function(){${THEME_JS}})();</script>
+<script>${SEARCH_JS}</script></body></html>`;
 }
 
 /** F038.30 — the same live list as a markdown section for /llms.txt and /llms-full.txt. */

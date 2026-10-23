@@ -8,7 +8,7 @@
 
 import { writeFileSync } from "node:fs";
 import { FAVICON } from "./favicon.mjs";
-import { SITE_CSS as CSS, topBar, THEME_JS, tagLinks } from "./site-chrome.mjs";
+import { SITE_CSS as CSS, topBar, THEME_JS, tagLinks, SEARCH_MODAL, SEARCH_JS } from "./site-chrome.mjs";
 import { M, MODEL, EFFORT, DATA, FLEET, INFRA, npmUrl, repoUrl, oneLiner } from "./inventory-data.mjs";
 // F083 — the FLEET section renders from the SCANNED manifests, not from a
 // hand-written array. Measured the day it changed: the array showed 15 of 149
@@ -175,17 +175,9 @@ THEME_JS,
 "document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});",
 "function legacyCopy(t){try{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();var ok=document.execCommand('copy');document.body.removeChild(ta);return ok;}catch(_){return false;}}",
 "if(dbody)dbody.addEventListener('click',function(e){var b=e.target.closest('.d-copy-x');if(!b)return;var ic=b.querySelector('.d-copy-ic');var txt=b.getAttribute('data-pkg')+'@'+b.getAttribute('data-ver')+'\\n'+b.getAttribute('data-npm');function flash(ok){b.classList.remove('ok','err');b.classList.add(ok?'ok':'err');if(ic)ic.textContent=ok?'✓':'!';setTimeout(function(){b.classList.remove('ok','err');if(ic)ic.textContent='⧉';},1600);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){flash(true);},function(){flash(legacyCopy(txt));});}else{flash(legacyCopy(txt));}});",
-"var sMod=document.getElementById('smod'),sInput=document.getElementById('sinput'),sList=document.getElementById('slist'),sIdx=0,sRes=[];",
-"function openSearch(){if(!sMod)return;sMod.classList.add('open');document.body.style.overflow='hidden';sInput.value='';renderSearch('');setTimeout(function(){sInput.focus();},20);}",
-"function closeSearch(){if(!sMod)return;sMod.classList.remove('open');if(!drawer.classList.contains('open'))document.body.style.overflow='';}",
-"function renderSearch(q){q=(q||'').trim().toLowerCase();sRes=(q?SEARCH.filter(function(x){return (x.nm+' '+x.pkg+' '+x.f+' '+x.kw+' '+(x.sum||'')+' '+x.layer).toLowerCase().indexOf(q)>=0;}):SEARCH).slice(0,24);sIdx=0;sList.innerHTML=sRes.length?sRes.map(function(x,i){return '<div class=\"sres'+(i===0?' on':'')+'\" data-testid=\"inv-search-result-'+x.f+'\" data-f=\"'+x.f+'\"'+(x.href?' data-href=\"'+x.href+'\"':'')+' data-i=\"'+i+'\"><span class=\"sf\">'+x.f+'</span><span class=\"snm\">'+x.nm+'</span>'+(x.pkg?'<span class=\"spkg\">'+x.pkg+'</span>':'')+'<span class=\"slay\">'+x.layer+'</span></div>';}).join(''):'<div class=\"sempty\">Ingen match</div>';}",
-"function moveSel(d){if(!sRes.length)return;sIdx=(sIdx+d+sRes.length)%sRes.length;Array.prototype.forEach.call(sList.children,function(c){if(c.classList)c.classList.toggle('on',+c.getAttribute('data-i')===sIdx);});var el=sList.children[sIdx];if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});}",
-"function chooseSel(){var x=sRes[sIdx];if(!x)return;if(x.href){location.href=x.href;return;}closeSearch();openDrawerByF(x.f);}",
-"if(sInput)sInput.addEventListener('input',function(){renderSearch(sInput.value);});",
-"if(sList)sList.addEventListener('click',function(e){var r=e.target.closest('.sres');if(!r)return;var h=r.getAttribute('data-href');if(h){location.href=h;return;}closeSearch();openDrawerByF(r.getAttribute('data-f'));});",
-"if(sMod)sMod.addEventListener('click',function(e){if(e.target===sMod)closeSearch();});",
-"var sBtn=document.getElementById('sbtn');if(sBtn)sBtn.addEventListener('click',openSearch);",
-"document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){e.preventDefault();openSearch();return;}if(!sMod||!sMod.classList.contains('open'))return;if(e.key==='Escape'){e.preventDefault();closeSearch();}else if(e.key==='ArrowDown'){e.preventDefault();moveSel(1);}else if(e.key==='ArrowUp'){e.preventDefault();moveSel(-1);}else if(e.key==='Enter'){e.preventDefault();chooseSel();}});",
+"window.__DISC_SEARCH=SEARCH;window.__DISC_OPEN_F=openDrawerByF;",
+// F038.40 — a search result chosen on another page lands here as /#open=<F>.
+"var mOpen=/^#open=(.+)$/.exec(location.hash);if(mOpen){try{openDrawerByF(decodeURIComponent(mOpen[1]));}catch(_){}history.replaceState(null,'',location.pathname+location.search);}",
 "})();",
 ].join("\n");
 
@@ -261,8 +253,7 @@ const HTML = `<!doctype html>
 <style>${CSS}</style>
 </head>
 <body>
-  ${topBar({ extra: `<button class="sbtn" id="sbtn" data-testid="inv-search-open" aria-label="Søg (⌘K)"><span class="sk">⌘K</span>Søg</button>
-    ` })}
+  ${topBar()}
   <div class="wrap">
     <section class="hero">
       <h1><span class="at">The </span>Component Universe</h1>
@@ -310,21 +301,18 @@ const HTML = `<!doctype html>
       <div class="copyright">© 2026 <a href="https://broberg.ai">broberg.ai</a> · Aalborg · Blokhus · Copenhagen · Build &amp; Powered by the broberg.ai universe.</div>
     </footer>
   </div>
-  <div class="smod" id="smod" data-testid="inv-search-modal">
-    <div class="sbox" role="dialog" aria-label="Søg i komponenter" aria-modal="true">
-      <input id="sinput" class="sinput" type="text" placeholder="Søg pakker, komponenter, F-numre…" data-testid="inv-search-input" autocomplete="off" spellcheck="false" aria-label="Søgning">
-      <div id="slist" class="slist"></div>
-      <div class="sfoot"><span>↑↓ naviger</span><span>↵ åbn</span><span>esc luk</span></div>
-    </div>
-  </div>
+  ${SEARCH_MODAL}
   <div class="drawer-backdrop" id="dback" data-testid="inv-detail-backdrop"></div>
   <aside class="drawer" id="drawer" data-testid="inv-detail" role="dialog" aria-modal="true" aria-labelledby="d-name" aria-hidden="true">
     <button class="drawer-x" id="dclose" data-testid="inv-detail-close" aria-label="Close details">✕</button>
     <div id="dbody"></div>
   </aside>
 <script>${JS}</script>
+<script>${SEARCH_JS}</script>
 </body>
 </html>
 `;
 writeFileSync(new URL("../docs/inventory.html", import.meta.url), HTML);
+// F038.40 — the same index for ⌘K on every other page (served at /search-index.json).
+writeFileSync(new URL("../docs/search-index.json", import.meta.url), JSON.stringify(SEARCH_INDEX) + "\n");
 console.log("wrote docs/inventory.html — total=" + total + " shipped=" + ship + " wip=" + wip + " grad=" + grad + " moved=" + mv + " detail-entries=" + Object.keys(DETAIL).length);

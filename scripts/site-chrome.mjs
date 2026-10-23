@@ -229,10 +229,45 @@ export function topBar({ active = "", extra = "" } = {}) {
     <a href="/" class="brand" data-testid="nav-home" style="color:inherit;text-decoration:none"><span class="at">@broberg/</span>components</a>
     ${links}
     <span class="spacer"></span>
+    ${SEARCH_BUTTON}
     ${extra}<div class="seg" id="mode"><button data-m="dark" aria-pressed="true" data-testid="theme-dark">Dark</button><button data-m="light" data-testid="theme-light">Light</button></div>
     <div class="seg" id="temp"><button data-t="" aria-pressed="true" data-testid="theme-neutral">Neutral</button><button data-t="-cool" data-testid="theme-cool">Cool</button><button data-t="-warm" data-testid="theme-warm">Warm</button></div>
   </div></div>`;
 }
+
+// F038.40 — the ⌘K search lives HERE, once, so every page that has the top bar
+// has it (it used to live only in build-inventory.mjs, so ⌘K worked on the front
+// page and nowhere else). The front page hands over its inline index and its
+// drawer via window.__DISC_SEARCH / window.__DISC_OPEN_F; every other page fetches
+// /search-index.json the first time the modal opens.
+export const SEARCH_BUTTON = `<button class="sbtn" id="sbtn" data-testid="inv-search-open" aria-label="Søg (⌘K)"><span class="sk">⌘K</span>Søg</button>`;
+
+export const SEARCH_MODAL = `<div class="smod" id="smod" data-testid="inv-search-modal">
+    <div class="sbox" role="dialog" aria-label="Søg i komponenter" aria-modal="true">
+      <input id="sinput" class="sinput" type="text" placeholder="Søg pakker, komponenter, F-numre…" data-testid="inv-search-input" autocomplete="off" spellcheck="false" aria-label="Søgning">
+      <div id="slist" class="slist"></div>
+      <div class="sfoot"><span>↑↓ naviger</span><span>↵ åbn</span><span>esc luk</span></div>
+    </div>
+  </div>`;
+
+export const SEARCH_JS = [
+"(function(){",
+"var SEARCH=window.__DISC_SEARCH||null,loading=null;",
+"var sMod=document.getElementById('smod'),sInput=document.getElementById('sinput'),sList=document.getElementById('slist'),sIdx=0,sRes=[],prevOverflow='';",
+"function load(){if(SEARCH)return Promise.resolve(SEARCH);if(!loading)loading=fetch('/search-index.json',{credentials:'same-origin'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();}).then(function(d){SEARCH=d;return d;}).catch(function(e){loading=null;throw e;});return loading;}",
+"function openSearch(){if(!sMod)return;prevOverflow=document.body.style.overflow;sMod.classList.add('open');document.body.style.overflow='hidden';sInput.value='';renderSearch('');setTimeout(function(){sInput.focus();},20);}",
+"function closeSearch(){if(!sMod)return;sMod.classList.remove('open');document.body.style.overflow=prevOverflow;}",
+"function renderSearch(q){if(!SEARCH){sList.innerHTML='<div class=\"sempty\" data-testid=\"inv-search-loading\">Henter…</div>';load().then(function(){if(sMod.classList.contains('open'))renderSearch(sInput.value);},function(){sList.innerHTML='<div class=\"sempty\" data-testid=\"inv-search-error\">Søgningen kunne ikke hentes — prøv igen</div>';});return;}q=(q||'').trim().toLowerCase();sRes=(q?SEARCH.filter(function(x){return (x.nm+' '+x.pkg+' '+x.f+' '+x.kw+' '+(x.sum||'')+' '+x.layer).toLowerCase().indexOf(q)>=0;}):SEARCH).slice(0,24);sIdx=0;sList.innerHTML=sRes.length?sRes.map(function(x,i){return '<div class=\"sres'+(i===0?' on':'')+'\" data-testid=\"inv-search-result-'+x.f+'\" data-f=\"'+x.f+'\"'+(x.href?' data-href=\"'+x.href+'\"':'')+' data-i=\"'+i+'\"><span class=\"sf\">'+x.f+'</span><span class=\"snm\">'+x.nm+'</span>'+(x.pkg?'<span class=\"spkg\">'+x.pkg+'</span>':'')+'<span class=\"slay\">'+x.layer+'</span></div>';}).join(''):'<div class=\"sempty\">Ingen match</div>';}",
+"function moveSel(d){if(!sRes.length)return;sIdx=(sIdx+d+sRes.length)%sRes.length;Array.prototype.forEach.call(sList.children,function(c){if(c.classList)c.classList.toggle('on',+c.getAttribute('data-i')===sIdx);});var el=sList.children[sIdx];if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});}",
+"function go(f,href){if(href){location.href=href;return;}closeSearch();if(window.__DISC_OPEN_F)window.__DISC_OPEN_F(f);else location.href='/#open='+encodeURIComponent(f);}",
+"function chooseSel(){var x=sRes[sIdx];if(x)go(x.f,x.href);}",
+"if(sInput)sInput.addEventListener('input',function(){renderSearch(sInput.value);});",
+"if(sList)sList.addEventListener('click',function(e){var r=e.target.closest('.sres');if(r)go(r.getAttribute('data-f'),r.getAttribute('data-href'));});",
+"if(sMod)sMod.addEventListener('click',function(e){if(e.target===sMod)closeSearch();});",
+"var sBtn=document.getElementById('sbtn');if(sBtn)sBtn.addEventListener('click',openSearch);",
+"document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){e.preventDefault();openSearch();return;}if(!sMod||!sMod.classList.contains('open'))return;if(e.key==='Escape'){e.preventDefault();closeSearch();}else if(e.key==='ArrowDown'){e.preventDefault();moveSel(1);}else if(e.key==='ArrowUp'){e.preventDefault();moveSel(-1);}else if(e.key==='Enter'){e.preventDefault();chooseSel();}});",
+"})();",
+].join("\n");
 
 /** Theme switching for the top bar's two segmented controls. */
 export const THEME_JS = [

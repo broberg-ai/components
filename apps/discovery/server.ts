@@ -239,6 +239,15 @@ try {
   LANDING = "<!doctype html><title>discovery.broberg.ai</title><p>Inventory dashboard unavailable.</p>";
 }
 
+// F038.40 — the ⌘K index for every page other than the front page (which inlines
+// it). Same build, same source; served behind the same gate as everything else.
+let SEARCH_INDEX_JSON = "[]";
+try {
+  SEARCH_INDEX_JSON = readFileSync(new URL("../../docs/search-index.json", import.meta.url), "utf8");
+} catch (e) {
+  console.warn("[discovery] docs/search-index.json unreadable — ⌘K off the front page answers an empty list:", e instanceof Error ? e.message : e);
+}
+
 // Onboarding surface (F060): generated from the SAME single source by
 // scripts/build-onboarding.mjs. /onboarding = human page; /llms.txt (+ /ai alias)
 // = the web-standard AI map (llmstxt.org) a new agent can discover by its
@@ -470,6 +479,7 @@ app.get("/consent/:file", (c) => {
 });
 // F038.30 — the BID ticket list is appended LIVE when served (never a static
 // copy in docs/llms.txt: it would be wrong from BID's next rule).
+app.get("/search-index.json", (c) => c.body(SEARCH_INDEX_JSON, 200, { "content-type": "application/json; charset=utf-8" }));
 app.get("/llms.txt", async (c) => c.text(LLMS + renderTicketRegistryMarkdown(await ticketRegistry.get())));
 app.get("/llms-full.txt", async (c) => c.text(LLMS_FULL + renderTicketRegistryMarkdown(await ticketRegistry.get())));
 app.get("/ai", async (c) => c.text(LLMS + renderTicketRegistryMarkdown(await ticketRegistry.get()))); // webhouse-style entry-point alias → the llms.txt map

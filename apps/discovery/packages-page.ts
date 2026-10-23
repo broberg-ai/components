@@ -1,7 +1,7 @@
 // F038.32 — «Packages»: every published @broberg package on one sortable page.
 // All data comes from sources that already exist: the roster (/api/packages),
 // docs/npm-meta.json (F038.31) and the fleet scan (F083). Nothing hand-written.
-import { SITE_CSS, topBar, THEME_JS } from "../../scripts/site-chrome.mjs";
+import { SITE_CSS, topBar, THEME_JS, SEARCH_MODAL, SEARCH_JS } from "../../scripts/site-chrome.mjs";
 import { FAVICON } from "../../scripts/favicon.mjs";
 import { daTime, PROVENANCE_LABEL } from "../../scripts/npm-meta.mjs";
 
@@ -125,5 +125,7 @@ export function renderPackagesPage(allRows: PackageRow[], scannedAt: string | nu
 ${tag ? `<div class="pk-tagbar" data-testid="pkg-tag-active">Viser pakker med nøgleordet <span class="tag on">${esc(tag)}</span> · ${rows.length} af ${allRows.length} <a class="pk-tag-clear" href="/packages" data-testid="pkg-tag-clear">Fjern ×</a></div>` : ""}
 <div class="pk-filter"><input type="text" placeholder="Filtrér på navn, nøgleord, lag, ejer, forbruger eller status…" aria-label="Filtrér pakker" autocomplete="off" spellcheck="false" data-testid="pkg-filter"><span class="pk-filter-count" data-testid="pkg-filter-count" aria-live="polite">${rows.length} af ${rows.length} pakker</span></div>
 <div class="pk-wrap"><table class="pk-table" data-testid="pkg-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rows.length ? "" : `<p class="pk-empty" data-testid="pkg-tag-empty">Ingen pakker har nøgleordet «${esc(tag ?? "")}». <a href="/packages" data-testid="pkg-tag-empty-clear">Vis alle pakker</a></p>`}<p class="pk-empty" data-testid="pkg-filter-empty" hidden>Ingen pakker matcher «<span data-testid="pkg-filter-empty-term"></span>». Tryk Escape for at rydde filteret.</p></div></main></div>
-<script>(function(){${THEME_JS}})();${sortJs}${filterJs}</script></body></html>`;
+${SEARCH_MODAL}
+<script>(function(){${THEME_JS}})();${sortJs}${filterJs}</script>
+<script>${SEARCH_JS}</script></body></html>`;
 }

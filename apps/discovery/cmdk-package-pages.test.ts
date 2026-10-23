@@ -26,8 +26,11 @@ describe("F038.38 Cmd+K → package page", () => {
   });
 
   it("Enter and click navigate to data-href when present, else open the drawer", () => {
-    expect(inv).toContain("if(x.href){location.href=x.href;return;}closeSearch();openDrawerByF(x.f);");
-    expect(inv).toContain("var h=r.getAttribute('data-href');if(h){location.href=h;return;}");
+    // F038.40 moved the search into site-chrome; the front page hands it its drawer.
+    expect(inv).toContain("function go(f,href){if(href){location.href=href;return;}closeSearch();if(window.__DISC_OPEN_F)window.__DISC_OPEN_F(f);");
+    expect(inv).toContain("go(x.f,x.href)");
+    expect(inv).toContain("go(r.getAttribute('data-f'),r.getAttribute('data-href'))");
+    expect(inv).toContain("window.__DISC_OPEN_F=openDrawerByF;");
   });
 
   it("the summary is searchable", () => {

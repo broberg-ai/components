@@ -3,7 +3,7 @@
 // vises samt hvem der anvender pakken i vores fleet». No new data source: the
 // roster, docs/npm-meta.json, data/dependency-health.json, the fleet scan and
 // the enrollments — each section says which one it comes from.
-import { SITE_CSS, topBar, THEME_JS, tagLinks } from "../../scripts/site-chrome.mjs";
+import { SITE_CSS, topBar, THEME_JS, SEARCH_MODAL, SEARCH_JS, tagLinks } from "../../scripts/site-chrome.mjs";
 import { FAVICON } from "../../scripts/favicon.mjs";
 import { daTime, PROVENANCE_LABEL } from "../../scripts/npm-meta.mjs";
 import { REPO_SESSION } from "../../scripts/fleet-graph.mjs";
@@ -137,7 +137,9 @@ const page = (title: string, body: string) =>
 <style>${SITE_CSS}${PAGE_CSS}</style></head>
 <body>${topBar({ active: "/packages" })}
 <div class="wrap">${body}</div>
-<script>(function(){${THEME_JS}})();(function(){var b=document.querySelector('[data-testid="pkg-detail-desc-toggle"]');if(!b)return;var d=document.getElementById('pkg-detail-desc'),l=b.querySelector('.pd-toggle-label');b.addEventListener('click',function(){var open=b.getAttribute('aria-expanded')!=='true';b.setAttribute('aria-expanded',String(open));d.hidden=!open;l.textContent=open?'Skjul fuld beskrivelse':'Vis fuld beskrivelse';});})();</script></body></html>`;
+<script>(function(){${THEME_JS}})();(function(){var b=document.querySelector('[data-testid="pkg-detail-desc-toggle"]');if(!b)return;var d=document.getElementById('pkg-detail-desc'),l=b.querySelector('.pd-toggle-label');b.addEventListener('click',function(){var open=b.getAttribute('aria-expanded')!=='true';b.setAttribute('aria-expanded',String(open));d.hidden=!open;l.textContent=open?'Skjul fuld beskrivelse':'Vis fuld beskrivelse';});})();</script>
+${SEARCH_MODAL}
+<script>${SEARCH_JS}</script></body></html>`;
 
 export function renderPackageNotFound(name: string): string {
   return page("Ukendt pakke", `<main data-testid="pkg-detail-notfound"><a class="pd-back" href="/packages" data-testid="pkg-detail-back">← Alle pakker</a><section class="hero"><h1>Ukendt pakke</h1><p><code>${esc(name)}</code> er ikke en udgivet <code>@broberg</code>-pakke i Discovery.</p></section></main>`);
