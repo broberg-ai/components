@@ -132,7 +132,7 @@ export function renderImagesPage(result: ImagesResult): string {
 <body>${topBar({ active: "/images" })}
 <div class="wrap" data-testid="images-root">
   <section class="hero"><h1>Hvad kører <span class="at">appsene</span> på</h1>
-  <p>Base-image, distro og runtime for hver Fly-app i flåden — målt på det image der faktisk blev udrullet, af image-hygiejne-motoren hver nat. Slim-standarden: <code>node:24-slim</code> eller <code>oven/bun:1-slim</code>.</p></section>
+  <p>Base-image, distro og runtime for hver Fly-app i flåden — målt på det image der faktisk blev udrullet, af image-hygiejne-motoren hver nat. Slim-standarden: <code>node:24-slim</code> eller <code>oven/bun:1-slim</code> — med nyere, upstream-rettede versioner af det appen bruger lagt ovenpå (fx ffmpeg fra ffmpeg.org). En binær lagt ind uden apt ses ikke af scanningen, så dens version skal stå i Dockerfilen.</p></section>
   ${body}
 </div>
 ${SEARCH_MODAL}
