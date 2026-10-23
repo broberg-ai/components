@@ -106,14 +106,20 @@ export function assertColor(field: string, value: string | undefined): void {
 }
 
 /** A font stack is NOT a colour and must not borrow the colour grammar — it
- *  legitimately contains quotes and commas (`'Segoe UI'`). What cannot appear is
- *  a tag delimiter or a quote that closes the attribute we sit inside. */
+ *  legitimately contains quotes and commas (`'Segoe UI'`). It is rendered INSIDE
+ *  `style="…font-family:${stack};…"`, so an ALLOWLIST, not a denylist: a `;`
+ *  starts a new CSS declaration without leaving the attribute. Measured on 0.9.1
+ *  (F023.9 auto-review): "Arial;background-image:url(…);display:none" rendered
+ *  into the <body> style — the genuine mail hidden, a tracking pixel added.
+ *  A family name needs letters (any script), digits, spaces, commas, single
+ *  quotes, dots, hyphens and underscores — nothing else. */
+const FONT_STACK = /^[\p{L}\p{N} ,'._-]*$/u;
 export function assertFontStack(field: string, value: string | undefined): void {
   if (value === undefined) return;
-  if (!/[<>"`]/.test(value)) return;
+  if (FONT_STACK.test(value)) return;
   throw new Error(
-    `@broberg/mail-core: ${field} contains a character that can break out of the ` +
-      `attribute it is rendered into (received ${JSON.stringify(value)}). ` +
+    `@broberg/mail-core: ${field} contains a character a font stack does not need and that can ` +
+      `inject markup or CSS into the attribute it is rendered into (received ${JSON.stringify(value)}). ` +
       `Use single quotes for family names: "-apple-system,'Segoe UI',sans-serif".`,
   );
 }

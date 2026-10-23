@@ -26,6 +26,13 @@ const original = readFileSync(SRC, "utf8");
 
 const MUTATIONS = [
   {
+    name: "the font stack is a denylist again (';' injects CSS into the style attribute)",
+    find: `  if (FONT_STACK.test(value)) return;`,
+    replace: `  if (!/[<>"\`]/.test(value)) return;`,
+    expectRed: ["rejects a ';' — CSS injected without leaving the style attribute"],
+    expectGreen: ["accepts a real stack, quotes and commas included"],
+  },
+  {
     name: "the cta label is a constant #ffffff again (the shipped defect)",
     find: `  const ink = readableInk(opts.accentColor);`,
     replace: `  const ink = "#ffffff";`,

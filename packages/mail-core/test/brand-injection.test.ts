@@ -74,10 +74,18 @@ describe("a font stack is not a colour (AC#3)", () => {
   it("accepts a real stack, quotes and commas included", () => {
     expect(() => assertFontStack("fontSans", "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif")).not.toThrow();
     expect(() => assertFontStack("fontSerif", "Georgia,'Times New Roman',serif")).not.toThrow();
+    // Non-Latin family names stay valid (the allowlist is \p{L}, not [a-z]).
+    expect(() => assertFontStack("fontSans", "'Hiragino Kaku Gothic ProN','メイリオ',sans-serif")).not.toThrow();
   });
   it("rejects a tag delimiter and a double quote", () => {
     expect(() => assertFontStack("fontSans", "Arial<b>")).toThrow(/fontSans/);
     expect(() => assertFontStack("fontSans", `Arial" onload="x`)).toThrow(/fontSans/);
+  });
+  it("rejects a ';' — CSS injected without leaving the style attribute", () => {
+    // F023.9 auto-review, measured on 0.9.1: this rendered into <body style="…">,
+    // hiding the genuine mail and adding a tracking pixel.
+    expect(() => assertFontStack("fontSans", "Arial;background-image:url(https://track.example/p.png);display:none")).toThrow(/fontSans/);
+    expect(() => renderShell({ accentColor: "#0f7391", fontSans: "Arial;display:none", subject: "s", bodyHtml: "<p>x</p>" })).toThrow(/fontSans/);
   });
   it("does NOT borrow the colour grammar", () => {
     // A stack is not a colour; if the colour rule were reused here every real
