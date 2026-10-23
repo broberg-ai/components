@@ -115,8 +115,8 @@
  },
  "@broberg/ui-controls-core": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ui-controls-core",
-  "version": "0.2.3",
-  "publishedAt": "2026-09-10T13:25:29.859Z",
+  "version": "0.2.4",
+  "publishedAt": "2026-10-23T01:33:42.635Z",
   "provenance": "yes"
  },
  "@broberg/settings": {
@@ -169,8 +169,8 @@
  },
  "@broberg/lens-engine": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-engine",
-  "version": "0.14.0",
-  "publishedAt": "2026-10-22T01:48:24.467Z",
+  "version": "0.14.1",
+  "publishedAt": "2026-10-23T00:09:13.014Z",
   "provenance": "no"
  },
  "@broberg/lens-client": {
