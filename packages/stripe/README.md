@@ -111,6 +111,38 @@ await buildConnectCheckout(stripe, {
 > `extra` remains an escape hatch for other **top-level** session params (use the
 > two fields above for PI/sub).
 
+## Direct charges (0.5.0)
+
+With the default **destination** charge the platform charges the card and
+transfers to the connected account — so **the platform pays Stripe's fee**.
+With a **direct** charge the payment lives on the connected account, which pays
+the fee; your cut is still taken as the application fee.
+
+```ts
+const session = await buildConnectCheckout(stripe, {
+  chargeType: "direct",            // default "destination" — unchanged, byte for byte
+  mode: "payment",
+  destination: "acct_123",         // the session is CREATED on this account
+  applicationFeeAmount: 2500,      // subscription: applicationFeePercent
+  lineItems, successUrl, cancelUrl,
+});
+// → no on_behalf_of / transfer_data; sessions.create(params, { stripeAccount: "acct_123" })
+```
+
+- **Customers are per account.** Under `direct`, `customer` must be a customer
+  on the connected account. A platform `cus_` is refused by Stripe ("No such
+  customer") — loudly; the package cannot tell the two apart and does not try.
+- **Webhooks:** the Connect endpoint has its own `whsec_`. Give the handler both
+  — `secret: [PLATFORM_WHSEC, CONNECT_WHSEC]` — and limit which accounts it acts
+  for with `allowedAccounts: ["acct_123"]`. An event whose `event.account` is not
+  listed is never dispatched (`ok:false`, status **200**: it is genuinely signed,
+  so a retry would change nothing). Events without `event.account` are the
+  platform's own and pass as before. Handlers see `event.account`.
+- **Refund:** `refundDirectCharge(stripe, { paymentIntent, account, amount? })` →
+  `refunds.create({ payment_intent, refund_application_fee: true }, { stripeAccount })`.
+  No `reverse_transfer` — there is no transfer. Any other call on a direct
+  charge takes the same option: `stripe.paymentIntents.retrieve(id, {}, { stripeAccount })`.
+
 ## Webhook handler + `/next` route
 
 `createStripeWebhookHandler` verifies the signature against the **raw body**

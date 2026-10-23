@@ -31,6 +31,7 @@ const FILES = {
   "src/fields.ts": join(PKG, "src/fields.ts"),
   "src/probe.ts": join(PKG, "src/probe.ts"),
   "src/spec-drift.ts": join(PKG, "src/spec-drift.ts"),
+  "src/index.ts": join(PKG, "src/index.ts"),
 };
 const DEFAULT_REL = "src/fields.ts";
 const relOf = (m) => m.file ?? DEFAULT_REL;
@@ -172,6 +173,37 @@ const MUTATIONS = [
     name: "the foreign-input guard is dropped from readSubscriptionId",
     from: "  if (!invoice || typeof invoice !== \"object\") return null;",
     to: "  if (false) return null;",
+  },
+  // ---- F053.14: direct charges + the webhook's account gate -----------------
+  {
+    file: "src/index.ts",
+    name: "the allowedAccounts check is removed (a stranger's event is processed)",
+    from: "    if (config.allowedAccounts && event.account != null && !config.allowedAccounts.includes(event.account)) {",
+    to: "    if (false) {",
+  },
+  {
+    file: "src/index.ts",
+    name: "direct charge created on the PLATFORM (stripeAccount dropped)",
+    from: "    return stripe.checkout.sessions.create(base, { stripeAccount: params.destination });",
+    to: "    return stripe.checkout.sessions.create(base);",
+  },
+  {
+    file: "src/index.ts",
+    name: "direct payment keeps on_behalf_of (the platform still pays the fee)",
+    from: "        ...params.paymentIntentData,\n        ...(params.applicationFeeAmount != null",
+    to: "        ...params.paymentIntentData,\n        on_behalf_of: params.destination,\n        ...(params.applicationFeeAmount != null",
+  },
+  {
+    file: "src/index.ts",
+    name: "a direct refund keeps the platform's application fee",
+    from: "      refund_application_fee: true,",
+    to: "      refund_application_fee: false,",
+  },
+  {
+    file: "src/index.ts",
+    name: "only the FIRST secret is tried (the Connect endpoint's events 400)",
+    from: "      for (const secret of secrets) {",
+    to: "      for (const secret of secrets.slice(0, 1)) {",
   },
 ];
 

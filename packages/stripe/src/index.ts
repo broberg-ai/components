@@ -106,8 +106,20 @@ export function createFeeCalculator(config: FeeConfig): FeeCalculator {
 export interface ConnectCheckoutParams {
   mode: "payment" | "subscription";
   lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
-  /** Connected account id the charge is destined for (on_behalf_of + transfer_data). */
+  /**
+   * Connected account id. `destination` charge: routed there via on_behalf_of +
+   * transfer_data. `direct` charge: the session is CREATED on this account.
+   */
   destination: string;
+  /**
+   * F053.14 — who carries the charge. `destination` (default, unchanged): the
+   * platform charges and transfers, so the PLATFORM pays Stripe's fee. `direct`:
+   * the charge lives on the connected account, which pays the fee; the
+   * application fee is still taken. Under `direct`, `customer` must be a customer
+   * ON THE CONNECTED ACCOUNT — customer ids are per account, and Stripe refuses a
+   * platform customer ("No such customer").
+   */
+  chargeType?: "destination" | "direct";
   successUrl: string;
   cancelUrl: string;
   /** Session metadata — include the `kind` routing-signal (booking/shop/…). */
@@ -167,6 +179,27 @@ export async function buildConnectCheckout(
     ...params.extra,
   };
 
+  if (params.chargeType === "direct") {
+    // No Connect routing: the session is created ON the connected account, which
+    // then pays Stripe's fee. The platform's cut stays as the application fee.
+    if (params.mode === "payment") {
+      base.payment_intent_data = {
+        ...params.paymentIntentData,
+        ...(params.applicationFeeAmount != null
+          ? { application_fee_amount: params.applicationFeeAmount }
+          : {}),
+      };
+    } else {
+      base.subscription_data = {
+        ...params.subscriptionData,
+        ...(params.applicationFeePercent != null
+          ? { application_fee_percent: params.applicationFeePercent }
+          : {}),
+      };
+    }
+    return stripe.checkout.sessions.create(base, { stripeAccount: params.destination });
+  }
+
   if (params.mode === "payment") {
     base.payment_intent_data = {
       ...params.paymentIntentData, // consumer fields (description, receipt_email, own metadata)
@@ -196,8 +229,20 @@ export type StripeEventHandler = (event: Stripe.Event) => void | Promise<void>;
 
 export interface WebhookHandlerConfig {
   stripe: Stripe;
-  /** `STRIPE_WEBHOOK_SECRET`. When absent, see `allowUnverifiedInDev`. */
-  secret?: string;
+  /**
+   * `STRIPE_WEBHOOK_SECRET`. When absent, see `allowUnverifiedInDev`. A LIST when
+   * one route serves several endpoints (the platform endpoint and the Connect
+   * endpoint each have their own `whsec_`): the first that verifies wins.
+   */
+  secret?: string | string[];
+  /**
+   * F053.14 — connected accounts this route may act for. An event whose
+   * `event.account` is set and NOT listed is never dispatched: the answer is
+   * `ok:false` with status 200 (it is genuinely signed, so a retry changes
+   * nothing). Events without `event.account` are the platform's own and pass as
+   * before. Omitted: no account check (unchanged).
+   */
+  allowedAccounts?: string[];
   /** Map of `event.type` → handler. Unlisted types are acked (200) via `onUnhandled`. */
   handlers: Record<string, StripeEventHandler>;
   onUnhandled?: (event: Stripe.Event) => void | Promise<void>;
@@ -231,19 +276,29 @@ export function createStripeWebhookHandler(config: WebhookHandlerConfig): Stripe
   return async (rawBody, signature) => {
     let event: Stripe.Event;
 
-    if (config.secret) {
+    const secrets = config.secret == null ? [] : Array.isArray(config.secret) ? config.secret : [config.secret];
+    if (secrets.length > 0) {
       if (!signature) {
         return { ok: false, status: 400, error: "missing stripe-signature header" };
       }
-      try {
-        event = config.stripe.webhooks.constructEvent(rawBody, signature, config.secret);
-      } catch (err) {
+      let verified: Stripe.Event | null = null;
+      let lastError: unknown = null;
+      for (const secret of secrets) {
+        try {
+          verified = config.stripe.webhooks.constructEvent(rawBody, signature, secret);
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      if (!verified) {
         return {
           ok: false,
           status: 400,
-          error: err instanceof Error ? err.message : "signature verification failed",
+          error: lastError instanceof Error ? lastError.message : "signature verification failed",
         };
       }
+      event = verified;
     } else if (config.allowUnverifiedInDev) {
       console.warn(
         "[@broberg/stripe] STRIPE_WEBHOOK_SECRET unset — parsing webhook WITHOUT signature verification (dev only)",
@@ -256,6 +311,10 @@ export function createStripeWebhookHandler(config: WebhookHandlerConfig): Stripe
       }
     } else {
       return { ok: false, status: 400, error: "webhook secret not configured" };
+    }
+
+    if (config.allowedAccounts && event.account != null && !config.allowedAccounts.includes(event.account)) {
+      return { ok: false, status: 200, event, error: `event.account ${event.account} is not in allowedAccounts` };
     }
 
     try {
@@ -275,6 +334,35 @@ export function createStripeWebhookHandler(config: WebhookHandlerConfig): Stripe
       };
     }
   };
+}
+
+// ── Direct-charge refund (F053.14) ──────────────────────────────────────────
+
+export interface DirectRefundParams {
+  /** PaymentIntent id on the connected account. */
+  paymentIntent: string;
+  /** The connected account the charge lives on. */
+  account: string;
+  /** Partial refund in the smallest unit; omit for a full refund. */
+  amount?: number;
+}
+
+/**
+ * Refund a DIRECT charge. It lives on the connected account, so the call is
+ * made there (`{ stripeAccount }`), and the platform's application fee is
+ * refunded with it. There is no transfer to reverse — `reverse_transfer` is a
+ * destination-charge concept. Any other call on a direct charge (retrieve, …)
+ * takes the same request option: `stripe.paymentIntents.retrieve(id, {}, { stripeAccount })`.
+ */
+export function refundDirectCharge(stripe: Stripe, params: DirectRefundParams): Promise<Stripe.Refund> {
+  return stripe.refunds.create(
+    {
+      payment_intent: params.paymentIntent,
+      refund_application_fee: true,
+      ...(params.amount != null ? { amount: params.amount } : {}),
+    },
+    { stripeAccount: params.account },
+  );
 }
 
 /**
