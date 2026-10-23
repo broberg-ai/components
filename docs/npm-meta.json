@@ -181,8 +181,8 @@
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.31",
-  "publishedAt": "2026-10-23T09:49:56.654Z",
+  "version": "0.1.33",
+  "publishedAt": "2026-10-23T13:39:45.188Z",
   "provenance": "no"
  },
  "@broberg/lens-svg": {
