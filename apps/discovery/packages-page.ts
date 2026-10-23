@@ -50,6 +50,14 @@ const PAGE_CSS = `
   .pk-yes,.pk-dep-ok{color:var(--green)} .pk-no,.pk-unknown,.pk-dep-minor,.pk-dep-unknown{color:var(--amber)}
   .pk-dep-bad{color:var(--amber);font-weight:700}
   .pk-wrap{overflow-x:auto}
+  .pk-filter{display:flex;align-items:center;gap:14px;margin:22px 0 0;flex-wrap:wrap}
+  .pk-filter input{flex:1;min-width:220px;font:inherit;font-size:15px;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:11px 14px;outline:none}
+  .pk-filter input::placeholder{color:var(--faint)}
+  .pk-filter input:hover{border-color:var(--muted)}
+  .pk-filter input:focus{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in oklch, var(--primary) 18%, transparent)}
+  .pk-filter-count{font-size:13px;color:var(--muted);white-space:nowrap}
+  .pk-empty{margin:18px 0 60px;padding:28px;border:1px dashed var(--border);border-radius:12px;color:var(--muted);text-align:center}
+  .pk-table + .pk-empty{margin-top:0}
 `;
 
 function depClass(d: PackageRow["deps"]): string {
@@ -67,12 +75,17 @@ function depRank(d: PackageRow["deps"]): string {
   return d.verdict === "sårbar" ? `3-${String(d.prod.critical).padStart(3, "0")}-${String(d.prod.high).padStart(3, "0")}` : d.verdict === "mindre fund" ? "2" : d.verdict === "OK" ? "0" : "1";
 }
 
+/** F038.34 — what the filter matches: name, layer, owner, consumers, dependency status. */
+export function haystack(r: PackageRow): string {
+  return [r.name, r.layer, r.owner, ...r.consumers, depText(r.deps)].filter(Boolean).join(" ").toLowerCase();
+}
+
 export function renderPackagesPage(rows: PackageRow[], scannedAt: string | null): string {
   const sorted = [...rows].sort((a, b) => a.name.localeCompare(b.name));
   const body = sorted
     .map((r, i) => {
       const when = daTime(r.publishedAt);
-      return `<tr data-testid="pkg-row-${i}" data-name="${esc(r.name)}" data-version="${esc(r.version)}" data-published="${esc(r.publishedAt ?? "")}" data-provenance="${esc(r.provenance)}" data-layer="${esc(r.layer)}" data-owner="${esc(r.owner)}" data-consumers="${r.consumers.length}" data-deps="${esc(depRank(r.deps))}">` +
+      return `<tr data-testid="pkg-row-${i}" data-name="${esc(r.name)}" data-version="${esc(r.version)}" data-published="${esc(r.publishedAt ?? "")}" data-provenance="${esc(r.provenance)}" data-layer="${esc(r.layer)}" data-owner="${esc(r.owner)}" data-consumers="${r.consumers.length}" data-deps="${esc(depRank(r.deps))}" data-haystack="${esc(haystack(r))}">` +
         `<td>${r.npmUrl ? `<a href="${esc(r.npmUrl)}" target="_blank" rel="noopener" data-testid="pkg-npm-${i}">${esc(r.name)} ↗</a>` : esc(r.name)}<br><code>${esc(r.install)}</code></td>` +
         `<td>${esc(r.version ?? "—")}</td>` +
         `<td>${esc(when ?? "ukendt")}</td>` +
@@ -88,10 +101,13 @@ export function renderPackagesPage(rows: PackageRow[], scannedAt: string | null)
   const vulnerable = rows.filter((r) => r.deps?.verdict === "sårbar").length;
   const scanned = daTime(scannedAt);
   const sortJs = `(function(){var t=document.querySelector('[data-testid="pkg-table"] tbody');var num={consumers:1};document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-key');var dir=b.getAttribute('aria-sort')==='ascending'?-1:1;document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(x){x.removeAttribute('aria-sort');});b.setAttribute('aria-sort',dir===1?'ascending':'descending');var rows=Array.prototype.slice.call(t.rows);rows.sort(function(a,c){var x=a.getAttribute('data-'+k)||'',y=c.getAttribute('data-'+k)||'';var r=num[k]?(Number(x)-Number(y)):x.localeCompare(y,'da',{numeric:true});return r*dir;});rows.forEach(function(r){t.appendChild(r);});});});})();`;
+  // F038.34 — filter as you type; hides rows (sorting moves them, so the two stay independent).
+  const filterJs = `(function(){var f=document.querySelector('[data-testid="pkg-filter"]'),n=document.querySelector('[data-testid="pkg-filter-count"]'),e=document.querySelector('[data-testid="pkg-filter-empty"]'),et=document.querySelector('[data-testid="pkg-filter-empty-term"]'),rs=document.querySelectorAll('[data-testid="pkg-table"] tbody tr'),total=rs.length;function run(){var q=f.value.trim().toLowerCase(),shown=0;rs.forEach(function(r){var ok=!q||(r.getAttribute('data-haystack')||'').indexOf(q)!==-1;r.hidden=!ok;if(ok)shown++;});n.textContent=shown+' af '+total+' pakker';e.hidden=shown!==0;et.textContent=f.value.trim();}f.addEventListener('input',run);f.addEventListener('keydown',function(ev){if(ev.key==='Escape'){f.value='';run();}});})();`;
   return `<!doctype html><html lang="da" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="${FAVICON}"><title>Packages — Discovery</title>
 <style>${SITE_CSS}${PAGE_CSS}</style></head>
 <body>${topBar({ active: "/packages" })}
 <div class="wrap"><main data-testid="packages-root"><section class="hero"><h1><span class="at">Alle vores </span>pakker</h1><p>${rows.length} udgivne <code>@broberg</code>-pakker · ${tp} udgivet via Trusted Publisher · ${vulnerable} med sårbare afhængigheder · forbrugere scannet ${esc(scanned ?? "aldrig")}. Klik på en kolonne for at sortere. Som data: <code>/api/packages</code>.</p></section>
-<div class="pk-wrap"><table class="pk-table" data-testid="pkg-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></main></div>
-<script>(function(){${THEME_JS}})();${sortJs}</script></body></html>`;
+<div class="pk-filter"><input type="text" placeholder="Filtrér på navn, lag, ejer, forbruger eller status…" aria-label="Filtrér pakker" autocomplete="off" spellcheck="false" data-testid="pkg-filter"><span class="pk-filter-count" data-testid="pkg-filter-count" aria-live="polite">${rows.length} af ${rows.length} pakker</span></div>
+<div class="pk-wrap"><table class="pk-table" data-testid="pkg-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table><p class="pk-empty" data-testid="pkg-filter-empty" hidden>Ingen pakker matcher «<span data-testid="pkg-filter-empty-term"></span>». Tryk Escape for at rydde filteret.</p></div></main></div>
+<script>(function(){${THEME_JS}})();${sortJs}${filterJs}</script></body></html>`;
 }

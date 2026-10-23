@@ -38,6 +38,20 @@ describe("/packages", () => {
     expect(row).toMatch(/<td>\d\d\.\d\d\.\d{4} kl\. \d\d\.\d\d \(dansk tid\)<\/td>/);
   });
 
+  it("F038.34: a filter field and a count of «Y af Y pakker» sit above the table, and every row carries what the filter matches", async () => {
+    const html = await (await app.request("/packages", { headers: await login() })).text();
+    const total = Object.keys(meta).length;
+    expect(html.indexOf('data-testid="pkg-filter"')).toBeGreaterThan(-1);
+    expect(html.indexOf('data-testid="pkg-filter"')).toBeLessThan(html.indexOf('data-testid="pkg-table"'));
+    expect(html.match(/data-testid="pkg-filter-count"[^>]*>([^<]*)</)![1]).toBe(`${total} af ${total} pakker`);
+    expect(html).toMatch(/data-testid="pkg-filter-empty" hidden/);
+    // the mail row's haystack holds its name and each consumer, lower-cased
+    const row = html.match(/<tr[^>]*data-name="@broberg\/mail"[^>]*>/)![0];
+    const hay = row.match(/data-haystack="([^"]*)"/)![1];
+    expect(hay.startsWith("@broberg/mail ")).toBe(true);
+    for (const c of consumersOf(scan, "@broberg/mail")) expect(hay).toContain(String(c).toLowerCase());
+  });
+
   it("uses the site's design module, with «Packages» marked current and a sort button per column", async () => {
     const html = await (await app.request("/packages", { headers: await login() })).text();
     expect(html).toContain(SITE_CSS);
