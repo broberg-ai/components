@@ -79,5 +79,12 @@ check("the report names the blocking criticals (detail.vulnerabilities)", () => 
   if (!/vulnerabilities: d\.vulnerabilities/.test(wf)) throw new Error("detail.vulnerabilities not reported");
 });
 
+check("F105.3: node_version is measured on the SAME digest, is null when absent, and can never fail the run", () => {
+  const scanStep = wf.slice(wf.indexOf("- name: Scan that image"), wf.indexOf("- name: Decide"));
+  if (!/docker run --rm --entrypoint node "\$IMAGE" -v 2>\/dev\/null[^\n]*\|\| true\)/.test(scanStep)) throw new Error("node -v must run on \"$IMAGE\" (the scanned digest) and end in || true");
+  if (!/grep -Eq '\^v\[0-9\]\+/.test(scanStep)) throw new Error("only a v<major>.<minor>.<patch> string may be recorded");
+  if (!/node_version: process\.env\.NODE_VERSION \|\| null/.test(wf)) throw new Error("report must send node_version, null when empty");
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nall green");
 process.exit(failures ? 1 : 0);

@@ -90,6 +90,10 @@ jobs:
           # push answered «manifest unknown»; the same manifest answered 200 later.
           # The registry needs a moment — wait for it, but never longer than ~2 min.
           for i in 1 2 3 4 5 6 7 8; do docker pull "$IMAGE" && break; [ "$i" = 8 ] && exit 1; sleep 15; done
+          # F105.3 — Node version of THIS digest (owner: Node 24 LTS everywhere). Never fails
+          # the run: no node in the image (e.g. Bun) is recorded as null, not as an error.
+          NV=$(docker run --rm --entrypoint node "$IMAGE" -v 2>/dev/null | tr -d '\r' | head -1 || true)
+          if printf '%s' "$NV" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then echo "NODE_VERSION=$NV" >> "$GITHUB_ENV"; else echo "NODE_VERSION=" >> "$GITHUB_ENV"; fi
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" \
             aquasec/trivy:0.57.1 image --format json --output /out/trivy.json \
             --severity CRITICAL,HIGH --quiet "$IMAGE" || true
@@ -130,6 +134,7 @@ jobs:
                 critical_unfixable: d.critical_unfixable ?? null,
                 high: d.high ?? null,
                 vulnerabilities: d.vulnerabilities ?? [],
+                node_version: process.env.NODE_VERSION || null,
                 fly_release: process.env.FLY_RELEASE || null,
                 sha: process.env.GITHUB_SHA,
               },
