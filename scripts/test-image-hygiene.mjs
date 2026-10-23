@@ -150,7 +150,12 @@ check("F105.8: anything unreadable → skip, never deploy blind", () => {
 check("F105.8: the workflow asks right before deploying, the deploy is gated on it, and skipped is not red", () => {
   const between = wf.slice(wf.indexOf("- name: Decide"), wf.indexOf("- name: Deploy exactly the scanned image"));
   if (!/image-hygiene-superseded\.mjs releases\.json "\$RUN_STARTED_MS"/.test(between)) throw new Error("the superseded check must run between Decide and Deploy");
-  if (!/if: steps\.decide\.outputs\.deploy == 'true' && steps\.superseded\.outputs\.skip != 'true'/.test(wf)) throw new Error("deploy must be gated on the superseded check");
+  // cardmem #4215: a crashed check left skip EMPTY and "!= 'true'" deployed anyway (run 39986034692).
+  if (!/if: steps\.decide\.outputs\.deploy == 'true' && steps\.superseded\.outputs\.skip == 'false'/.test(wf)) throw new Error("deploy must require an EXPLICIT skip == 'false' (fail closed)");
+  const supStep = wf.slice(wf.indexOf("- name: Has newer code overtaken this run?"), wf.indexOf("- name: Deploy exactly the scanned image"));
+  if (!/set -o pipefail/.test(supStep)) throw new Error("the check must run under pipefail");
+  if (!/catch \{ "true" \}/.test(supStep)) throw new Error("an unreadable answer must become skip=true");
+  if (!/process\.env\.SUPERSEDED_OUTCOME === "failure" \? "failed"/.test(wf)) throw new Error("a crashed check must be reported failed, not ok");
   if (!/RUN_STARTED_MS=\$\(date \+%s%3N\)/.test(wf.slice(0, wf.indexOf("- name: Rebuild with no cache")))) throw new Error("the start must be marked BEFORE the build");
   if (!/r\.status !== "skipped"/.test(wf)) throw new Error("a skipped run must not end red");
   if (!/sparse-checkout: \|[\s\S]*scripts\/image-hygiene-superseded\.mjs/.test(wf)) throw new Error("the engine checkout must include image-hygiene-superseded.mjs");

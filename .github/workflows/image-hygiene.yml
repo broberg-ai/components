@@ -138,6 +138,7 @@ jobs:
         run: |
           # F105.8 (cardmem #4199): this run once deployed 9e79dca2 on top of a newer
           # e6dc8467 — production went backwards, all green. Read it fresh, right here.
+          set -o pipefail   # F105.8 (cardmem #4215): a crashed check must not tee into green
           flyctl releases -a "$APP" --json > releases.json 2>/dev/null || echo "null" > releases.json
           ON_DEFAULT=0; HEAD=""
           if [ -n "$DEFAULT_BRANCH" ] && [ "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
@@ -145,11 +146,13 @@ jobs:
             HEAD=$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | cut -f1 || true)
           fi
           node .image-hygiene-engine/scripts/image-hygiene-superseded.mjs releases.json "$RUN_STARTED_MS" "${{ github.sha }}" "$HEAD" "$ON_DEFAULT" | tee superseded.json
-          echo "skip=$(node -p 'require("./superseded.json").skip')" >> "$GITHUB_OUTPUT"
+          # Only an explicit, readable "false" lets the deploy through. Anything else is "true".
+          echo "skip=$(node -p 'try { require("./superseded.json").skip === false ? "false" : "true" } catch { "true" }')" >> "$GITHUB_OUTPUT"
 
       - name: Deploy exactly the scanned image
         id: deploy
-        if: steps.decide.outputs.deploy == 'true' && steps.superseded.outputs.skip != 'true'
+        # F105.8 — fail CLOSED: deploy only on an explicit no, never on a missing answer.
+        if: steps.decide.outputs.deploy == 'true' && steps.superseded.outputs.skip == 'false'
         run: |
           flyctl deploy -a "$APP" -c "${{ inputs.config }}" --image "$IMAGE" --remote-only
           echo "release=$(flyctl releases -a "$APP" --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);console.log((r[0]&&(r[0].Version??r[0].version))??"")})')" >> "$GITHUB_OUTPUT"
@@ -158,6 +161,7 @@ jobs:
         if: always()
         env:
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          SUPERSEDED_OUTCOME: ${{ steps.superseded.outcome }}
           FLY_RELEASE: ${{ steps.deploy.outputs.release }}
           REASON: ${{ inputs.reason }}
         run: |
@@ -168,7 +172,8 @@ jobs:
             let sup = {}; try { sup = JSON.parse(fs.readFileSync("superseded.json", "utf8")); } catch { sup = {}; }
             // A deploy that was attempted and failed overrides an ok decision; a run that
             // newer code overtook (F105.8) deployed nothing on purpose and says so.
-            const status = process.env.DEPLOY_OUTCOME === "failure" ? "failed" : sup.skip ? "skipped" : d.status;
+            // F105.8 — a crashed overtaken-check deployed nothing; that is a failure, never "ok".
+            const status = process.env.DEPLOY_OUTCOME === "failure" || process.env.SUPERSEDED_OUTCOME === "failure" ? "failed" : sup.skip ? "skipped" : d.status;
             const report = {
               pipeline: "image-hygiene",
               status,
