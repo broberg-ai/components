@@ -8,7 +8,7 @@
 
 import { writeFileSync } from "node:fs";
 import { FAVICON } from "./favicon.mjs";
-import { SITE_CSS as CSS, topBar, THEME_JS } from "./site-chrome.mjs";
+import { SITE_CSS as CSS, topBar, THEME_JS, tagLinks } from "./site-chrome.mjs";
 import { M, MODEL, EFFORT, DATA, FLEET, INFRA, npmUrl, repoUrl, oneLiner } from "./inventory-data.mjs";
 // F083 — the FLEET section renders from the SCANNED manifests, not from a
 // hand-written array. Measured the day it changed: the array showed 15 of 149
@@ -77,6 +77,8 @@ function detailHtml(it, layerN, layerT){
   if(it.grad) facts += `<dt>Graduate</dt><dd>⬆ gets its own repo + cardmem project</dd>`;
   facts += `<dt>Best source</dt><dd><code>${it.src}</code></dd>`;
   facts += `<dt>Owner</dt><dd>${it.own}</dd>`;
+  // F038.37 — keywords as clickable tags → /packages?tag=…
+  if ((it.kw ?? []).length) facts += `<dt>Nøgleord</dt><dd>${tagLinks(it.kw, "d-tag-" + it.f.toLowerCase() + "-")}</dd>`;
   // F038.31 — when the data behind this drawer is from. Each line names its own
   // source time; there is deliberately no "page built at" line, because that
   // would change on every build and fail the docs-in-sync gate (F083.6).

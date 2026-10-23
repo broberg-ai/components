@@ -190,6 +190,13 @@ export const SITE_CSS = `
     .drawer{width:100%;max-width:100%}
     footer{grid-template-columns:1fr;gap:22px}
   }
+  /* F038.37 — keyword tags: one look on every page; each tag links to /packages?tag=… */
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+  .tag{display:inline-block;font-size:12.5px;line-height:1.4;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:3px 10px;text-decoration:none;transition:border-color .15s,background .15s}
+  .tag:hover{border-color:var(--muted);background:var(--card)}
+  .tag:active{transform:translateY(1px)}
+  .tag:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .tag.on{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
 `;
 
 /** The top-bar menu. `extra` is page-specific controls (the landing's ⌘K search). */
@@ -198,6 +205,14 @@ export const NAV = [
   { href: "/packages", label: "Packages", testid: "nav-packages", title: "Alle udgivne @broberg-pakker samlet: version, npm, udgivet, Trusted Publisher, forbrugere" },
   { href: "/tickets", label: "BID-billetter", testid: "nav-tickets", title: "Hvilke apps og platforme logger ind med BID-billetter (WIF) — live fra BID" },
 ];
+
+const escTag = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** F038.37 — keywords as clickable tags. Every place the site shows keywords uses
+ *  this, so a tag looks and behaves the same everywhere: it opens /packages?tag=… */
+export function tagLinks(keywords = [], testidPrefix = "tag-") {
+  if (!keywords.length) return "";
+  return `<ul class="tags">${keywords.map((k, i) => `<li><a class="tag" href="/packages?tag=${encodeURIComponent(k)}" data-testid="${testidPrefix}${i}">${escTag(k)}</a></li>`).join("")}</ul>`;
+}
 
 export function topBar({ active = "", extra = "" } = {}) {
   const links = NAV.map(

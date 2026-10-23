@@ -15,6 +15,8 @@ export interface PackageRow {
   owner: string | null;
   install: string;
   consumers: string[];
+  /** F038.37 — roster keywords (kw); matched by the free-text filter and by ?tag=. */
+  keywords: string[];
   /** F082.5 — from data/dependency-health.json; null = never checked. */
   deps: { verdict: string; prod: { critical: number; high: number; moderate: number; low: number }; checkedAt: string } | null;
 }
@@ -58,6 +60,10 @@ const PAGE_CSS = `
   .pk-filter input:hover{border-color:var(--muted)}
   .pk-filter input:focus{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in oklch, var(--primary) 18%, transparent)}
   .pk-filter-count{font-size:13px;color:var(--muted);white-space:nowrap}
+  .pk-tagbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:22px 0 0;font-size:14px;color:var(--muted)}
+  .pk-tag-clear{font-size:13px;font-weight:600;color:var(--fg);text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:3px 10px}
+  .pk-tag-clear:hover{border-color:var(--muted)}
+  .pk-tag-clear:active{transform:translateY(1px)}
   .pk-empty{margin:18px 0 60px;padding:28px;border:1px dashed var(--border);border-radius:12px;color:var(--muted);text-align:center}
   .pk-table + .pk-empty{margin-top:0}
 `;
@@ -77,12 +83,19 @@ function depRank(d: PackageRow["deps"]): string {
   return d.verdict === "sårbar" ? `3-${String(d.prod.critical).padStart(3, "0")}-${String(d.prod.high).padStart(3, "0")}` : d.verdict === "mindre fund" ? "2" : d.verdict === "OK" ? "0" : "1";
 }
 
-/** F038.34 — what the filter matches: name, layer, owner, consumers, dependency status. */
+/** F038.34 — what the filter matches: name, layer, owner, consumers, keywords (F038.37), dependency status. */
 export function haystack(r: PackageRow): string {
-  return [r.name, r.layer, r.owner, ...r.consumers, depText(r.deps)].filter(Boolean).join(" ").toLowerCase();
+  return [r.name, r.layer, r.owner, ...r.consumers, ...r.keywords, depText(r.deps)].filter(Boolean).join(" ").toLowerCase();
 }
 
-export function renderPackagesPage(rows: PackageRow[], scannedAt: string | null): string {
+/** F038.37 — the packages whose keywords hold `tag` (whole keyword, case-insensitive). */
+export function withTag(rows: PackageRow[], tag: string): PackageRow[] {
+  const t = tag.trim().toLowerCase();
+  return rows.filter((r) => r.keywords.some((k) => k.toLowerCase() === t));
+}
+
+export function renderPackagesPage(allRows: PackageRow[], scannedAt: string | null, tag: string | null = null): string {
+  const rows = tag ? withTag(allRows, tag) : allRows;
   const sorted = [...rows].sort((a, b) => a.name.localeCompare(b.name));
   const body = sorted
     .map((r, i) => {
@@ -99,8 +112,8 @@ export function renderPackagesPage(rows: PackageRow[], scannedAt: string | null)
     })
     .join("");
   const head = COLUMNS.map(([k, label]) => `<th><button type="button" data-key="${k}" data-testid="pkg-sort-${k}">${label}</button></th>`).join("");
-  const tp = rows.filter((r) => r.provenance === "yes").length;
-  const vulnerable = rows.filter((r) => r.deps?.verdict === "sårbar").length;
+  const tp = allRows.filter((r) => r.provenance === "yes").length;
+  const vulnerable = allRows.filter((r) => r.deps?.verdict === "sårbar").length;
   const scanned = daTime(scannedAt);
   const sortJs = `(function(){var t=document.querySelector('[data-testid="pkg-table"] tbody');var num={consumers:1};document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-key');var dir=b.getAttribute('aria-sort')==='ascending'?-1:1;document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(x){x.removeAttribute('aria-sort');});b.setAttribute('aria-sort',dir===1?'ascending':'descending');var rows=Array.prototype.slice.call(t.rows);rows.sort(function(a,c){var x=a.getAttribute('data-'+k)||'',y=c.getAttribute('data-'+k)||'';var r=num[k]?(Number(x)-Number(y)):x.localeCompare(y,'da',{numeric:true});return r*dir;});rows.forEach(function(r){t.appendChild(r);});});});})();`;
   // F038.34 — filter as you type; hides rows (sorting moves them, so the two stay independent).
@@ -108,8 +121,9 @@ export function renderPackagesPage(rows: PackageRow[], scannedAt: string | null)
   return `<!doctype html><html lang="da" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="${FAVICON}"><title>Packages — Discovery</title>
 <style>${SITE_CSS}${PAGE_CSS}</style></head>
 <body>${topBar({ active: "/packages" })}
-<div class="wrap"><main data-testid="packages-root"><section class="hero"><h1><span class="at">Alle vores </span>pakker</h1><p>${rows.length} udgivne <code>@broberg</code>-pakker · ${tp} udgivet via Trusted Publisher · ${vulnerable} med sårbare afhængigheder · forbrugere scannet ${esc(scanned ?? "aldrig")}. Klik på en kolonne for at sortere. Som data: <code>/api/packages</code>.</p></section>
-<div class="pk-filter"><input type="text" placeholder="Filtrér på navn, lag, ejer, forbruger eller status…" aria-label="Filtrér pakker" autocomplete="off" spellcheck="false" data-testid="pkg-filter"><span class="pk-filter-count" data-testid="pkg-filter-count" aria-live="polite">${rows.length} af ${rows.length} pakker</span></div>
-<div class="pk-wrap"><table class="pk-table" data-testid="pkg-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table><p class="pk-empty" data-testid="pkg-filter-empty" hidden>Ingen pakker matcher «<span data-testid="pkg-filter-empty-term"></span>». Tryk Escape for at rydde filteret.</p></div></main></div>
+<div class="wrap"><main data-testid="packages-root"><section class="hero"><h1><span class="at">Alle vores </span>pakker</h1><p>${allRows.length} udgivne <code>@broberg</code>-pakker · ${tp} udgivet via Trusted Publisher · ${vulnerable} med sårbare afhængigheder · forbrugere scannet ${esc(scanned ?? "aldrig")}. Klik på en kolonne for at sortere. Som data: <code>/api/packages</code>.</p></section>
+${tag ? `<div class="pk-tagbar" data-testid="pkg-tag-active">Viser pakker med nøgleordet <span class="tag on">${esc(tag)}</span> · ${rows.length} af ${allRows.length} <a class="pk-tag-clear" href="/packages" data-testid="pkg-tag-clear">Fjern ×</a></div>` : ""}
+<div class="pk-filter"><input type="text" placeholder="Filtrér på navn, nøgleord, lag, ejer, forbruger eller status…" aria-label="Filtrér pakker" autocomplete="off" spellcheck="false" data-testid="pkg-filter"><span class="pk-filter-count" data-testid="pkg-filter-count" aria-live="polite">${rows.length} af ${rows.length} pakker</span></div>
+<div class="pk-wrap"><table class="pk-table" data-testid="pkg-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rows.length ? "" : `<p class="pk-empty" data-testid="pkg-tag-empty">Ingen pakker har nøgleordet «${esc(tag ?? "")}». <a href="/packages" data-testid="pkg-tag-empty-clear">Vis alle pakker</a></p>`}<p class="pk-empty" data-testid="pkg-filter-empty" hidden>Ingen pakker matcher «<span data-testid="pkg-filter-empty-term"></span>». Tryk Escape for at rydde filteret.</p></div></main></div>
 <script>(function(){${THEME_JS}})();${sortJs}${filterJs}</script></body></html>`;
 }

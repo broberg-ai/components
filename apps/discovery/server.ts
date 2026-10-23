@@ -111,6 +111,15 @@ const packages = components
     provenance: NPM_META[c.package as string]?.provenance ?? "unknown",
   }));
 
+// F038.37 — a package listed under two components (theme: F001+F015, mail-core:
+// F023+F043) carries the keywords of BOTH rows; showing one row's would hide tags.
+const KW_BY_PKG = new Map<string, string[]>();
+for (const p of packages) {
+  const cur = KW_BY_PKG.get(p.name as string) ?? [];
+  for (const k of (p.keywords as string[] | undefined) ?? []) if (!cur.includes(k)) cur.push(k);
+  KW_BY_PKG.set(p.name as string, cur);
+}
+
 // Known npm names — the enroll endpoint validates against these so the roster can't be polluted.
 const packageNames = new Set(packages.map((p) => p.name).filter(Boolean) as string[]);
 
@@ -504,11 +513,13 @@ app.get("/packages", (c) => {
       owner: p.owner ?? null,
       install: p.install,
       consumers: consumersOf(fleetScan, p.name),
+      keywords: KW_BY_PKG.get(p.name as string) ?? [],
       deps: DEP_HEALTH.packages?.[p.name as string]
         ? { ...DEP_HEALTH.packages[p.name as string], checkedAt: DEP_HEALTH.checked_at }
         : null,
     }));
-  return c.html(withConsent(renderPackagesPage(rows, (fleetScan as { scanned_at?: string })?.scanned_at ?? null)));
+  const tag = c.req.query("tag")?.trim() || null;
+  return c.html(withConsent(renderPackagesPage(rows, (fleetScan as { scanned_at?: string })?.scanned_at ?? null, tag)));
 });
 
 // F038.35 — one page per package: every field Discovery has, and who in the fleet installs it.
@@ -538,7 +549,7 @@ app.get("/packages/:scope/:name", async (c) => {
       owner: p.owner ?? null,
       graduate: !!comp?.graduate,
       note: comp?.note ?? null,
-      keywords: p.keywords ?? [],
+      keywords: KW_BY_PKG.get(name) ?? [],
       npmUrl: p.npmUrl ?? null,
       repoUrl: p.repoUrl ?? null,
       publishedAt: p.publishedAt,

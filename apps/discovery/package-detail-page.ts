@@ -3,7 +3,7 @@
 // vises samt hvem der anvender pakken i vores fleet». No new data source: the
 // roster, docs/npm-meta.json, data/dependency-health.json, the fleet scan and
 // the enrollments — each section says which one it comes from.
-import { SITE_CSS, topBar, THEME_JS } from "../../scripts/site-chrome.mjs";
+import { SITE_CSS, topBar, THEME_JS, tagLinks } from "../../scripts/site-chrome.mjs";
 import { FAVICON } from "../../scripts/favicon.mjs";
 import { daTime, PROVENANCE_LABEL } from "../../scripts/npm-meta.mjs";
 import { REPO_SESSION } from "../../scripts/fleet-graph.mjs";
@@ -158,7 +158,7 @@ export function renderPackageDetail(p: DetailPackage, deps: DetailDeps | null, c
     ["Status", val(p.status)],
     ["Ejer", val(p.owner)],
     ["Graduate", p.graduate ? "ja" : "nej"],
-    ["Nøgleord", p.keywords.length ? esc(p.keywords.join(", ")) : val(null, "ingen")],
+    ["Nøgleord", p.keywords.length ? tagLinks(p.keywords, "pkg-tag-") : val(null, "ingen")],
     ["Note", val(p.note, "ingen")],
   ];
   const overview = `<dl class="pd-dl" data-testid="pkg-detail-overview">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd data-field="${esc(k)}">${v}</dd>`).join("")}</dl>`;
