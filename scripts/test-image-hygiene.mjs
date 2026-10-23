@@ -110,6 +110,20 @@ check("F105.6: the report sends vulnerabilities_unfixable and the Trivy JSON is 
   if (!/name: image-hygiene-trivy, path: trivy\.json/.test(wf)) throw new Error("trivy.json must be uploaded");
 });
 
+check("F105.7: every job in the engine carries its own timeout-minutes (a caller's uses: job cannot)", () => {
+  const jobsBlock = wf.slice(wf.indexOf("\njobs:"));
+  const jobs = [...jobsBlock.matchAll(/^  ([a-zA-Z0-9_-]+):\s*$/gm)].map((m) => m[1]);
+  if (jobs.length === 0) throw new Error("no jobs found");
+  const missing = jobs.filter((j) => {
+    const start = jobsBlock.indexOf(`\n  ${j}:`);
+    const rest = jobsBlock.slice(start + 1);
+    const next = rest.slice(1).search(/\n  [a-zA-Z0-9_-]+:\s*\n/);
+    const body = next === -1 ? rest : rest.slice(0, next + 1);
+    return !/\n    timeout-minutes: \d+/.test(body);
+  });
+  eq(missing, [], "jobs without timeout-minutes");
+});
+
 // ── F105.4: base_os + base_image ─────────────────────────────────────────────
 // Real /etc/os-release texts (debian:12-slim, alpine:3.20, ubuntu:24.04).
 const DEBIAN = 'PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\nNAME="Debian GNU/Linux"\nVERSION_ID="12"\nVERSION="12 (bookworm)"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL="https://www.debian.org/"\n';

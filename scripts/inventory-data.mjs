@@ -180,6 +180,7 @@ export const INFRA = [
       { t: "DEV DEPENDENCIES IN THE RUNTIME IMAGE ARE CRITICAL FINDINGS. esbuild/drizzle-kit (cardmem) and vitest/tinypool/esbuild (Discovery: 5 fixable criticals) blocked the hygiene deploy. Install production deps only in the image: `bun install --production` / `npm ci --omit=dev`.", by: "cardmem", tag: "prod-only-image" },
       { t: "A LARGE SQLITE DB ON A VOLUME IS READ COLD AFTER EVERY RESTART. cardmem (896 MB) measured 18 s pages and 31 % IO pressure for minutes; a sequential `cat db > /dev/null` before start took 52 s and pages then answered in 0.13–0.18 s. Every deploy and every hygiene run is a restart, so keep workflow-only commits out of deploy (paths-ignore).", by: "cardmem", tag: "sqlite-cold-volume" },
       { t: "Fly's health check fails for ~30 s right after a restart on several apps (field, cardmem). That is boot, not an outage — do not page on it.", by: "cardmem", tag: "boot-healthcheck" },
+      { t: "A «every job must have timeout-minutes» CI gate goes RED on the generated hygiene.yml: its job is a `uses:` call to the image-hygiene engine, and a `uses:` job cannot carry timeout-minutes. The engine sets it itself (its hygiene job: timeout-minutes 45, locked by a test), so a local gate may exempt `uses:` calls to it with a clear conscience — upmetrics did exactly that (c6f56ef).", by: "components", tag: "engine-timeout" },
     ],
   },
   {

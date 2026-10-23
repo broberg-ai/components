@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- All 140 tips are inline below, in full. That part needs no second fetch.
+- All 141 tips are inline below, in full. That part needs no second fetch.
 - **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at https://discovery.broberg.ai/llms-full.txt. Fetch it before you decide a capability is missing.
 
 ## Secrets Vault — flådens delte krypterede secret-store
@@ -168,9 +168,9 @@ owner. That conversation is the whole point of this inventory.
 - **Deployment Mgmt (observe)** (L3) · ⛔ NOT BUILT YET (moved) — nothing to install, nothing to import · owner: upmetrics — ASK THEM before building a second one
   The observe half of deployment management
 
-## Tips & tricks — every tip inline (140 across 15 platforms)
+## Tips & tricks — every tip inline (141 across 15 platforms)
 
-### Fly.io (34)
+### Fly.io (35)
 - **[build-stamp]** health.build — stamp the running commit on your health endpoint, and say how much to trust it. Convention (beacon, measured on their own service): GET /v1/health returns build:{ commit, dirty, source } where source is env (a deploy declared its sha, e.g. BUILD env var — declared, not observed) then git (the process runs from a work tree and git was asked — observed) then unknown (commit MUST be null). Five decisions, each one a trap somebody already hit: (1) read it ONCE at startup, never per request — the question is what the process was started from, and a git lookup per request answers about the tree as it is NOW, i.e. code the process never loaded; (2) UNTRACKED files count as dirty — the process runs what is on disk, and an uncommitted file is still one it could load; (3) never invent a sha — null plus source unknown, because a sha that looks like an answer is worse than no answer; (4) dirty is not decoration, it says how far to trust the sha: a true sha on a dirty tree describes code that is not running; (5) for the CONSUMER of the field — when comparing two sides (a page against the service that serves it), a dirty on EITHER side must make the comparison SILENT. A bundle is stamped when it is built, i.e. before the commit that contains it, so during ordinary work the shas disagree all day; warn on that and the warning is ignored within a week. Two CLEAN builds that disagree is the thing worth flagging. And say what a difference means: beacons service ran 732e4241 while HEAD was 637bae6, a real 48-hour drift — but that commit only touched CLAUDE.md, so the drift was harmless. A field that reports difference without significance becomes why is my service always red. _(beacon)_
 - **[region]** Region is ALWAYS arn (Stockholm). Set primary_region = "arn" — never US/Amsterdam. _(components)_
 - **[cost]** Idle-cheap services: auto_stop_machines = "stop" + auto_start_machines = true + min_machines_running = 0. Cold-start ~1s. _(components)_
@@ -205,6 +205,7 @@ owner. That conversation is the whole point of this inventory.
 - **[prod-only-image]** DEV DEPENDENCIES IN THE RUNTIME IMAGE ARE CRITICAL FINDINGS. esbuild/drizzle-kit (cardmem) and vitest/tinypool/esbuild (Discovery: 5 fixable criticals) blocked the hygiene deploy. Install production deps only in the image: `bun install --production` / `npm ci --omit=dev`. _(cardmem)_
 - **[sqlite-cold-volume]** A LARGE SQLITE DB ON A VOLUME IS READ COLD AFTER EVERY RESTART. cardmem (896 MB) measured 18 s pages and 31 % IO pressure for minutes; a sequential `cat db > /dev/null` before start took 52 s and pages then answered in 0.13–0.18 s. Every deploy and every hygiene run is a restart, so keep workflow-only commits out of deploy (paths-ignore). _(cardmem)_
 - **[boot-healthcheck]** Fly's health check fails for ~30 s right after a restart on several apps (field, cardmem). That is boot, not an outage — do not page on it. _(cardmem)_
+- **[engine-timeout]** A «every job must have timeout-minutes» CI gate goes RED on the generated hygiene.yml: its job is a `uses:` call to the image-hygiene engine, and a `uses:` job cannot carry timeout-minutes. The engine sets it itself (its hygiene job: timeout-minutes 45, locked by a test), so a local gate may exempt `uses:` calls to it with a clear conscience — upmetrics did exactly that (c6f56ef). _(components)_
 
 ### Cloudflare (13)
 - **[dns]** CNAME → a Fly app MUST be DNS-only (grey cloud), not proxied (orange) — else Fly's TLS cert validation fails. _(components)_
