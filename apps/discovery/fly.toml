@@ -1,6 +1,12 @@
 app = "broberg-discovery"
 primary_region = "arn"
 
+# F105.5 — the Dockerfile sits beside this file while the build context is the
+# repo root. The deploy workflow passes --dockerfile; the image-hygiene engine
+# (written by cardmem, app + config only) reads it from here. Relative to this file.
+[build]
+  dockerfile = "Dockerfile"
+
 # Read by exactly one thing in this app: @broberg/logger's `pretty` flag. Unset,
 # the server emitted the human-readable format in production — fine to read, but
 # not queryable by a log tool, which is most of the reason to use a logger rather
