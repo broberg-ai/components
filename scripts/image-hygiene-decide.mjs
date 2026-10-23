@@ -10,17 +10,21 @@
 import { readFileSync } from "node:fs";
 
 /** Trivy JSON → counts. A vulnerability counted once per (id, package), however
- *  many layers or targets repeat it. */
+ *  many layers or targets repeat it. `vulnerabilities` names the criticals WITH a
+ *  fix (max 50) — the ones that block — so cardmem's card can say which. */
 export function countVulns(trivy) {
   const seen = new Set();
-  const c = { critical_fixable: 0, critical_unfixable: 0, high: 0 };
+  const c = { critical_fixable: 0, critical_unfixable: 0, high: 0, vulnerabilities: [] };
   for (const r of trivy?.Results ?? []) {
     for (const v of r.Vulnerabilities ?? []) {
       const key = `${v.VulnerabilityID}|${v.PkgName}`;
       if (seen.has(key)) continue;
       seen.add(key);
       if (v.Severity === "CRITICAL") {
-        if (v.FixedVersion) c.critical_fixable++;
+        if (v.FixedVersion) {
+          c.critical_fixable++;
+          if (c.vulnerabilities.length < 50) c.vulnerabilities.push({ id: v.VulnerabilityID, pkg: v.PkgName, fixed: v.FixedVersion });
+        }
         else c.critical_unfixable++;
       } else if (v.Severity === "HIGH") c.high++;
     }

@@ -74,15 +74,22 @@ jobs:
 
       - name: Rebuild with no cache — build and push, do NOT deploy yet
         run: |
+          set -o pipefail   # the tee below must not hide a failed build
           DF=""; [ -n "${{ inputs.dockerfile }}" ] && DF="--dockerfile ${{ inputs.dockerfile }}"
           flyctl deploy "${{ inputs.context }}" -a "$APP" -c "${{ inputs.config }}" $DF \
-            --build-only --push --no-cache --remote-only --image-label "$LABEL"
-          echo "IMAGE=registry.fly.io/$APP:$LABEL" >> "$GITHUB_ENV"
+            --build-only --push --no-cache --remote-only --image-label "$LABEL" 2>&1 | tee build.log
+          # Pin the image by DIGEST, not by tag: the same bytes are scanned and deployed.
+          DIGEST=$(grep -oE "registry\.fly\.io/$APP:$LABEL@sha256:[0-9a-f]{64}" build.log | tail -1 | sed 's/.*@//')
+          if [ -n "$DIGEST" ]; then echo "IMAGE=registry.fly.io/$APP@$DIGEST" >> "$GITHUB_ENV"
+          else echo "IMAGE=registry.fly.io/$APP:$LABEL" >> "$GITHUB_ENV"; fi
 
       - name: Scan that image (Trivy)
         run: |
           flyctl auth docker
-          docker pull "$IMAGE"
+          # Measured on the cardmem pilot (run 39874558816): a pull 0.8 s after the
+          # push answered «manifest unknown»; the same manifest answered 200 later.
+          # The registry needs a moment — wait for it, but never longer than ~2 min.
+          for i in 1 2 3 4 5 6 7 8; do docker pull "$IMAGE" && break; [ "$i" = 8 ] && exit 1; sleep 15; done
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" \
             aquasec/trivy:0.57.1 image --format json --output /out/trivy.json \
             --severity CRITICAL,HIGH --quiet "$IMAGE" || true
@@ -122,6 +129,7 @@ jobs:
                 critical_fixable: d.critical_fixable ?? null,
                 critical_unfixable: d.critical_unfixable ?? null,
                 high: d.high ?? null,
+                vulnerabilities: d.vulnerabilities ?? [],
                 fly_release: process.env.FLY_RELEASE || null,
                 sha: process.env.GITHUB_SHA,
               },

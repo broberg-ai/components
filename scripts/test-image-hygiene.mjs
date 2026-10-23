@@ -14,7 +14,7 @@ console.log("image-hygiene");
 
 check("a CRITICAL with a fix BLOCKS the deploy", () => {
   const c = countVulns({ Results: [{ Vulnerabilities: [v("CVE-1", "openssl", "CRITICAL", "3.0.15")] }] });
-  eq(c, { critical_fixable: 1, critical_unfixable: 0, high: 0 }, "counts");
+  eq(c, { critical_fixable: 1, critical_unfixable: 0, high: 0, vulnerabilities: [{ id: "CVE-1", pkg: "openssl", fixed: "3.0.15" }] }, "counts");
   eq(decide(c), { status: "blocked", deploy: false, red: true }, "decision");
 });
 
@@ -39,6 +39,12 @@ check("an unreadable report is FAILED and never deploys (the CLI path)", () => {
   eq([out.status, out.deploy], ["failed", false], "blind deploy refused");
 });
 
+check("only criticals WITH a fix are named, at most 50", () => {
+  const many = Array.from({ length: 60 }, (_, i) => v(`CVE-${i}`, "p", "CRITICAL", "1.0"));
+  const c = countVulns({ Results: [{ Vulnerabilities: [...many, v("CVE-x", "zlib", "CRITICAL", ""), v("CVE-h", "curl", "HIGH", "8")] }] });
+  eq([c.critical_fixable, c.vulnerabilities.length, c.vulnerabilities.some((x) => x.id === "CVE-x")], [60, 50, false], "named list");
+});
+
 const wf = readFileSync(new URL("../.github/workflows/image-hygiene.yml", import.meta.url), "utf8");
 check("one run per app: concurrency group keyed by the app, never cancelling", () => {
   if (!/group: image-hygiene-\$\{\{ inputs\.app \}\}/.test(wf)) throw new Error("no per-app concurrency group");
@@ -60,6 +66,17 @@ check("build-only first, then deploy THAT image (no second build)", () => {
   const b = wf.indexOf("--build-only --push --no-cache"), d = wf.indexOf('--image "$IMAGE"');
   if (b < 0 || d < 0 || d < b) throw new Error("expected a build-only push before deploying --image");
   if ((wf.match(/flyctl deploy/g) ?? []).length !== 2) throw new Error("exactly two flyctl deploy calls (build-only + --image)");
+});
+
+check("the scanned image is pinned by digest, the pull waits for the registry, and a failed build is not hidden by tee", () => {
+  if (!/@sha256:\[0-9a-f\]\{64\}/.test(wf)) throw new Error("no digest extraction from the build log");
+  if (!/IMAGE=registry\.fly\.io\/\$APP@\$DIGEST/.test(wf)) throw new Error("IMAGE is not pinned by digest");
+  if (!/for i in 1 2 3 4 5 6 7 8; do docker pull "\$IMAGE" && break/.test(wf)) throw new Error("no bounded retry on the pull");
+  const build = wf.slice(wf.indexOf("- name: Rebuild with no cache"), wf.indexOf("- name: Scan that image"));
+  if (/\| tee/.test(build) && !/set -o pipefail/.test(build)) throw new Error("tee without pipefail hides a failed build");
+});
+check("the report names the blocking criticals (detail.vulnerabilities)", () => {
+  if (!/vulnerabilities: d\.vulnerabilities/.test(wf)) throw new Error("detail.vulnerabilities not reported");
 });
 
 console.log(failures ? `\n${failures} FAILED` : "\nall green");
