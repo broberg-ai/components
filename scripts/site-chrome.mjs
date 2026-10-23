@@ -92,6 +92,12 @@ export const SITE_CSS = `
   .d-pkg{font:12.5px ui-monospace,monospace;color:var(--green);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .d-pkg.none{color:var(--faint)}
   .d-pkg .badge{margin-left:0}
+  /* F038.38 — drawer: the package's own page, at the top */
+  .d-sum{font-size:15px;line-height:1.5;color:var(--fg);margin:12px 0 0}
+  .d-pkgpage{display:inline-flex;align-items:center;gap:6px;margin:12px 0 4px;font-size:14px;font-weight:600;color:var(--primary-fg);background:var(--primary);border-radius:10px;padding:8px 14px;text-decoration:none;transition:opacity .15s}
+  .d-pkgpage:hover{opacity:.9}
+  .d-pkgpage:active{transform:translateY(1px)}
+  .d-pkgpage:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .d-facts{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:18px 0;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
   .d-facts dt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;padding-top:1px}
   .d-facts dd{font-size:13px;color:var(--fg)}

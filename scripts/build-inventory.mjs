@@ -110,7 +110,10 @@ function detailHtml(it, layerN, layerT){
     : "";
   return copyBtn
     + `<div class="d-head"><span class="fnum">${it.f}</span></div>`
-    + `<h2 class="d-name" id="d-name">${it.nm}</h2>${pkg}${facts}`
+    + `<h2 class="d-name" id="d-name">${it.nm}</h2>${pkg}`
+    // F038.38 — a published package has its own page; say so at the TOP, not under the fold.
+    + (nUrl ? `${it.sum ? `<p class="d-sum">${it.sum}</p>` : ""}<a class="d-pkgpage" href="/packages/${it.pkg}" data-testid="d-pkgpage-${fid}">Åbn pakkeside →</a>` : "")
+    + `${facts}`
     + `<div class="d-desc-h">What it is</div><div class="d-desc">${it.desc}</div>`;
 }
 const DETAIL = {};
@@ -132,6 +135,8 @@ INFRA.forEach(p => { DETAIL["infra-"+p.id] = infraDetailHtml(p); });
 const SEARCH_INDEX = [];
 DATA.forEach((L) => L.items.forEach((it) => SEARCH_INDEX.push({
   f: it.f, nm: it.nm, pkg: it.pkg || it.via || "", layer: L.n, kw: (it.kw || []).join(" "),
+  // F038.38 — a published package opens its page; the summary is searchable too.
+  sum: it.sum || "", href: npmUrl(it) ? "/packages/" + it.pkg : "",
 })));
 INFRA.forEach((p) => SEARCH_INDEX.push({
   f: "infra-" + p.id, nm: p.name, pkg: "", layer: "INFRA",
@@ -173,11 +178,11 @@ THEME_JS,
 "var sMod=document.getElementById('smod'),sInput=document.getElementById('sinput'),sList=document.getElementById('slist'),sIdx=0,sRes=[];",
 "function openSearch(){if(!sMod)return;sMod.classList.add('open');document.body.style.overflow='hidden';sInput.value='';renderSearch('');setTimeout(function(){sInput.focus();},20);}",
 "function closeSearch(){if(!sMod)return;sMod.classList.remove('open');if(!drawer.classList.contains('open'))document.body.style.overflow='';}",
-"function renderSearch(q){q=(q||'').trim().toLowerCase();sRes=(q?SEARCH.filter(function(x){return (x.nm+' '+x.pkg+' '+x.f+' '+x.kw+' '+x.layer).toLowerCase().indexOf(q)>=0;}):SEARCH).slice(0,24);sIdx=0;sList.innerHTML=sRes.length?sRes.map(function(x,i){return '<div class=\"sres'+(i===0?' on':'')+'\" data-testid=\"inv-search-result-'+x.f+'\" data-f=\"'+x.f+'\" data-i=\"'+i+'\"><span class=\"sf\">'+x.f+'</span><span class=\"snm\">'+x.nm+'</span>'+(x.pkg?'<span class=\"spkg\">'+x.pkg+'</span>':'')+'<span class=\"slay\">'+x.layer+'</span></div>';}).join(''):'<div class=\"sempty\">Ingen match</div>';}",
+"function renderSearch(q){q=(q||'').trim().toLowerCase();sRes=(q?SEARCH.filter(function(x){return (x.nm+' '+x.pkg+' '+x.f+' '+x.kw+' '+(x.sum||'')+' '+x.layer).toLowerCase().indexOf(q)>=0;}):SEARCH).slice(0,24);sIdx=0;sList.innerHTML=sRes.length?sRes.map(function(x,i){return '<div class=\"sres'+(i===0?' on':'')+'\" data-testid=\"inv-search-result-'+x.f+'\" data-f=\"'+x.f+'\"'+(x.href?' data-href=\"'+x.href+'\"':'')+' data-i=\"'+i+'\"><span class=\"sf\">'+x.f+'</span><span class=\"snm\">'+x.nm+'</span>'+(x.pkg?'<span class=\"spkg\">'+x.pkg+'</span>':'')+'<span class=\"slay\">'+x.layer+'</span></div>';}).join(''):'<div class=\"sempty\">Ingen match</div>';}",
 "function moveSel(d){if(!sRes.length)return;sIdx=(sIdx+d+sRes.length)%sRes.length;Array.prototype.forEach.call(sList.children,function(c){if(c.classList)c.classList.toggle('on',+c.getAttribute('data-i')===sIdx);});var el=sList.children[sIdx];if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});}",
-"function chooseSel(){var x=sRes[sIdx];if(!x)return;closeSearch();openDrawerByF(x.f);}",
+"function chooseSel(){var x=sRes[sIdx];if(!x)return;if(x.href){location.href=x.href;return;}closeSearch();openDrawerByF(x.f);}",
 "if(sInput)sInput.addEventListener('input',function(){renderSearch(sInput.value);});",
-"if(sList)sList.addEventListener('click',function(e){var r=e.target.closest('.sres');if(!r)return;closeSearch();openDrawerByF(r.getAttribute('data-f'));});",
+"if(sList)sList.addEventListener('click',function(e){var r=e.target.closest('.sres');if(!r)return;var h=r.getAttribute('data-href');if(h){location.href=h;return;}closeSearch();openDrawerByF(r.getAttribute('data-f'));});",
 "if(sMod)sMod.addEventListener('click',function(e){if(e.target===sMod)closeSearch();});",
 "var sBtn=document.getElementById('sbtn');if(sBtn)sBtn.addEventListener('click',openSearch);",
 "document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){e.preventDefault();openSearch();return;}if(!sMod||!sMod.classList.contains('open'))return;if(e.key==='Escape'){e.preventDefault();closeSearch();}else if(e.key==='ArrowDown'){e.preventDefault();moveSel(1);}else if(e.key==='ArrowUp'){e.preventDefault();moveSel(-1);}else if(e.key==='Enter'){e.preventDefault();chooseSel();}});",
