@@ -86,5 +86,10 @@ check("F105.3: node_version is measured on the SAME digest, is null when absent,
   if (!/node_version: process\.env\.NODE_VERSION \|\| null/.test(wf)) throw new Error("report must send node_version, null when empty");
 });
 
+check("the hygiene build passes BUILD_SHA, so /health keeps its build marker", () => {
+  const build = wf.slice(wf.indexOf("- name: Rebuild with no cache"), wf.indexOf("- name: Scan that image"));
+  if (!/--build-arg BUILD_SHA="\$\{\{ github\.sha \}\}"/.test(build)) throw new Error("build-only step must pass --build-arg BUILD_SHA=${{ github.sha }}");
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nall green");
 process.exit(failures ? 1 : 0);
