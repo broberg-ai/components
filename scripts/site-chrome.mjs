@@ -209,6 +209,7 @@ export const SITE_CSS = `
 export const NAV = [
   { href: "/onboarding", label: "Start here ↗", testid: "inv-onboarding-link", title: "Start here — all packages by category + all tips" },
   { href: "/packages", label: "Packages", testid: "nav-packages", title: "Alle udgivne @broberg-pakker samlet: version, npm, udgivet, Trusted Publisher, forbrugere" },
+  { href: "/images", label: "Images", testid: "nav-images", title: "Hvad hver Fly-app kører på: base-image, distro, runtime og slim-standarden — fra den natlige image-hygiejne" },
   { href: "/tickets", label: "BID-billetter", testid: "nav-tickets", title: "Hvilke apps og platforme logger ind med BID-billetter (WIF) — live fra BID" },
 ];
 

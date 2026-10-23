@@ -35,6 +35,7 @@ import { webmcpLab } from "./webmcp-lab";
 import { createTicketRegistry, renderTicketRegistryPage, renderTicketRegistryMarkdown } from "./ticket-registry";
 // F038.32 — «Packages»: every published package on one sortable page.
 import { renderPackagesPage, type PackageRow } from "./packages-page";
+import { fetchImages, renderImagesPage, slimVerdict, type ImagesResult } from "./images-page";
 import { renderPackageDetail, renderPackageNotFound, consumerDetails } from "./package-detail-page";
 
 const VERSION = "0.3.0";
@@ -311,6 +312,7 @@ const manifest = () => ({
     { method: "GET", path: "/api", description: "this self-describing manifest — all endpoints + searchable vocabularies", example: "/api" },
     { method: "GET", path: "/api/components", description: "all components; filter with ?q= &layer= &status= &model=", example: "/api/components?q=mail&status=shipped" },
     { method: "GET", path: "/api/components/:id", description: "one component by F-number or slug", example: "/api/components/F005" },
+    { method: "GET", path: "/api/images", description: "every Fly app in the fleet: base image, distro, runtime, slim-standard verdict (follows|not|exception|unknown) and last image-hygiene run — from cardmem's nightly reports; status null = never reported", example: "/api/images" },
     { method: "GET", path: "/api/packages", description: "installable packages with version + install string (npm or SwiftPM)", example: "/api/packages?q=lens" },
     { method: "GET", path: "/api/infra", description: "infra platforms we run on + best-practice tips & gotchas", example: "/api/infra" },
     { method: "GET", path: "/api/infra/:id", description: "one platform with its full tips + long-form notes", example: "/api/infra/fly" },
@@ -636,6 +638,23 @@ let ticketRegistry = createTicketRegistry({
 /** Tests swap in a registry pointed at a fake BID. */
 export const setTicketRegistryForTests = (r: ReturnType<typeof createTicketRegistry>) => { ticketRegistry = r; };
 app.get("/api/tickets", async (c) => c.json(await ticketRegistry.get()));
+// F038.39 — what every Fly app runs on, from cardmem's image-hygiene reports. Inert
+// until HYGIENE_READ_KEY (Fly secret) is set: the page then says so, it does not
+// pretend to be an empty fleet. A good answer is cached 10 min; a failure is not.
+const IMAGES_URL = process.env.HYGIENE_LATEST_URL ?? "https://services.cardmem.com/api/image-hygiene/latest";
+let imagesCache: { at: number; result: ImagesResult } | null = null;
+async function latestImages(): Promise<ImagesResult> {
+  if (imagesCache && Date.now() - imagesCache.at < 10 * 60_000) return imagesCache.result;
+  const result = await fetchImages(process.env.HYGIENE_READ_KEY, IMAGES_URL);
+  if (result.ok) imagesCache = { at: Date.now(), result };
+  return result;
+}
+app.get("/images", async (c) => c.html(withConsent(renderImagesPage(await latestImages()))));
+app.get("/api/images", async (c) => {
+  const r = await latestImages();
+  if (!r.ok) return c.json({ error: r.reason, detail: r.detail ?? null }, 503);
+  return c.json({ fetchedAt: r.fetchedAt, apps: r.rows.map((x) => ({ ...x, slim: x.status == null ? "unknown" : slimVerdict(x) })) });
+});
 app.get("/tickets", async (c) => c.html(withConsent(renderTicketRegistryPage(await ticketRegistry.get()))));
 
 app.get("/api/layers", (c) => c.json({ count: layers.length, layers }));
