@@ -1,6 +1,6 @@
 # discovery.broberg.ai — Bun + Hono. Build context = repo root, so the image
 # keeps the /app/scripts + /app/docs layout server.ts imports from (single source).
-FROM oven/bun:1
+FROM oven/bun:1-slim
 WORKDIR /app
 
 # Single source of truth + the generators that render every served surface from it.
