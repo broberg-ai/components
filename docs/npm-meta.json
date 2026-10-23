@@ -187,8 +187,8 @@
  },
  "@broberg/lens-svg": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-svg",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-12T09:21:57.225Z",
+  "version": "0.1.1",
+  "publishedAt": "2026-10-23T09:24:46.549Z",
   "provenance": "no"
  },
  "@broberg/webmcp": {
