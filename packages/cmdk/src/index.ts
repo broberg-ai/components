@@ -184,6 +184,8 @@ export interface PaletteController<T extends PaletteItem> {
   setQuery(query: string): void;
   moveUp(): void;
   moveDown(): void;
+  /** Highlight a specific result (hover, or a shell that renders results in its own order). Out-of-range is ignored. */
+  setActiveIndex(index: number): void;
   /** Run the active item's action(), record it as recent, and close. */
   selectActive(): T | null;
   /** Activate a specific item (click). */
@@ -272,6 +274,11 @@ export function createPaletteController<T extends PaletteItem>(
     moveUp() {
       if (results.length === 0) return;
       activeIndex = (activeIndex - 1 + results.length) % results.length; // wrap
+      emit();
+    },
+    setActiveIndex(index: number) {
+      if (!Number.isInteger(index) || index < 0 || index >= results.length || index === activeIndex) return;
+      activeIndex = index;
       emit();
     },
     selectActive() {

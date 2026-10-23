@@ -1,0 +1,11 @@
+{
+  "name": "cmdk-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "bun run server.ts" },
+  "dependencies": {
+    "@broberg/cmdk": "workspace:*",
+    "@broberg/theme": "workspace:*",
+    "preact": "^10.23.0"
+  }
+}

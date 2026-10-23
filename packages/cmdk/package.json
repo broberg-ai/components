@@ -1,12 +1,15 @@
 {
   "name": "@broberg/cmdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Headless Cmd+K command-palette core: a framework-free fuzzyFilter (ranked subsequence match), a createPaletteController state machine (open/query/results/active-index with wrap-around keyboard nav + Enter activation), and a quota-safe localStorage recents store. Items are always consumer-defined; the React/Preact shells build on this. Zero deps.",
   "type": "module",
   "license": "MIT",
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "files": [
     "dist",
+    "css",
     "README.md"
   ],
   "main": "./dist/index.cjs",
@@ -18,14 +21,23 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
+    "./css/cmdk.css": "./css/cmdk.css",
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "rm -rf dist && tsup && node verify-exports.mjs",
     "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@testing-library/preact": "^3.2.3",
+    "happy-dom": "^15.0.0",
+    "preact": "^10.23.0",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
@@ -38,7 +50,8 @@
     "keyboard-navigation",
     "quick-actions",
     "headless",
-    "broberg"
+    "broberg",
+    "preact"
   ],
   "repository": {
     "type": "git",
@@ -47,5 +60,13 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "preact": ">=10.11.0"
+  },
+  "peerDependenciesMeta": {
+    "preact": {
+      "optional": true
+    }
   }
 }
