@@ -193,8 +193,8 @@
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.34",
-  "publishedAt": "2026-10-24T20:42:02.777Z",
+  "version": "0.1.35",
+  "publishedAt": "2026-10-24T23:45:19.578Z",
   "provenance": "yes"
  },
  "@broberg/lens-svg": {
@@ -271,9 +271,9 @@
  },
  "@broberg/mail-templates": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail-templates",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-21T15:27:21.239Z",
-  "provenance": "no"
+  "version": "0.2.2",
+  "publishedAt": "2026-10-24T23:12:08.959Z",
+  "provenance": "yes"
  },
  "@broberg/realtime": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/realtime",
