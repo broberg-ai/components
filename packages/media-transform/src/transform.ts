@@ -1,5 +1,6 @@
 import sharp, { type Sharp } from "sharp";
 import convert from "heic-convert";
+import { jpegWithExif, withUprightOrientation } from "./exif";
 import type {
   ImageInput,
   OutputFormat,
@@ -36,10 +37,14 @@ function isHeif(b: Buffer): boolean {
  * EXIF rotation during decode, so we route every HEIC through it → JPEG, then
  * hand sharp the JPEG. The q0.92 intermediate is well above the final encode.
  */
-async function ensureDecodable(buf: Buffer, heicToJpeg: boolean): Promise<Buffer> {
+async function ensureDecodable(buf: Buffer, heicToJpeg: boolean, keepMetadata: boolean): Promise<Buffer> {
   if (!heicToJpeg || !isHeif(buf)) return buf;
-  const jpeg = await convert({ buffer: buf, format: "JPEG", quality: 0.92 });
-  return Buffer.from(jpeg);
+  const jpeg = Buffer.from(await convert({ buffer: buf, format: "JPEG", quality: 0.92 }));
+  if (!keepMetadata) return jpeg;
+  // heic-convert drops EXIF; carry the container's block over, upright (see exif.ts).
+  const exif = (await sharp(buf).metadata()).exif;
+  const upright = exif ? withUprightOrientation(exif) : null;
+  return upright ? jpegWithExif(jpeg, upright) : jpeg;
 }
 
 function encode(pipeline: Sharp, format: OutputFormat, quality: number): Sharp {
@@ -64,6 +69,7 @@ export async function transformImage(
     heicToJpeg = true,
     keepOriginal = false,
     originalName = "original",
+    keepMetadata = false,
   } = opts;
 
   if (variants.length === 0 && !keepOriginal) {
@@ -72,14 +78,18 @@ export async function transformImage(
     );
   }
 
-  const decodable = await ensureDecodable(toBuffer(input), heicToJpeg);
+  const decodable = await ensureDecodable(toBuffer(input), heicToJpeg, keepMetadata);
   const meta = await sharp(decodable).metadata();
   const orientationFixed = (meta.orientation ?? 1) > 1;
 
   // One decode, cloned per output. .rotate() (no args) bakes the EXIF
   // orientation into the pixels and removes the tag; sharp drops all other
   // metadata by default, so every output is EXIF-stripped.
-  const base = sharp(decodable, { failOn: "none" }).rotate();
+  // keepMetadata: .keepExif() carries the EXIF over; sharp still resets
+  // Orientation to 1 after .rotate() (measured on 0.35.5, JPEG and WebP).
+  const rotated = sharp(decodable, { failOn: "none" }).rotate();
+  const base = keepMetadata ? rotated.keepExif() : rotated;
+  const metadataKept = keepMetadata && Boolean(meta.exif);
 
   const outputs: OutputVariant[] = [];
 
@@ -125,5 +135,5 @@ export async function transformImage(
     });
   }
 
-  return { variants: outputs, orientationFixed };
+  return { variants: outputs, orientationFixed, metadataKept };
 }

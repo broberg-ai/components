@@ -130,3 +130,77 @@ describe("transformImage — HEIC (iPhone)", () => {
     expect(variants[0].contentType).toBe("image/jpeg");
   });
 });
+
+/** IFD0 tags of a sharp-style EXIF block: tag → first SHORT value. */
+function ifd0(exif: Buffer | undefined): Map<number, number> {
+  const tags = new Map<number, number>();
+  if (!exif) return tags;
+  const t = exif.subarray(0, 6).toString("latin1") === "Exif\0\0" ? 6 : 0;
+  const le = exif.toString("latin1", t, t + 2) === "II";
+  const u16 = (o: number) => (le ? exif.readUInt16LE(o) : exif.readUInt16BE(o));
+  const u32 = (o: number) => (le ? exif.readUInt32LE(o) : exif.readUInt32BE(o));
+  const base = t + u32(t + 4);
+  for (let i = 0; i < u16(base); i++) tags.set(u16(base + 2 + i * 12), u16(base + 2 + i * 12 + 8));
+  return tags;
+}
+const GPS_IFD = 0x8825;
+const ORIENT = 0x0112;
+
+/** A 400×200 JPEG tagged Orientation 6 (displays 200×400) with camera + GPS. */
+async function makeGpsJpeg(): Promise<Buffer> {
+  return sharp({ create: { width: 400, height: 200, channels: 3, background: "#c81e1e" } })
+    .jpeg()
+    .withExif({ IFD0: { Make: "TestCam" }, IFD3: { GPSLatitudeRef: "N", GPSLatitude: "57/1 3/1 0/1", GPSLongitudeRef: "E", GPSLongitude: "9/1 55/1 0/1" } })
+    .withMetadata({ orientation: 6 })
+    .toBuffer();
+}
+
+describe("transformImage — keepMetadata (helpdesk F013.2)", () => {
+  it("DEFAULT unchanged: without the option every output is stripped and metadataKept is false", async () => {
+    const r = await transformImage(await makeGpsJpeg(), { keepOriginal: true, variants: [{ name: "sm", maxEdge: 100 }] });
+    expect(r.metadataKept).toBe(false);
+    for (const v of r.variants) expect((await sharp(v.bytes).metadata()).exif).toBeUndefined();
+  });
+
+  it("JPEG source: GPS + camera survive in the original AND in a WebP + JPEG variant; pixels upright, Orientation 1", async () => {
+    const r = await transformImage(await makeGpsJpeg(), {
+      keepMetadata: true,
+      keepOriginal: true,
+      variants: [{ name: "sm", maxEdge: 100 }, { name: "jp", maxEdge: 100, format: "jpeg" }],
+    });
+    expect(r.metadataKept).toBe(true);
+    expect(r.orientationFixed).toBe(true);
+    for (const v of r.variants) {
+      const m = await sharp(v.bytes).metadata();
+      expect(m.exif?.includes(Buffer.from("TestCam"))).toBe(true);
+      expect(ifd0(m.exif).has(GPS_IFD)).toBe(true);
+      expect(m.orientation ?? 1).toBe(1);
+      expect(m.height! > m.width!).toBe(true); // portrait: turned exactly once
+    }
+  });
+
+  it("HEIC source (EXIF says Orientation 6, decoder already turned it): GPS kept, turned ONCE — 200×400, not 400×200", async () => {
+    const r = await transformImage(await fixture("gps-orient6.heic"), { keepMetadata: true, keepOriginal: true, variants: [{ name: "sm", maxEdge: 400 }] });
+    expect(r.metadataKept).toBe(true);
+    for (const v of r.variants) {
+      const m = await sharp(v.bytes).metadata();
+      expect([v.width, v.height]).toStrictEqual([200, 400]);
+      expect(ifd0(m.exif).has(GPS_IFD)).toBe(true);
+      expect(m.exif?.includes(Buffer.from("TestCam"))).toBe(true);
+      expect(m.orientation ?? 1).toBe(1);
+    }
+  });
+
+  it("HEIC without the option: stripped, same upright 200×400", async () => {
+    const r = await transformImage(await fixture("gps-orient6.heic"), { keepOriginal: true });
+    const m = await sharp(r.variants[0]!.bytes).metadata();
+    expect(m.exif).toBeUndefined();
+    expect([r.variants[0]!.width, r.variants[0]!.height]).toStrictEqual([200, 400]);
+    expect(r.metadataKept).toBe(false);
+  });
+
+  it("a source with no EXIF never claims metadataKept", async () => {
+    const r = await transformImage(await makeJpeg(), { keepMetadata: true, variants: [{ name: "sm", maxEdge: 100 }] });
+    expect(r.metadataKept).toBe(false);
+  });
+});

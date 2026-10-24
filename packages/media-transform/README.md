@@ -64,6 +64,22 @@ first, then your derivatives in order. `bytes` is ready for `media.upload()`.
    applied.
 4. **keep-original** — the full-resolution image, oriented + stripped (re-encoded,
    not byte-identical). HEIC → JPEG; PNG/WebP keep their format so alpha survives.
+5. **`keepMetadata: true` (opt-in, 0.2.0+)** — keep the source's EXIF (camera,
+   capture time, **GPS position**) in every output instead of stripping it. The
+   pixels are still turned upright and the Orientation tag is reset to 1, so
+   nothing turns twice — also for HEIC, where the decoder has already turned the
+   pixels while the EXIF still says otherwise. `metadataKept` in the result says
+   whether the EXIF actually made it through (false when the source had none).
+   GPS is a person's location: turn this on only where keeping it is decided.
+
+```ts
+const r = await transformImage(heic, { keepMetadata: true, keepOriginal: true });
+r.metadataKept; // true → the stored JPEG carries the source's EXIF incl. GPS
+```
+
+**Memory.** HEIC decoding is the expensive part. Measured by helpdesk on 0.1.1
+under Bun: a 12 MP HEIC peaks at ~219 MB RSS, a 36 MP HEIC at ~638 MB. Size the
+machine for the largest photo you accept (helpdesk runs 1 GB).
 
 ## Non-goals
 
@@ -72,7 +88,7 @@ first, then your derivatives in order. `bytes` is ready for `media.upload()`.
 - **Video** — stream it raw to storage; no transcoding here.
 - **On-the-fly / URL resize** — this is upload-time processing, not a CDN.
 - **AI / vision** — that's `@broberg/ai-sdk`.
-- **EXIF extraction / geocode** — do that before calling; we only orient + strip.
+- **EXIF extraction / geocode** — do that before calling; we orient and either strip or (with `keepMetadata`) carry the EXIF over unread.
 
 ## Runtime support
 

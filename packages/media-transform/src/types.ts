@@ -37,6 +37,13 @@ export interface TransformOptions {
   keepOriginal?: boolean;
   /** Name for the kept-original variant. Default "original". */
   originalName?: string;
+  /**
+   * Keep the source's EXIF (camera, time, GPS position …) in every output.
+   * Default `false` — every output is metadata-stripped, as before. Orientation
+   * is still baked into the pixels and the tag reset to 1, so nothing turns
+   * twice. Note: GPS is a person's location; keep it only where that is wanted.
+   */
+  keepMetadata?: boolean;
 }
 
 /** One produced image. `bytes` is ready to hand to @broberg/media's upload(). */
@@ -54,4 +61,10 @@ export interface TransformResult {
   variants: OutputVariant[];
   /** True if an EXIF orientation tag was present and baked into the pixels. */
   orientationFixed: boolean;
+  /**
+   * True when `keepMetadata` was asked for AND the source's EXIF is in the
+   * outputs. False when it was not asked for, the source had no EXIF, or it
+   * could not be carried over — so «kept» is never claimed without it.
+   */
+  metadataKept: boolean;
 }
