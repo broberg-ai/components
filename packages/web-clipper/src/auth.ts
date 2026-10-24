@@ -425,13 +425,15 @@ export function createBidAuth(opts: BidAuthOptions): BidAuth {
 
     /** The authorization code from BID, swapped exactly as after the login window — the same Session. */
     async function done(code: string, f: Flow): Promise<EmbeddedState> {
+      // BID has issued the code, so the flow is spent whatever the swap answers: keeping it would let resume()
+      // show its passkey frame / code step again, which BID refuses (F099.28 — a dead grey frame for up to 10 min).
+      await forget();
       const r = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: identity.getRedirectURL(), client_id: opts.clientId, code_verifier: f.verifier }).catch(
         (e: unknown) => ({ ok: false as const, status: 0, error: "unavailable", description: e instanceof Error ? e.message : String(e) }),
       );
-      if (!r.ok) return failed(f, { kind: "unavailable", message: `BID refused the code (HTTP ${r.status}): ${r.error} ${r.description}`.trim() });
+      if (!r.ok) return failed(null, { kind: "unavailable", message: `BID refused the code (HTTP ${r.status}): ${r.error} ${r.description}`.trim() });
       ticket = null;
       await save(r.body, null);
-      await forget();
       const session = await api.session();
       if (!session) return failed(null, { kind: "unavailable", message: "logged in, but BID refused the session right after" });
       return set({ step: "signed_in", session, busy: false });

@@ -216,3 +216,51 @@ describe("F099.25 — passkey login (contract v2)", () => {
     expect(strip(await auth.embedded!().passkeyStart())).toStrictEqual({ step: "email", busy: false, error: { kind: "unavailable", message: "BID's frame_url is not on BID's origin" } });
   });
 });
+
+describe("F099.28 — a flow BID has issued a code for is spent, even when the code swap fails", () => {
+  const tokenDown = (bid: ReturnType<typeof contractBid>) => (async (input: unknown, init?: RequestInit) =>
+    new URL(String(input)).pathname === "/oauth2/token" ? new Response("boom", { status: 500 }) : bid.fetchImpl(input as RequestInfo, init)) as typeof fetch;
+  const settle = async (login: { state(): EmbeddedState }) => {
+    for (let i = 0; i < 50 && (login.state().step === "passkey" || login.state().busy); i++) await new Promise((r) => setTimeout(r, 1));
+    return strip(login.state());
+  };
+
+  it("passkey: complete ok, swap fails → email step with the error, the flow is gone, and a reopened popup does NOT show the dead frame", async () => {
+    const bid = contractBid(); const store = memory(); const t = { now: 1_800_000_000_000 };
+    const win = new EventTarget() as never as Pick<Window, "addEventListener" | "removeEventListener"> & EventTarget;
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: store, fetchImpl: tokenDown(bid), now: () => t.now, messages: win });
+    const login = auth.embedded!();
+    await login.passkeyStart();
+    const flowId = [...bid.passkeys.keys()][0]!;
+    bid.confirmPasskey(flowId);
+    win.dispatchEvent(new MessageEvent("message", { data: { type: "bid-embedded-passkey", flow_id: flowId, ok: true }, origin: ISS }));
+    const after = await settle(login);
+    expect(after.step).toBe("email");
+    expect(after.error.kind).toBe("unavailable");
+    expect(store.data.has("broberg-web-clipper:bid:jam-clipper:embedded")).toBe(false);
+    const reopened = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: store, fetchImpl: bid.fetchImpl, now: () => t.now, messages: win });
+    expect(strip(await reopened.embedded!().resume())).toStrictEqual({ step: "email", busy: false });
+    expect(await auth.session()).toBeNull();
+  });
+
+  it("mail code: verify ok, swap fails → email step, flow gone; resume() starts at email, not on the spent code step", async () => {
+    const bid = contractBid(); const store = memory();
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: store, fetchImpl: tokenDown(bid), now: () => 1_800_000_000_000 });
+    const login = auth.embedded!();
+    await login.start("anne@eksempel.dk");
+    const end = strip(await login.verify("481072"));
+    expect(end.step).toBe("email");
+    expect(end.error.kind).toBe("unavailable");
+    expect(store.data.has("broberg-web-clipper:bid:jam-clipper:embedded")).toBe(false);
+    expect(strip(await auth.embedded!().resume())).toStrictEqual({ step: "email", busy: false });
+  });
+
+  it("NEGATIVE CONTROL: a step that fails BEFORE BID issues a code (wrong mail code) keeps the flow — the user can still type the right one", async () => {
+    const bid = contractBid(); const store = memory();
+    const auth = createBidAuth({ issuer: ISS, clientId: "jam-clipper", identity, storage: store, fetchImpl: tokenDown(bid), now: () => 1_800_000_000_000 });
+    const login = auth.embedded!();
+    await login.start("anne@eksempel.dk");
+    expect((await login.verify("000000")).step).toBe("code");
+    expect(store.data.has("broberg-web-clipper:bid:jam-clipper:embedded")).toBe(true);
+  });
+});
