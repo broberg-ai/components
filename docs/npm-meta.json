@@ -337,14 +337,14 @@
  },
  "@broberg/fleet-client": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/fleet-client",
-  "version": "0.1.0",
-  "publishedAt": "2026-06-08T19:29:45.975Z",
+  "version": "0.2.0",
+  "publishedAt": "2026-10-24T15:40:05.943Z",
   "provenance": "no"
  },
  "@broberg/fleet-contracts": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/fleet-contracts",
-  "version": "0.1.0",
-  "publishedAt": "2026-06-08T18:38:52.936Z",
+  "version": "0.2.0",
+  "publishedAt": "2026-10-24T15:16:23.233Z",
   "provenance": "no"
  },
  "@broberg/complimenta-sdk": {

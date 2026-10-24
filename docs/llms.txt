@@ -107,8 +107,8 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/ai-sdk** v0.66.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk` · https://www.npmjs.com/package/@broberg/ai-sdk · udgivet 24.10.2026 kl. 16.21 (dansk tid) · Trusted Publisher ✓
 - **@upmetrics/sdk** v0.11.2 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
-- **@broberg/fleet-client** v0.1.0 — The typed fleet-comms client. `npm i @broberg/fleet-client` · https://www.npmjs.com/package/@broberg/fleet-client · udgivet 08.06.2026 kl. 21.29 (dansk tid) · ingen provenance
-- **@broberg/fleet-contracts** v0.1.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts` · https://www.npmjs.com/package/@broberg/fleet-contracts · udgivet 08.06.2026 kl. 20.38 (dansk tid) · ingen provenance
+- **@broberg/fleet-client** v0.2.0 — The typed fleet-comms client. `npm i @broberg/fleet-client` · https://www.npmjs.com/package/@broberg/fleet-client · udgivet 24.10.2026 kl. 17.40 (dansk tid) · ingen provenance
+- **@broberg/fleet-contracts** v0.2.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts` · https://www.npmjs.com/package/@broberg/fleet-contracts · udgivet 24.10.2026 kl. 17.16 (dansk tid) · ingen provenance
 - **@broberg/complimenta-sdk** v0.3.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk` · https://www.npmjs.com/package/@broberg/complimenta-sdk · udgivet 11.08.2026 kl. 10.25 (dansk tid) · ingen provenance
 - **@broberg/cms-inline-edit** v0.13.0 — Inline editing on live @webhouse/cms-sites including structural LIST editing (add/remove items), plus self-healing page links. `npm i @broberg/cms-inline-edit` · https://www.npmjs.com/package/@broberg/cms-inline-edit · udgivet 22.10.2026 kl. 11.59 (dansk tid) · Trusted Publisher ✓
 - **@webhouse/cms** v0.4.27 — @webhouse/cms/enrich. `npm i @webhouse/cms`
