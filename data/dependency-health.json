@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-24T12:17:50.039Z",
+ "checked_at": "2026-10-24T12:31:12.356Z",
  "packages": {
   "@broberg/apikey": {
    "version": "0.3.1",
@@ -534,7 +534,7 @@
    "verdict": "OK"
   },
   "@broberg/i18n": {
-   "version": "0.3.1",
+   "version": "0.4.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -544,7 +544,7 @@
    },
    "peer": {
     "critical": 0,
-    "high": 1,
+    "high": 0,
     "moderate": 0,
     "low": 0
    },
