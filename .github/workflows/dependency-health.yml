@@ -1,20 +1,22 @@
 name: dependency-health
 # F082.5 — Christian 23/10 2026: «Kører du nogle CI / Cronjobs for at checke om
 # alle vores dependencies er OK for samtlige pakker? Det skal du også gøre.»
-# Weekly (and whenever the lockfile changes): known vulnerabilities and outdated
+# F082.9 — Christian 24/10: «Hver dag skal jobbet køre». Daily (and whenever the
+# lockfile changes): known vulnerabilities (pnpm audit + OSV.dev + CISA KEV) and outdated
 # dependencies for every published @broberg package. The result is committed as
 # data/dependency-health.json and shown on discovery.broberg.ai/packages and in
 # llms.txt. «Could not check» is recorded as such, never as a clean result.
 on:
   schedule:
-    # Mondays 01:37 UTC = 02:37/03:37 Danish time (night, Christian's 02–05 window).
-    - cron: "37 1 * * 1"
+    # Every day 01:37 UTC = 02:37/03:37 Danish time (night, Christian's 02–05 window).
+    - cron: "37 1 * * *"
   workflow_dispatch:
   push:
     branches: [main]
     paths:
       - "pnpm-lock.yaml"
       - "scripts/dependency-health.mjs"
+      - "scripts/dependency-alarm.mjs"
       - ".github/workflows/dependency-health.yml"
 
 concurrency:
@@ -25,6 +27,8 @@ permissions:
   contents: write
   # To start the Discovery deploy: a GITHUB_TOKEN push starts no workflow (F038.33).
   actions: write
+  # F082.9 — one issue per high/critical hole found by OSV.
+  issues: write
 
 jobs:
   check:
@@ -46,10 +50,10 @@ jobs:
             const r = require("./data/dependency-health.json");
             const rows = Object.entries(r.packages);
             const bad = rows.filter(([, x]) => x.verdict === "sårbar");
-            const err = rows.filter(([, x]) => x.status === "error");
+            const err = rows.filter(([, x]) => x.status === "error" || x.osv?.status === "error");
             console.log(`${rows.length} packages · ${bad.length} vulnerable · ${err.length} could not be checked`);
-            for (const [n, x] of bad) console.log(`::warning::${n} — ${x.prod.critical} critical, ${x.prod.high} high in what it ships`);
-            for (const [n, x] of err) console.log(`::warning::${n} — could not check: ${x.error}`);
+            for (const [n, x] of bad) console.log(`::warning::${n} — audit ${x.prod.critical} critical/${x.prod.high} high, OSV ${x.osv?.critical ?? 0} critical/${x.osv?.high ?? 0} high in what it ships`);
+            for (const [n, x] of err) console.log(`::warning::${n} — could not check: ${[x.error, x.osv?.error].filter(Boolean).join(" · ")}`);
           '
       - name: Commit when the result changed
         env:
@@ -73,3 +77,10 @@ jobs:
           git pull --rebase origin main
           git push
           gh workflow run inventory-fresh.yml --ref main
+      # Last, so the data above is committed even when this goes red: an issue per
+      # high/critical OSV hole, closed when it is gone. OSV unreachable → red, and
+      # nothing is opened or closed.
+      - name: Alarm (GitHub issues)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/dependency-alarm.mjs data/dependency-health.json

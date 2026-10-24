@@ -11,7 +11,7 @@ import { npmMetaMd } from "./npm-meta.mjs";
 // F038.31 — written by build-inventory.mjs from ONE registry fetch (run it first).
 let NPM_META = {};
 try { NPM_META = JSON.parse(readMetaFile(new URL("../docs/npm-meta.json", import.meta.url), "utf8")); } catch (e) { console.warn("npm-meta.json missing — run build-inventory.mjs first; llms.txt ships without npm facts:", e.message); }
-// F082.5 — weekly dependency check (data/dependency-health.json).
+// F082.5/F082.9 — daily dependency check (data/dependency-health.json).
 let DEP_HEALTH = { packages: {} };
 try { DEP_HEALTH = JSON.parse(readMetaFile(new URL("../data/dependency-health.json", import.meta.url), "utf8")); } catch (e) { console.warn("dependency-health.json missing — llms.txt ships without dependency status:", e.message); }
 const depFor = (pkg) => {

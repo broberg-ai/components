@@ -3,7 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { summarizeAudit, summarizeOutdated, verdict, findingsToCard } from "../../scripts/dependency-health.mjs";
+import { summarizeAudit, summarizeOutdated, verdict, findingsToCard, lockedShipped, osvSeverity, summarizeOsv, queryOsv } from "../../scripts/dependency-health.mjs";
+import { planIssues } from "../../scripts/dependency-alarm.mjs";
 process.env.ENROLL_DB_URL = ":memory:";
 import { app } from "./server";
 import { getEnrollStore } from "./enroll";
@@ -95,5 +96,103 @@ describe("/packages shows the dependency status", () => {
     expect(cell).toBe(depText({ verdict: auth.verdict, prod: auth.prod, checkedAt: data.checked_at }));
     const vulnerable = Object.values(data.packages).filter((p: any) => p.verdict === "sårbar").length;
     expect(html).toContain(`${vulnerable} med sårbare afhængigheder`);
+  });
+});
+
+// ── F082.9 — OSV.dev, daily ─────────────────────────────────────────────────
+const LOCK = {
+  importers: {
+    "packages/a": {
+      dependencies: { zod: { version: "4.6.5" }, "@broberg/b": { version: "link:../b" }, alias: { version: "string-width@4.2.3" } },
+      devDependencies: { vitest: { version: "2.1.9" } },
+    },
+    "packages/b": { dependencies: { ms: { version: "2.1.3" } } },
+  },
+  snapshots: {
+    "zod@4.6.5": {},
+    "ms@2.1.3": {},
+    "string-width@4.2.3": { dependencies: { "strip-ansi": "6.0.1(x@1.0.0)" } },
+    "strip-ansi@6.0.1(x@1.0.0)": {},
+    "vitest@2.1.9": { dependencies: { evil: "1.0.0" } },
+  },
+};
+
+describe("lockedShipped — what a package ships, read from the lockfile", () => {
+  it("walks dependencies, workspace links and aliases; drops peer suffixes; ignores dev and peers", () => {
+    expect([...lockedShipped(LOCK, "packages/a", ["zod", "@broberg/b", "alias"])].sort())
+      .toEqual(["ms@2.1.3", "string-width@4.2.3", "strip-ansi@6.0.1", "zod@4.6.5"]);
+  });
+  it("a name not in package.json `dependencies` (a peer pnpm installed) is not counted", () => {
+    expect([...lockedShipped(LOCK, "packages/a", [])]).toEqual([]);
+  });
+});
+
+describe("osvSeverity", () => {
+  it("GHSA severity is read; MAL-* is always critical; missing is unrated, never low", () => {
+    expect(osvSeverity({ id: "GHSA-x", database_specific: { severity: "HIGH" } })).toBe("high");
+    expect(osvSeverity({ id: "MAL-2026-1" })).toBe("critical");
+    expect(osvSeverity({ id: "OSV-1" })).toBe("unrated");
+  });
+});
+
+const ZOD_HOLE = { id: "GHSA-mrhx-c7xc-m3w5", aliases: ["CVE-2023-54404"], summary: "Zod can exhaust memory", database_specific: { severity: "HIGH" } };
+
+describe("summarizeOsv", () => {
+  it("counts a hole once per package, marks KEV, and says when KEV was unread", () => {
+    const by = new Map([["zod@4.6.5", [ZOD_HOLE]], ["ms@2.1.3", [ZOD_HOLE]]]);
+    const s = summarizeOsv(new Set(["zod@4.6.5", "ms@2.1.3"]), by, new Set(["CVE-2023-54404"]));
+    expect(s).toMatchObject({ status: "ok", high: 1, critical: 0 });
+    expect(s.findings).toEqual([expect.objectContaining({ id: ZOD_HOLE.id, kev: true, malicious: false })]);
+    expect(summarizeOsv(new Set(["zod@4.6.5"]), by, null).findings[0].kev).toBe(null);
+  });
+  it("verdict reads OSV: a high there is «sårbar», an OSV error is «kunne ikke tjekke»", () => {
+    const z = { critical: 0, high: 0, moderate: 0, low: 0 };
+    expect(verdict({ status: "ok", prod: z, osv: { status: "ok", ...z, unrated: 0, high: 1 } })).toBe("sårbar");
+    expect(verdict({ status: "ok", prod: z, osv: { status: "error", error: "x" } })).toBe("kunne ikke tjekke");
+    expect(verdict({ status: "ok", prod: z, osv: { status: "ok", ...z, unrated: 0 } })).toBe("OK");
+  });
+});
+
+describe("queryOsv — «could not ask» throws, never returns empty", () => {
+  const ok = (j: unknown) => ({ ok: true, status: 200, json: async () => j });
+  it("asks once for all deps, then fetches each hole once", async () => {
+    const calls: string[] = [];
+    const f = async (url: string) => {
+      calls.push(url);
+      return url.endsWith("querybatch") ? ok({ results: [{ vulns: [{ id: ZOD_HOLE.id }] }, {}] }) : ok(ZOD_HOLE);
+    };
+    const m = await queryOsv(new Set(["zod@4.6.5", "zod@4.6.7"]), f as any);
+    expect(m.get("zod@4.6.5")).toEqual([ZOD_HOLE]);
+    expect(m.has("zod@4.6.7")).toBe(false);
+    expect(calls.length).toBe(2);
+  });
+  it("an HTTP error or a short answer throws", async () => {
+    await expect(queryOsv(new Set(["a@1"]), (async () => ({ ok: false, status: 503 })) as any)).rejects.toThrow("503");
+    await expect(queryOsv(new Set(["a@1", "b@1"]), (async () => ok({ results: [{}] })) as any)).rejects.toThrow("does not match");
+  });
+});
+
+describe("planIssues — one issue per hole, closed when it is gone", () => {
+  const z = { critical: 0, high: 0, moderate: 0, low: 0, unrated: 0 };
+  const finding = { id: ZOD_HOLE.id, dep: "zod@4.6.5", severity: "high", summary: "s", malicious: false, kev: false };
+  const result = (findings: unknown[], osv = "ok") => ({
+    checked_at: "2026-10-24T01:37:00Z", sources: { osv },
+    packages: {
+      "@broberg/a": { version: "0.1.0", osv: { status: "ok", ...z, high: 1, findings } },
+      "@broberg/b": { version: "0.2.0", osv: { status: "ok", ...z, high: 1, findings } },
+    },
+  });
+  it("opens one issue naming every package, keyed «[id]»", () => {
+    const p = planIssues(result([finding]), []);
+    expect(p.open.map((o: any) => o.title)).toEqual([`[${ZOD_HOLE.id}] zod@4.6.5 — high`]);
+    expect(p.open[0].body).toContain("`@broberg/a@0.1.0`, `@broberg/b@0.2.0`");
+  });
+  it("does not reopen an open one; closes one whose hole is gone; moderate opens nothing", () => {
+    expect(planIssues(result([finding]), [{ number: 7, title: `[${ZOD_HOLE.id}] zod@4.6.5 — high` }])).toMatchObject({ open: [], close: [] });
+    expect(planIssues(result([]), [{ number: 7, title: `[${ZOD_HOLE.id}] x` }]).close.map((c: any) => c.number)).toEqual([7]);
+    expect(planIssues(result([{ ...finding, severity: "moderate" }]), []).open).toEqual([]);
+  });
+  it("could not ask OSV → opens nothing and closes NOTHING", () => {
+    expect(planIssues(result([], "error"), [{ number: 7, title: "[GHSA-x] y" }])).toEqual({ open: [], close: [], couldNotCheck: true });
   });
 });

@@ -166,7 +166,7 @@ export function renderPackageDetail(p: DetailPackage, deps: DetailDeps | null, c
   const overview = `<dl class="pd-dl" data-testid="pkg-detail-overview">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd data-field="${esc(k)}">${v}</dd>`).join("")}</dl>`;
 
   const depBlock = !deps
-    ? `<p class="pd-empty" data-testid="pkg-detail-deps">Ikke tjekket endnu — pakken er ikke med i det ugentlige afhængigheds-tjek.</p>`
+    ? `<p class="pd-empty" data-testid="pkg-detail-deps">Ikke tjekket endnu — pakken er ikke med i det daglige afhængigheds-tjek.</p>`
     : `<dl class="pd-dl" data-testid="pkg-detail-deps">` +
       `<dt>Resultat</dt><dd data-field="verdict" class="${deps.verdict === "OK" ? "pd-ok" : deps.verdict === "sårbar" ? "pd-bad" : "pd-warn"}">${esc(deps.verdict)}${deps.error ? ` — ${esc(deps.error)}` : ""}</dd>` +
       `<dt>Leveres til apps</dt><dd>${val(sev(deps.prod))}</dd>` +
@@ -196,7 +196,7 @@ export function renderPackageDetail(p: DetailPackage, deps: DetailDeps | null, c
     ? `<button type="button" class="pd-toggle" aria-expanded="false" aria-controls="pkg-detail-desc" data-testid="pkg-detail-desc-toggle"><span class="pd-chev" aria-hidden="true"></span><span class="pd-toggle-label">Vis fuld beskrivelse</span></button><div class="pd-desc" id="pkg-detail-desc" data-testid="pkg-detail-desc" hidden>${formatDescription(p.description)}</div>`
     : `<p class="pd-empty">${val(null, "ingen beskrivelse")}</p>`}</section>
 <section class="pd-sec"><h2>Oversigt<span class="pd-src">roster + npm</span></h2>${overview}</section>
-<section class="pd-sec"><h2>Afhængigheds-tjek<span class="pd-src">ugentligt, data/dependency-health.json</span></h2>${depBlock}</section>
+<section class="pd-sec"><h2>Afhængigheds-tjek<span class="pd-src">dagligt, pnpm audit + OSV.dev, data/dependency-health.json</span></h2>${depBlock}</section>
 <section class="pd-sec"><h2>Bruges i flåden (${consumers.length})<span class="pd-src">flåde-scan · ${scanNote}</span></h2>${consumerBlock}</section>
 <section class="pd-sec"><h2>Selv-rapporteret (${enrolled.length})<span class="pd-src">Discovery-enrollments</span></h2>${enrolledBlock}</section>
 </main>`;
