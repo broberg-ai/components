@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import type {
   AnyToolDef,
   HandlerReturn,
@@ -54,22 +53,16 @@ export class EmptyInputSchemaError extends Error {
 }
 
 /**
- * Convert a raw Zod shape to JSON Schema, supporting both zod majors.
+ * Convert a raw Zod shape to JSON Schema with zod's own `z.toJSONSchema()` —
+ * draft-2020-12, exactly what MCP wants.
  *
- * Zod 4 emits draft-2020-12 itself via `z.toJSONSchema()` — exactly what MCP
- * wants. Zod 3 has no such method, so we keep `zod-to-json-schema` for it.
- * `zod-to-json-schema@3` cannot read Zod 4's internal form and returns an empty
- * envelope *without throwing*, which is the silent failure the guard below
- * exists to make impossible.
+ * F082.8 (24/10 2026): the package requires zod >= 4.6.6 (GHSA-mrhx-c7xc-m3w5;
+ * zod 3 is hit and unpatched), so the zod 3 branch through `zod-to-json-schema`
+ * is gone. The empty-schema guard stays: a converter that returns an empty
+ * envelope without throwing is the failure beacon once hit, and it must stay loud.
  */
 function toInputJsonSchema(shape: RawShape, toolName: string): Record<string, unknown> {
-  const obj = z.object(shape);
-  const zAny = z as unknown as { toJSONSchema?: (s: unknown) => Record<string, unknown> };
-
-  const schema =
-    typeof zAny.toJSONSchema === "function"
-      ? zAny.toJSONSchema(obj)
-      : (zodToJsonSchema(obj, { $refStrategy: "none" }) as Record<string, unknown>);
+  const schema = z.toJSONSchema(z.object(shape)) as Record<string, unknown>;
 
   // An empty shape legitimately yields no properties (a tool taking no args).
   // A NON-empty shape that yields none is always a conversion failure.

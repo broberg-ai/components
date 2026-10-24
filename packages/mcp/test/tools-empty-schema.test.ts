@@ -9,17 +9,15 @@ import { z } from "zod";
  * on any zod version. This is the case that used to sail through silently:
  * a tool reaching the MCP client declaring no inputs at all.
  */
-vi.mock("zod-to-json-schema", () => ({
-  zodToJsonSchema: () => ({ $schema: "http://json-schema.org/draft-07/schema#" }),
-}));
+vi.mock("zod", async (importOriginal) => {
+  const real = await importOriginal<typeof import("zod")>();
+  return { ...real, z: { ...real.z, toJSONSchema: () => ({ $schema: "https://json-schema.org/draft/2020-12/schema" }) } };
+});
 
 const { toToolListEntry, EmptyInputSchemaError } = await import("../src/tools");
 
-// The guard only reaches the stubbed converter on the zod 3 branch; zod 4 has
-// its own working z.toJSONSchema. This suite runs under the default (zod 3) config.
-const onZod3 = typeof (z as unknown as { toJSONSchema?: unknown }).toJSONSchema !== "function";
-
-describe.runIf(onZod3)("empty-schema guard", () => {
+// F082.8 — zod 4 only now: the converter is z.toJSONSchema, stubbed above to the empty envelope.
+describe("empty-schema guard", () => {
   const base = {
     name: "search",
     description: "search things",
