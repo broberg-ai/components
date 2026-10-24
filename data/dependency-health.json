@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-24T13:37:01.658Z",
+ "checked_at": "2026-10-24T16:55:40.384Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -117,7 +117,7 @@
    "verdict": "OK"
   },
   "@broberg/bodymap": {
-   "version": "0.13.1",
+   "version": "0.13.2",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -931,7 +931,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-templates": {
-   "version": "0.2.1",
+   "version": "0.2.2",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1078,6 +1078,43 @@
    },
    "verdict": "OK"
   },
+  "@broberg/nativepush": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 1,
+    "high": 2,
+    "moderate": 8,
+    "low": 1
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "osv": {
+    "status": "ok",
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0,
+    "unrated": 0,
+    "findings": []
+   },
+   "verdict": "OK"
+  },
   "@broberg/notifications": {
    "version": "0.4.0",
    "status": "ok",
@@ -1168,10 +1205,10 @@
     "low": 0
    },
    "dev": {
-    "critical": 1,
-    "high": 2,
-    "moderate": 8,
-    "low": 1
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
    },
    "outdated": {
     "total": 11,
