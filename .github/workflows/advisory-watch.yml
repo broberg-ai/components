@@ -1,0 +1,81 @@
+# F082.10 — the fleet's shared advisory watch (ported from broberg-id F084.189).
+#
+# A repo adds ONE file:
+#
+#   name: advisory-watch
+#   on:
+#     schedule: [{ cron: "17 5 * * *" }]     # your time
+#     workflow_dispatch:
+#   permissions: { contents: read, issues: write, id-token: write }
+#   jobs:
+#     watch:
+#       uses: broberg-ai/components/.github/workflows/advisory-watch.yml@advisory-watch-v1.0.0
+#       with: { engine-ref: advisory-watch-v1.0.0 }
+#
+# and, as its deploy gate, the same workflow with `mode: gate` from test.yml —
+# one decision for both, so they never measure differently.
+#
+# What it does: the package manager's own audit (npm / pnpm / bun, from the
+# lockfile) + OSV.dev over every locked package, CISA KEV marked. high/critical
+# is red unless acknowledged in the caller's .github/advisory-ack.json as
+# { "<pkg>": { "ids": ["GHSA-…"], "reason": "why it cannot reach a user" } }.
+# watch mode: one issue per hole («[id] …», BID's key) + an Upmetrics incident
+# via OIDC, both closed when the hole is gone. «Could not check» is red and
+# closes nothing.
+name: advisory-watch
+on:
+  workflow_call:
+    inputs:
+      mode: { type: string, required: false, default: "watch", description: "watch (daily, opens/closes issues) or gate (deploy gate, exit code only)" }
+      ack-file: { type: string, required: false, default: ".github/advisory-ack.json", description: "The caller's acknowledgement list" }
+      label: { type: string, required: false, default: "advisory-watch" }
+      label-color: { type: string, required: false, default: "B60205" }
+      working-directory: { type: string, required: false, default: "." }
+      engine-ref: { type: string, required: false, default: "advisory-watch-v1.0.0", description: "Ref of broberg-ai/components the engine is read from — pin it to the same tag as uses:" }
+
+jobs:
+  advisory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: The engine
+        uses: actions/checkout@v4
+        with:
+          repository: broberg-ai/components
+          ref: ${{ inputs.engine-ref }}
+          path: .advisory-engine
+          sparse-checkout: |
+            scripts/advisory/engine.mjs
+            scripts/advisory/watch.mjs
+            scripts/dependency-health.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: pnpm, when the repo uses it
+        if: hashFiles(format('{0}/pnpm-lock.yaml', inputs.working-directory)) != ''
+        run: |
+          if node -e 'process.exit(require("./package.json").packageManager?.startsWith("pnpm@") ? 0 : 1)'; then corepack enable; else npm i -g pnpm@9; fi
+          pnpm --version
+      - name: bun, when the repo uses it
+        if: hashFiles(format('{0}/bun.lock', inputs.working-directory)) != ''
+        uses: oven-sh/setup-bun@v2
+      - name: bun install (bun audit reads the installed tree)
+        if: hashFiles(format('{0}/bun.lock', inputs.working-directory)) != ''
+        run: bun install --frozen-lockfile
+      - name: Advisory ${{ inputs.mode }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPMETRICS_URL: https://upmetrics.org
+          # Inputs reach the shell as env, never spliced into the script.
+          MODE: ${{ inputs.mode }}
+          ACK: ${{ inputs.ack-file }}
+          LABEL: ${{ inputs.label }}
+          COLOR: ${{ inputs.label-color }}
+        run: >
+          node "$GITHUB_WORKSPACE/.advisory-engine/scripts/advisory/watch.mjs"
+          --mode "$MODE" --ack "$ACK" --label "$LABEL" --color "$COLOR"
+          --report "$RUNNER_TEMP/advisory.json"
