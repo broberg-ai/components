@@ -65,4 +65,10 @@ describe("/packages", () => {
     const tickets = await (await app.request("/tickets", { headers: await login() })).text();
     expect(tickets).toMatch(/<a href="\/packages" data-testid="nav-packages"/);
   });
+
+  it("F038.42: the date column is called «Senest opdateret» and its first click sorts newest first", async () => {
+    const html = await (await app.request("/packages", { headers: await login() })).text();
+    expect(html).toMatch(/<button type="button" data-key="published" data-testid="pkg-sort-published">Senest opdateret<\/button>/);
+    expect(html).toContain("var descFirst={published:1};");
+  });
 });

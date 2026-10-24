@@ -28,7 +28,7 @@ const esc = (v: unknown) =>
 export const COLUMNS: [string, string][] = [
   ["name", "Pakke"],
   ["version", "Version"],
-  ["published", "Udgivet"],
+  ["published", "Senest opdateret"],
   ["provenance", "Trusted Publisher"],
   ["layer", "Lag"],
   ["owner", "Ejer"],
@@ -115,7 +115,7 @@ export function renderPackagesPage(allRows: PackageRow[], scannedAt: string | nu
   const tp = allRows.filter((r) => r.provenance === "yes").length;
   const vulnerable = allRows.filter((r) => r.deps?.verdict === "sårbar").length;
   const scanned = daTime(scannedAt);
-  const sortJs = `(function(){var t=document.querySelector('[data-testid="pkg-table"] tbody');var num={consumers:1};document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-key');var dir=b.getAttribute('aria-sort')==='ascending'?-1:1;document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(x){x.removeAttribute('aria-sort');});b.setAttribute('aria-sort',dir===1?'ascending':'descending');var rows=Array.prototype.slice.call(t.rows);rows.sort(function(a,c){var x=a.getAttribute('data-'+k)||'',y=c.getAttribute('data-'+k)||'';var r=num[k]?(Number(x)-Number(y)):x.localeCompare(y,'da',{numeric:true});return r*dir;});rows.forEach(function(r){t.appendChild(r);});});});})();`;
+  const sortJs = `(function(){var t=document.querySelector('[data-testid="pkg-table"] tbody');var num={consumers:1};var descFirst={published:1};document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-key');var cur=b.getAttribute('aria-sort');var dir=cur?(cur==='ascending'?-1:1):(descFirst[k]?-1:1);document.querySelectorAll('[data-testid^="pkg-sort-"]').forEach(function(x){x.removeAttribute('aria-sort');});b.setAttribute('aria-sort',dir===1?'ascending':'descending');var rows=Array.prototype.slice.call(t.rows);rows.sort(function(a,c){var x=a.getAttribute('data-'+k)||'',y=c.getAttribute('data-'+k)||'';var r=num[k]?(Number(x)-Number(y)):x.localeCompare(y,'da',{numeric:true});return r*dir;});rows.forEach(function(r){t.appendChild(r);});});});})();`;
   // F038.34 — filter as you type; hides rows (sorting moves them, so the two stay independent).
   const filterJs = `(function(){var f=document.querySelector('[data-testid="pkg-filter"]'),n=document.querySelector('[data-testid="pkg-filter-count"]'),e=document.querySelector('[data-testid="pkg-filter-empty"]'),et=document.querySelector('[data-testid="pkg-filter-empty-term"]'),rs=document.querySelectorAll('[data-testid="pkg-table"] tbody tr'),total=rs.length;function run(){var q=f.value.trim().toLowerCase(),shown=0;rs.forEach(function(r){var ok=!q||(r.getAttribute('data-haystack')||'').indexOf(q)!==-1;r.hidden=!ok;if(ok)shown++;});n.textContent=shown+' af '+total+' pakker';e.hidden=shown!==0;et.textContent=f.value.trim();}f.addEventListener('input',run);f.addEventListener('keydown',function(ev){if(ev.key==='Escape'){f.value='';run();}});})();`;
   return `<!doctype html><html lang="da" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="${FAVICON}"><title>Packages — Discovery</title>
