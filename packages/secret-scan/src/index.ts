@@ -540,6 +540,19 @@ const PATTERNS: SecretPattern[] = [
     regex: /\bvimeo(?:[_-]?access)?[_-]?token\b\s*[:=]\s*["'`]?[A-Za-z0-9]{20,}(?![A-Za-z0-9])/gi,
   },
   {
+    // F035.22 — every key @broberg/apikey mints: generateKey(prefix) returns
+    // `${prefix}_${randomBytes(32).toString("hex")}`. The named fleet prefixes
+    // above (uk_, pa_, piw_, trail_ …) keep their own labels — they match first.
+    // Buzz's bz_ was not on any list and went to its log in clear text
+    // (buzzalert #4388); every new apikey consumer brings a new prefix, so a
+    // list by name always lags. Exactly 64 LOWER-case hex after a short
+    // lower-case prefix and an underscore, bounded both sides — a bare digest or
+    // `sha256:<hex>` has no `<prefix>_` and is left alone.
+    label: 'apikey-prefixed-key',
+    description: 'A key minted by @broberg/apikey generateKey (<prefix>_<64 hex>)',
+    regex: /(?<![A-Za-z0-9_])[a-z][a-z0-9]{1,15}_[0-9a-f]{64}(?![A-Za-z0-9_])/g,
+  },
+  {
     // Context-based catch for prefix-less high-entropy service secrets
     // (CMS_JWT_SECRET, revalidateSecret, fleet openssl-rand-hex secrets): a 40+
     // hex value assigned to a field whose name contains

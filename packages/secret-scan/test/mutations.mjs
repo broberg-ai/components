@@ -264,6 +264,16 @@ const MUTATIONS = [
     from: "      if (codeCandidateOk(m[3] ?? '', m[5] ?? '')) return true;",
     to: "      return true;",
   },
+  {
+    name: "F035.22 apikey-prefixed key loses its right-hand boundary (65 hex would match)",
+    from: "regex: /(?<![A-Za-z0-9_])[a-z][a-z0-9]{1,15}_[0-9a-f]{64}(?![A-Za-z0-9_])/g,",
+    to: "regex: /(?<![A-Za-z0-9_])[a-z][a-z0-9]{1,15}_[0-9a-f]{64}/g,",
+  },
+  {
+    name: "F035.22 apikey-prefixed key pattern disabled",
+    from: "regex: /(?<![A-Za-z0-9_])[a-z][a-z0-9]{1,15}_[0-9a-f]{64}(?![A-Za-z0-9_])/g,",
+    to: "regex: /(?!)/g,",
+  },
 ];
 
 function redSet() {
