@@ -1,6 +1,6 @@
 {
   "name": "@broberg/mail-templates",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The engine behind a mail template: a block model (paragraph, heading, note, button, divider, html) and brand, the one correct render order with escaped placeholders, a per-tenant override over a coded default, and the content hash a host versions on. Storage-agnostic; wraps in @broberg/mail-core's shell, sends with @broberg/mail.",
   "type": "module",
   "license": "MIT",
@@ -26,7 +26,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@broberg/mail-core": "workspace:*",

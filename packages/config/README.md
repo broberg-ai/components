@@ -102,3 +102,7 @@ never a dependency's internal reads.
 
 Part of the [broberg.ai shared inventory](https://discovery.broberg.ai). Search
 before you build: `GET https://discovery.broberg.ai/api/search?q=config`.
+
+## zod ≥ 4.6.6 (security)
+
+zod before 4.6.6 can be made to exhaust memory by one oversized array from the network (GHSA-mrhx-c7xc-m3w5, high). zod 3 is hit too and gets no patch. This package therefore requires zod ≥ 4.6.6 — run `pnpm add zod@^4.6.7` in your app.
