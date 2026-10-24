@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-24T12:31:12.356Z",
+ "checked_at": "2026-10-24T12:52:23.450Z",
  "packages": {
   "@broberg/apikey": {
    "version": "0.3.1",
@@ -86,7 +86,7 @@
    "verdict": "OK"
   },
   "@broberg/bodymap": {
-   "version": "0.13.0",
+   "version": "0.13.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -170,7 +170,7 @@
    "verdict": "OK"
   },
   "@broberg/config": {
-   "version": "0.3.0",
+   "version": "0.3.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -534,7 +534,7 @@
    "verdict": "OK"
   },
   "@broberg/i18n": {
-   "version": "0.4.0",
+   "version": "0.4.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -702,7 +702,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-templates": {
-   "version": "0.2.0",
+   "version": "0.2.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -730,7 +730,7 @@
    "verdict": "OK"
   },
   "@broberg/mcp": {
-   "version": "0.11.0",
+   "version": "0.11.1",
    "status": "ok",
    "prod": {
     "critical": 0,
