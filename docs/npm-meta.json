@@ -55,15 +55,15 @@
  },
  "@broberg/nativepush": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/nativepush",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-24T20:10:23.543Z",
-  "provenance": "no"
+  "version": "0.1.1",
+  "publishedAt": "2026-10-24T22:44:02.764Z",
+  "provenance": "yes"
  },
  "@broberg/phone": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/phone",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-24T20:08:38.273Z",
-  "provenance": "no"
+  "version": "0.1.1",
+  "publishedAt": "2026-10-24T22:43:51.244Z",
+  "provenance": "yes"
  },
  "@broberg/mcp": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mcp",
