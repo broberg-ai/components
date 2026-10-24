@@ -150,7 +150,7 @@
     },
     {
       "name": "bin-6",
-      "weight_seconds": 215.9,
+      "weight_seconds": 218.9,
       "packages": [
         "@broberg/bodymap",
         "@broberg/data-table",
@@ -160,7 +160,8 @@
         "@broberg/secret-scan",
         "@broberg/settings",
         "@broberg/stripe",
-        "@broberg/webpush"
+        "@broberg/webpush",
+        "@broberg/phone"
       ],
       "min_tests": {
         "@broberg/bodymap": 67,
@@ -171,7 +172,8 @@
         "@broberg/secret-scan": 140,
         "@broberg/settings": 10,
         "@broberg/stripe": 38,
-        "@broberg/webpush": 38
+        "@broberg/webpush": 38,
+        "@broberg/phone": 7
       }
     }
   ]
