@@ -18,6 +18,7 @@
 import { Readability } from "@mozilla/readability";
 import TurndownService from "turndown";
 import type { Unit as CoreUnit } from "./core";
+import type { VideoRef } from "./video";
 
 /**
  * One piece of a clip: the fingerprinted identity from ./core (kind, role,
@@ -29,6 +30,8 @@ export interface Unit extends CoreUnit {
   blocks?: Block[];
   assets?: Asset[];
   links?: string[];
+  /** A video unit (kind "video", the YouTube reader): what the video is. Not fingerprinted. */
+  video?: VideoRef;
 }
 export type Block = { type: "code"; lang?: string; text: string } | { type: "table"; head: string[]; rows: string[][] };
 /**
@@ -337,3 +340,6 @@ export function extractClip(doc: Document, url: URL, extractors: readonly Extrac
 // F099.9 — the chat readers live in ./chat and are part of /extract.
 import { fetchImages, imagesIncomplete, MAX_FILE_BYTES, type ImageRef } from "./chat";
 export { chatgptReader, claudeReader, geminiReader, perplexityReader, copilotReader, lechatReader, deepseekReader, notebooklmReader, createChatgptReader, createClaudeReader, createGeminiReader, createPerplexityReader, createCopilotReader, createLeChatReader, createDeepSeekReader, createNotebookLMReader, chatReaders } from "./chat";
+
+// jam F002.35 — the YouTube reader lives in ./video and is part of /extract.
+export { youtubeReader, createYoutubeReader, youtubeVideoFromUrl, youtubeStartSeconds, videoMarkdown, type VideoRef } from "./video";
