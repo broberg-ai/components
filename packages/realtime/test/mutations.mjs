@@ -107,9 +107,23 @@ const MUTATIONS = [
   {
     name: "the client delivers the same id twice",
     file: CLIENT,
-    find: "        if (!remember(id)) return; // already delivered",
-    replace: "        remember(id); // already delivered",
+    find: "        if (seenData.get(id) === ev.data) return; // a replay overlapping what we had",
+    replace: "        if (false) return; // a replay overlapping what we had",
     expect: ["never delivers the same id twice"],
+  },
+  {
+    name: "F103.3 an inherited id is dropped again (the 0.1.2 behaviour jam measured)",
+    file: CLIENT,
+    find: "        id = undefined; // inherited: deliver it as the id-less event it is",
+    replace: "        return;",
+    expect: ["is delivered (without an id), and lastEventId stays on the real one"],
+  },
+  {
+    name: "F103.3 an inherited id is re-adopted as the last event id",
+    file: CLIENT,
+    find: "        id = undefined; // inherited: deliver it as the id-less event it is",
+    replace: "        lastEventId = id;",
+    expect: ["is delivered (without an id), and lastEventId stays on the real one"],
   },
   {
     name: "the client reopens without asking for what it missed",

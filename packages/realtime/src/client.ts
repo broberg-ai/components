@@ -54,15 +54,16 @@ export function connect(url: string, opts: ConnectOptions): Connection {
   let backoff = 1000;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   const seen: string[] = [];
-  const seenSet = new Set<string>();
+  // id → the raw data it arrived with (F103.3): an id seen again with the SAME
+  // data is a replay overlap; with OTHER data it is an id-less event that
+  // inherited the id from the browser's last-event-id buffer.
+  const seenData = new Map<string, string>();
   const setState = (s: ConnectionState) => opts.onState?.(s);
 
-  const remember = (id: string): boolean => {
-    if (seenSet.has(id)) return false;
-    seenSet.add(id);
+  const remember = (id: string, data: string): void => {
+    seenData.set(id, data);
     seen.push(id);
-    if (seen.length > 500) seenSet.delete(seen.shift()!);
-    return true;
+    if (seen.length > 500) seenData.delete(seen.shift()!);
   };
 
   const open = (state: ConnectionState): void => {
@@ -89,10 +90,17 @@ export function connect(url: string, opts: ConnectOptions): Connection {
         return;
       }
       if (msg.type === PING) return;
-      const id = ev.lastEventId || undefined;
-      if (id) {
+      // F103.3 — the EventSource standard does NOT reset the last-event-id buffer
+      // for an event without an `id:` line, so such an event arrives carrying the
+      // PREVIOUS id (jam measured «typing» after a message being dropped). An id
+      // we have seen is a duplicate only if the data is identical too.
+      let id = ev.lastEventId || undefined;
+      if (id && seenData.has(id)) {
+        if (seenData.get(id) === ev.data) return; // a replay overlapping what we had
+        id = undefined; // inherited: deliver it as the id-less event it is
+      } else if (id) {
         lastEventId = id;
-        if (!remember(id)) return; // already delivered (a replay overlapping what we had)
+        remember(id, ev.data);
       }
       opts.onEvent(id ? { type: msg.type, data: msg.data, id } : { type: msg.type, data: msg.data });
     };

@@ -46,6 +46,40 @@ function env() {
 
 afterEach(() => vi.useRealTimers());
 
+describe("connect — an id-less event that inherits the previous id (F103.3, jam #4393)", () => {
+  // A real EventSource keeps its last-event-id buffer, so an event with no
+  // `id:` line arrives with lastEventId === the previous id.
+  const inherit = (es: FakeES, type: string, data: unknown, id: string) =>
+    es.onmessage?.({ data: JSON.stringify({ type, data }), lastEventId: id });
+
+  it("is delivered (without an id), and lastEventId stays on the real one", () => {
+    const e = env();
+    const got: unknown[] = [];
+    const c = connect("/s", { ...e.opts, now: e.now, onEvent: (ev) => got.push(ev) });
+    e.es().open();
+    e.es().emit("message", { t: "hej" }, "X");
+    inherit(e.es(), "typing", { who: "jam-ai" }, "X");
+    expect(got).toStrictEqual([
+      { type: "message", data: { t: "hej" }, id: "X" },
+      { type: "typing", data: { who: "jam-ai" } },
+    ]);
+    expect(c.lastEventId).toBe("X");
+  });
+  it("a genuine duplicate — same id AND same data back to back — is still delivered once", () => {
+    const e = env();
+    const got: unknown[] = [];
+    connect("/s", { ...e.opts, now: e.now, onEvent: (ev) => got.push(ev) });
+    e.es().open();
+    e.es().emit("message", { t: "hej" }, "X");
+    e.es().emit("message", { t: "hej" }, "X");
+    e.es().emit("message", { t: "næste" }, "Y");
+    expect(got).toStrictEqual([
+      { type: "message", data: { t: "hej" }, id: "X" },
+      { type: "message", data: { t: "næste" }, id: "Y" },
+    ]);
+  });
+});
+
 describe("connect", () => {
   it("delivers events with their id, ignores $ping, and never delivers the same id twice", () => {
     const e = env();
