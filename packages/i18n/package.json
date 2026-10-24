@@ -1,6 +1,6 @@
 {
   "name": "@broberg/i18n",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Headless locale engine: a framework-free createI18n() with dot-path t() (fallback chain + {var} interpolation), a bilingual() helper for {da,en} content objects, localStorage persistence + navigator.language detection, an html[lang] sync, a pub/sub with no context provider, and a globalThis-keyed singleton guard (pnpm-hoist safe). The LanguageSwitcher UI is copy-owned per stack.",
   "type": "module",
   "license": "MIT",
@@ -58,7 +58,7 @@
     "i18n-fill": "./bin/i18n-fill.mjs"
   },
   "peerDependencies": {
-    "@broberg/ai-sdk": ">=0.56.0"
+    "@broberg/ai-sdk": ">=0.66.0"
   },
   "peerDependenciesMeta": {
     "@broberg/ai-sdk": {
