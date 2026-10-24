@@ -32,10 +32,15 @@ async function fetchOne(pkg) {
   if (!version || !published) {
     throw new Error(`npm lookup for ${pkg} returned no latest version or publish time`);
   }
-  // F038.31 — published via Trusted Publisher (OIDC) ⇔ npm attached a SLSA
-  // provenance attestation to THIS version. Measured: event-log 0.1.0 (local
-  // bootstrap) has none, 0.2.1+ (CI) do.
-  const provenance = Boolean(doc?.versions?.[version]?.dist?.attestations?.provenance);
+  // F038.31 / F038.43 — published via Trusted Publisher (OIDC). npm records that on
+  // the version itself as _npmUser.trustedPublisher. A provenance attestation is NOT
+  // the same signal: npm only attaches one when the publishing repo is PUBLIC.
+  // Measured 25/10: @broberg/lens-daemon 0.1.34 was published by Trusted Publisher
+  // from the private broberg-ai/lens with no attestation, and the page said
+  // «ingen provenance». Either signal counts; event-log 0.1.0 (local bootstrap,
+  // _npmUser = a person) still has neither.
+  const v = doc?.versions?.[version];
+  const provenance = Boolean(v?._npmUser?.trustedPublisher || v?.dist?.attestations?.provenance);
   return { pkg, version, published, provenance };
 }
 

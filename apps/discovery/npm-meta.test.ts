@@ -109,3 +109,22 @@ describe("fetchLatestReleases reads provenance off the LATEST version's attestat
     expect(Object.fromEntries(r.map((x: { pkg: string; provenance: boolean }) => [x.pkg, x.provenance]))).toEqual({ "@broberg/x": true, "@broberg/y": false });
   });
 });
+
+describe("F038.43 — Trusted Publisher is read off _npmUser.trustedPublisher, not only off a provenance attestation", () => {
+  it("TP from a PRIVATE repo (no attestation, trustedPublisher set) → true; a person's local publish → false", async () => {
+    const docs: Record<string, unknown> = {
+      // shape measured on @broberg/lens-daemon 0.1.34, 25/10 2026
+      "@broberg/priv": { "dist-tags": { latest: "0.1.34" }, time: { "0.1.34": "2026-10-24T20:42:02Z" }, versions: { "0.1.34": { _npmUser: { name: "GitHub Actions", email: "npm-oidc-no-reply@github.com", trustedPublisher: { id: "github", oidcConfigId: "x" } }, dist: {} } } },
+      // shape measured on @broberg/nativepush 0.1.0 (local bootstrap)
+      "@broberg/local": { "dist-tags": { latest: "0.1.0" }, time: { "0.1.0": "2026-10-24T20:10:00Z" }, versions: { "0.1.0": { _npmUser: { name: "cbroberg", email: "cb@webhouse.dk" }, dist: {} } } },
+    };
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation((async (url: string) => {
+      const name = decodeURIComponent(String(url).split("/").pop()!);
+      return new Response(JSON.stringify(docs[name]), { status: 200 });
+    }) as never);
+    const r = await fetchLatestReleases(["@broberg/priv", "@broberg/local"]);
+    spy.mockRestore();
+    expect(Object.fromEntries(r.map((x: { pkg: string; provenance: boolean }) => [x.pkg, x.provenance]))).toEqual({ "@broberg/priv": true, "@broberg/local": false });
+  });
+});
+

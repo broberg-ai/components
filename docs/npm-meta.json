@@ -81,7 +81,7 @@
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens",
   "version": "0.3.2",
   "publishedAt": "2026-10-12T00:12:59.358Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/auth": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/auth",
@@ -183,25 +183,25 @@
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-engine",
   "version": "0.14.1",
   "publishedAt": "2026-10-23T00:09:13.014Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/lens-client": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-client",
   "version": "0.1.2",
   "publishedAt": "2026-10-12T00:13:14.093Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
   "version": "0.1.34",
   "publishedAt": "2026-10-24T20:42:02.777Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/lens-svg": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-svg",
   "version": "0.1.1",
   "publishedAt": "2026-10-23T09:24:46.549Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/webmcp": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/webmcp",
@@ -339,7 +339,7 @@
   "npmUrl": "https://www.npmjs.com/package/@broberg/db-sdk",
   "version": "0.2.0",
   "publishedAt": "2026-09-23T17:28:09.540Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/ai-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
@@ -351,19 +351,19 @@
   "npmUrl": "https://www.npmjs.com/package/@broberg/fleet-client",
   "version": "0.2.0",
   "publishedAt": "2026-10-24T15:40:05.943Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/fleet-contracts": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/fleet-contracts",
   "version": "0.2.0",
   "publishedAt": "2026-10-24T15:16:23.233Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/complimenta-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/complimenta-sdk",
   "version": "0.3.0",
   "publishedAt": "2026-08-11T08:25:35.357Z",
-  "provenance": "no"
+  "provenance": "yes"
  },
  "@broberg/cms-inline-edit": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/cms-inline-edit",
