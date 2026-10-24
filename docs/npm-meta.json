@@ -211,8 +211,8 @@
  },
  "@broberg/web-clipper": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/web-clipper",
-  "version": "0.27.0",
-  "publishedAt": "2026-10-24T18:34:06.944Z",
+  "version": "0.27.1",
+  "publishedAt": "2026-10-24T21:52:26.774Z",
   "provenance": "yes"
  },
  "@broberg/editor": {
