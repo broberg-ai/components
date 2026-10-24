@@ -100,6 +100,8 @@ t("a run off the default branch is a TEST — and test and real issues never tou
   // a blocking pilot opens its own TEST issue even while the real one is open
   assert.equal(planAlarm(decide({ audit: [ZOD] }), [real], true).open.length, 1);
   assert.equal(planAlarm(decide({ audit: [ZOD] }), [test], false).open.length, 1);
+  // and a pilot that is still red does not open a second TEST issue every run
+  assert.equal(planAlarm(decide({ audit: [ZOD] }), [test], true).open.length, 0);
 });
 
 console.log(`\nadvisory engine: ${n} checks passed`);
