@@ -106,12 +106,21 @@ export function decide({ auditError, audit = [], osvError, osv = [], ack = {} })
   return { status, errors, blocking, acknowledged };
 }
 
+/** A run on any ref but the default branch is a TEST (bid #4336: Christian read a
+ *  pilot's incident as the real hole returning, because the title was identical). */
+export const TEST_PREFIX = "TEST — ";
+export const isTestRun = (ref, defaultBranch) => Boolean(ref && defaultBranch && ref !== defaultBranch);
+
 /** BID's issue title — the «[id]» prefix is the key, so BID's open issues match. */
-export const issueTitle = (f) => `[${f.id}] ${f.severity}: ${f.pkg} — ${f.title}`;
+export const issueTitle = (f, test = false) => `${test ? TEST_PREFIX : ""}[${f.id}] ${f.severity}: ${f.pkg} — ${f.title}`;
 const idOf = (title) => /^\[([^\]]+)\]/.exec(title)?.[1] ?? null;
 
-/** Which issues to open and which to close. An error closes nothing. */
-export function planAlarm(report, openIssues) {
+/** Which issues to open and which to close. An error closes nothing. A test run
+ *  sees only TEST issues and a real run only real ones — a pilot can neither
+ *  close a real alarm nor be mistaken for one. */
+export function planAlarm(report, allOpen, test = false) {
+  const openIssues = allOpen.filter((i) => i.title.startsWith(TEST_PREFIX) === test)
+    .map((i) => ({ ...i, title: test ? i.title.slice(TEST_PREFIX.length) : i.title }));
   const want = report.status === "error"
     ? [{ id: ERROR_ID, severity: "critical", pkg: "advisory-watch", title: `kunne ikke tjekke — ${report.errors.join(" · ").slice(0, 180)}` }, ...report.blocking]
     : report.blocking;
@@ -119,6 +128,7 @@ export function planAlarm(report, openIssues) {
   const now = new Set(want.map((f) => f.id));
   return {
     open: want.filter((f) => !have.has(f.id)),
-    close: report.status === "error" ? [] : openIssues.filter((i) => { const id = idOf(i.title); return id !== null && !now.has(id); }),
+    close: report.status === "error" ? [] : openIssues.filter((i) => { const id = idOf(i.title); return id !== null && !now.has(id); })
+      .map((i) => ({ ...i, title: test ? TEST_PREFIX + i.title : i.title })),
   };
 }

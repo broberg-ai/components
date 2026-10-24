@@ -11,7 +11,7 @@
 // can never measure differently (bid #4318 a).
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { detectPm, parseAudit, lockedFromLockfile, decide, planAlarm, issueTitle } from "./engine.mjs";
+import { detectPm, parseAudit, lockedFromLockfile, decide, planAlarm, issueTitle, isTestRun } from "./engine.mjs";
 import { queryOsv, readKev, osvSeverity } from "../dependency-health.mjs";
 
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
@@ -75,16 +75,18 @@ async function alarm(report) {
   };
   gh("label", "create", label, "--color", color, "--description", "F082.10 dagligt sårbarhedstjek", "--force");
   const openIssues = JSON.parse(gh("issue", "list", "--label", label, "--state", "open", "--limit", "500", "--json", "number,title"));
-  const { open, close } = planAlarm(report, openIssues);
+  const test = isTestRun(process.env.GITHUB_REF_NAME, process.env.DEFAULT_BRANCH);
+  if (test) console.log(`TEST run (${process.env.GITHUB_REF_NAME} is not ${process.env.DEFAULT_BRANCH}): titles get «TEST — », incidents are low`);
+  const { open, close } = planAlarm(report, openIssues, test);
   const key = open.length || close.length ? await upmetricsKey() : null;
   for (const f of open) {
-    gh("issue", "create", "--label", label, "--title", issueTitle(f), "--body",
+    gh("issue", "create", "--label", label, "--title", issueTitle(f, test), "--body",
       `Det daglige sårbarhedstjek (F082.10) fandt et ukvitteret ${f.severity}-hul.\n\n- pakke: \`${f.pkg}\`\n- hul: https://osv.dev/vulnerability/${f.id}\n- kilde: ${(f.sources ?? ["tjekket"]).join(", ")}${f.kev ? "\n- **udnyttes aktivt (CISA KEV)**" : ""}\n\nOpgradér pakken, eller kvittér i \`${ackPath}\` med begrundelse. Sagen lukkes af sig selv, når tjekket er grønt.`);
-    console.log(`OPENED ${f.id} · Upmetrics: ${await upmetrics(key, "/api/incidents", { kind: "dependency_vuln", fingerprint: f.id, severity: f.severity === "critical" ? "critical" : "high", title: issueTitle(f) })}`);
+    console.log(`OPENED ${f.id} · Upmetrics: ${await upmetrics(key, "/api/incidents", { kind: "dependency_vuln", fingerprint: test ? `test:${f.id}` : f.id, severity: test ? "low" : f.severity === "critical" ? "critical" : "high", title: issueTitle(f, test) })}`);
   }
   for (const s of close) {
     gh("issue", "close", String(s.number), "--comment", "Det daglige tjek er grønt for dette hul — lukket automatisk.");
-    console.log(`CLOSED #${s.number} · Upmetrics: ${await upmetrics(key, "/api/incidents/resolve", { kind: "dependency_vuln", fingerprint: /^\[([^\]]+)\]/.exec(s.title)?.[1] })}`);
+    console.log(`CLOSED #${s.number} · Upmetrics: ${await upmetrics(key, "/api/incidents/resolve", { kind: "dependency_vuln", fingerprint: `${test ? "test:" : ""}${/\[([^\]]+)\]/.exec(s.title)?.[1]}` })}`);
   }
   console.log(`opened ${open.length} · closed ${close.length} · still open ${openIssues.length - close.length}`);
 }

@@ -2,7 +2,7 @@
 // F082.10 — the shared advisory watch's decisions (scripts/advisory/engine.mjs).
 // Each case is one of bid's requirements (#4318) or BID's production behaviour.
 import assert from "node:assert/strict";
-import { detectPm, parseAudit, lockedFromLockfile, validateAck, decide, planAlarm, issueTitle, ERROR_ID } from "./advisory/engine.mjs";
+import { detectPm, parseAudit, lockedFromLockfile, validateAck, decide, planAlarm, issueTitle, ERROR_ID, isTestRun, TEST_PREFIX } from "./advisory/engine.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ✓ ${name}`); };
@@ -86,6 +86,20 @@ t("alarm on error: one [audit-error] issue, and NOTHING is closed", () => {
   assert.deepEqual(p.open.map((f) => f.id), [ERROR_ID]);
   // and once checking works again, the error issue is closed
   assert.deepEqual(planAlarm(decide({}), [{ number: 9, title: `[${ERROR_ID}] critical: x` }]).close.map((s) => s.number), [9]);
+});
+
+t("a run off the default branch is a TEST — and test and real issues never touch each other (bid #4336)", () => {
+  assert.equal(isTestRun("pilot/x", "main"), true);
+  assert.equal(isTestRun("main", "main"), false);
+  assert.equal(isTestRun("main", undefined), false); // unknown default → treated as real, as before
+  assert.equal(issueTitle(ZOD, true), `${TEST_PREFIX}${issueTitle(ZOD)}`);
+  const real = { number: 1, title: issueTitle(ZOD) }, test = { number: 2, title: issueTitle(ZOD, true) };
+  // a clean pilot closes its own TEST issue, never the real alarm
+  assert.deepEqual(planAlarm(decide({}), [real, test], true).close.map((s) => s.number), [2]);
+  assert.deepEqual(planAlarm(decide({}), [real, test], false).close.map((s) => s.number), [1]);
+  // a blocking pilot opens its own TEST issue even while the real one is open
+  assert.equal(planAlarm(decide({ audit: [ZOD] }), [real], true).open.length, 1);
+  assert.equal(planAlarm(decide({ audit: [ZOD] }), [test], false).open.length, 1);
 });
 
 console.log(`\nadvisory engine: ${n} checks passed`);

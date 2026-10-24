@@ -70,6 +70,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           UPMETRICS_URL: https://upmetrics.org
+          # A run on any other ref is a TEST: «TEST — » titles, low incidents (bid #4336).
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           # Inputs reach the shell as env, never spliced into the script.
           MODE: ${{ inputs.mode }}
           ACK: ${{ inputs.ack-file }}
