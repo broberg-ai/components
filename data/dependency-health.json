@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-23T09:54:08.514Z",
+ "checked_at": "2026-10-24T12:17:50.039Z",
  "packages": {
   "@broberg/apikey": {
    "version": "0.3.1",
@@ -86,7 +86,7 @@
    "verdict": "OK"
   },
   "@broberg/bodymap": {
-   "version": "0.12.0",
+   "version": "0.13.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -107,8 +107,8 @@
     "low": 0
    },
    "outdated": {
-    "total": 11,
-    "shipped": 1,
+    "total": 10,
+    "shipped": 0,
     "deprecated": 0
    },
    "verdict": "OK"
@@ -170,7 +170,7 @@
    "verdict": "OK"
   },
   "@broberg/config": {
-   "version": "0.2.0",
+   "version": "0.3.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -191,7 +191,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 5,
+    "total": 4,
     "shipped": 0,
     "deprecated": 0
    },
@@ -544,7 +544,7 @@
    },
    "peer": {
     "critical": 0,
-    "high": 0,
+    "high": 1,
     "moderate": 0,
     "low": 0
    },
@@ -702,7 +702,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-templates": {
-   "version": "0.1.0",
+   "version": "0.2.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -723,14 +723,14 @@
     "low": 0
    },
    "outdated": {
-    "total": 5,
-    "shipped": 1,
+    "total": 4,
+    "shipped": 0,
     "deprecated": 0
    },
    "verdict": "OK"
   },
   "@broberg/mcp": {
-   "version": "0.10.0",
+   "version": "0.11.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -746,12 +746,12 @@
    },
    "dev": {
     "critical": 1,
-    "high": 11,
-    "moderate": 13,
-    "low": 0
+    "high": 12,
+    "moderate": 14,
+    "low": 2
    },
    "outdated": {
-    "total": 8,
+    "total": 7,
     "shipped": 0,
     "deprecated": 0
    },
@@ -1178,7 +1178,7 @@
    "verdict": "OK"
   },
   "@broberg/stripe": {
-   "version": "0.4.1",
+   "version": "0.5.0",
    "status": "ok",
    "prod": {
     "critical": 0,
