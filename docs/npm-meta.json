@@ -7,8 +7,8 @@
  },
  "@broberg/config": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/config",
-  "version": "0.2.0",
-  "publishedAt": "2026-06-22T18:17:12.574Z",
+  "version": "0.3.1",
+  "publishedAt": "2026-10-24T13:03:06.829Z",
   "provenance": "yes"
  },
  "@broberg/mail": {
