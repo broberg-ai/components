@@ -23,6 +23,7 @@
  * silently, which cost xrt81 a full day.
  */
 import { DATA } from "./inventory-data.mjs";
+import { readFileSync } from "node:fs";
 import { discoveryAuth } from "./discovery-auth.mjs";
 // F038.22 — Discovery is behind login. F038.26: CI logs in with a BrobergID
 // ticket (GitHub OIDC, no stored key). The log names the door, never the credential.
@@ -88,3 +89,36 @@ if (stale.length || missing.length) {
 }
 
 console.log(`✓ live roster matches the repo: ${want.length} shipped packages, 0 stale, 0 missing (${url})`);
+
+// F083.2 — the FLEET section is derived from data/fleet-deps.json. Ask the live
+// /api/fleet whether it serves exactly that: same scan, every scanned repo with a
+// shared dependency present, each list EQUAL to the scan's (a 3-of-16 row fails).
+const scan = JSON.parse(readFileSync(new URL("../data/fleet-deps.json", import.meta.url), "utf8"));
+const short = (p) => p.replace(/^@broberg\//, "").replace(/^@upmetrics\//, "upmetrics:");
+const fleetUrl = `${base}/api/fleet`;
+let fleet;
+try {
+  const r = await fetch(fleetUrl, DISCOVERY_AUTH);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  fleet = await r.json();
+} catch (err) {
+  console.error(`\n  Could not read ${fleetUrl}: ${err instanceof Error ? err.message : String(err)}\n  The FLEET section was not checked.\n`);
+  process.exit(1);
+}
+const liveByRepo = new Map((fleet.fleet ?? []).filter((f) => f.repo).map((f) => [f.repo, f]));
+const fleetProblems = [];
+if (fleet.scanned_at !== scan.scanned_at) fleetProblems.push(`    scan   live ${fleet.scanned_at}   repo ${scan.scanned_at}`);
+let compared = 0;
+for (const [repo, r] of Object.entries(scan.repos ?? {})) {
+  if (r.error || !Object.keys(r.deps ?? {}).length) continue;
+  compared++;
+  const want = Object.keys(r.deps).map(short).sort().join(",");
+  const row = liveByRepo.get(repo);
+  if (!row) fleetProblems.push(`    ${repo}   MISSING from the live FLEET`);
+  else if ([...row.uses].sort().join(",") !== want) fleetProblems.push(`    ${repo}   live [${[...row.uses].sort().join(", ")}]   scan [${want.split(",").join(", ")}]`);
+}
+if (fleetProblems.length || compared === 0) {
+  console.error(`\n  ${fleetUrl} does not serve the committed scan — ${fleetProblems.length} problem(s)${compared === 0 ? ", and NOTHING was compared" : ""}:\n${fleetProblems.join("\n")}\n`);
+  process.exit(1);
+}
+console.log(`✓ live FLEET matches the scan: ${compared} repos with shared dependencies, lists equal, scanned ${scan.scanned_at} (${fleetUrl})`);

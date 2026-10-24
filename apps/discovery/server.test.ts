@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // F039 enroll store: in-memory libSQL for tests (the lazy store reads this at
@@ -123,6 +124,25 @@ describe("Discovery API", () => {
     expect(body.scanned_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(body.edges).toBeGreaterThan(100);
     expect(body.count).toBeGreaterThan(20);
+  });
+
+  // F083.2 AC 0 + 1 — measured against the SCAN, not against a list typed here:
+  // every scanned repo with a shared dependency has a row, and its list is the
+  // scan's list exactly (set equality, not "contains" — 3 of 16 must fail).
+  it("GET /api/fleet → one row per scanned repo with a dependency, each list EQUAL to the scan's", async () => {
+    const scan = JSON.parse(readFileSync(new URL("../../data/fleet-deps.json", import.meta.url), "utf8"));
+    const short = (p: string) => p.replace(/^@broberg\//, "").replace(/^@upmetrics\//, "upmetrics:");
+    const withDeps = Object.entries(scan.repos as Record<string, { error?: string; deps?: Record<string, unknown> }>)
+      .filter(([, r]) => !r.error && Object.keys(r.deps ?? {}).length > 0);
+    const body = await (await fleet("/api/fleet")).json();
+    const byRepo = new Map(body.fleet.filter((f: { repo?: string }) => f.repo).map((f: { repo: string }) => [f.repo, f]));
+    const missing = withDeps.filter(([repo]) => !byRepo.has(repo)).map(([repo]) => repo);
+    expect(missing).toStrictEqual([]);
+    expect(withDeps.length).toBeGreaterThan(20);
+    for (const [repo, r] of withDeps) {
+      const row = byRepo.get(repo) as { uses: string[] };
+      expect({ repo, uses: [...row.uses].sort() }).toStrictEqual({ repo, uses: Object.keys(r.deps ?? {}).map(short).sort() });
+    }
   });
 
   it("GET /api/fleet → hand-written role text survives the derivation", async () => {
