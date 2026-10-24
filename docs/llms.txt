@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- All 141 tips are inline below, in full. That part needs no second fetch.
+- All 142 tips are inline below, in full. That part needs no second fetch.
 - **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at https://discovery.broberg.ai/llms-full.txt. Fetch it before you decide a capability is missing.
 
 ## Secrets Vault — flådens delte krypterede secret-store
@@ -168,7 +168,7 @@ owner. That conversation is the whole point of this inventory.
 - **Deployment Mgmt (observe)** (L3) · ⛔ NOT BUILT YET (moved) — nothing to install, nothing to import · owner: upmetrics — ASK THEM before building a second one
   The observe half of deployment management
 
-## Tips & tricks — every tip inline (141 across 15 platforms)
+## Tips & tricks — every tip inline (142 across 16 platforms)
 
 ### Fly.io (35)
 - **[build-stamp]** health.build — stamp the running commit on your health endpoint, and say how much to trust it. Convention (beacon, measured on their own service): GET /v1/health returns build:{ commit, dirty, source } where source is env (a deploy declared its sha, e.g. BUILD env var — declared, not observed) then git (the process runs from a work tree and git was asked — observed) then unknown (commit MUST be null). Five decisions, each one a trap somebody already hit: (1) read it ONCE at startup, never per request — the question is what the process was started from, and a git lookup per request answers about the tree as it is NOW, i.e. code the process never loaded; (2) UNTRACKED files count as dirty — the process runs what is on disk, and an uncommitted file is still one it could load; (3) never invent a sha — null plus source unknown, because a sha that looks like an answer is worse than no answer; (4) dirty is not decoration, it says how far to trust the sha: a true sha on a dirty tree describes code that is not running; (5) for the CONSUMER of the field — when comparing two sides (a page against the service that serves it), a dirty on EITHER side must make the comparison SILENT. A bundle is stamped when it is built, i.e. before the commit that contains it, so during ordinary work the shas disagree all day; warn on that and the warning is ignored within a week. Two CLEAN builds that disagree is the thing worth flagging. And say what a difference means: beacons service ran 732e4241 while HEAD was 637bae6, a real 48-hour drift — but that commit only touched CLAUDE.md, so the drift was harmless. A field that reports difference without significance becomes why is my service always red. _(beacon)_
@@ -278,6 +278,9 @@ owner. That conversation is the whole point of this inventory.
 - **[monorepo]** Publish a @broberg package from a MONOREPO subdir (not its own repo): add a tag-prefixed job (on push tag e.g. complimenta-sdk-v*) with working-directory: packages/<name>, permissions id-token:write, build+test, then `npm publish --provenance`. The Trusted Publisher points at THAT repo + the workflow filename — so one monorepo ships many independently-tagged @broberg packages. (broberg-ai/fdaa → @broberg/complimenta-sdk is the first.) _(components)_
 - **[trusted-publisher]** Trusted Publisher setup (Christian, ~30s, ONLY after v0.1.0 exists): npmjs.com → the package → Settings → Trusted Publisher → GitHub Actions → Organization + Repository (e.g. broberg-ai/<repo>), Workflow filename (publish.yml), Environment left blank. Then a tag push publishes token-free with provenance — his single manual step per new package. _(components)_
 - **[provenance-private]** npm publish --provenance FAILS for a PRIVATE source repo → npm E422 'Unsupported GitHub Actions source repository visibility: private' (OIDC auth + the signed provenance statement still succeed; only the registry's provenance-verification rejects). Rule: PUBLIC source repo → keep --provenance; PRIVATE repo → omit it. (broberg-ai/fdaa hit this on complimenta-sdk's first OIDC tag-release.) _(fdaa)_
+
+### Social channels (YouTube · later Meta, TikTok) (1)
+- **[youtube-brand-channel]** YouTube brand channel per app — the recipe (jam, done 24/10): a SEPARATE Chrome profile on :9334 (--user-data-dir=~/.webhouse-dev-chrome) driven over CDP. The main channel «WebHouse Developer» (UCiep9IdwNf6-1mPmBqhPorQ, WebHouse logo) must exist before brand channels. Create one per app via youtube.com/account → «Opret en ny kanal». The dialog fields are fixed: click by coordinates + Input.insertText. Picture and description are set in Studio /editing/profile (file input no. 1, #textbox inside shadow DOM) → Udgiv. Only a Google security confirmation needs a human. Full text: broberg-ai/jam docs/ops/youtube-kanal-procedure.md. _(jam)_
 
 ### Pitch Vault (7)
 - **[reuse]** Need a customer pitch? Use Pitch Vault, don't roll your own. POST /api/cli/push (multipart, x-api-key) with a self-contained HTML pitch → get a shareUrl back. Search existing pitches first: GET /api/v1/pitches?q=<term> (also ?folderId=). _(components)_

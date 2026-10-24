@@ -292,6 +292,15 @@ export const INFRA = [
     ],
   },
   {
+    id: "social-channels", name: "Social channels (YouTube · later Meta, TikTok)", role: "Give an app its own channel under the shared developer account",
+    kw: ["youtube","youtube channel","brand channel","kanal","social","social media","meta","facebook","instagram","tiktok","channel","webhouse developer"],
+    region: "Google account webhouse.developer@gmail.com (Global Vault)",
+    notes: "Owner's order 24/10 2026 (via jam): every app that needs a public channel gets its OWN brand channel under the shared account webhouse.developer@gmail.com (credentials in cardmem's Global Vault, id 019f6a86…). The owner intends the same account for Meta and TikTok later. Full procedure: broberg-ai/jam docs/ops/youtube-kanal-procedure.md (98f6e91). Done for Jam: @jams-party (UCRsabosOqYWRI7IKPP3AtWg).",
+    tips: [
+      { t: "YouTube brand channel per app — the recipe (jam, done 24/10): a SEPARATE Chrome profile on :9334 (--user-data-dir=~/.webhouse-dev-chrome) driven over CDP. The main channel «WebHouse Developer» (UCiep9IdwNf6-1mPmBqhPorQ, WebHouse logo) must exist before brand channels. Create one per app via youtube.com/account → «Opret en ny kanal». The dialog fields are fixed: click by coordinates + Input.insertText. Picture and description are set in Studio /editing/profile (file input no. 1, #textbox inside shadow DOM) → Udgiv. Only a Google security confirmation needs a human. Full text: broberg-ai/jam docs/ops/youtube-kanal-procedure.md.", by: "jam", tag: "youtube-brand-channel" },
+    ],
+  },
+  {
     id: "pitch", name: "Pitch Vault", role: "Customer pitches — create, publish & share branded pitch pages",
     kw: ["pitch","pitches","customer pitch","sales pitch","presentation","proposal","pitch vault","deck","slides","pitch.broberg.dk"],
     region: "Fly arn (pitch.broberg.dk)",
