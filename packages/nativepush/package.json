@@ -1,6 +1,6 @@
 {
   "name": "@broberg/nativepush",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Push to NATIVE apps for the broberg.ai fleet — Apple APNs (token auth, HTTP/2, critical / time-sensitive) and Google FCM HTTP v1 (high-priority, data-only) behind one sender with @broberg/webpush's contract: never throws, dead tokens to prune, failed with a kind, ready/no-keys/invalid-keys at boot. Server-side, zero dependencies, no database.",
   "type": "module",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@broberg/phone",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Ring a person over the phone network for the broberg.ai fleet — 46elks (EU): play a message (audio from @broberg/ai-sdk ai.tts), ask for one key press to acknowledge, and parse the hangup + key-press webhooks with a secret token (46elks does not sign them). Never throws; failures carry a kind; ready/no-keys/invalid-keys at boot; numbers masked. Zero dependencies, no database.",
   "type": "module",
   "license": "MIT",
