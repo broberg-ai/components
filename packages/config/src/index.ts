@@ -117,21 +117,40 @@ export function coerceBool(
   throw new Error(`Config error: ${name} must be a boolean (true/false/1/0), got ${JSON.stringify(raw)}`);
 }
 
+export interface ProductionGuardOptions {
+  /**
+   * What counts as "not set". Default: falsy (`!value`) — so `""` is refused but
+   * `"   "` passes, exactly as before this option existed. Pass e.g.
+   * `(v) => typeof v !== "string" || v.trim() === ""` to also refuse whitespace.
+   *
+   * The guard only ASKS this question; it never trims or otherwise changes a value.
+   * Receives the key, so a human-chosen value (a password, where surrounding space
+   * is legitimate content) can be exempted from a whitespace rule meant for
+   * machine-issued tokens.
+   */
+  blank?: (value: unknown, key: string) => boolean;
+}
+
 /**
  * In production (`NODE_ENV === 'production'`), assert that every required key on a
- * config object is truthy — so a missing secret crashes the boot instead of
+ * config object is set — so a missing secret crashes the boot instead of
  * silently shipping a dev default. A no-op outside production.
  *
+ * "Set" means truthy unless `options.blank` says otherwise: by default a
+ * whitespace-only value PASSES (see {@link ProductionGuardOptions.blank}).
+ *
  * @param nodeEnv Defaults to `process.env.NODE_ENV`; pass a value to test.
- * @throws Listing every falsy required key when running in production.
+ * @throws Listing every required key that is blank, when running in production.
  */
 export function productionGuard<T extends object>(
   config: T,
   requiredKeys: (keyof T)[],
   nodeEnv: string | undefined = process.env.NODE_ENV,
+  options: ProductionGuardOptions = {},
 ): void {
   if (nodeEnv !== "production") return;
-  const missing = requiredKeys.filter((key) => !config[key]);
+  const blank = options.blank ?? ((v: unknown) => !v);
+  const missing = requiredKeys.filter((key) => blank(config[key], String(key)));
   if (missing.length > 0) {
     throw new Error(`Missing required production config: ${missing.map(String).join(", ")}`);
   }

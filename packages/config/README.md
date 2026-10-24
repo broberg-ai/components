@@ -68,7 +68,7 @@ const ratio = coerceNum("DEPLOY_REGRESSION_MULTIPLIER", 3.0); // float ok; throw
 const live = coerceBool("MAIL_LIVE", false); // true/false/1/0/yes/no/on/off
 ```
 
-## `productionGuard(config, requiredKeys, nodeEnv?)`
+## `productionGuard(config, requiredKeys, nodeEnv?, options?)`
 
 In production, assert that every required key is truthy — so a missing secret
 crashes the boot instead of silently shipping a dev default. A no-op elsewhere.
@@ -80,6 +80,23 @@ productionGuard(env, ["RESEND_API_KEY", "AUTH_SECRET"]);
 // in production with AUTH_SECRET unset:
 //   Error: Missing required production config: AUTH_SECRET
 ```
+
+**What it distinguishes — and what it does not.** By default a key counts as
+missing only when its value is *falsy*: unset and `""` are refused, but a
+whitespace-only value like `"   "` **passes** — and the service then signs
+cookies with three spaces. That default is kept on purpose so no consumer's boot
+changes without asking. To also refuse whitespace, pass `blank`:
+
+```ts
+const blank = (v: unknown, key: string) =>
+  key === "PLATFORM_OWNER_PASSWORD"
+    ? !v                                            // human-chosen: space can be real content
+    : typeof v !== "string" || v.trim() === "";     // machine-issued: whitespace = not set
+productionGuard(env, ["AUTH_SECRET", "PLATFORM_OWNER_PASSWORD"], undefined, { blank });
+```
+
+The guard only *asks* whether a value is blank — it never trims or rewrites a
+value. A password with surrounding space reaches your app exactly as set.
 
 ## Next.js caveat
 

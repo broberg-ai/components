@@ -97,3 +97,41 @@ describe("productionGuard", () => {
     expect(() => productionGuard(cfg, ["authSecret"], "development")).not.toThrow();
   });
 });
+
+describe("F004.7 — productionGuard: what counts as blank is the caller's choice", () => {
+  const machine = (v: unknown) => typeof v !== "string" || v.trim() === "";
+  const real = "a".repeat(64);
+
+  it("with the whitespace predicate: \"\" refused, \"   \" refused, a real 64-char value accepted — it discriminates, it does not just reject more", () => {
+    const g = (v: string) => () => productionGuard({ SESSION_SECRET: v }, ["SESSION_SECRET"], "production", { blank: machine });
+    expect(g("")).toThrow("Missing required production config: SESSION_SECRET");
+    expect(g("   ")).toThrow("Missing required production config: SESSION_SECRET");
+    expect(g(real)).not.toThrow();
+  });
+
+  it("DEFAULT UNCHANGED: with no option a whitespace value still boots exactly as 0.3.1 does (and \"\" is still refused)", () => {
+    expect(() => productionGuard({ SESSION_SECRET: "   " }, ["SESSION_SECRET"], "production")).not.toThrow();
+    expect(() => productionGuard({ SESSION_SECRET: "" }, ["SESSION_SECRET"], "production")).toThrow(/SESSION_SECRET/);
+  });
+
+  it("a human-chosen password with surrounding space passes and keeps its whitespace INTACT, even with the predicate on for the other keys", () => {
+    const cfg = { SESSION_SECRET: real, PLATFORM_OWNER_PASSWORD: "  hunter2  " };
+    productionGuard(cfg, ["SESSION_SECRET", "PLATFORM_OWNER_PASSWORD"], "production", { blank: machine });
+    expect(cfg.PLATFORM_OWNER_PASSWORD).toBe("  hunter2  ");
+    expect(cfg.SESSION_SECRET).toBe(real);
+  });
+
+  it("the predicate receives the key, so one key can be exempted from a whitespace rule", () => {
+    const seen: string[] = [];
+    const blank = (v: unknown, key: string) => { seen.push(key); return key === "PLATFORM_OWNER_PASSWORD" ? !v : machine(v); };
+    expect(() => productionGuard({ A: real, PLATFORM_OWNER_PASSWORD: "   " }, ["A", "PLATFORM_OWNER_PASSWORD"], "production", { blank })).not.toThrow();
+    expect(seen).toStrictEqual(["A", "PLATFORM_OWNER_PASSWORD"]);
+  });
+
+  it("outside production the predicate is never consulted", () => {
+    let called = false;
+    productionGuard({ A: "" }, ["A"], "development", { blank: () => { called = true; return true; } });
+    expect(called).toBe(false);
+  });
+});
+
