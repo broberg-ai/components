@@ -72,6 +72,12 @@ export function isFontStack(v: string): boolean {
   return v.trim().length > 0 && v.length <= 200 && !/[<>"`;{}]/.test(v);
 }
 
+/** Ceilings on what a stored override may hold — far above any real template, low
+ *  enough that a hostile body costs one issue, not one per element. */
+export const MAX_BLOCKS = 100;
+export const MAX_FOOTER_LINES = 20;
+export const MAX_COPY_KEYS = 200;
+
 const brandColor = z
   .string()
   .refine(isBrandColor, { message: "not a colour: use #rrggbb, rgb()/hsl(), or a CSS colour name" })
@@ -100,20 +106,27 @@ export const MailBrand = z
     fontSans: brandFontStack,
     fontSerif: brandFontStack,
     webfontHref: z.string().optional(),
-    footerLines: z.array(z.string()).optional(),
+    footerLines: z.array(z.string()).max(MAX_FOOTER_LINES).optional(),
   })
   .passthrough();
 export type MailBrand = z.infer<typeof MailBrand>;
 
 /** Greeting, sign-off and other fixed phrases are DATA, per language (vn-leker runs da/no/sv). */
-export const MailCopy = z.record(z.string(), z.string());
+// A record has no .max(): count the keys BEFORE zod walks them, or 200k bad keys
+// cost 200k issues (GHSA-mrhx-c7xc-m3w5 / buddy #4342).
+export const MailCopy = z
+  .unknown()
+  .refine((v) => v === null || typeof v !== "object" || Object.keys(v).length <= MAX_COPY_KEYS, {
+    message: `at most ${MAX_COPY_KEYS} phrases`,
+  })
+  .pipe(z.record(z.string(), z.string()));
 export type MailCopy = z.infer<typeof MailCopy>;
 
 /** One template, keyed on its PURPOSE (fd-sport's model: a project has a set, not one file). */
 export const MailTemplate = z.object({
   purpose: z.string().min(1),
   subject: z.string().min(1),
-  blocks: z.array(MailBlock).min(1),
+  blocks: z.array(MailBlock).min(1).max(MAX_BLOCKS),
   /** Required-or-derived, never silently empty — see derivePreheader. */
   preheader: z.string().optional(),
   brand: MailBrand.optional(),
@@ -124,7 +137,7 @@ export type MailTemplate = z.infer<typeof MailTemplate>;
 /** What a tenant stores to change a coded default. Every field optional; `purpose` is the key, not a field. */
 export const MailTemplateOverride = z.object({
   subject: z.string().min(1).optional(),
-  blocks: z.array(MailBlock).min(1).optional(),
+  blocks: z.array(MailBlock).min(1).max(MAX_BLOCKS).optional(),
   preheader: z.string().optional(),
   brand: MailBrand.optional(),
   copy: MailCopy.optional(),

@@ -85,7 +85,10 @@ export const painPointSchema = z.object({
 });
 export type PainPoint = z.infer<typeof painPointSchema>;
 
-export const painReportSchema = z.array(painPointSchema);
+// GHSA-mrhx-c7xc-m3w5: zod 4.6.7 only bounds an array that HAS a .max() — without
+// one, 200k bad points still cost 200k issues (buddy #4342, measured 3.9 s). One
+// point per region, so more points than regions is never a real report.
+export const painReportSchema = z.array(painPointSchema).max(REGIONS.length);
 export type PainReport = PainPoint[];
 
 // ---- Selection engine (framework-agnostic) ------------------------------
@@ -452,7 +455,7 @@ export const bodymapReportV1Schema = z.object({
       intensity: z.number().int().min(0).max(10),
       quality: z.enum(PAIN_TYPES).optional(),
     }),
-  ),
+  ).max(REGIONS.length),
 });
 
 /** Serialize a PainReport to the shared `bodymap/v1` wire format. */
