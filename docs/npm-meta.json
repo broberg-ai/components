@@ -133,8 +133,8 @@
  },
  "@broberg/i18n": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/i18n",
-  "version": "0.3.1",
-  "publishedAt": "2026-10-22T09:04:06.856Z",
+  "version": "0.4.1",
+  "publishedAt": "2026-10-24T13:03:52.477Z",
   "provenance": "yes"
  },
  "@broberg/speech-dictionary": {
