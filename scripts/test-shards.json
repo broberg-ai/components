@@ -26,7 +26,7 @@
   "shards": [
     {
       "name": "bin-1",
-      "weight_seconds": 215.7,
+      "weight_seconds": 220.7,
       "packages": [
         "@broberg/app-shell",
         "@broberg/feature-stats",
@@ -42,7 +42,8 @@
         "@broberg/webmcp",
         "@broberg/web-clipper",
         "@broberg/livesync",
-        "@broberg/editor"
+        "@broberg/editor",
+        "@broberg/nativepush"
       ],
       "min_tests": {
         "@broberg/app-shell": 24,
@@ -59,7 +60,8 @@
         "@broberg/webmcp": 5,
         "@broberg/web-clipper": 148,
         "@broberg/livesync": 25,
-        "@broberg/editor": 37
+        "@broberg/editor": 37,
+        "@broberg/nativepush": 10
       }
     },
     {
