@@ -26,12 +26,12 @@ Bigger components (scaffolds, multi-tenant, podcast, mobile boilerplate) do **no
 - **MCP endpoint.** This repo declares the cardmem MCP server in `.mcp.json`. cc sessions in this repo get the full `cardmem_*` tool surface (search, list, create, write_plan, pickup, handoff, …).
 - **F-numbers + plan-docs.** Every feature has a number (`F<n>`, with sub-stories `F<n>.<m>`, tasks `F<n>.<m>.<k>`). The plan-doc lives at `docs/features/F<n>-<slug>.md` and MUST be written in the same commit/turn as the card. Never "I'll write the plan next" — see the UFRAVIGELIG rule below.
 - **Boards.** Each project has at least one board with the default columns: Backlog → Ready → In progress → Review → Done. The board renders from the `cards` table — there is no separate `FEATURES.md` mirror.
-- **The `feature` skill** (`.claude/skills/feature/SKILL.md`) is the canonical entry point for proposing new work. It checks for duplicates via `cardmem_search`, assigns the next F-number via `cardmem_suggest_next_f_number`, reads the `## Project layout` table above to scope the plan, writes the plan-doc via `cardmem_write_plan`, and creates the cards via `cardmem_create_card` / `cardmem_create_cards`.
-- **Queue-drain.** When this session opts into queue-drain (`cardmem_session_start({ repo: '<owner>/<name>', auto_pickup_mode: 'queue-drain' })`), Ready cards are picked up automatically without asking. **Always pass `repo`** — it is the field that decides which project the call writes to, and a call without it used to repoint the session at whatever board the owner had open (F260.2). See `.claude/skills/queue-drain/SKILL.md`.
+- **The `feature` skill** (`~/.claude/skills/feature/SKILL.md`) is the canonical entry point for proposing new work. It checks for duplicates via `cardmem_search`, assigns the next F-number via `cardmem_suggest_next_f_number`, reads the `## Project layout` table above to scope the plan, writes the plan-doc via `cardmem_write_plan`, and creates the cards via `cardmem_create_card` / `cardmem_create_cards`.
+- **Queue-drain.** When this session opts into queue-drain (`cardmem_session_start({ repo: '<owner>/<name>', auto_pickup_mode: 'queue-drain' })`), Ready cards are picked up automatically without asking. **Always pass `repo`** — it is the field that decides which project the call writes to, and a call without it used to repoint the session at whatever board the owner had open (F260.2). See `~/.claude/skills/queue-drain/SKILL.md`.
 - **Handoff back to review** via `cardmem_handoff_card` once a card's AC is met. The PostToolUse hook injects the next Ready card as a binding pickup directive.
 - **Interactive UI ⇒ data-testid (HARD RULE, F086).** If a card builds or changes ANY interactive UI element (button, input, select, checkbox, link, custom control, anything with onClick/onChange), you MUST add a semantic, kebab-case `data-testid` to every such element before handoff — that is the stable anchor Lens drives + verifies (a missing anchor means Lens can't click or assert it). Self-check before handoff: the cardmem daemon's `POST 127.0.0.1:7475/lens/testid-gaps {"local_path":"<repo>"}` must report no NEW interactive gaps from your change. No exceptions.
-- **Browser automation ⇒ Cardmem Lens, never raw Playwright (HARD RULE, F112).** Any time you need to drive, screenshot, verify, or E2E-test a browser/UI, you MUST use **Cardmem Lens** (the `cardmem-lens` MCP, or the daemon at `127.0.0.1:7475`) — never a raw `playwright` / `puppeteer` / `chromium` script. The daemon owns the browser, so **anything you could script locally with Playwright, Lens can do by proxy.** If Lens genuinely cannot do what you need 100%, do NOT work around it with a one-off script — **file a Lens capability request** (`cardmem_capture_idea` tagged `lens-gap`, or ask the cardmem session via intercom) so it gets built INTO Lens, then use it. Reaching for raw Playwright is a contract violation; the missing-capability escalation is the correct path. See `.claude/skills/lens/SKILL.md`. No exceptions.
-- **Design proposals ⇒ Cardmem Mockups, never ad-hoc HTML (HARD RULE, F122).** Any visual design proposal / mockup ("mock it up", "vis mig hvordan det ser ud", "lav en mockup") MUST be created with **`cardmem_save_mockup`** (the `.claude/skills/mockup/SKILL.md` skill) so it lands in the **Mockups** surface — self-contained HTML, cross-linked to its source card/idea, versioned + status-tracked, viewable in-app (image OR interactive). **Never** drop a one-off `.html` file in the repo, a loose screenshot, or **a claude.ai artifact** (the built-in Artifact tool, a `claude.ai/…/artifact/…` link) and call it "the mockup". Naming the tool explicitly because that is the one a session actually reaches for: an artifact lives outside the product, is not versioned against the card, cannot be shown to a customer in the portal, and disappears from the owner's view the moment the conversation scrolls. It goes stale + invisible. For a large/generated mockup, commit the file and pass **`html_url`** (a public raw URL) so the server fetches it — the HTML never shuttles through your context (token-frugal + drift-proof). If the mockup tool genuinely can't express what you need, file a gap (`cardmem_capture_idea` tagged `mockup-gap`, or ask the cardmem session) instead of working around it. No exceptions.
+- **Browser automation ⇒ Cardmem Lens, never raw Playwright (HARD RULE, F112).** Any time you need to drive, screenshot, verify, or E2E-test a browser/UI, you MUST use **Cardmem Lens** (the `cardmem-lens` MCP, or the daemon at `127.0.0.1:7475`) — never a raw `playwright` / `puppeteer` / `chromium` script. The daemon owns the browser, so **anything you could script locally with Playwright, Lens can do by proxy.** If Lens genuinely cannot do what you need 100%, do NOT work around it with a one-off script — **send the Lens capability request to the `lens` agent** — `ask_peer({ to: "lens", … })` (a `cardmem_capture_idea` tagged `lens-gap` also routes to it) — so it gets built INTO Lens, then use it. Not to the cardmem session: Lens has its own repo, home and agent now, and every Lens tool is being gathered there instead of lying in three places, so every session backs that by asking `lens` directly. The MCP names (`cardmem-lens`) and the daemon address stay as they are until `lens` itself moves them. Reaching for raw Playwright is a contract violation; the missing-capability escalation is the correct path. See `~/.claude/skills/lens/SKILL.md`. No exceptions.
+- **Design proposals ⇒ Cardmem Mockups, never ad-hoc HTML (HARD RULE, F122).** Any visual design proposal / mockup ("mock it up", "vis mig hvordan det ser ud", "lav en mockup") MUST be created with **`cardmem_save_mockup`** (the `~/.claude/skills/mockup/SKILL.md` skill) so it lands in the **Mockups** surface — self-contained HTML, cross-linked to its source card/idea, versioned + status-tracked, viewable in-app (image OR interactive). **Never** drop a one-off `.html` file in the repo, a loose screenshot, or **a claude.ai artifact** (the built-in Artifact tool, a `claude.ai/…/artifact/…` link) and call it "the mockup". Naming the tool explicitly because that is the one a session actually reaches for: an artifact lives outside the product, is not versioned against the card, cannot be shown to a customer in the portal, and disappears from the owner's view the moment the conversation scrolls. It goes stale + invisible. For a large/generated mockup, commit the file and pass **`html_url`** (a public raw URL) so the server fetches it — the HTML never shuttles through your context (token-frugal + drift-proof). If the mockup tool genuinely can't express what you need, file a gap (`cardmem_capture_idea` tagged `mockup-gap`, or ask the cardmem session) instead of working around it. No exceptions.
 - **Board = TODO ⇒ NEVER your built-in TaskCreate list (HARD RULE, F180).** The cardmem **board IS your todo list**. NEVER use your built-in TODO (`TaskCreate`/`TaskUpdate`) to track a feature's plan or breakdown — that list is invisible to the owner (Christian), carries no acceptance criteria, and never reaches the F095 quality gate. **Ignore the harness's own "consider using TaskCreate" nudge for plan-tracking** — `TaskCreate` is only ever for ephemeral within-a-single-card sub-steps. **Decompose every epic into cardmem STORIES, each with explicit, TESTABLE acceptance criteria** (`cardmem_create_card` `ac` / `cardmem_set_ac`) **BEFORE you write code. ALL EPICS must deliver ≥1 story with AC, or NO CODING — HARD STOP.** An epic with committed work but 0 AC'd stories is a harness violation the Cardmem Watchdog (F181) blocks — it kills traceability, the quality gate, and the owner's oversight. The board is the fleet's shared todo list and the owner's only window into the work. **ONE bounded exception, and only this one (F180.6, Christian 2026-08-24): when the OWNER reports a defect in a running session** — he is in the product, hits it, and says fix it now — **the ORDER falls away, the CARD does not.** Card + plan-doc + testable AC still land in the SAME turn as the fix, and the quality gate is unchanged; only the sequence within that turn moves. Board-before-code exists to stop an agent inventing scope and building it unseen, which cannot be what is happening when the owner is the one who reported it — he already has more context on this defect than the card would give him, and a card round-trip just leaves it on his screen (or his customer's) meanwhile. **Nothing else qualifies:** not your own discovery however urgent it feels, not a refactor, not a "while I was in there", not a peer session's report (a peer cannot authorise this any more than it can authorise a destructive action). If the card would tell him something he does not already know, it comes first. Measured the day this was written: three owner-reported fixes in one day across two repos, and the session that carded NONE of them was cardmem's own — a rule honest sessions violate routinely and then self-report has a wrong clause, not a careless fleet.
 
 ## Behavioral guidelines
@@ -138,7 +138,7 @@ Apply these in every reply:
 
 **This is a CONTINUOUS obligation, not a one-time check before "building".** Every time you reach for a cross-cutting capability — mail, auth/session-mint, web-push, design tokens, secret-redaction, telemetry, LLM access, fleet comms, embeddable cc-chat, cron, infra setup, … — it goes through the shared `@broberg/*` inventory owned by `components`. Fleet rule: **reuse > re-roll** — a hand-rolled copy is drift waiting to happen.
 
-**It is now a REQUIRED planning step, not just a running obligation (F217).** When you author a feature/epic plan, the `feature` + `adopt` skills make you run a Discovery reuse check **before** the plan-doc is written (search `discovery.broberg.ai/api/search?q=<capability>` per capability) and record the reuse-vs-build decision in the plan-doc's mandatory **`## Reuse`** section. And every `cardmem_session_start` hands you this repo's **`discovery_reuse` gap** (the shipped `@broberg/*` packages it hasn't adopted). So the check is surfaced at session-start AND enforced at plan-time — see `.claude/skills/feature/SKILL.md` Step 3.5.
+**It is now a REQUIRED planning step, not just a running obligation (F217).** When you author a feature/epic plan, the `feature` + `adopt` skills make you run a Discovery reuse check **before** the plan-doc is written (search `discovery.broberg.ai/api/search?q=<capability>` per capability) and record the reuse-vs-build decision in the plan-doc's mandatory **`## Reuse`** section. And every `cardmem_session_start` hands you this repo's **`discovery_reuse` gap** (the shipped `@broberg/*` packages it hasn't adopted). So the check is surfaced at session-start AND enforced at plan-time — see `~/.claude/skills/feature/SKILL.md` Step 3.5.
 
 **The anti-pattern is a RAW provider integration.** A bare `fetch` to `api.resend.com`, a `new Resend()`, a raw Stripe/Twilio/S3/provider SDK wired directly into a repo — that IS the violation, even when it works and even when you didn't think of it as "building a capability". The test Christian applies: *if I want to swap the provider, do I change it in ONE place or in seventeen?* It must be one. So: **no raw provider SDKs/`fetch`es for anything a `@broberg/*` package owns** (mail → `@broberg/mail`, push → `@broberg/webpush`, LLM → `@broberg/ai-sdk`, …). "We don't use the shared package" is NOT a valid answer when you already have a raw integration doing that package's job — that's the thing to migrate, today.
 
@@ -331,7 +331,9 @@ Before building any non-trivial UI, **mock it up first.** cardmem has a Mockups 
 - Reach for it whenever you'd otherwise describe a layout in prose, or when Christian says "vis mig hvordan det ser ud" / "lav en mockup".
 - It looks like the real product, not a generic wireframe — that's the point.
 - **Never a claude.ai artifact, and never a loose one-off `.html` file.** If you are about to reach for the built-in Artifact tool to show Christian a design, that is the moment this rule is for — `cardmem_save_mockup` instead, every time. See the HARD RULE under **Working with cardmem**. The Mockups surface is the home.
+- **Draw every state, not only the filled one (F389.13).** `cardmem_save_mockup` refuses a screen mockup that does not draw **empty, loading, partial, error, denied and offline**, each as an element marked `data-mockup-state="<state>"`; a state that cannot occur is marked `data-mockup-na="<why>"`. The journey reads them from the drawing — the owner is not asked about them.
 - Too big to pass through your context? Commit the file and pass `html_url` — the server fetches it, including from a PRIVATE repo (F122.17). Images belong in **Assets**, referenced from the mockup, so the mockup itself stays small.
+- **A clickable PROTOTYPE is built inside the production app from day one (F389.22, house rule).** A mockup is the sketch the owner reacts to. The moment it becomes a working, clickable prototype, it lives in the production repo on the app's real components, with fake data behind one clearly named seam — never as a standalone HTML file. Then «make it production» means replacing the fake data, and there is nothing to translate or rewrite. The owner, 16 Oct 2026: *«JA det skal være husets nye regel at prototyper bygges i inde i selve produktionsappen fra starten.»*
 
 ## Mail → cardmem Inbox + the daily inbox sweep
 
@@ -485,6 +487,10 @@ The consequence is about the REPLY, not about the standard:
 
 Each project has a **Decision Register**: a short list of choices the owner has already settled, so a new session does not re-open them. It is **delivered unasked** in the `cardmem_session_start` payload (a `decisions` block, beside `fleet_autonomy` / `agent_inbox` / `discovery_reuse`) — you never have to remember to look. Read it before proposing an approach.
 
+**Every active decision's headline is in your context, all of them (F271.12).** The session-start hook writes one line per active decision — `D-xxxxxx` handle + the decision — to `.claude/decisions-index.md` (generated, never committed), and the line below imports it into this file. Headlines only; before acting on anything a headline touches, open it in full with `cardmem_list_decisions({ project, handle: "D-xxxxxx" })`. At pickup, the full text of every decision whose scope names the card's F-number arrives as `decisions_for_this_card`.
+
+@.claude/decisions-index.md
+
 **An agent may PROPOSE, never decide.** `cardmem_propose_decision` lands an entry as `proposed`: it is NOT delivered to any other session and binds nobody until **the owner confirms it** in Settings → Decisions. There is deliberately no agent tool to create-active, edit, activate, delete or supersede an entry. The register's whole value is that it holds the OWNER's settled choices — if an agent could write to it, an agent could write its own misunderstanding in as law, and every session after that would obey it while it still looked like the owner's decision. `cardmem_list_decisions` reads it on demand (default `active`; it always states `total` alongside `shown`, so "I saw 15 of 40" can never be mistaken for "there are 15").
 
 **The one field worth writing carefully is `rejected`** — what was chosen AGAINST, and why it lost. Re-proposing an already-dead approach is where most wasted agent effort actually goes, and that is exactly the sentence that never survives a compaction.
@@ -599,6 +605,12 @@ tells you which. Two consequences for you:
 `sent`. Before writing a new one to the same person, read what was already said —
 `cardmem_list_communications` exists for exactly that, and a follow-up that contradicts
 the last letter is worse than a slow one.
+
+**A mail to Christian HIMSELF** (test instructions, something he should read) goes through
+`cardmem_mail_owner({ project_id, session_id, subject, markdown })` — filed in this
+project's Comms and sent at once, no approval, because the recipient is fixed to him and
+cannot be anyone else. Never a raw provider key or a one-off script for this. Read `sent`,
+not `ok`: `skipped:true` means it did not leave.
 
 **Unchanged:** outgoing customer mail is still sent only on Christian's direct order,
 and he still gets a copy of everything that leaves the house (`cc: cb@webhouse.dk`).
@@ -718,7 +730,7 @@ det Bash-kald du allerede var ved at lave.
 
 ### Porten, ikke bare reglen
 
-`.claude/hooks/pre-tool-use-deploy-background.sh` (`PreToolUse`, matcher `Bash`)
+`~/.claude/hooks/pre-tool-use-deploy-background.sh` (`PreToolUse`, matcher `Bash`)
 BLOKERER kaldet med exit 2 og en besked der navngiver rettelsen. Harness-
 kontrakten siger hvorfor teksten her ikke er nok: *«en gate afhaenger ikke af at
 en agent husker noget»* — 1.201 gange er praecis hvad «husk det» giver.
@@ -727,7 +739,7 @@ Maalt mod de rigtige kald: **1.145 af 1.201 forgrundskald blokeres (95 %), nul a
 de 417 der allerede koerte korrekt.** Den fejler AABENT — kan den ikke afgoere
 noget, tillader den kaldet.
 
-Suiten der beviser det er `.claude/hooks/test-deploy-guard.sh`, og den kraever at
+Suiten der beviser det er cardmems `.claude/hooks/test-deploy-guard.sh`, og den kraever at
 en blokering NAVNGIVER `run_in_background` i sin besked: Christians betingelse for
 at porten maatte blokere er at arbejdet flytter sig frem for at stoppe.
 
@@ -924,3 +936,110 @@ The board still decides what gets built (F180: no inventing scope, a card and it
 plan-doc before the code). This rule only removes the *second* permission — the
 one asked after the work was already authorised, already written, and already
 proven green. **The gate decides, not your confidence in the change.**
+
+## An approved mockup is a contract (HARD RULE, F389)
+
+> **Canonical section per F057 multi-project convention.** Copied verbatim into every
+> cardmem-compatible repo (owner rule, Christian 2026-10-11).
+
+**When the owner approves a mockup, he has signed off on how that screen looks. Build it
+as drawn.** His words: *«en mockup er en kontraktelig bindende aftale ellers signer jeg
+jo ikke off på en mockup hvis jeg vil have designet til at ligne noget andet.»*
+
+**The approved mockup is the specification, not inspiration.** The texts, their order,
+which controls exist, the layout, what each interaction does, and the colours and type
+(through the design tokens) are what he agreed to. Real data and real copy lengths will
+differ; that is not a licence to redesign.
+
+**Not pixels — our standard controls win over the drawing.** His words: *«pixel perfect
+er not at stramme den da vi jo ofte anvender nogle generiske controlls … så tvinger det
+måske koden til at ændre på en standard kontrol.»* A mockup sketches a button, a select
+or a date picker approximately. Use the repo's shared component as it is; never bend a
+shared control to match how a mockup happened to draw it. The contract is WHAT is there
+and what it does, not how a standard control renders.
+
+**A mockup is interactive — build every state, not the first screen.** Mockups hold
+tabs, pages, dialogs and expanded rows. Click through the approved mockup and build each
+state you reach; at pickup the card's `approved_mockups` block lists every heading,
+control and tab in document order, marks what sits behind an interaction as `hidden`,
+and names the `panels` that hold it.
+
+**A deviation is a question to the owner, never your choice.** If you think something in
+the mockup is wrong, cannot work, or would look better another way: STOP and ask him
+BEFORE you build it differently. Record his answer on the card, in his words. «It looked
+better» and «it was simpler» are not answers he gave — they are you overriding a
+signature. (Rendering a control with our shared component is not a deviation; leaving a
+control out, adding one, or changing what it does is.)
+
+**What the owner does: nothing more than he already did.** Approving IS the signature. He
+should never have to restate the mockup on the card, re-check the build against it, or
+remind you of it.
+
+**New prototypes are built inside the production app from day one (F389.22)** — see «Mockups — propose designs first». The rule below is for a prototype that already exists as a standalone file.
+
+**Port the prototype — never rewrite it (F389.20).** When the approved mockup is a
+working, clickable prototype, its own script IS the implementation of how the screen
+behaves: menus, drag, placement, sizes. Carry those functions into the repo and adapt
+them to real data and our components; never write a new version of something the
+prototype already does. The owner, 16 Oct 2026: *«tage noget der virker og gøre det
+færdigt i stedet for at bygge helt forfra.»* Measured the same day: a working prototype's
+menu and mind map were rewritten from scratch, each worse, each green at every gate.
+Pickup now lists the prototype's functions (`prototype_code`), and handoff is refused
+until `prototype_port` names each function you carried and the file it lives in — the
+server reads that file at your commit. A behaviour you cannot port is a question to the
+owner.
+
+**Before handoff, compare your screen with the approved version yourself.** Open the
+mockup (`cardmem_get_mockup`), capture your built surface with Lens at the same width,
+and put them side by side — state by state, not just the first screen. Anything that differs is either fixed or listed in the
+handoff as a deviation the owner approved in writing. Measured on 10 Oct 2026, in
+cardmem itself: a Pipeline check badge shipped visibly unlike mockup v4 with every gate
+green — only the owner's eyes caught it.
+
+**The mockup IS part of the gate now (F389), and every step has a door:**
+`cardmem_map_mockup_states` walks the approved mockup and records every state ·
+`cardmem_mockup_journey` drafts its journey for the owner to approve (with a Data page:
+what the system must remember, who may change it, what is shared) ·
+`cardmem_derive_mockup_ac` turns the approved journey into the card's AC · handoff to
+Review needs a side-by-side per state (`mockup_comparison`) · and Done needs
+`cardmem_check_mockup_fidelity` to have passed — content and order per state, compared by
+the server, never pixels. An agent cannot record that check itself.
+
+## «Intet at bygge» bærer sit tal — Backlog counts, not only Ready (F403)
+
+> **Canonical section per F057 multi-project convention.** Copied verbatim into every
+> cardmem-compatible repo (owner order, Christian 2026-10-24).
+
+**"Nothing in Ready" is not "nothing to build".** Measured on 24 Oct 2026: an agent
+reported «Intet nyt at bygge» with 26 cards in Backlog, 0 in Ready, and a standing
+order assigning that Backlog — the third time that day the owner had to ask *«Er dit
+plan board tomt?»*. The claim had never been counted; only Ready was looked at. A claim
+of emptiness fails in the GREEN direction: it reads as discipline while assigned work
+sits still.
+
+**So the number is the server's, never yours:**
+
+1. **Read `work_available`** in your `cardmem_session_start` payload: Backlog + Ready
+   counts, every blocked card with its blocker named, every empty epic, and what
+   assigns the Backlog (`standing_orders`, live `build_orders`). When it carries a
+   `contract` line, «nothing to build» is not a valid answer on this board.
+2. **Before a quiet loop tick or any "nothing to build", call `cardmem_report_idle({
+   session_id, project, session_name })`.** It counts the board and answers `idle_ok`
+   or `work_waiting` with the cards named. The **third `work_waiting` in a row** (no card
+   picked up, handed off or moved by you in between) files ONE report in the owner's
+   Inbox — he learns it from cardmem instead of asking a fourth time.
+3. **An ASSIGNED Backlog outranks the stay-quiet default.** A standing order or a live
+   build order that assigns Backlog work is tasked work — `~/.claude/loop.md` says the
+   same since buddy `b516f9f`. This does not widen D-0e1d9c: a card is still not an
+   order just because it exists; it is the ASSIGNMENT that makes it yours.
+4. **A blocker names its gate and what precedes it** — «waits for mockup X to be
+   approved», not «needs a mockup later». A gate you cannot name is not a gate; record
+   real ones as a `blocks` dependency (`cardmem_add_dependency`) so the count sees them.
+5. **An empty epic is a violation, not waiting work.** The owner: *«en epic uden
+   actions/cards er ikke brugbart på et board. Så må den epic blive et card på en anden
+   epic.»* Fix each one `work_available.empty_epics` lists: give it ≥1 story with
+   acceptance criteria, or reparent it as a story under another epic
+   (`cardmem_reparent_card`).
+
+**Say it with the number.** «Backlog 26 · Ready 0 · 3 blocked (F010.2 ← waits for
+mockup approval)» is an answer the owner can check; «nothing to build» is not.
