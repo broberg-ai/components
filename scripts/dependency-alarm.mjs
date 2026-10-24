@@ -16,7 +16,7 @@ export const LABEL = "dependency-alarm";
 /** @param {any} result data/dependency-health.json
  *  @param {{number:number,title:string}[]} openIssues issues with LABEL, state open */
 export function planIssues(result, openIssues) {
-  if (result?.sources?.osv !== "ok") return { open: [], close: [], couldNotCheck: true };
+  if (result?.sources?.osv !== "ok") return { open: [], close: [], inbox: [], couldNotCheck: true };
   const wanted = new Map();
   for (const [pkg, row] of Object.entries(result.packages ?? {})) {
     if (row.osv?.status !== "ok") continue;
@@ -38,13 +38,29 @@ export function planIssues(result, openIssues) {
       `**Hul:** https://osv.dev/vulnerability/${w.id}`,
       `**Afhængighed:** \`${w.dep}\` (låst i pnpm-lock.yaml)`,
       `**Leveres af:** ${w.packages.map((p) => `\`${p}\``).join(", ")}`,
+      `**Rettet i:** ${w.fixed?.length ? w.fixed.map((f) => `\`${f}\``).join(", ") : "ingen rettet version endnu"}`,
       `**Alvor:** ${w.severity}${w.kev === null ? " · CISA KEV kunne ikke læses" : w.kev ? " · på CISA KEV" : ""}`,
       "",
       `Fundet af det daglige afhængigheds-tjek (F082.9) ${result.checked_at}. Lukkes automatisk når hullet er væk fra alle pakker.`,
     ].join("\n"),
   }));
   const close = openIssues.filter((i) => { const id = idOf(i.title); return id && !wanted.has(id); });
-  return { open, close, couldNotCheck: false };
+  // cardmem dedups on external_ref, so EVERY current hole is sent every run: a
+  // known one returns the same idea without a new wake, a new one lands once.
+  const inbox = [...wanted.values()].map((w) => ({
+    external_ref: `osv:${w.id}`,
+    tags: ["security", "dependency-alarm", "F082.9"],
+    text: `Sårbarhed ${w.id} (${w.severity}${w.malicious ? ", ondsindet pakke" : ""}${w.kev ? ", udnyttes aktivt" : ""}) i ${w.dep}, leveret af ${w.packages.join(", ")}. Rettet i: ${w.fixed?.length ? w.fixed.join(", ") : "ingen rettet version endnu"}. ${w.summary} https://osv.dev/vulnerability/${w.id}`.trim(),
+  }));
+  return { open, close, inbox, couldNotCheck: false };
+}
+
+export const INBOX_URL = "https://www.cardmem.com/api/board/idea";
+
+/** Post one finding to cardmem's Inbox; throws unless cardmem took it. */
+export async function postInbox(item, key, fetchImpl = fetch) {
+  const r = await fetchImpl(INBOX_URL, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify(item) });
+  if (!r.ok) throw new Error(`cardmem inbox HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
 }
 
 const gh = (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
@@ -67,4 +83,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`closed #${c.number} ${c.title}`);
   }
   console.log(`${plan.open.length} opened · ${plan.close.length} closed · ${openIssues.length - plan.close.length} still open`);
+  // Ship dark: without the key the issues above still stand; say so, loudly.
+  const key = process.env.CARDMEM_INBOX_KEY;
+  if (!key) console.log("::warning::CARDMEM_INBOX_KEY not set — findings were not sent to cardmem's Inbox");
+  else {
+    for (const item of plan.inbox) await postInbox(item, key);
+    console.log(`${plan.inbox.length} sent to cardmem's Inbox`);
+  }
 }

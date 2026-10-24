@@ -3,8 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { summarizeAudit, summarizeOutdated, verdict, findingsToCard, lockedShipped, osvSeverity, summarizeOsv, queryOsv } from "../../scripts/dependency-health.mjs";
-import { planIssues } from "../../scripts/dependency-alarm.mjs";
+import { summarizeAudit, summarizeOutdated, verdict, findingsToCard, lockedShipped, osvSeverity, osvFixed, summarizeOsv, queryOsv } from "../../scripts/dependency-health.mjs";
+import { planIssues, postInbox } from "../../scripts/dependency-alarm.mjs";
 process.env.ENROLL_DB_URL = ":memory:";
 import { app } from "./server";
 import { getEnrollStore } from "./enroll";
@@ -135,7 +135,20 @@ describe("osvSeverity", () => {
   });
 });
 
-const ZOD_HOLE = { id: "GHSA-mrhx-c7xc-m3w5", aliases: ["CVE-2023-54404"], summary: "Zod can exhaust memory", database_specific: { severity: "HIGH" } };
+const ZOD_HOLE = {
+  id: "GHSA-mrhx-c7xc-m3w5", aliases: ["CVE-2023-54404"], summary: "Zod can exhaust memory", database_specific: { severity: "HIGH" },
+  affected: [
+    { package: { ecosystem: "npm", name: "zod" }, ranges: [{ type: "SEMVER", events: [{ introduced: "0" }, { fixed: "4.6.6" }] }] },
+    { package: { ecosystem: "npm", name: "other" }, ranges: [{ type: "SEMVER", events: [{ fixed: "9.9.9" }] }] },
+  ],
+};
+
+describe("osvFixed — the version that fixes it, for THIS package only", () => {
+  it("reads fixed events for the named npm package; none → empty", () => {
+    expect(osvFixed(ZOD_HOLE, "zod")).toEqual(["4.6.6"]);
+    expect(osvFixed(ZOD_HOLE, "ms")).toEqual([]);
+  });
+});
 
 describe("summarizeOsv", () => {
   it("counts a hole once per package, marks KEV, and says when KEV was unread", () => {
@@ -143,7 +156,9 @@ describe("summarizeOsv", () => {
     const s = summarizeOsv(new Set(["zod@4.6.5", "ms@2.1.3"]), by, new Set(["CVE-2023-54404"]));
     expect(s).toMatchObject({ status: "ok", high: 1, critical: 0 });
     expect(s.findings).toEqual([expect.objectContaining({ id: ZOD_HOLE.id, kev: true, malicious: false })]);
-    expect(summarizeOsv(new Set(["zod@4.6.5"]), by, null).findings[0].kev).toBe(null);
+    const zodOnly = summarizeOsv(new Set(["zod@4.6.5"]), by, null).findings[0];
+    expect(zodOnly.kev).toBe(null);
+    expect(zodOnly.fixed).toEqual(["4.6.6"]);
   });
   it("verdict reads OSV: a high there is «sårbar», an OSV error is «kunne ikke tjekke»", () => {
     const z = { critical: 0, high: 0, moderate: 0, low: 0 };
@@ -174,7 +189,7 @@ describe("queryOsv — «could not ask» throws, never returns empty", () => {
 
 describe("planIssues — one issue per hole, closed when it is gone", () => {
   const z = { critical: 0, high: 0, moderate: 0, low: 0, unrated: 0 };
-  const finding = { id: ZOD_HOLE.id, dep: "zod@4.6.5", severity: "high", summary: "s", malicious: false, kev: false };
+  const finding = { id: ZOD_HOLE.id, dep: "zod@4.6.5", severity: "high", summary: "s", malicious: false, kev: false, fixed: ["4.6.6"] };
   const result = (findings: unknown[], osv = "ok") => ({
     checked_at: "2026-10-24T01:37:00Z", sources: { osv },
     packages: {
@@ -186,6 +201,7 @@ describe("planIssues — one issue per hole, closed when it is gone", () => {
     const p = planIssues(result([finding]), []);
     expect(p.open.map((o: any) => o.title)).toEqual([`[${ZOD_HOLE.id}] zod@4.6.5 — high`]);
     expect(p.open[0].body).toContain("`@broberg/a@0.1.0`, `@broberg/b@0.2.0`");
+    expect(p.open[0].body).toContain("**Rettet i:** `4.6.6`");
   });
   it("does not reopen an open one; closes one whose hole is gone; moderate opens nothing", () => {
     expect(planIssues(result([finding]), [{ number: 7, title: `[${ZOD_HOLE.id}] zod@4.6.5 — high` }])).toMatchObject({ open: [], close: [] });
@@ -193,6 +209,16 @@ describe("planIssues — one issue per hole, closed when it is gone", () => {
     expect(planIssues(result([{ ...finding, severity: "moderate" }]), []).open).toEqual([]);
   });
   it("could not ask OSV → opens nothing and closes NOTHING", () => {
-    expect(planIssues(result([], "error"), [{ number: 7, title: "[GHSA-x] y" }])).toEqual({ open: [], close: [], couldNotCheck: true });
+    expect(planIssues(result([], "error"), [{ number: 7, title: "[GHSA-x] y" }])).toEqual({ open: [], close: [], inbox: [], couldNotCheck: true });
+  });
+  it("every current high/critical hole goes to cardmem each run, keyed by its id (cardmem dedups)", () => {
+    const p = planIssues(result([finding]), [{ number: 7, title: `[${ZOD_HOLE.id}] zod@4.6.5 — high` }]);
+    expect(p.inbox.map((i: any) => i.external_ref)).toEqual([`osv:${ZOD_HOLE.id}`]);
+    expect(p.inbox[0].text).toContain("Rettet i: 4.6.6");
+    expect(planIssues(result([{ ...finding, severity: "moderate" }]), []).inbox).toEqual([]);
+  });
+  it("postInbox throws when cardmem did not take it", async () => {
+    await expect(postInbox({ external_ref: "x" }, "k", (async () => ({ ok: false, status: 401, text: async () => "no" })) as any)).rejects.toThrow("401");
+    await expect(postInbox({ external_ref: "x" }, "k", (async () => ({ ok: true, status: 201 })) as any)).resolves.toBeUndefined();
   });
 });

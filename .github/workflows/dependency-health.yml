@@ -78,9 +78,11 @@ jobs:
           git push
           gh workflow run inventory-fresh.yml --ref main
       # Last, so the data above is committed even when this goes red: an issue per
-      # high/critical OSV hole, closed when it is gone. OSV unreachable → red, and
+      # high/critical OSV hole, closed when it is gone, and an idea in cardmem's Inbox. OSV unreachable → red, and
       # nothing is opened or closed.
       - name: Alarm (GitHub issues)
         env:
           GH_TOKEN: ${{ github.token }}
+          # piw_ key: ingest-only, bound to components' cardmem project (vault 01a16e22-e378…).
+          CARDMEM_INBOX_KEY: ${{ secrets.CARDMEM_INBOX_KEY }}
         run: node scripts/dependency-alarm.mjs data/dependency-health.json

@@ -127,6 +127,16 @@ export function osvSeverity(v) {
   return SEVERITIES.includes(s) ? s : "unrated";
 }
 
+/** The versions an OSV record says fix it, for this npm package. Empty = no fix yet. */
+export function osvFixed(v, name) {
+  const fixed = new Set();
+  for (const a of v?.affected ?? []) {
+    if (a.package?.ecosystem !== "npm" || a.package?.name !== name) continue;
+    for (const r of a.ranges ?? []) for (const e of r.events ?? []) if (e.fixed) fixed.add(e.fixed);
+  }
+  return [...fixed];
+}
+
 /** Findings for one package → counts + the list. `vulnsByDep` maps "name@version" →
  *  OSV records; `kev` is a Set of CVE ids, or null when KEV could not be read. */
 export function summarizeOsv(shipped, vulnsByDep, kev) {
@@ -141,6 +151,7 @@ export function summarizeOsv(shipped, vulnsByDep, kev) {
     const aliases = v.aliases ?? [];
     findings.push({
       id: v.id, dep, severity, summary: v.summary ?? "",
+      fixed: osvFixed(v, dep.slice(0, dep.lastIndexOf("@"))),
       malicious: v.id.startsWith("MAL-"),
       kev: kev ? aliases.some((a) => kev.has(a)) : null,
     });
