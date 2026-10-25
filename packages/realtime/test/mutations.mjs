@@ -196,6 +196,27 @@ const MUTATIONS = [
     expect: ["a transform cannot inject SSE lines"],
   },
   {
+    name: "F103.6 initial is written AFTER the replay (the hello is not the first frame)",
+    file: SERVER,
+    find: "          for (const e of initial) write(hostFrame({ type: e.type, data: e.data }));\n",
+    replace: "",
+    expect: ["is written FIRST, before replay"],
+  },
+  {
+    name: "F103.6 an async transform is not queued (a slow event is overtaken)",
+    file: SERVER,
+    find: "            queue = queue.then(() => deliver(e));",
+    replace: "            void deliver(e);",
+    expect: ["the first event is the slowest, and still arrives first"],
+  },
+  {
+    name: "F103.6 heartbeat:'comment' still writes a $ping data frame",
+    file: SERVER,
+    find: 'write(heartbeat === "comment" ? ": ping\\n\\n" : frame({ type: PING }))',
+    replace: "write(frame({ type: PING }))",
+    expect: ["'comment' writes an SSE comment and NO $ping data frame"],
+  },
+  {
     name: "F103.4 a filtered durable event writes nothing (Last-Event-ID stops moving)",
     file: SERVER,
     find: "            if (e.id) write(`id: ${e.id}\\n\\n`);",

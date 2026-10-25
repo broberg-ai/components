@@ -51,6 +51,22 @@ rt.presence.list(`jam:${id}`);
 
 **0.2.3** — the event a `transform` returns is checked by the same rules as `publish()` (no newline in type or id, no `$` type). Before, a transform deriving a type or id from user data could write SSE lines of its own; now such an event is skipped, fail closed, like a throwing transform.
 
+### First frame, async transform, comment heartbeat (0.3.0, F103.6)
+
+Three opt-ins on `stream()`. Without them the output is byte-identical to 0.2.3.
+
+```ts
+rt.stream(channel, {
+  initial: [{ type: "ready", data: { token } }], // written FIRST: before replay, no id, no transform
+  transform: async (e) => withSignedUrls(e),     // may return a Promise — order is kept
+  heartbeat: "comment",                           // `: ping` instead of a $ping data frame
+});
+```
+
+- **`initial`** is the connection's own hello (a token exchanged at connect). It never moves Last-Event-ID and is checked like a published event, so a bad one throws at the caller.
+- **async `transform`**: delivery is queued per stream, so a slow event holds back the ones after it (live and replayed). A rejected promise skips the event, fail closed.
+- **`heartbeat: "comment"`** is for **external** clients that would otherwise see an event they do not know. `@broberg/realtime/client` uses `$ping` as its sign of life and cannot see a comment, so its silence watchdog would reopen a stream carrying only heartbeats. Keep the default with our own client.
+
 One channel, a different view per subscriber — no channel per audience:
 
 ```ts

@@ -134,6 +134,10 @@ export interface StreamOptions {
    * skip it. Use it to give each subscriber their own view of one channel (a
    * visitor sees only visible messages; staff see everything). `$ping` and
    * `presence` never pass through it, so a filter cannot silence the heartbeat.
+   * It may return a Promise (F103.6). Delivery is then QUEUED per stream, so the
+   * order is kept: a slow event holds back the ones after it, live and replayed.
+   * A rejected promise is treated like a throw.
+   *
    * A transform that throws — or returns a type/id publish() would refuse (a newline,
    * a `$` type) — skips the event (fail closed: a broken filter must not leak what it
    * was meant to hide, nor write SSE lines of its own).
@@ -142,7 +146,7 @@ export interface StreamOptions {
    * browser's Last-Event-ID past it without dispatching anything — so a resume does
    * not restart from before it.
    */
-  transform?: (event: RealtimeEvent) => RealtimeEvent | null;
+  transform?: (event: RealtimeEvent) => RealtimeEvent | null | Promise<RealtimeEvent | null>;
   /**
    * Write SSE named events — `event: <type>` + `data: <JSON of data>` — instead of
    * the default single `data: {"type":…,"data":…}` line. For clients that listen
@@ -150,6 +154,25 @@ export interface StreamOptions {
    * `connect(url, { named: [...] })`. `$ping` stays a default (unnamed) frame.
    */
   named?: boolean;
+  /**
+   * F103.6 — frames written FIRST on this connection, before any replay or live
+   * event: a per-connection hello (`ready` with a token exchanged at connect,
+   * for instance). Written without an `id:` line, so they never move the
+   * browser's Last-Event-ID, and NOT passed through `transform` — they are the
+   * connection's own, not the channel's. Checked like a published event (no
+   * newline in type, no `$` type).
+   */
+  initial?: RealtimeEvent[];
+  /**
+   * F103.6 — how the keep-alive is written. `"event"` (default, as before) is a
+   * `$ping` data frame that @broberg/realtime/client uses as its sign of life.
+   * `"comment"` writes an SSE comment (`: ping`) that no EventSource dispatches —
+   * for EXTERNAL clients that would otherwise see an event they do not know.
+   * @broberg/realtime/client cannot see a comment, so with `"comment"` its
+   * silence watchdog reopens a stream that only carries heartbeats; use
+   * `"event"` with our own client.
+   */
+  heartbeat?: "event" | "comment";
 }
 
 export interface Realtime {
@@ -245,7 +268,9 @@ export function createRealtime(opts: RealtimeOptions = {}): Realtime {
       await bus.publish({ channel, event });
     },
 
-    stream(channel, { lastEventId = null, signal, transform, named = false } = {}) {
+    stream(channel, { lastEventId = null, signal, transform, named = false, initial = [], heartbeat = "event" } = {}) {
+      // Checked HERE, so a bad hello throws at the caller rather than inside the stream.
+      for (const e of initial) checkEvent(e);
       const enc = new TextEncoder();
       let cleanup = (): void => {};
       const body = new ReadableStream<Uint8Array>({
@@ -270,11 +295,11 @@ export function createRealtime(opts: RealtimeOptions = {}): Realtime {
           let replaying = true;
           const buffered: RealtimeEvent[] = [];
           const replayedIds = new Set<string>();
-          const send = (e: RealtimeEvent): void => {
+          const deliver = async (e: RealtimeEvent): Promise<void> => {
             if (!transform || e.type === PRESENCE) return write(hostFrame(e));
             let out: RealtimeEvent | null;
             try {
-              const t = transform(e);
+              const t = await transform(e);
               out = t && (t.id || !e.id ? t : { ...t, id: e.id });
               // The same rules publish() enforces: a newline in type or id would let a
               // transform write SSE lines of its own (a forged event:/data:/id:).
@@ -285,8 +310,16 @@ export function createRealtime(opts: RealtimeOptions = {}): Realtime {
             if (out) return write(hostFrame(out));
             if (e.id) write(`id: ${e.id}\n\n`);
           };
+          // F103.6 — with a transform, every event goes through ONE queue so an async
+          // transform cannot reorder them (presence too, or it would overtake). Without
+          // one, writes stay synchronous: byte-for-byte and tick-for-tick 0.2.3.
+          let queue: Promise<void> = Promise.resolve();
+          const send = (e: RealtimeEvent): void => {
+            if (!transform) return void deliver(e);
+            queue = queue.then(() => deliver(e));
+          };
           const removeListener = addListener(channel, (e) => (replaying ? buffered.push(e) : send(e)));
-          const beat = setInterval(() => write(frame({ type: PING })), heartbeatMs);
+          const beat = setInterval(() => write(heartbeat === "comment" ? ": ping\n\n" : frame({ type: PING })), heartbeatMs);
           cleanup = () => {
             if (closed) return;
             closed = true;
@@ -302,6 +335,8 @@ export function createRealtime(opts: RealtimeOptions = {}): Realtime {
           if (signal?.aborted) return cleanup();
 
           write(`retry: ${retryMs}\n\n`);
+          // F103.6 — the connection's own first frames: before replay, no id, no transform.
+          for (const e of initial) write(hostFrame({ type: e.type, data: e.data }));
           // Subscribed FIRST, replayed SECOND, buffer flushed THIRD — so an event published
           // while the replay runs is neither lost nor sent twice.
           void (async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@broberg/realtime",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Live channels for chat and realtime: an SSE stream per channel with Last-Event-ID resume, durable vs ephemeral events, presence with expiry, fan-out across machines via Postgres LISTEN/NOTIFY, and a browser client that reopens on foreground/online/silence plus an optimistic outbox. Web-standard Response; the client imports nothing from node.",
   "type": "module",
   "license": "MIT",
