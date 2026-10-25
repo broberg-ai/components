@@ -271,8 +271,8 @@
  },
  "@broberg/sso": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/sso",
-  "version": "0.21.1",
-  "publishedAt": "2026-10-25T16:35:03.972Z",
+  "version": "0.21.2",
+  "publishedAt": "2026-10-25T17:21:44.572Z",
   "provenance": "yes"
  },
  "@broberg/seal": {
@@ -355,8 +355,8 @@
  },
  "@broberg/ai-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
-  "version": "0.66.1",
-  "publishedAt": "2026-10-24T14:21:28.559Z",
+  "version": "0.67.0",
+  "publishedAt": "2026-10-25T17:16:56.277Z",
   "provenance": "yes"
  },
  "@broberg/fleet-client": {

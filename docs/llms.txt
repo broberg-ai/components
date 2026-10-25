@@ -88,7 +88,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/forms-turnstile** v0.4.0 — A spam-protected public-form pipeline. `npm i @broberg/forms-turnstile` · https://www.npmjs.com/package/@broberg/forms-turnstile · udgivet 22.10.2026 kl. 23.54 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/logger** v0.2.3 — Structured server logging for the fleet. `npm i @broberg/logger` · https://www.npmjs.com/package/@broberg/logger · udgivet 10.09.2026 kl. 21.36 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/http** v0.1.0 — Framework-free, zero-dep HTTP header/response primitives for Node/Bun/edge. `npm i @broberg/http` · https://www.npmjs.com/package/@broberg/http · udgivet 18.07.2026 kl. 02.38 (dansk tid) · ingen provenance · afhængigheder: OK
-- **@broberg/sso** v0.21.1 — Log ind gennem BID fra enhver app (opskrift: id.broberg.ai/docs.md): central login, ID-token mod JWKS, profil, session, logout, altid PKCE. `npm i @broberg/sso` · https://www.npmjs.com/package/@broberg/sso · udgivet 25.10.2026 kl. 17.35 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
+- **@broberg/sso** v0.21.2 — Log ind gennem BID fra enhver app (opskrift: id.broberg.ai/docs.md): central login, ID-token mod JWKS, profil, session, logout, altid PKCE. `npm i @broberg/sso` · https://www.npmjs.com/package/@broberg/sso · udgivet 25.10.2026 kl. 18.21 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/seal** v0.1.0 — Encrypt the secrets an app must STORE AND READ BACK. `npm i @broberg/seal` · https://www.npmjs.com/package/@broberg/seal · udgivet 20.10.2026 kl. 10.52 (dansk tid) · ingen provenance · afhængigheder: OK
 - **@broberg/mail-templates** v0.2.2 — The engine behind a mail template, extracted from cardmem F298 (four projects' measured rules). `npm i @broberg/mail-templates` · https://www.npmjs.com/package/@broberg/mail-templates · udgivet 25.10.2026 kl. 01.12 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/realtime** v0.3.0 — Live channels for chat and anything that should feel instant, harvested from xrt81 F074. `npm i @broberg/realtime` · https://www.npmjs.com/package/@broberg/realtime · udgivet 25.10.2026 kl. 16.13 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
@@ -108,7 +108,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk` · https://www.npmjs.com/package/@broberg/db-sdk · udgivet 23.09.2026 kl. 19.28 (dansk tid) · Trusted Publisher ✓
-- **@broberg/ai-sdk** v0.66.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk` · https://www.npmjs.com/package/@broberg/ai-sdk · udgivet 24.10.2026 kl. 16.21 (dansk tid) · Trusted Publisher ✓
+- **@broberg/ai-sdk** v0.66.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk` · https://www.npmjs.com/package/@broberg/ai-sdk · udgivet 25.10.2026 kl. 18.16 (dansk tid) · Trusted Publisher ✓
 - **@upmetrics/sdk** v0.11.2 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.2.0 — The typed fleet-comms client. `npm i @broberg/fleet-client` · https://www.npmjs.com/package/@broberg/fleet-client · udgivet 24.10.2026 kl. 17.40 (dansk tid) · Trusted Publisher ✓
