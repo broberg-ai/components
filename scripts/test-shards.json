@@ -155,25 +155,27 @@
         "@broberg/bodymap",
         "@broberg/data-table",
         "@broberg/device-stats",
+        "@broberg/local-guard",
         "@broberg/mail-core",
         "@broberg/mail-templates",
+        "@broberg/phone",
         "@broberg/secret-scan",
         "@broberg/settings",
         "@broberg/stripe",
-        "@broberg/webpush",
-        "@broberg/phone"
+        "@broberg/webpush"
       ],
       "min_tests": {
         "@broberg/bodymap": 67,
         "@broberg/data-table": 14,
         "@broberg/device-stats": 55,
+        "@broberg/local-guard": 37,
         "@broberg/mail-core": 70,
         "@broberg/mail-templates": 10,
+        "@broberg/phone": 7,
         "@broberg/secret-scan": 140,
         "@broberg/settings": 10,
         "@broberg/stripe": 38,
-        "@broberg/webpush": 38,
-        "@broberg/phone": 7
+        "@broberg/webpush": 38
       }
     }
   ]
