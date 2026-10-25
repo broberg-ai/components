@@ -28,6 +28,7 @@ checkLocalRequest(req, { port }); // null | { status: 421, reason: "host", host 
 
 - **`port` is required** — two daemons on one machine must refuse each other's Host. A port outside 1–65535 throws at setup.
 - The JSON body defaults to lens-daemon's `{ ok: false, error }`; pass `body: (refusal, message) => …` to keep your own shape (auth-relay uses `{ error }`).
+- **`extraHosts`** (0.2.0) — further exact `host:port` values a daemon answers on beyond loopback, e.g. its tailnet address (`localRequestGuard({ port: 7480, extraHosts: ["100.78.170.62:7480"] })`). No wildcard; compared case-insensitively; the write rule still applies.
 - **Host is judged before the content type**, so a rebound page learns nothing about the write rule.
 
 Not this package's job: authentication (that is `@broberg/sso` / a token), and CORS configuration beyond refusing.

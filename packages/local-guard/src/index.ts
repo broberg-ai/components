@@ -22,6 +22,12 @@ const WRITE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 export interface LocalGuardOptions {
   /** The port this daemon listens on. Required: two daemons on one machine must refuse each other's Host. */
   port: number;
+  /**
+   * F108.2 — further `host:port` values this daemon answers on beyond loopback, e.g. its
+   * tailnet address when it also listens there (ARS on m1: `100.78.170.62:7480`). Exact
+   * values only — no wildcard — compared case-insensitively. The write rule still applies.
+   */
+  extraHosts?: string[];
 }
 
 export type LocalGuardRefusal =
@@ -43,6 +49,7 @@ export function allowedHosts(port: number): Set<string> {
  */
 export function checkLocalRequest(req: Request, opts: LocalGuardOptions): LocalGuardRefusal | null {
   const hosts = allowedHosts(opts.port);
+  for (const h of opts.extraHosts ?? []) hosts.add(h.toLowerCase());
   // A server request carries Host; Bun builds req.url from it, so the URL's host
   // is the same value when the header is not on the Request object.
   const host = (req.headers.get("host") ?? new URL(req.url).host).toLowerCase();

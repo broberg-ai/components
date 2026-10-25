@@ -95,3 +95,34 @@ describe("adapters", () => {
     expect(type.status).toBe(415);
   });
 });
+
+describe("F108.2 — extraHosts (a daemon that also listens on its tailnet address)", () => {
+  const T = "100.78.170.62:7480";
+  const opts = { port: 7480, extraHosts: [T] };
+  const r7480 = (host: string, method = "GET", type?: string) =>
+    new Request("http://127.0.0.1:7480/v1/asks", { method, headers: { host, ...(type ? { "content-type": type } : {}) }, body: method === "GET" ? undefined : "{}" });
+  it("accepts the listed tailnet Host, case-insensitively, and loopback still", () => {
+    expect(checkLocalRequest(r7480(T), opts)).toBeNull();
+    // A NAME, not an IP: an IP has no letters, so it cannot tell a case-insensitive
+    // compare from a case-sensitive one (the first version of this test could not).
+    expect(checkLocalRequest(r7480("m1.tail-net.ts.net:7480"), { port: 7480, extraHosts: ["M1.Tail-Net.ts.net:7480"] })).toBeNull();
+    expect(checkLocalRequest(r7480("M1.TAIL-NET.TS.NET:7480"), { port: 7480, extraHosts: ["m1.tail-net.ts.net:7480"] })).toBeNull();
+    expect(checkLocalRequest(r7480("127.0.0.1:7480"), opts)).toBeNull();
+  });
+  it("refuses ANOTHER tailnet address and the listed address on another port — exact values only", () => {
+    expect(checkLocalRequest(r7480("100.78.170.63:7480"), opts)?.status).toBe(421);
+    expect(checkLocalRequest(r7480("100.78.170.62:7481"), opts)?.status).toBe(421);
+  });
+  it("the write rule still applies on an extra host", () => {
+    expect(checkLocalRequest(r7480(T, "POST", "text/plain"), opts)?.status).toBe(415);
+    expect(checkLocalRequest(r7480(T, "POST", "application/json"), opts)).toBeNull();
+  });
+  it("without extraHosts the tailnet Host is refused (0.1.0 behaviour)", () =>
+    expect(checkLocalRequest(r7480(T), { port: 7480 })?.status).toBe(421));
+  it("the Hono middleware honours extraHosts", async () => {
+    const app = new Hono();
+    app.use("*", localRequestGuard(opts));
+    app.get("/v1/asks", (c) => c.text("ok"));
+    expect((await app.request("http://127.0.0.1:7480/v1/asks", { headers: { host: T } })).status).toBe(200);
+  });
+});

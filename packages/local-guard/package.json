@@ -1,6 +1,6 @@
 {
   "name": "@broberg/local-guard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "One guard for a local HTTP daemon on 127.0.0.1: Host must name this loopback address on its own port (421 — closes DNS rebinding), and a write must be application/json (415 — a cross-site page cannot send that without a CORS preflight). Framework-free core on Web Request + a Hono middleware. Extracted from @broberg/lens-daemon so lens and auth-relay stop carrying copies.",
   "type": "module",
   "license": "MIT",
