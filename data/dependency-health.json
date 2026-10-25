@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-25T05:42:16.957Z",
+ "checked_at": "2026-10-25T06:43:23.585Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -1264,7 +1264,7 @@
    "verdict": "OK"
   },
   "@broberg/realtime": {
-   "version": "0.2.0",
+   "version": "0.2.3",
    "status": "ok",
    "prod": {
     "critical": 0,
