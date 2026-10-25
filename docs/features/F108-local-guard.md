@@ -30,3 +30,14 @@ lens' kildefil (læses fra broberg-ai/lens). Bootstrap-publish af ny pakke kræv
 
 ## Rollout
 v0.1.0 → lens flytter i et patch-release → auth-relay flytter → begge kopier slettet.
+
+## Afvigelser mellem de to kopier (målt 25/10, F108.1)
+
+Kilderne er læst fra de udgivne tarballs: `@broberg/lens-daemon@0.1.42` → `src/local-guard.ts`, og `@broberg/auth-relay@0.2.0` → `src/local-guard.ts`. Reglerne er de samme. Der er to afvigelser:
+
+| | lens-daemon | auth-relay | pakken |
+|---|---|---|---|
+| fejl-krop | `{ ok: false, error }` med «lens daemon: …» | `{ error }` med «… ARS» | standard `{ ok: false, error }`, og `body`-tilvalget og `name` giver begge former byte for byte |
+| body-løst DELETE (MCP-session-luk) | tilladt | afvist (415) | **tilladt** (lens' adfærd). DELETE er ikke en «simple» metode, så en fremmed side kan ikke sende den uden preflight. At tillade den åbner altså intet |
+
+**lens' egne testcases** følger ikke med i lens-daemons tarball. Derfor er vagten porteret linje for linje fra lens' kilde, og auth-relays kontrakt-test (`src/testing/contract.ts`: evil.example → 421, text/plain → 415) ligger ordret i pakkens suite.
