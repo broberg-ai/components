@@ -47,6 +47,8 @@ rt.presence.list(`jam:${id}`);
 
 0.2.0 was tagged but never published — its release gate ran on a commit with a stale internal pin. 0.2.1 is the same code.
 
+**0.2.2 — use this, not 0.2.1, if you stream named events.** In 0.2.1 `connect({ named })` read an `event: message` frame twice (a browser fires it on `onmessage` AND on a `'message'` listener): the first read gave `type: undefined`, and the correct one was then dropped as a duplicate. 0.2.2 delivers it once, correctly. Default (unnamed) streams were never affected.
+
 One channel, a different view per subscriber — no channel per audience:
 
 ```ts

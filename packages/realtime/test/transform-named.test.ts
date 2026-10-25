@@ -146,11 +146,15 @@ describe("named — `event: <type>` frames", () => {
 
   it("connect({ named }) delivers named frames to onEvent exactly like default frames, ids included", () => {
     const listeners = new Map<string, (ev: { data: string; lastEventId?: string }) => void>();
+    let es!: ES;
     class ES {
       readyState = 1;
       onopen: ((e: unknown) => void) | null = null;
       onmessage: ((e: { data: string; lastEventId?: string }) => void) | null = null;
       onerror: ((e: unknown) => void) | null = null;
+      constructor() {
+        es = this;
+      }
       addEventListener(type: string, fn: (ev: { data: string; lastEventId?: string }) => void) {
         listeners.set(type, fn);
       }
@@ -165,13 +169,56 @@ describe("named — `event: <type>` frames", () => {
       doc: doc as never,
       win: new EventTarget() as never,
     });
-    listeners.get("message")!({ data: '{"body":"hej"}', lastEventId: "3" });
+    es.onmessage!({ data: '{"body":"hej"}', lastEventId: "3" }); // `event: message` reaches onmessage
     listeners.get("typing")!({ data: "null", lastEventId: "3" }); // inherited id → delivered id-less (F103.3)
     conn.close();
     expect(got).toEqual([
       { type: "message", data: { body: "hej" }, id: "3" },
       { type: "typing", data: null },
     ]);
-    expect([...listeners.keys()]).toEqual(["message", "typing"]);
+    expect([...listeners.keys()]).toEqual(["typing"]); // "message" is onmessage's, never a second listener
+  });
+
+  it("an `event: message` frame is delivered ONCE and correctly — a browser fires it on onmessage AND on addEventListener('message')", () => {
+    // EventSource dispatches a frame whose type is "message" to onmessage and to every
+    // 'message' listener. helpdesk's own types are klar|message|state|typing.
+    const listeners = new Map<string, Array<(ev: { data: string; lastEventId?: string }) => void>>();
+    let es!: ES;
+    class ES {
+      readyState = 1;
+      onopen: ((e: unknown) => void) | null = null;
+      onmessage: ((e: { data: string; lastEventId?: string }) => void) | null = null;
+      onerror: ((e: unknown) => void) | null = null;
+      constructor() {
+        es = this;
+      }
+      addEventListener(type: string, fn: (ev: { data: string; lastEventId?: string }) => void) {
+        listeners.set(type, [...(listeners.get(type) ?? []), fn]);
+      }
+      dispatch(type: string, ev: { data: string; lastEventId?: string }) {
+        if (type === "message") this.onmessage?.(ev);
+        for (const fn of listeners.get(type) ?? []) fn(ev);
+      }
+      close() {}
+    }
+    const got: RealtimeEvent[] = [];
+    const doc = Object.assign(new EventTarget(), { visibilityState: "visible" as DocumentVisibilityState });
+    const conn = connect("/s", {
+      onEvent: (e) => got.push(e),
+      named: ["message", "typing"],
+      EventSource: ES as never,
+      doc: doc as never,
+      win: new EventTarget() as never,
+    });
+    es.dispatch("message", { data: '{"type":"$ping"}' }); // the heartbeat stays a default frame
+    es.dispatch("message", { data: '{"body":"hej"}', lastEventId: "3" });
+    es.dispatch("typing", { data: '{"who":"a"}', lastEventId: "3" });
+    es.dispatch("message", { data: '{"type":"note","body":"x"}', lastEventId: "4" }); // bare data that happens to carry a "type"
+    conn.close();
+    expect(got).toEqual([
+      { type: "message", data: { body: "hej" }, id: "3" },
+      { type: "typing", data: { who: "a" } },
+      { type: "message", data: { type: "note", body: "x" }, id: "4" },
+    ]);
   });
 });

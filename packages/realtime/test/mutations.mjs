@@ -182,6 +182,13 @@ const MUTATIONS = [
     expect: ["writes id + event + the bare data"],
   },
   {
+    name: "F103.4 an `event: message` frame gets a second listener (read twice, once as {type,data})",
+    file: CLIENT,
+    find: 'for (const type of opts.named) if (type !== "message") source.addEventListener',
+    replace: "for (const type of opts.named) source.addEventListener",
+    expect: ["is delivered ONCE and correctly"],
+  },
+  {
     name: "F103.4 a filtered durable event writes nothing (Last-Event-ID stops moving)",
     file: SERVER,
     find: "            if (e.id) write(`id: ${e.id}\\n\\n`);",
