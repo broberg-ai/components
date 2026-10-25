@@ -60,7 +60,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 ### L2 — Shell (the app frame & controls)
 - **@broberg/theme** v0.13.3 — The 3-way light/dark/system switch, persisted: setPreference('system') follows the OS and KEEPS following it (0.7.0). `npm i @broberg/theme` · https://www.npmjs.com/package/@broberg/theme · udgivet 11.10.2026 kl. 12.22 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
-- **@broberg/ui-controls-core** v0.2.4 — The custom-control kit. `npm i @broberg/ui-controls-core` · https://www.npmjs.com/package/@broberg/ui-controls-core · udgivet 23.10.2026 kl. 03.33 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
+- **@broberg/ui-controls-core** v0.3.0 — The custom-control kit. `npm i @broberg/ui-controls-core` · https://www.npmjs.com/package/@broberg/ui-controls-core · udgivet 25.10.2026 kl. 06.01 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/settings** v0.2.0 — The settings surface for Stack B (Preact): a settings bus where every panel registers its own save (useSaveHandler), and ONE Save button that says …. `npm i @broberg/settings` · https://www.npmjs.com/package/@broberg/settings · udgivet 11.10.2026 kl. 14.35 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/cmdk** v0.2.0 — A Cmd+K command palette. `npm i @broberg/cmdk` · https://www.npmjs.com/package/@broberg/cmdk · udgivet 23.10.2026 kl. 12.32 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/i18n** v0.4.1 — i18n and a language switch. `npm i @broberg/i18n` · https://www.npmjs.com/package/@broberg/i18n · udgivet 24.10.2026 kl. 15.03 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK

@@ -127,8 +127,8 @@
  },
  "@broberg/ui-controls-core": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ui-controls-core",
-  "version": "0.2.4",
-  "publishedAt": "2026-10-23T01:33:42.635Z",
+  "version": "0.3.0",
+  "publishedAt": "2026-10-25T05:01:44.211Z",
   "provenance": "yes"
  },
  "@broberg/settings": {
