@@ -134,8 +134,9 @@ export interface StreamOptions {
    * skip it. Use it to give each subscriber their own view of one channel (a
    * visitor sees only visible messages; staff see everything). `$ping` and
    * `presence` never pass through it, so a filter cannot silence the heartbeat.
-   * A transform that throws skips the event (fail closed: a broken filter must not
-   * leak what it was meant to hide).
+   * A transform that throws — or returns a type/id publish() would refuse (a newline,
+   * a `$` type) — skips the event (fail closed: a broken filter must not leak what it
+   * was meant to hide, nor write SSE lines of its own).
    *
    * A skipped DURABLE event is still written as a bare `id:` line, which moves the
    * browser's Last-Event-ID past it without dispatching anything — so a resume does
@@ -273,11 +274,15 @@ export function createRealtime(opts: RealtimeOptions = {}): Realtime {
             if (!transform || e.type === PRESENCE) return write(hostFrame(e));
             let out: RealtimeEvent | null;
             try {
-              out = transform(e);
+              const t = transform(e);
+              out = t && (t.id || !e.id ? t : { ...t, id: e.id });
+              // The same rules publish() enforces: a newline in type or id would let a
+              // transform write SSE lines of its own (a forged event:/data:/id:).
+              if (out) checkEvent(out);
             } catch {
               out = null;
             }
-            if (out) return write(hostFrame(out.id || !e.id ? out : { ...out, id: e.id }));
+            if (out) return write(hostFrame(out));
             if (e.id) write(`id: ${e.id}\n\n`);
           };
           const removeListener = addListener(channel, (e) => (replaying ? buffered.push(e) : send(e)));

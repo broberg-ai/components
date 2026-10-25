@@ -189,6 +189,13 @@ const MUTATIONS = [
     expect: ["is delivered ONCE and correctly"],
   },
   {
+    name: "F103.4 a transform's output is not validated (a newline in type/id forges SSE lines)",
+    file: SERVER,
+    find: "              if (out) checkEvent(out);",
+    replace: "",
+    expect: ["a transform cannot inject SSE lines"],
+  },
+  {
     name: "F103.4 a filtered durable event writes nothing (Last-Event-ID stops moving)",
     file: SERVER,
     find: "            if (e.id) write(`id: ${e.id}\\n\\n`);",

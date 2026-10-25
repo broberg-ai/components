@@ -120,6 +120,26 @@ describe("transform — each subscriber gets its own view of ONE channel", () =>
     expect(text).not.toContain("secret");
     expect(text).toContain('"body":"after"');
   });
+  it("a transform cannot inject SSE lines — a returned type or id with a newline is skipped like a throw", async () => {
+    for (const named of [false, true]) {
+      const rt = createRealtime();
+      const reading = readRaw(
+        rt.stream("ticket:1", {
+          named,
+          transform: (e) => (e.id === "1" ? { ...e, type: "message\ndata: forged" } : e.id === "2" ? { ...e, id: "2\nevent: forged" } : e),
+        }),
+      );
+      await flush();
+      await rt.publish("ticket:1", { type: "message", data: { n: 1 }, id: "1" });
+      await rt.publish("ticket:1", { type: "message", data: { n: 2 }, id: "2" });
+      await rt.publish("ticket:1", { type: "message", data: { n: 3 }, id: "3" });
+      const text = await reading;
+      expect(text).not.toContain("forged");
+      expect(frames(text)).toContain("id: 1");
+      expect(frames(text)).toContain("id: 2");
+      expect(text).toContain('"n":3');
+    }
+  });
 });
 
 describe("named — `event: <type>` frames", () => {
