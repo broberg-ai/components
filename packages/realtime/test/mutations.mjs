@@ -37,7 +37,7 @@ const MUTATIONS = [
   {
     name: "no heartbeat",
     file: SERVER,
-    find: "const beat = setInterval(() => write(frame({ type: PING })), heartbeatMs);",
+    find: 'const beat = setInterval(() => write(heartbeat === "comment" ? ": ping\\n\\n" : frame({ type: PING })), heartbeatMs);',
     replace: "const beat = setInterval(() => {}, heartbeatMs);",
     expect: ["a visible $ping every heartbeatMs"],
   },
