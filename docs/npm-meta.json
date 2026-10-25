@@ -193,9 +193,9 @@
  },
  "@broberg/local-guard": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/local-guard",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-25T17:04:13.825Z",
-  "provenance": "no"
+  "version": "0.2.0",
+  "publishedAt": "2026-10-25T19:10:58.358Z",
+  "provenance": "yes"
  },
  "@broberg/auth-relay": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/auth-relay",
