@@ -277,8 +277,8 @@
  },
  "@broberg/realtime": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/realtime",
-  "version": "0.2.1",
-  "publishedAt": "2026-10-25T06:02:17.144Z",
+  "version": "0.2.2",
+  "publishedAt": "2026-10-25T06:17:48.280Z",
   "provenance": "yes"
  },
  "@broberg/voice": {
