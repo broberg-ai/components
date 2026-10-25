@@ -11,6 +11,7 @@ export {
 export {
   selectKeyReducer,
   type SelectState,
+  type SelectKeyOptions,
   type SelectIntent,
   type SelectReducerResult,
 } from "./keyboard.js";

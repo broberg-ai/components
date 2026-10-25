@@ -37,6 +37,17 @@ const { state: next, intent } = selectKeyReducer(state, event.key, options.lengt
 // ArrowDown/Up wrap; Enter/Space select the highlight (or open); Escape closes.
 ```
 
+**0.3.0 — opt-in: nothing armed on open, first arrow on the current value (F016.10).**
+
+```ts
+selectKeyReducer(state, event.key, options.length, { armOnOpen: false, currentIndex: selectedIndex });
+```
+
+- `armOnOpen: false` — Enter/Space on a closed picker opens it with **nothing** highlighted, so an accidental open followed by Enter chooses nothing; Enter only selects after an arrow key.
+- `currentIndex` — the first arrow lands on the option that is already selected instead of jumping to the first/last one, so one press never moves two places. Out-of-range values are ignored.
+
+Without options (or with `{}`) the reducer is exactly 0.2.4 — asserted against a verbatim copy over every key × state × size.
+
 ## Outside-click / scroll / resize
 
 ```ts

@@ -22,8 +22,44 @@ export interface SelectReducerResult {
 }
 
 /** The keys this reducer understands (pass `event.key`). Others = no-op. */
-export function selectKeyReducer(state: SelectState, key: string, optionCount: number): SelectReducerResult {
+/**
+ * F016.10 — opt-in behaviour for pickers that must never be "armed" by opening.
+ * Without options the reducer behaves exactly as before.
+ */
+export interface SelectKeyOptions {
+  /**
+   * `false`: Enter/Space on a CLOSED picker opens it with NOTHING highlighted, so a
+   * second Enter selects nothing — Enter only chooses after an arrow key. Default
+   * (`true`/unset): opening highlights the current option or the first one.
+   */
+  armOnOpen?: boolean;
+  /**
+   * The index of the option that is currently SELECTED. When set, the first arrow
+   * (on a closed picker, or on an open one with nothing highlighted) lands on it
+   * instead of jumping to the first / last option. Ignored when out of range.
+   */
+  currentIndex?: number;
+}
+
+export function selectKeyReducer(
+  state: SelectState,
+  key: string,
+  optionCount: number,
+  opts?: SelectKeyOptions,
+): SelectReducerResult {
   const clampOpen = (highlighted: number): SelectState => ({ open: true, highlighted });
+  if (opts) {
+    const hasCurrent =
+      typeof opts.currentIndex === "number" && opts.currentIndex >= 0 && opts.currentIndex < optionCount;
+    const nothingHighlighted = !state.open || state.highlighted < 0;
+    if ((key === "ArrowDown" || key === "ArrowUp") && optionCount > 0 && nothingHighlighted && (hasCurrent || opts.armOnOpen === false)) {
+      const to = hasCurrent ? opts.currentIndex! : key === "ArrowDown" ? 0 : optionCount - 1;
+      return { state: clampOpen(to), intent: { type: state.open ? "none" : "open" } };
+    }
+    if ((key === "Enter" || key === " " || key === "Spacebar") && !state.open && opts.armOnOpen === false) {
+      return { state: clampOpen(-1), intent: { type: "open" } };
+    }
+  }
   switch (key) {
     case "Escape":
       return { state: { open: false, highlighted: state.highlighted }, intent: { type: "close" } };
