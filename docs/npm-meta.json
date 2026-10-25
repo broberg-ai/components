@@ -191,6 +191,12 @@
   "publishedAt": "2026-10-12T00:13:14.093Z",
   "provenance": "yes"
  },
+ "@broberg/auth-relay": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/auth-relay",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-25T14:33:57.548Z",
+  "provenance": "no"
+ },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
   "version": "0.1.42",

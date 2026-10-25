@@ -29,7 +29,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
 
-## Packages by category (73)
+## Packages by category (74)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.13.3 — The design-token foundation every surface inherits, plus prePaintScript(): the <head> string that sets the theme before the first paint, so no app …. `npm i @broberg/theme` · https://www.npmjs.com/package/@broberg/theme · udgivet 11.10.2026 kl. 12.22 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
@@ -75,6 +75,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/notify** v0.1.0 — Dark-ship team-chat webhook notifications. `npm i @broberg/notify` · https://www.npmjs.com/package/@broberg/notify · udgivet 03.07.2026 kl. 18.46 (dansk tid) · ingen provenance · afhængigheder: OK
 - **@broberg/lens-engine** v0.14.1 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-engine` · https://www.npmjs.com/package/@broberg/lens-engine · udgivet 23.10.2026 kl. 02.09 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-client** v0.1.2 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-client` · https://www.npmjs.com/package/@broberg/lens-client · udgivet 12.10.2026 kl. 02.13 (dansk tid) · Trusted Publisher ✓
+- **@broberg/auth-relay** v0.1.0 — Udgives fra github.com/broberg-ai/auth-relay. `npm i @broberg/auth-relay` · https://www.npmjs.com/package/@broberg/auth-relay · udgivet 25.10.2026 kl. 15.33 (dansk tid) · ingen provenance
 - **@broberg/lens-daemon** v0.1.42 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-daemon` · https://www.npmjs.com/package/@broberg/lens-daemon · udgivet 25.10.2026 kl. 15.04 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-svg** v0.1.1 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-svg` · https://www.npmjs.com/package/@broberg/lens-svg · udgivet 23.10.2026 kl. 11.24 (dansk tid) · Trusted Publisher ✓
 - **@broberg/webmcp** v0.1.0 — WebMCP for the fleet (epic F098): letting a customer's own AI find and use a site's booking, shop or order tools. `npm i @broberg/webmcp` · https://www.npmjs.com/package/@broberg/webmcp · udgivet 12.10.2026 kl. 01.30 (dansk tid) · ingen provenance · afhængigheder: OK
