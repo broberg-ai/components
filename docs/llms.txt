@@ -67,7 +67,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/seo** (planned) — SEO and metadata helpers for Stack A. `npm i @broberg/seo`
 
 ### L3 — Domain (feature surfaces)
-- **@broberg/mail-core** v0.10.0 — Branded HTML email shell whose brand values are validated and whose fill() escapes. `npm i @broberg/mail-core` · https://www.npmjs.com/package/@broberg/mail-core · udgivet 25.10.2026 kl. 22.20 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
+- **@broberg/mail-core** v0.10.0 — KODE- OG MAGIC-LINK-MAIL (0.10.0, F005.25): codeMail({ code, product, minutes?, link? }) → { subject, html, text, warnings } is the fleet's ONE mai…. `npm i @broberg/mail-core` · https://www.npmjs.com/package/@broberg/mail-core · udgivet 25.10.2026 kl. 22.20 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/speech-dictionary** v0.1.3 — Fleet STT vocabulary + correction primitive. `npm i @broberg/speech-dictionary` · https://www.npmjs.com/package/@broberg/speech-dictionary · udgivet 24.08.2026 kl. 22.09 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/sms** v0.12.0 — One SMS send primitive for the fleet. `npm i @broberg/sms` · https://www.npmjs.com/package/@broberg/sms · udgivet 29.08.2026 kl. 17.44 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/notifications** v0.4.0 — The fleet's in-app notification list core: ONE counting rule shared by every app, so the list, the bell and the OS badge cannot disagree. `npm i @broberg/notifications` · https://www.npmjs.com/package/@broberg/notifications · udgivet 29.08.2026 kl. 19.44 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
