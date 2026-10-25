@@ -160,8 +160,8 @@ importers:
   packages/app-shell:
     dependencies:
       '@broberg/ui-controls-core':
-        specifier: ^0.2.3
-        version: 0.2.3
+        specifier: ^0.3.0
+        version: 0.3.0
     devDependencies:
       '@broberg/notifications':
         specifier: workspace:*
@@ -367,8 +367,8 @@ importers:
   packages/data-table:
     dependencies:
       '@broberg/ui-controls-core':
-        specifier: ^0.2.3
-        version: 0.2.3
+        specifier: ^0.3.0
+        version: 0.3.0
     devDependencies:
       '@broberg/theme':
         specifier: workspace:*
@@ -1222,8 +1222,8 @@ importers:
   packages/web-clipper:
     dependencies:
       '@broberg/ui-controls-core':
-        specifier: ^0.2.3
-        version: 0.2.3
+        specifier: ^0.3.0
+        version: 0.3.0
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
@@ -1535,8 +1535,8 @@ packages:
   '@broberg/ui-controls-core@0.1.1':
     resolution: {integrity: sha512-Uy/P5X4bJfEnIhxEY+KRsBdRux4Wjbinv392196Mihu52esqpkmpISJBtFU7u1MS31Bq1yxNG2ILWwhlaYYCRg==}
 
-  '@broberg/ui-controls-core@0.2.3':
-    resolution: {integrity: sha512-EBPFtl3/pGqzpSOa/kopW9exJIcmPpFUqPXNDzco6MK5bxTqK1nJF6kAd3mDmiSEegqxDRD2F9PNy+cLS1il1w==}
+  '@broberg/ui-controls-core@0.3.0':
+    resolution: {integrity: sha512-9+2zaWDoAwfljEFrGjhdAoue8ODoIhfGTS6eLHNYtwV2lah/u+rlG3ZnxcDPX6CMEj6XY0bX27fHoVDupgwDaw==}
 
   '@bufbuild/protobuf@1.10.1':
     resolution: {integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==}
@@ -5287,7 +5287,7 @@ snapshots:
 
   '@broberg/ui-controls-core@0.1.1': {}
 
-  '@broberg/ui-controls-core@0.2.3': {}
+  '@broberg/ui-controls-core@0.3.0': {}
 
   '@bufbuild/protobuf@1.10.1': {}
 

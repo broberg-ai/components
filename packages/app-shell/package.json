@@ -74,6 +74,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@broberg/ui-controls-core": "^0.2.3"
+    "@broberg/ui-controls-core": "^0.3.0"
   }
 }

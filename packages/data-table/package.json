@@ -35,7 +35,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@broberg/ui-controls-core": "^0.2.3"
+    "@broberg/ui-controls-core": "^0.3.0"
   },
   "peerDependencies": {
     "@broberg/theme": ">=0.11.0",

@@ -99,7 +99,7 @@
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "turndown": "^7.2.4",
-    "@broberg/ui-controls-core": "^0.2.3"
+    "@broberg/ui-controls-core": "^0.3.0"
   },
   "peerDependencies": {
     "@broberg/theme": ">=0.13.0",
