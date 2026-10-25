@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-24T09:23:22.391Z",
- "repos_scanned": 80,
+ "scanned_at": "2026-10-25T09:25:03.630Z",
+ "repos_scanned": 81,
  "repos_failed": 0,
- "manifests_read": 286,
+ "manifests_read": 295,
  "manifests_unreadable": 0,
- "edges": 374,
+ "edges": 408,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -260,6 +260,13 @@
       "at": "apps/api/package.json"
      }
     ],
+    "@broberg/stripe": [
+     {
+      "range": "0.5.1",
+      "field": "dependencies",
+      "at": "apps/api/package.json"
+     }
+    ],
     "@upmetrics/sdk": [
      {
       "range": "0.11.2",
@@ -296,6 +303,13 @@
     "@broberg/theme": [
      {
       "range": "0.13.3",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     }
+    ],
+    "@broberg/ui-controls-core": [
+     {
+      "range": "0.2.3",
       "field": "dependencies",
       "at": "apps/console/package.json"
      }
@@ -537,6 +551,220 @@
     ]
    }
   },
+  "broberg-ai/buzzalert": {
+   "branch": "main",
+   "manifests": 7,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/app-shell": [
+     {
+      "range": "0.11.1",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/cmdk": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.6.2",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/data-table": [
+     {
+      "range": "0.3.1",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/i18n": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "0.16.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     },
+     {
+      "range": "0.16.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/mail-core": [
+     {
+      "range": "0.9.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/media": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/notifications": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/pwa": [
+     {
+      "range": "0.6.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     },
+     {
+      "range": "0.8.0",
+      "field": "devDependencies",
+      "at": "packages/ui/package.json"
+     }
+    ],
+    "@broberg/settings": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.14.2",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     },
+     {
+      "range": "0.21.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/tenant": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     },
+     {
+      "range": "0.2.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/theme": [
+     {
+      "range": "0.13.2",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/ui-controls-core": [
+     {
+      "range": "0.2.3",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@broberg/webpush": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "0.9.0",
+      "field": "dependencies",
+      "at": "apps/admin/package.json"
+     },
+     {
+      "range": "0.11.2",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.66.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/apikey": [
+     {
+      "range": "0.3.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/config": [
+     {
+      "range": "0.3.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/logger": [
+     {
+      "range": "0.2.3",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/mcp": [
+     {
+      "range": "0.11.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/nativepush": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/phone": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/seal": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/sms": [
+     {
+      "range": "0.12.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ]
+   }
+  },
   "broberg-ai/camera9": {
    "branch": "main",
    "manifests": 1,
@@ -558,24 +786,24 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.56.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "apps/agent/package.json"
      },
      {
-      "range": "0.56.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "0.56.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "packages/mcp-tools/package.json"
      }
     ],
     "@broberg/lens-daemon": [
      {
-      "range": "0.1.33",
+      "range": "0.1.36",
       "field": "dependencies",
       "at": "apps/agent/package.json"
      }
@@ -762,7 +990,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 60,
+   "manifests": 62,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -956,12 +1184,12 @@
     ],
     "@broberg/ui-controls-core": [
      {
-      "range": "^0.2.3",
+      "range": "^0.3.0",
       "field": "dependencies",
       "at": "packages/app-shell/package.json"
      },
      {
-      "range": "^0.2.3",
+      "range": "^0.3.0",
       "field": "dependencies",
       "at": "packages/data-table/package.json"
      },
@@ -976,7 +1204,7 @@
       "at": "packages/notifications/package.json"
      },
      {
-      "range": "^0.2.3",
+      "range": "^0.3.0",
       "field": "dependencies",
       "at": "packages/web-clipper/package.json"
      }
@@ -1023,7 +1251,7 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": ">=0.56.0",
+      "range": ">=0.66.0",
       "field": "peerDependencies",
       "at": "packages/i18n/package.json"
      }
@@ -1627,6 +1855,18 @@
       "at": "apps/console/package.json"
      }
     ],
+    "@broberg/device-stats": [
+     {
+      "range": "0.4.1",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     },
+     {
+      "range": "0.4.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
     "@broberg/gravatar": [
      {
       "range": "^0.2.1",
@@ -1643,7 +1883,7 @@
     ],
     "@broberg/pwa": [
      {
-      "range": "0.4.1",
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "apps/console/package.json"
      }
@@ -1651,6 +1891,13 @@
     "@broberg/theme": [
      {
       "range": "0.13.2",
+      "field": "dependencies",
+      "at": "apps/console/package.json"
+     }
+    ],
+    "@broberg/ui-controls-core": [
+     {
+      "range": "0.3.0",
       "field": "dependencies",
       "at": "apps/console/package.json"
      }
@@ -1669,7 +1916,7 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "0.63.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1717,6 +1964,13 @@
       "at": "package.json"
      }
     ],
+    "@broberg/feature-stats": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
     "@broberg/forms-turnstile": [
      {
       "range": "0.4.0",
@@ -1737,6 +1991,13 @@
     "@broberg/lens": [
      {
       "range": "0.2.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/logger": [
+     {
+      "range": "0.2.3",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1762,9 +2023,23 @@
       "at": "apps/core/package.json"
      }
     ],
+    "@broberg/media-transform": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
     "@broberg/notifications": [
      {
       "range": "0.4.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json"
+     }
+    ],
+    "@broberg/seal": [
+     {
+      "range": "0.1.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
      }
@@ -1797,7 +2072,7 @@
     ],
     "@broberg/deploy-core": [
      {
-      "range": "0.1.0",
+      "range": "0.6.0",
       "field": "devDependencies",
       "at": "package.json"
      }
@@ -1925,7 +2200,7 @@
     ],
     "@broberg/web-clipper": [
      {
-      "range": "0.26.0",
+      "range": "0.27.1",
       "field": "dependencies",
       "at": "apps/clipper/package.json"
      },
@@ -1937,12 +2212,12 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "0.64.2",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "apps/web/package.json"
      },
      {
-      "range": "0.63.0",
+      "range": "0.66.0",
       "field": "devDependencies",
       "at": "package.json"
      }
@@ -1998,7 +2273,7 @@
     ],
     "@broberg/realtime": [
      {
-      "range": "0.1.2",
+      "range": "0.1.3",
       "field": "dependencies",
       "at": "apps/web/package.json"
      }
@@ -2742,7 +3017,7 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.54.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
@@ -3031,7 +3306,7 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.47.1",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -3059,7 +3334,7 @@
     ],
     "@broberg/mcp": [
      {
-      "range": "^0.5.0",
+      "range": "0.10.0",
       "field": "dependencies",
       "at": "package.json"
      }
@@ -3094,22 +3369,22 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "^0.28.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      },
      {
-      "range": "0.38.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "apps/voice/package.json"
      },
      {
-      "range": "^0.28.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "packages/cli/package.json"
      },
      {
-      "range": "^0.28.0",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "packages/transport/package.json"
      }
@@ -3130,7 +3405,7 @@
     ],
     "@broberg/fleet-contracts": [
      {
-      "range": "^0.1.0",
+      "range": "^0.2.0",
       "field": "dependencies",
       "at": "apps/server/package.json"
      }
@@ -3183,12 +3458,12 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.50.1",
+      "range": "0.66.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json"
      },
      {
-      "range": "^0.50.1",
+      "range": "^0.66.0",
       "field": "dependencies",
       "at": "packages/cms-ai/package.json"
      }
