@@ -47,7 +47,24 @@
  * measure" branch outranks its "I measured something wrong" branch hides the
  * finding behind the excuse.
  */
+import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DATA } from "./inventory-data.mjs";
+
+// F038.45 — a package PUBLISHED FROM THIS REPO is one with a packages/*/package.json
+// here. Not the roster's `src` field: that names where a pattern came from, not who
+// publishes it. A BEHIND row for any other package (lens, auth-relay, ai-sdk …) is
+// the normal state between its own release and the daily catch-up (F038.44), so it
+// warns instead of failing — the owner's answer 25/10, after it stopped Discovery
+// four times in one day. AHEAD still fails for every package: that is the 404 side.
+const PACKAGES = join(dirname(fileURLToPath(import.meta.url)), "..", "packages");
+const OWN = new Set(
+  readdirSync(PACKAGES)
+    .map((d) => join(PACKAGES, d, "package.json"))
+    .filter((f) => existsSync(f))
+    .map((f) => JSON.parse(readFileSync(f, "utf8")).name),
+);
 
 const REGISTRY = process.env.NPM_REGISTRY ?? "https://registry.npmjs.org";
 
@@ -152,6 +169,14 @@ if (ahead.length) {
       ahead.map((r) => `    ${r.pkg}   roster ${r.ver}   npm ${r.npm}`).join("\n"),
   );
 }
+const externalBehind = behind.filter((r) => !OWN.has(r.pkg));
+for (const r of externalBehind) {
+  console.log(
+    `::warning::${r.pkg} is published from another repo and the roster is behind npm (roster ${r.ver}, npm ${r.npm}). ` +
+      "Not a failure (F038.45): the daily catch-up bumps it, or bump it by hand.",
+  );
+}
+behind.splice(0, behind.length, ...behind.filter((r) => OWN.has(r.pkg)));
 if (behind.length) {
   console.error(
     `\n  ✗ ${behind.length} roster row(s) are BEHIND npm — the fleet is being told to install an old version:\n` +
@@ -178,4 +203,7 @@ if (unaskable.length) {
   console.error(`\n  ${rows.length - unaskable.length} of ${rows.length} rows checked, all in sync.\n`);
   process.exit(2);
 }
-console.log(`✓ roster matches npm: ${rowsByPkg.size} shipped packages across ${rows.length} rows, 0 behind, 0 ahead, 0 unreachable`);
+console.log(
+  `✓ roster matches npm: ${rowsByPkg.size} shipped packages across ${rows.length} rows, 0 behind, 0 ahead, 0 unreachable` +
+    (externalBehind.length ? ` (${externalBehind.length} external row(s) behind — warned above)` : ""),
+);

@@ -10,7 +10,7 @@
 //   one row AHEAD    → exit 1 and never listed (the 404 direction, never auto-fixed)
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DATA } from "./inventory-data.mjs";
@@ -51,10 +51,10 @@ async function withRegistry(overrides, fn) {
   }
 }
 
-const run = (registry) =>
+const run = (registry, args = ["--list-behind"]) =>
   new Promise((ok) => {
     // async spawn: a sync one would block the event loop that serves the stub
-    const p = spawn(process.execPath, [SCRIPT, "--list-behind"], { env: { ...process.env, NPM_REGISTRY: registry } });
+    const p = spawn(process.execPath, [SCRIPT, ...args], { env: { ...process.env, NPM_REGISTRY: registry } });
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => (out += d));
@@ -85,6 +85,42 @@ const run = (registry) =>
 }
 
 // ---------------------------------------------------------------------------
+// F038.45 — the GATE (no --list-behind): a package published from ANOTHER repo
+// that is behind warns; one of OURS that is behind still fails; AHEAD fails for all.
+// ---------------------------------------------------------------------------
+{
+  const own = new Set(
+    readdirSync(join(ROOT, "packages"))
+      .map((d) => join(ROOT, "packages", d, "package.json"))
+      .filter((f) => existsSync(f))
+      .map((f) => JSON.parse(readFileSync(f, "utf8")).name),
+  );
+  const ours = [...roster.keys()].find((p) => own.has(p));
+  const theirs = [...roster.keys()].find((p) => !own.has(p));
+  const gate = (reg) => run(reg, []);
+  {
+    const r = await withRegistry({ [theirs]: bump(roster.get(theirs)) }, gate);
+    check(
+      `F038.45: an EXTERNAL package behind (${theirs}) → exit 0 with a ::warning:: naming it`,
+      r.code === 0 && r.out.includes(`::warning::${theirs}`) && r.out.includes(bump(roster.get(theirs))),
+      `code=${r.code} out=${JSON.stringify(r.out.slice(0, 300))}`,
+    );
+  }
+  {
+    const r = await withRegistry({ [ours]: bump(roster.get(ours)) }, gate);
+    check(`F038.45: one of OUR packages behind (${ours}) → exit 1, as before`, r.code === 1 && /BEHIND npm/.test(r.err), `code=${r.code}`);
+  }
+  {
+    const r = await withRegistry({ [theirs]: "0.0.0" }, gate);
+    check(`F038.45: an EXTERNAL package AHEAD → still exit 1`, r.code === 1 && /NPM DOES NOT SERVE/.test(r.err), `code=${r.code}`);
+  }
+  {
+    const r = await withRegistry({ [theirs]: bump(roster.get(theirs)) }, run);
+    check("F038.45: --list-behind still lists the external row, so the catch-up bumps it", r.code === 0 && r.out.trim() === `${theirs} ${bump(roster.get(theirs))}`, `out=${JSON.stringify(r.out)}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The workflow: its clock, its one permission, and that it reuses the guarded
 // bump rather than editing the roster itself.
 // ---------------------------------------------------------------------------
@@ -112,4 +148,4 @@ if (failed) {
   console.error(`\n✗ ${failed} check(s) failed`);
   process.exit(1);
 }
-console.log("\n✓ roster catch-up: 3 registry states + 8 workflow checks");
+console.log("\n✓ roster catch-up: 3 registry states + 4 gate states (F038.45) + 8 workflow checks");
