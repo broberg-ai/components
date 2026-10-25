@@ -315,3 +315,4 @@ export function deviceFromRequest(req: RequestLike, opts: FromRequestOptions = {
 
   return facts;
 }
+

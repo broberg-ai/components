@@ -121,6 +121,53 @@ An unrecognised marker returns `unknown` rather than `browser` — a misconfigur
 `start_url` should be visible, not silently indistinguishable from a real
 browser visit.
 
+## Counting it — `/store` (0.4.0)
+
+So no consumer rolls its own table: `createSqlDeviceStore` is the same shape as
+`@broberg/feature-stats`' `createSqlFeatureStore`. It takes anything with
+`execute({ sql, args })` (db-sdk's `DbClient`, a libSQL `Client`) — no driver in
+this package.
+
+```ts
+import { createSqlDeviceStore, summarize } from "@broberg/device-stats/store";
+
+const store = createSqlDeviceStore(db, { dialect: "sqlite" }); // or "postgres"
+await store.migrate();                                          // idempotent
+await store.increment(facts, "2026-10-25");                     // count ADDS
+summarize(await store.read({ since: "2026-10-01" }));
+// → { total, formFactor: {mobile: …}, os: {iOS: …}, browser: {…}, launch: {installed: …} }
+```
+
+One row per **day × formFactor × OS family × browser family × launch**. That
+is all the table has — no path, URL, user or session, and no version or screen
+bucket either: an anonymous counter is what lets this run without a consent
+prompt. The day is yours to choose (the store has no clock, and which time zone
+a day is belongs to the app).
+
+## API on another domain — `/beacon` (0.4.0)
+
+`launch: "installed"` comes from `?src=pwa` in the **page's** URL. When your API
+lives on another origin, the middleware only sees the API call's URL, and every
+visit counts as `browser`. So the page sends its own marker:
+
+```ts
+// in the page (Tier 0 — reads location.search and nothing from the device)
+import { sendLaunchBeacon } from "@broberg/device-stats/beacon";
+sendLaunchBeacon("https://api.example.dk/device-beacon");
+
+// on the API
+import { handleDeviceBeacon } from "@broberg/device-stats/beacon";
+app.post("/device-beacon", async (c) =>
+  c.body(null, await handleDeviceBeacon(store, { headers: c.req.raw.headers, bodyText: await c.req.text() }, today())),
+);
+```
+
+The body is `{"launch":"pwa"}` or `{}` and nothing else — an extra key (a path
+riding along, say) is a `400` and counts nothing. Everything but the marker is
+derived on the server from the beacon request's own headers. The sender uses
+`fetch(…, { keepalive, credentials: "omit" })`, not `navigator.sendBeacon`, so
+it touches no device accessor at all, and it never throws into your page.
+
 ## Tier 1 — `/client`, behind a consent gate
 
 ```ts
