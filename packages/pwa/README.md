@@ -8,6 +8,27 @@ as one small, framework- and bundler-agnostic package instead of a fifth copy.
 npm i @broberg/pwa
 ```
 
+## 0.8.0 — native icon sets from the same SVG (F021.12)
+
+For Capacitor (iOS/Android) and Tauri apps, so none of them keeps its own icon script:
+
+```bash
+pwa-icons --svg assets/icon.svg --native native-icons --background "#0B7A57"
+```
+
+writes
+
+| path | what |
+|---|---|
+| `ios/AppIcon.appiconset/AppIcon-1024.png` + `Contents.json` | Xcode 14+ single-size app icon. **No alpha channel** — the App Store rejects an icon that has one, so the PNG is re-encoded as RGB, not merely made opaque. |
+| `android/mipmap-anydpi-v26/ic_launcher.xml`, `ic_launcher_round.xml` | adaptive icon → `@color/ic_launcher_background` + `@mipmap/ic_launcher_foreground` |
+| `android/mipmap-<dpi>/ic_launcher_foreground.png` | 108dp canvas per density (108–432 px); the motif sits inside the **inner 66dp**, the only part every launcher mask keeps |
+| `android/mipmap-<dpi>/ic_launcher.png`, `ic_launcher_round.png` | legacy launcher icons, 48–192 px |
+| `android/values/ic_launcher_background.xml` | the background colour |
+| `desktop/icon.ico`, `desktop/icon.icns` | Windows / macOS (PNG payloads) |
+
+`--background` is **required**: a white symbol on a transparent canvas renders as an empty icon. Copy the folders into your Xcode/Gradle project yourself — the package does not edit your native project. Programmatic: `nativeIconSet(svg, { background, platforms? })` from `@broberg/pwa/raster`. The web output (`rasterizeIconSet`, `pwa-icons` without `--native`) is unchanged.
+
 ## 0.7.0 — four fixes reported by the fleet (F021.11)
 
 - **No banner on a first visit.** A brand-new worker is briefly `registration.waiting` on EVERY install (the spec's

@@ -27,6 +27,7 @@ const RASTER = join(HERE, 'src/raster.ts');
 const CLI = join(HERE, 'src/cli.ts');
 const OFFER = join(HERE, 'src/should-offer.ts');
 const MANIFEST = join(HERE, 'src/manifest.ts');
+const NATIVE = join(HERE, 'src/native.ts');
 
 /** The 0.2.2 shape, verbatim: four names, and the two that mattered missing. */
 const OLD_LIST = `    const updater = createPwaUpdater({
@@ -200,6 +201,18 @@ const MUTATIONS = [
     file: MANIFEST,
     from: 'rel: "apple-touch-icon", sizes: "180x180",',
     to: 'rel: "apple-touch-icon",',
+  },
+  {
+    name: "F021.12 the iOS icon keeps its alpha channel (App Store rejects it)",
+    file: NATIVE,
+    from: "  ihdr[9] = 2; // colour type: truecolour, NO alpha",
+    to: "  ihdr[9] = 6;",
+  },
+  {
+    name: "F021.12 the Android foreground fills the whole 108dp canvas (launcher masks crop it)",
+    file: NATIVE,
+    from: "export const ANDROID_SAFE_ZONE = 66 / 108;",
+    to: "export const ANDROID_SAFE_ZONE = 1;",
   },
 ];
 

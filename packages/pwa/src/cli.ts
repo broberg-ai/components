@@ -4,10 +4,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { buildIconSet } from "./manifest.js";
-import { rasterizeIconSet } from "./raster.js";
+import { rasterizeIconSet, nativeIconSet, NATIVE_BACKGROUND_REQUIRED } from "./raster.js";
 
 const USAGE =
-  "usage: pwa-icons (--svg <file> | --monogram <text>) [--background <hex>] [--color <hex>] [--out public/icons] [--base-path /icons] [--root <web root, default: the parent of --out>]";
+  "usage: pwa-icons (--svg <file> | --monogram <text>) [--background <hex>] [--color <hex>] [--out public/icons] [--base-path /icons] [--root <web root, default: the parent of --out>]\n       pwa-icons --svg <file> --native <out dir> --background <#RRGGBB>   (iOS AppIcon, Android adaptive, .ico, .icns)";
 
 export async function main(argv: string[]): Promise<number> {
   const arg = (name: string) => {
@@ -19,6 +19,33 @@ export async function main(argv: string[]): Promise<number> {
   if (!svgFile && !monogram) {
     console.error(`pwa-icons: give --svg <file> or --monogram <text>\n${USAGE}`);
     return 1;
+  }
+  // F021.12 — native sets. Background is required: a white symbol on a transparent
+  // canvas renders as an empty icon (buzzalert, 25/10).
+  const native = arg("native");
+  if (native !== undefined) {
+    if (!svgFile) {
+      console.error(`pwa-icons: --native needs --svg <file>\n${USAGE}`);
+      return 1;
+    }
+    const background = arg("background");
+    if (!background) {
+      console.error(`pwa-icons: --native needs --background <#RRGGBB> — ${NATIVE_BACKGROUND_REQUIRED}`);
+      return 1;
+    }
+    let files;
+    try {
+      files = await nativeIconSet(readFileSync(svgFile, "utf8"), { background });
+    } catch (e) {
+      console.error(`pwa-icons: ${(e as Error).message}`);
+      return 1;
+    }
+    for (const f of files) {
+      mkdirSync(dirname(join(native, f.path)), { recursive: true });
+      writeFileSync(join(native, f.path), f.content);
+    }
+    console.log(JSON.stringify({ native: files.map((f) => f.path) }, null, 2));
+    return 0;
   }
   const out = arg("out") ?? "public/icons";
   const set = buildIconSet({

@@ -67,3 +67,7 @@ export async function rasterizeIconSet(set: IconSet, opts: RasterizeOptions = {}
     : [];
   return { files, icons, appleTouchIcon: apple?.path, rootFiles };
 }
+
+// F021.12 — native icon sets (iOS AppIcon, Android adaptive, .ico/.icns) from the same SVG.
+export { nativeIconSet, encodeRgbPng, encodeIco, encodeIcns, NATIVE_BACKGROUND_REQUIRED, ANDROID_DENSITIES, ANDROID_SAFE_ZONE, ICO_SIZES, ICNS_CHUNKS } from "./native.js";
+export type { NativeIconFile, NativeIconOptions } from "./native.js";
