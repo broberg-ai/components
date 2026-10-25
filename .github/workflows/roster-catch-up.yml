@@ -1,0 +1,94 @@
+# F038.44 — Discovery holds itself 100 % current, daily, for EVERY package.
+#
+# Christian 25/10 2026: «hold discovery 100% opdateret på daglig basis».
+#
+# F038.16 lets a release from THIS repo bump its own roster row (publish.yml's
+# `roster` job). A package published from ANOTHER repo — lens-daemon from
+# broberg-ai/lens, ai-sdk, db-sdk — has no such path: measured 25/10, lens had to
+# ask for a manual bump (#4613), and until somebody did, check-roster-versions
+# turned the Discovery deploy red for every unrelated, correct change too.
+#
+# This job closes that: every day, before Discovery's own scheduled run (05:47
+# UTC in inventory-fresh.yml), it lifts every roster row that is BEHIND npm.
+# A GITHUB_TOKEN push starts no other workflow (measured in F038.33), so it is
+# that 05:47 run — which checks out main — that deploys the result.
+#
+# Only `ver`. Role text and descriptions are the owner's (F038.16's rule).
+# AHEAD — the roster names a version npm does not have — is never auto-fixed:
+# `--list-behind` exits 1 on it and this job goes red, which is the point.
+# npm unreachable is not a verdict: bump-roster-version exits 2 and nothing moves.
+name: roster-catch-up
+
+on:
+  schedule:
+    - cron: "17 5 * * *" # 05:17 UTC, half an hour before Discovery's 05:47 deploy
+  workflow_dispatch:
+
+concurrency:
+  group: roster-catch-up
+  cancel-in-progress: false
+
+jobs:
+  catch-up:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # the only permission: it commits the bump back to main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Lift every roster row that is behind npm, regenerate, and land it
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin main
+            git checkout --quiet -B main origin/main
+
+            # Exit 1 = a row is AHEAD of npm: never auto-fixed, so the job fails.
+            node scripts/check-roster-versions.mjs --list-behind > /tmp/behind.txt
+            if [ ! -s /tmp/behind.txt ]; then
+              echo "::notice::roster matches npm — nothing to lift."
+              exit 0
+            fi
+
+            lifted=""
+            while read -r pkg ver; do
+              set +e
+              node scripts/bump-roster-version.mjs "$pkg" "$ver"
+              code=$?
+              set -e
+              if [ "$code" = "2" ]; then
+                echo "::warning::npm did not answer for $pkg@$ver — not bumped. Tomorrow's run tries again."
+                continue
+              fi
+              [ "$code" = "0" ] || exit "$code"
+              lifted="$lifted $pkg@$ver"
+            done < /tmp/behind.txt
+
+            if [ -z "$lifted" ]; then
+              echo "::warning::rows were behind but none could be verified against npm — nothing committed."
+              exit 0
+            fi
+
+            bun scripts/build-inventory.mjs
+            bun scripts/build-onboarding.mjs
+
+            git add scripts/inventory-data.mjs docs/
+            git commit -q -m "chore(roster): daily catch-up —${lifted} (F038.44, published outside this repo)"
+            if git push origin main; then
+              echo "::notice::lifted${lifted} on attempt $attempt."
+              exit 0
+            fi
+            echo "::warning::push rejected (attempt $attempt) — main moved; re-deriving from the new main."
+          done
+
+          echo "::error::could not land the catch-up after 5 attempts. The rows are still behind and the next Discovery deploy will say so."
+          exit 1

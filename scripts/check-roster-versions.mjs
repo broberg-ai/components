@@ -3,6 +3,7 @@
  * F038.10 — does the ROSTER agree with npm?
  *
  *   node scripts/check-roster-versions.mjs
+ *   node scripts/check-roster-versions.mjs --list-behind   # F038.44: `<pkg> <ver>` per BEHIND row
  *
  * WHAT THE OTHER TWO CHECKS DO NOT DO, which is why this exists:
  *
@@ -124,6 +125,25 @@ function cmpVersion(a, b) {
   const pb = String(b).split(".").map(Number);
   for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0);
   return 0;
+}
+
+// F038.44 — `--list-behind`: the daily catch-up asks WHICH rows to bump. One line
+// per BEHIND row on stdout, `<pkg> <npm version>`, nothing else, so the workflow
+// can loop over it. AHEAD still fails (exit 1) and is never listed: a roster that
+// names a version npm does not have is the 404 direction, and an auto-fixer that
+// "took npm's answer" there would paper over exactly what this check exists for.
+// Unaskable rows are reported on stderr and skipped — no answer is not a verdict.
+if (process.argv.includes("--list-behind")) {
+  for (const r of behind) console.log(`${r.pkg} ${r.npm}`);
+  if (ahead.length) {
+    console.error(
+      `\n  ✗ ${ahead.length} roster row(s) name a version NPM DOES NOT SERVE — never auto-fixed:\n` +
+        ahead.map((r) => `    ${r.pkg}   roster ${r.ver}   npm ${r.npm}`).join("\n"),
+    );
+    process.exit(1);
+  }
+  if (unaskable.length) console.error(`  ? ${unaskable.length} row(s) could not be asked — not bumped: ${unaskable.map((r) => r.pkg).join(", ")}`);
+  process.exit(0);
 }
 
 if (ahead.length) {
