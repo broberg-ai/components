@@ -53,6 +53,18 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.25.0 — the app says which item is active (`activeId`), and an item keeps its own testid (F092.37)
+
+The sidebar decides the active item from the PATH. An app that switches pages with a query (`?fane=<id>`) cannot be read that way: every `/?fane=…` item is "/", so all of them light up. Pass the id instead:
+
+```tsx
+<AppShell groups={groups} currentPath={location.pathname + location.search} activeId={fane} … />
+```
+
+With `activeId` set, exactly the item with that id is active (`is-active`, `aria-current="page"`), its parent is marked, the phone's bottom tab bar follows, and the page title is that item's label. Without it, nothing changes.
+
+`NavItem.testid` replaces the item link's `data-testid` (default `sidebar-item-<id>`), so an app keeps its own Lens anchors (e.g. `nav-<id>`). The item's other anchors (`-marker`, `-more`, `-toggle`, the badge) keep the `sidebar-item-<id>` prefix.
+
 ## 0.23.0 — bottom tab bar on a phone, a smaller Appearance block, the app's own wording (F092.35)
 
 Four additive options (Field's approved overview). Without them the shell renders

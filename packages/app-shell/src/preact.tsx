@@ -58,6 +58,7 @@ import {
   type AccountProfile,
   initials,
   isActivePath,
+  isActiveItem,
   readFlag,
   readSet,
   relativeTime,
@@ -544,6 +545,8 @@ export interface SidebarProps {
   bottom?: ComponentChildren;
   /** F092.21 — a row action was chosen (value: the saved text of an `input` action). */
   onItemAction?: (navItemId: string, actionId: string, value?: string) => void;
+  /** F092.37 — the id of the active item, when the path cannot tell (e.g. `?fane=<id>`). */
+  activeId?: string;
 }
 
 export function Sidebar(p: SidebarProps) {
@@ -565,7 +568,7 @@ export function Sidebar(p: SidebarProps) {
   };
 
   const all = [...p.groups.flatMap((g) => g.items), ...(p.footer ?? [])];
-  const childActive = (it: PreactNavItem) => !!it.children?.some((c) => isActivePath(c.href, p.currentPath));
+  const childActive = (it: PreactNavItem) => !!it.children?.some((c) => isActiveItem(c, p.currentPath, p.activeId));
   // Open = what the user left open, plus any parent of the page they are on.
   const [openItems, setOpenItems] = useState<Set<string>>(() => {
     const s = readSet(itemsKey);
@@ -610,7 +613,7 @@ export function Sidebar(p: SidebarProps) {
   };
 
   const leaf = (it: PreactNavItem, sub = false) => {
-    const active = isActivePath(it.href, p.currentPath);
+    const active = isActiveItem(it, p.currentPath, p.activeId);
     const badge = badgeLabel(it.badge);
     const link = (
       <NavLink
@@ -619,7 +622,7 @@ export function Sidebar(p: SidebarProps) {
         onNavigate={p.onNavigate}
         onAfter={close}
         class={"bas-item" + (sub ? " bas-item--sub" : "") + (active ? " is-active" : "")}
-        data-testid={`sidebar-item-${it.id}`}
+        data-testid={it.testid ?? `sidebar-item-${it.id}`}
         aria-current={active ? "page" : undefined}
         aria-label={railed && !sub ? it.label : undefined}
         title={it.label}
@@ -652,7 +655,7 @@ export function Sidebar(p: SidebarProps) {
 
   const parent = (it: PreactNavItem) => {
     const children = it.children!;
-    const onPage = childActive(it) || isActivePath(it.href, p.currentPath);
+    const onPage = childActive(it) || isActiveItem(it, p.currentPath, p.activeId);
     const open = railed ? flyout?.id === it.id : openItems.has(it.id);
     const onClick = (e: JSX.TargetedMouseEvent<HTMLButtonElement>) => {
       if (!railed) return toggleItem(it.id);
@@ -1585,6 +1588,8 @@ export interface AppShellProps {
   groups: PreactNavGroup[];
   footer?: PreactNavItem[];
   currentPath: string;
+  /** F092.37 — the id of the active nav item, when the path cannot tell (e.g. `?fane=<id>`). Overrides the path. */
+  activeId?: string;
   onNavigate?: Navigate;
   /** The notification centre's source. The bell is shown either way. */
   notifications?: NotificationSource;
@@ -1658,7 +1663,7 @@ export function AppShell(p: AppShellProps) {
   const onTrigger = () => (drawerMode ? setDrawer(!drawer) : toggle());
   const expanded = drawerMode ? drawer : !collapsed;
   const triggerLabel = drawerMode ? (drawer ? t.closeMenu : t.openMenu) : collapsed ? t.expand : t.collapse;
-  const heading = p.title ?? activeNavLabel(p.groups, p.footer, p.currentPath);
+  const heading = p.title ?? activeNavLabel(p.groups, p.footer, p.currentPath, p.activeId);
   // F092.35 — with the bottom tab bar the sidebar is hidden on a phone, so a
   // sidebar-footer user menu moves to the content's top row there (else it is gone).
   const userInSidebar = p.userMenuPlacement === "sidebar-footer" && !(isMobile && mode === "bottom-nav");
@@ -1694,6 +1699,7 @@ export function AppShell(p: AppShellProps) {
           footer={p.footer}
           onItemAction={p.onItemAction}
           currentPath={p.currentPath}
+          activeId={p.activeId}
           onNavigate={p.onNavigate}
           collapsed={collapsed}
           collapse={collapse}
@@ -1744,7 +1750,7 @@ export function AppShell(p: AppShellProps) {
         </main>
       </div>
       {mode === "bottom-nav" ? (
-        <BottomNav lang={p.lang} groups={p.groups} currentPath={p.currentPath} onNavigate={p.onNavigate} testId={p.mobileNavTestId} />
+        <BottomNav lang={p.lang} groups={p.groups} currentPath={p.currentPath} activeId={p.activeId} onNavigate={p.onNavigate} testId={p.mobileNavTestId} />
       ) : null}
     </div>
     </StringsContext.Provider>
@@ -1757,14 +1763,14 @@ export function AppShell(p: AppShellProps) {
  * so its tab links to its first child and is active anywhere in the section.
  * Hidden on desktop by CSS; the sidebar is hidden on the phone instead.
  */
-function BottomNav(p: { lang: Lang; groups: PreactNavGroup[]; currentPath: string; onNavigate?: Navigate; testId?: string }) {
+function BottomNav(p: { lang: Lang; groups: PreactNavGroup[]; currentPath: string; activeId?: string; onNavigate?: Navigate; testId?: string }) {
   const t = useText(p.lang);
   const rootId = p.testId ?? "mobile-bottom-nav";
   const tabs = p.groups.flatMap((g) => g.items).map((it) => ({ it, href: it.children?.[0]?.href ?? it.href }));
   return (
     <nav class="bas-bottomnav" data-testid={rootId} aria-label={t.mainNavigation}>
       {tabs.map(({ it, href }) => {
-        const active = isActivePath(it.href, p.currentPath) || !!it.children?.some((c) => isActivePath(c.href, p.currentPath));
+        const active = isActiveItem(it, p.currentPath, p.activeId) || !!it.children?.some((c) => isActiveItem(c, p.currentPath, p.activeId));
         return (
           <NavLink
             key={it.id}

@@ -38,6 +38,11 @@ export interface NavItem<Icon = unknown> {
    * F092.23 — "idle" = the same ring in grey (finished), so every row lines up.
    */
   marker?: "working" | "idle";
+  /**
+   * F092.37 — the item link's data-testid. Default `sidebar-item-<id>`; the
+   * item's other anchors (marker, badge, more, toggle) keep that prefix.
+   */
+  testid?: string;
   /** F092.20 — shows a pin icon after the label. */
   pinned?: boolean;
   /** F092.21 — row actions: a «…» button opens a menu with these. */
@@ -146,6 +151,15 @@ export function isExternal(
 }
 
 /**
+ * F092.37 — is this item the active one? With `activeId` the APP says which
+ * (an app that switches pages by `?fane=<id>` cannot be read from the path);
+ * without it, the path decides as before.
+ */
+export function isActiveItem(item: { id: string; href: string }, currentPath: string, activeId?: string): boolean {
+  return activeId !== undefined ? item.id === activeId : isActivePath(item.href, currentPath);
+}
+
+/**
  * The label of the nav item the user is on, for the content header (F092.4).
  * Sub-items count, and the most specific match wins: on "/models/genesis" a
  * "Genesis" child beats its "Models" parent.
@@ -154,10 +168,13 @@ export function activeNavLabel<Icon>(
   groups: NavGroup<Icon>[],
   footer: NavItem<Icon>[] | undefined,
   currentPath: string,
+  activeId?: string,
 ): string | undefined {
   let best: { label: string; len: number } | undefined;
   const visit = (it: NavItem<Icon>) => {
-    if (it.href && isActivePath(it.href, currentPath)) {
+    if (activeId !== undefined) {
+      if (it.id === activeId) best = { label: it.label, len: Infinity };
+    } else if (it.href && isActivePath(it.href, currentPath)) {
       const len = it.href.length;
       if (!best || len > best.len) best = { label: it.label, len };
     }
