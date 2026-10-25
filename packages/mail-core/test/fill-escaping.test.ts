@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cta, eyebrow, factBox, fill, fillHtml, heading, paragraph, renderShell, signOff, SHELL_VERSION } from "../src/index";
+import { codeBlock, codeMail, cta, eyebrow, factBox, fill, fillHtml, heading, paragraph, renderShell, signOff, SHELL_VERSION } from "../src/index";
 import fixture from "./shell-contract.snapshot.json";
 
 /** F023.11 — the payload verbatim from the card. */
@@ -62,6 +62,9 @@ describe("no `opacity` on text in ANY primitive (F023.12)", () => {
     heading: heading("t", { accentColor: "#0f7391", emphasis: "t" }),
     paragraph: paragraph("t"),
     signOff: signOff([{ text: "a" }, { text: "b", tier: "name" }, { text: "c", tier: "meta" }]),
+    // F005.25 — caught by the coverage guard below on arrival.
+    codeBlock: codeBlock("064562"),
+    codeMail: codeMail({ accentColor: "#0f7391", logoWidth: 56, product: "p", code: "064562", minutes: 10, link: "https://x.dk/l" }).html,
   };
   for (const [name, html] of Object.entries(outputs)) {
     it(`${name} emits no opacity`, () => expect(html).not.toContain("opacity:"));
@@ -139,7 +142,7 @@ describe("the opacity invariant COVERS every HTML-emitting export (F023.12 AC#3)
       .filter(([name, v]) => typeof v === "function" && !NOT_RENDERERS.has(name))
       .map(([name]) => name)
       .sort();
-    const covered = ["factBox", "heading", "paragraph", "renderShell", "signOff"].sort();
+    const covered = ["codeBlock", "codeMail", "factBox", "heading", "paragraph", "renderShell", "signOff"].sort();
     expect(emitters).toEqual(covered);
   });
 });

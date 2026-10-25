@@ -108,6 +108,20 @@ const MUTATIONS = [
     // longer WebHouse gold.
     expectRed: ["still EXACTLY the brand colour"],
   },
+  {
+    name: "F005.25 — the code is spaced with real spaces instead of letter-spacing",
+    find: "letter-spacing:6px;line-height:1.2;\">${escapeHtml(code)}</p>`;",
+    replace: "letter-spacing:6px;line-height:1.2;\">${escapeHtml(code).split(\"\").join(\" \")}</p>`;",
+    expectRed: ["CONTIGUOUS characters"],
+    expectGreen: ["text part has the code alone on its own line"],
+  },
+  {
+    name: "F005.25 — another long number beside the code goes unmentioned",
+    find: "  const warnings = others.size\n",
+    replace: "  const warnings = false\n",
+    expectRed: ["another long number beside the code is NAMED"],
+    expectGreen: ["subject carries"],
+  },
 ];
 
 function runSuite() {

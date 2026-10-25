@@ -859,3 +859,130 @@ export function makeLogoAttachment(filePath: string, opts?: { contentId?: string
     return null;
   }
 }
+
+// ─────────────────────────────────────────────── code + magic-link mail (F005.25)
+//
+// Gmail and iOS draw their own «Kopiér kode» / autofill when they recognise a
+// one-time code; a mail cannot carry a copy button of its own (mail clients run
+// no script). Neither vendor publishes its criteria, so this writes the mail the
+// way that is known to be recognisable and leaves the rest to a measurement in
+// real inboxes: «kode» + the code in the subject, the code alone on its own line
+// as text, one code per mail.
+
+/** The code as one line of large monospace TEXT. The characters stay
+ *  CONTIGUOUS in the markup — the gap between them is CSS letter-spacing only —
+ *  because a reader that finds "0 6 4 5 6 2" no longer finds a code. Never an
+ *  image. Colour is inherited from the card, so it keeps the shell's contrast in
+ *  light and dark. */
+export function codeBlock(code: string): string {
+  return `<p style="margin:24px 0;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace;font-size:32px;font-weight:700;letter-spacing:6px;line-height:1.2;">${escapeHtml(code)}</p>`;
+}
+
+export interface CodeMailText {
+  subject: (product: string, code: string) => string;
+  intro: (product: string) => string;
+  expires: (minutes: number) => string;
+  linkIntro: string;
+  linkLabel: string;
+  linkFallback: string;
+  ignore: string;
+}
+
+/** Default wording per language. Override any of it with `text`; the subject
+ *  must still contain the code (it is what the inbox reads first). */
+export const CODE_MAIL_TEXT: Record<"da" | "en", CodeMailText> = {
+  da: {
+    subject: (p, c) => `Din kode til ${p}: ${c}`,
+    intro: (p) => `Her er din kode til ${p}:`,
+    expires: (m) => `Koden gælder i ${m} minutter.`,
+    linkIntro: "Du kan også logge ind direkte:",
+    linkLabel: "Log ind",
+    linkFallback: "Virker knappen ikke, så kopiér dette link:",
+    ignore: "Har du ikke bedt om koden, kan du se bort fra denne mail.",
+  },
+  en: {
+    subject: (p, c) => `Your code for ${p}: ${c}`,
+    intro: (p) => `Here is your code for ${p}:`,
+    expires: (m) => `The code is valid for ${m} minutes.`,
+    linkIntro: "You can also sign in directly:",
+    linkLabel: "Sign in",
+    linkFallback: "If the button does not work, copy this link:",
+    ignore: "If you did not ask for this code, you can ignore this mail.",
+  },
+};
+
+export interface CodeMailOpts extends Omit<ShellOpts, "subject" | "bodyHtml" | "preheader" | "lang"> {
+  /** 4–10 letters or digits, no spaces. */
+  code: string;
+  /** Shown in the subject and intro, e.g. "cardmem". */
+  product: string;
+  /** How long the code is valid. Omitted → no expiry line. */
+  minutes?: number;
+  /** Absolute https magic link. Rendered as one button AND written out as text. */
+  link?: string;
+  lang?: "da" | "en";
+  text?: Partial<CodeMailText>;
+}
+
+export interface CodeMail {
+  subject: string;
+  html: string;
+  /** Plain-text part — send it alongside html. The code stands alone on its own line. */
+  text: string;
+  /** Things that may stop Gmail/iOS recognising the code. Empty when none. */
+  warnings: string[];
+}
+
+const CODE_RE = /^[A-Za-z0-9]{4,10}$/;
+const LONG_NUMBER = /\d{4,}/g;
+
+/** A one-time-code mail, with an optional magic link. Throws on a code or link
+ *  that cannot work; returns `warnings` for what merely might not be recognised. */
+export function codeMail(opts: CodeMailOpts): CodeMail {
+  const { code, product, minutes, link, lang = "da", text: overrides, ...shell } = opts;
+  if (!CODE_RE.test(code)) {
+    throw new Error(`codeMail: code must be 4–10 letters or digits with no spaces (got ${JSON.stringify(code)}).`);
+  }
+  if (link !== undefined && !/^https:\/\/[^\s/]+/i.test(link)) {
+    throw new Error(`codeMail: link must be an absolute https:// URL (got ${JSON.stringify(link)}).`);
+  }
+  const t: CodeMailText = { ...CODE_MAIL_TEXT[lang], ...overrides };
+  const subject = t.subject(product, code);
+  if (!subject.includes(code)) throw new Error("codeMail: the subject must contain the code.");
+
+  const lines = [t.intro(product), ...(minutes !== undefined ? [t.expires(minutes)] : []), t.ignore, product, subject];
+  if (link) lines.push(t.linkIntro, t.linkLabel, t.linkFallback);
+  // The link itself is left out on purpose: a token in a URL is read as a URL,
+  // and refusing every link with digits in it would refuse most magic links.
+  const others = new Set(lines.flatMap((l) => l.match(LONG_NUMBER) ?? []).filter((n) => n !== code));
+  const warnings = others.size
+    ? [`codeMail: another long number (${[...others].join(", ")}) appears beside the code — Gmail and iOS may pick the wrong one or none. Keep one code per mail.`]
+    : [];
+
+  const body = [
+    paragraph(t.intro(product)),
+    codeBlock(code),
+    ...(minutes !== undefined ? [paragraph(t.expires(minutes))] : []),
+    ...(link
+      ? [
+          paragraph(t.linkIntro),
+          cta(link, t.linkLabel, { accentColor: shell.accentColor }),
+          paragraph(t.linkFallback),
+          paragraphHtml(`<a href="${escapeAttr(link)}" style="word-break:break-all;">${escapeHtml(link)}</a>`),
+        ]
+      : []),
+    paragraph(t.ignore),
+  ].join("\n");
+
+  const html = renderShell({ ...shell, lang, subject, preheader: t.intro(product), bodyHtml: body });
+  const textPart = [
+    t.intro(product),
+    "",
+    code,
+    "",
+    ...(minutes !== undefined ? [t.expires(minutes), ""] : []),
+    ...(link ? [t.linkIntro, link, ""] : []),
+    t.ignore,
+  ].join("\n");
+  return { subject, html, text: textPart, warnings };
+}

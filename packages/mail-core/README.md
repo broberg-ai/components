@@ -28,6 +28,30 @@ const html = renderShell({
 });
 ```
 
+## Code and magic-link mail: `codeMail()` (since 0.10.0)
+
+One shared mail for a one-time code, optionally with a magic link — so every app gets the same mail and Gmail/iOS get the best chance to offer «Kopiér kode» / autofill on their own. A mail cannot carry a copy button itself (mail clients run no script); the client draws it when it recognises the code.
+
+```ts
+import { codeMail } from "@broberg/mail-core";
+const m = codeMail({ accentColor: "#0f7391", logoWidth: 56, product: "cardmem", code: "064562", minutes: 10,
+                     link: "https://app.example/login?t=…" /* optional */, lang: "da" });
+// m.subject  "Din kode til cardmem: 064562"
+// m.html     the shell, with the code as one large monospace line
+// m.text     plain-text part — send it too; the code stands alone on its own line
+// m.warnings e.g. another long number beside the code — log it
+await mailer.send({ to, subject: m.subject, html: m.html, text: m.text });
+```
+
+What it does for recognition, and why:
+- **«kode» and the code in the subject** — the inbox reads the subject first.
+- **The code as TEXT, its characters contiguous.** The visible gap between digits is CSS `letter-spacing`, never real spaces: `0 6 4 5 6 2` is no longer one code to a reader. Never an image.
+- **One code per mail.** Another long number in the wording is named in `warnings`; a code that is not 4–10 letters/digits throws.
+- **A magic link is one button AND the link written out** (absolute `https://` only, else it throws).
+- The code inherits the card's text colour, so light and dark cards keep the shell's contrast.
+
+Wording comes from `CODE_MAIL_TEXT.da` / `.en`; override any line with `text`. A subject override must still contain the code. Whether Gmail/iOS actually show the button is measured in real inboxes, not promised here — see F005.25 on the board for what was measured.
+
 ## Why `accentColor` is required, not defaulted
 
 Every other color has a sensible neutral default (`cardBg` #fffffe — see below, `textColor` auto-derived for contrast against `cardBg`, `backdropColor` light grey) — but `accentColor` doesn't, on purpose. A default accent color IS a brand choice; shipping one would silently brand every consumer that forgets to set it. Pass your product's own accent explicitly.
