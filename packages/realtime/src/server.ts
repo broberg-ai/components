@@ -124,11 +124,38 @@ export interface RealtimeOptions {
   presenceTtlMs?: number;
 }
 
+/** F103.4 — per-subscriber options for one stream. Without them a stream is byte-identical to 0.1.x. */
+export interface StreamOptions {
+  lastEventId?: string | null;
+  signal?: AbortSignal;
+  /**
+   * Called for EVERY host event this subscriber would receive — live AND replayed —
+   * before it is written. Return the event to send (changed or not) or `null` to
+   * skip it. Use it to give each subscriber their own view of one channel (a
+   * visitor sees only visible messages; staff see everything). `$ping` and
+   * `presence` never pass through it, so a filter cannot silence the heartbeat.
+   * A transform that throws skips the event (fail closed: a broken filter must not
+   * leak what it was meant to hide).
+   *
+   * A skipped DURABLE event is still written as a bare `id:` line, which moves the
+   * browser's Last-Event-ID past it without dispatching anything — so a resume does
+   * not restart from before it.
+   */
+  transform?: (event: RealtimeEvent) => RealtimeEvent | null;
+  /**
+   * Write SSE named events — `event: <type>` + `data: <JSON of data>` — instead of
+   * the default single `data: {"type":…,"data":…}` line. For clients that listen
+   * with `addEventListener(type)`; @broberg/realtime/client reads them with
+   * `connect(url, { named: [...] })`. `$ping` stays a default (unnamed) frame.
+   */
+  named?: boolean;
+}
+
 export interface Realtime {
   /** With `event.id` the event is durable; without, ephemeral. Goes through the bus, also locally — one path, never twice. */
   publish(channel: string, event: RealtimeEvent): Promise<void>;
   /** The SSE response for one subscriber. Pass the request's Last-Event-ID (see lastEventIdFrom) and its abort signal. */
-  stream(channel: string, opts?: { lastEventId?: string | null; signal?: AbortSignal }): Response;
+  stream(channel: string, opts?: StreamOptions): Response;
   presence: {
     /** «I am here». Emits `presence {action:"join"}` the first time; afterwards only refreshes the expiry. */
     touch(channel: string, member: PresenceMember): Promise<void>;
@@ -217,7 +244,7 @@ export function createRealtime(opts: RealtimeOptions = {}): Realtime {
       await bus.publish({ channel, event });
     },
 
-    stream(channel, { lastEventId = null, signal } = {}) {
+    stream(channel, { lastEventId = null, signal, transform, named = false } = {}) {
       const enc = new TextEncoder();
       let cleanup = (): void => {};
       const body = new ReadableStream<Uint8Array>({
@@ -234,11 +261,25 @@ export function createRealtime(opts: RealtimeOptions = {}): Realtime {
           // One JSON line per event: the client uses onmessage for all of them, and a
           // `$ping` it can SEE (a comment would be invisible) tells it the stream is alive.
           const frame = (e: RealtimeEvent): string => `${e.id ? `id: ${e.id}\n` : ""}data: ${JSON.stringify({ type: e.type, data: e.data })}\n\n`;
+          // F103.4 — `event:` + the bare data, for clients that listen by name.
+          const namedFrame = (e: RealtimeEvent): string =>
+            `${e.id ? `id: ${e.id}\n` : ""}event: ${e.type}\ndata: ${JSON.stringify(e.data ?? null)}\n\n`;
+          const hostFrame = named ? namedFrame : frame;
 
           let replaying = true;
           const buffered: RealtimeEvent[] = [];
           const replayedIds = new Set<string>();
-          const send = (e: RealtimeEvent): void => write(frame(e));
+          const send = (e: RealtimeEvent): void => {
+            if (!transform || e.type === PRESENCE) return write(hostFrame(e));
+            let out: RealtimeEvent | null;
+            try {
+              out = transform(e);
+            } catch {
+              out = null;
+            }
+            if (out) return write(hostFrame(out.id || !e.id ? out : { ...out, id: e.id }));
+            if (e.id) write(`id: ${e.id}\n\n`);
+          };
           const removeListener = addListener(channel, (e) => (replaying ? buffered.push(e) : send(e)));
           const beat = setInterval(() => write(frame({ type: PING })), heartbeatMs);
           cleanup = () => {

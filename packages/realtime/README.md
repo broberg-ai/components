@@ -43,6 +43,27 @@ rt.presence.list(`jam:${id}`);
 - **Access is yours.** The package does not know who may see a channel — check before `stream()` and before `publish()`.
 - Event types starting with `$` are the package's own; a type or id with a newline is refused.
 
+### Per-subscriber view and named events (0.2.0, F103.4)
+
+One channel, a different view per subscriber — no channel per audience:
+
+```ts
+// the visitor's stream: only visible messages, without the staff-only note
+rt.stream(`ticket:${id}`, {
+  lastEventId: lastEventIdFrom(req),
+  signal: req.signal,
+  transform: (e) => (e.type === "message" && !e.data.visible ? null : e.type === "message" ? { ...e, data: { body: e.data.body } } : e),
+});
+// the console's stream on the same channel: everything
+rt.stream(`ticket:${id}`, { lastEventId: lastEventIdFrom(req), signal: req.signal });
+```
+
+- `transform` runs for **live and replayed** events — a resume never leaks what the live path hides. `$ping` and `presence` never pass through it, so a filter cannot silence the heartbeat. A transform that throws skips the event (fail closed).
+- A skipped **durable** event is still written as a bare `id:` line, so the browser's Last-Event-ID moves past it and a resume does not restart before it.
+- `named: true` writes `event: <type>` + `data: <JSON of data>` (+ `id:`) for clients that use `addEventListener(type)`. Read them with `connect(url, { named: ["message", "state", "typing"], onEvent })`. `$ping` stays a default frame.
+
+Without these options a stream is byte-identical to 0.1.x.
+
 ## Client — `@broberg/realtime/client`
 
 No `node:` imports.

@@ -167,6 +167,27 @@ const MUTATIONS = [
     replace: "      if (true) {",
     expect: ["at most one 'typing' per interval"],
   },
+  {
+    name: "F103.4 the REPLAY bypasses the transform (a resume leaks what live hides)",
+    file: SERVER,
+    find: "                for (const e of await opts.replay(channel, lastEventId)) {\n                  send(e);",
+    replace: "                for (const e of await opts.replay(channel, lastEventId)) {\n                  write(hostFrame(e));",
+    expect: ["REPLAY goes through the transform too"],
+  },
+  {
+    name: "F103.4 named is ignored (an `event:` client hears nothing)",
+    file: SERVER,
+    find: "          const hostFrame = named ? namedFrame : frame;",
+    replace: "          const hostFrame = frame;",
+    expect: ["writes id + event + the bare data"],
+  },
+  {
+    name: "F103.4 a filtered durable event writes nothing (Last-Event-ID stops moving)",
+    file: SERVER,
+    find: "            if (e.id) write(`id: ${e.id}\\n\\n`);",
+    replace: "",
+    expect: ["a skipped DURABLE event is written as a bare id line"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "rtmut-"));

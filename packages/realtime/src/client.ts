@@ -16,6 +16,8 @@ interface EventSourceLike {
   onopen: ((ev: unknown) => void) | null;
   onmessage: ((ev: { data: string; lastEventId?: string }) => void) | null;
   onerror: ((ev: unknown) => void) | null;
+  /** F103.4 — only used when `named` is set. */
+  addEventListener?(type: string, fn: (ev: { data: string; lastEventId?: string }) => void): void;
   close(): void;
 }
 
@@ -31,6 +33,12 @@ export interface ConnectOptions {
   doc?: Pick<Document, "addEventListener" | "removeEventListener" | "visibilityState">;
   now?: () => number;
   withCredentials?: boolean;
+  /**
+   * F103.4 — the event types to listen for when the server streams with
+   * `named: true` (`event: <type>` frames). Each arrives at `onEvent` exactly like
+   * a default frame. `$ping` keeps arriving as a default frame either way.
+   */
+  named?: string[];
 }
 
 export interface Connection {
@@ -80,12 +88,12 @@ export function connect(url: string, opts: ConnectOptions): Connection {
       lastSeen = now();
       setState("open");
     };
-    source.onmessage = (ev) => {
+    const handle = (ev: { data: string; lastEventId?: string }, namedType?: string): void => {
       if (es !== source) return;
       lastSeen = now();
       let msg: { type: string; data?: unknown };
       try {
-        msg = JSON.parse(ev.data);
+        msg = namedType ? { type: namedType, data: JSON.parse(ev.data) } : JSON.parse(ev.data);
       } catch {
         return;
       }
@@ -104,6 +112,8 @@ export function connect(url: string, opts: ConnectOptions): Connection {
       }
       opts.onEvent(id ? { type: msg.type, data: msg.data, id } : { type: msg.type, data: msg.data });
     };
+    source.onmessage = (ev) => handle(ev);
+    for (const type of opts.named ?? []) source.addEventListener?.(type, (ev) => handle(ev, type));
     source.onerror = () => {
       if (es !== source) return;
       // CONNECTING: the browser is retrying by itself. CLOSED: it gave up (e.g. a 5xx) — we reopen with backoff.
