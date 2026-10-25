@@ -205,6 +205,13 @@ const MUTATIONS = [
     from: "      for (const secret of secrets) {",
     to: "      for (const secret of secrets.slice(0, 1)) {",
   },
+  {
+    // F053.15 — the worker build (what Bun/edge load) refuses sync verification.
+    file: "src/index.ts",
+    name: "back to the SYNC constructEvent (every webhook under Bun is a 400 again)",
+    from: "          verified = await config.stripe.webhooks.constructEventAsync(rawBody, signature, secret);",
+    to: "          verified = config.stripe.webhooks.constructEvent(rawBody, signature, secret);",
+  },
 ];
 
 function redSet() {

@@ -268,7 +268,7 @@ export type StripeWebhookHandler = (
 
 /**
  * Verify + dispatch a Stripe webhook. Preserves the raw-body invariant
- * (`constructEvent` is fed the exact bytes, never a re-serialized object) and
+ * (`constructEventAsync` is fed the exact bytes, never a re-serialized object) and
  * ACKs unhandled event types with 200 so Stripe doesn't retry them. A bad
  * signature is a 400; a throwing handler is a 500 (Stripe retries).
  */
@@ -285,7 +285,9 @@ export function createStripeWebhookHandler(config: WebhookHandlerConfig): Stripe
       let lastError: unknown = null;
       for (const secret of secrets) {
         try {
-          verified = config.stripe.webhooks.constructEvent(rawBody, signature, secret);
+          // Async on purpose (F053.15): under Bun/edge stripe loads its worker build,
+          // whose SubtleCryptoProvider refuses the sync constructEvent outright.
+          verified = await config.stripe.webhooks.constructEventAsync(rawBody, signature, secret);
           break;
         } catch (err) {
           lastError = err;

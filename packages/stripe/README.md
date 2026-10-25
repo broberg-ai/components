@@ -154,6 +154,16 @@ doesn't retry them; a bad signature is `400`; a throwing handler is `500`.
 Web-standard `(Request) => Response` — it imports nothing from `next`, so it
 runs under Next.js App Router, Hono, Bun and edge alike.
 
+**0.5.1 — the handler verifies with `constructEventAsync`.** Up to 0.5.0 it
+called the sync `constructEvent`, and under Bun (and Deno/workers) that refused
+**every** real webhook with a `400`: stripe's `bun`/`worker` export condition
+loads `stripe.esm.worker.js`, whose `SubtleCryptoProvider` throws "cannot be
+used in a synchronous context", and the catch reported it like a bad
+signature. Stripe then retried until it gave up and nothing was fulfilled. Node
+was unaffected, which is why nothing in our suite saw it — the test that does
+now loads that worker build by file path. No API change: the handler was
+already async.
+
 ```ts
 // app/api/stripe/webhook/route.ts
 import { createStripeWebhookHandler } from "@broberg/stripe";
