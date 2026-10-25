@@ -235,8 +235,8 @@
  },
  "@broberg/pwa": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/pwa",
-  "version": "0.7.0",
-  "publishedAt": "2026-10-21T17:28:00.393Z",
+  "version": "0.8.0",
+  "publishedAt": "2026-10-25T04:59:56.349Z",
   "provenance": "yes"
  },
  "@broberg/forms-turnstile": {
