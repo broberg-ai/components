@@ -28,6 +28,13 @@ export function escapeAttr(s: string): string {
   return escapeHtml(s);
 }
 
+/** F040.3 — `**x**` → `<strong>x</strong>`, on text that is ALREADY escaped.
+ *  Escape first, emphasise after: `*` is not an HTML character, so nothing the
+ *  author typed can become a tag. An unpaired `**` stays as text. */
+export function emphasize(escaped: string): string {
+  return escaped.replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, "<strong>$1</strong>");
+}
+
 // ─────────────────────────────────────────────────────────────── the shape
 
 /** A body BLOCK. The template supplies structure; the shell supplies markup.
@@ -163,7 +170,8 @@ export function derivePreheader(blocks: MailBlock[], given?: string): string {
   const explicit = (given ?? "").trim();
   if (explicit) return explicit;
   const first = blocks.find((b) => b.type === "paragraph" || b.type === "heading");
-  const text = first && "text" in first ? first.text.trim() : "";
+  // The inbox preview is plain text: `**fed**` shows as `fed`, not with asterisks (F040.3).
+  const text = first && "text" in first ? first.text.replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, "$1").trim() : "";
   if (text.length <= 120) return text;
   return `${text.slice(0, 117).replace(/\s+\S*$/, "")}…`;
 }
@@ -200,6 +208,9 @@ export function checkUrl(url: string, opts?: { filled?: boolean }): { ok: true }
 export interface MailPrimitives {
   heading: (text: string, opts: { accentColor?: string; fontSerif?: string }) => string;
   paragraph: (text: string) => string;
+  /** F040.3 — mail-core's paragraphHtml. Needed only for a paragraph with `**fed**`;
+   *  without it that paragraph renders as before and `notes` says why it is not bold. */
+  paragraphHtml?: (html: string) => string;
   noteBox: (html: string, opts: { accentColor: string }) => string;
   cta: (href: string, label: string, opts: { accentColor: string }) => string;
 }
@@ -220,13 +231,21 @@ export function renderBlocks(
       case "heading":
         out.push(withClass(opts.primitives.heading(b.text, { accentColor: opts.accentColor, ...(opts.fontSerif ? { fontSerif: opts.fontSerif } : {}) }), MAIL_CLASSES.p));
         break;
-      case "paragraph":
+      case "paragraph": {
+        const escaped = escapeHtml(b.text);
+        const html = emphasize(escaped);
+        if (html !== escaped && opts.primitives.paragraphHtml) {
+          out.push(withClass(opts.primitives.paragraphHtml(html), MAIL_CLASSES.p));
+          break;
+        }
+        if (html !== escaped) notes.push("A paragraph has **fed** but primitives.paragraphHtml was not passed, so it renders with the asterisks. Pass mail-core's paragraphHtml.");
         out.push(withClass(opts.primitives.paragraph(b.text), MAIL_CLASSES.p));
         break;
+      }
       case "note":
         // A coloured left EDGE, not a filled panel: in Outlook iOS card and footer
         // both became #484848, so a zone defined by fill stops existing.
-        out.push(withClass(opts.primitives.noteBox(escapeHtml(b.text), { accentColor: opts.accentColor }), MAIL_CLASSES.box));
+        out.push(withClass(opts.primitives.noteBox(emphasize(escapeHtml(b.text)), { accentColor: opts.accentColor }), MAIL_CLASSES.box));
         break;
       case "button": {
         const check = checkUrl(b.url, { filled: true });

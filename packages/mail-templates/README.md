@@ -40,11 +40,11 @@ const welcome = MailTemplate.parse({
 
 ```ts
 import { renderTemplate } from "@broberg/mail-templates";
-import { heading, paragraph, noteBox, cta, renderShell } from "@broberg/mail-core";
+import { heading, paragraph, paragraphHtml, noteBox, cta, renderShell } from "@broberg/mail-core";
 
 const r = renderTemplate(welcome, {
   accentColor: "#0f7391",                   // the same value you give the shell
-  primitives: { heading, paragraph, noteBox, cta },
+  primitives: { heading, paragraph, paragraphHtml, noteBox, cta },
   rawValueKeys: ["letter"],                 // values that are ALREADY html
 }, { navn: "Søren", firma: "Sørensen & Søn", login_url: "https://app.example/l/abc", letter: "<p>…</p>" });
 
@@ -56,6 +56,8 @@ r.notes;      // e.g. a button whose url was relative, shown as text instead
 ```
 
 The mail-core functions are passed in rather than imported: mail-core reads files at load time and would break a browser bundle (a template preview). There is no built-in fallback on purpose.
+
+**`**fed**` in a note or paragraph (0.3.0)** becomes `<strong>fed</strong>`. The text is escaped first and emphasised after, so `**<script>**` comes out as text; an unpaired `**` stays as it is; a value filled into a placeholder is never emphasised. A paragraph needs `paragraphHtml` among the primitives for this — without it the paragraph renders as before and `notes` says so.
 
 Rules you get for free:
 

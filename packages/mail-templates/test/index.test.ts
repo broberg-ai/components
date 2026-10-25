@@ -1,8 +1,9 @@
 // F040.2 — @broberg/mail-templates. Every render runs with the REAL @broberg/mail-core
 // primitives, so a green test means the package and the shell agree, not that a stub did.
 import { describe, expect, it } from "vitest";
-import { cta, heading, noteBox, paragraph } from "@broberg/mail-core";
+import { cta, heading, noteBox, paragraph, paragraphHtml } from "@broberg/mail-core";
 import {
+  MAIL_CLASSES,
   MailBrand,
   MailTemplate,
   canonicalContent,
@@ -181,5 +182,48 @@ describe("AC7 — browser-safe: no mail-core and no node:fs in the package itsel
     const src = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
     const imports = [...src.matchAll(/^import .* from "([^"]+)";$/gm)].map((m) => m[1]);
     expect(imports).toStrictEqual(["zod"]);
+  });
+});
+
+describe("F040.3 — **fed** in note and paragraph, escaped first", () => {
+  const withHtml: typeof opts = { accentColor: "#0f7391", primitives: { ...primitives, paragraphHtml } };
+  const r = (blocks: MailTemplate["blocks"], o = withHtml) => renderTemplate({ subject: "s", blocks }, o);
+
+  for (const type of ["note", "paragraph"] as const) {
+    it(`${type}: render **Indtil nogen bekræfter** as <strong>`, () => {
+      const html = r([{ type, text: "**Indtil nogen bekræfter**, sender vi intet." }]).html;
+      expect(html).toContain("<strong>Indtil nogen bekræfter</strong>, sender vi intet.");
+      expect(html).not.toContain("**");
+    });
+  }
+
+  it("text without ** is byte-identical to the 0.2.2 rendering", () => {
+    const text = `Sørensen & Søn <b>x</b> "q" * én stjerne`;
+    expect(r([{ type: "paragraph", text }]).html).toStrictEqual(r([{ type: "paragraph", text }], opts).html);
+    expect(r([{ type: "paragraph", text }]).html).toStrictEqual(paragraph(text).replace(/^\s*<p/, `<p class="${MAIL_CLASSES.p}"`));
+    expect(r([{ type: "note", text }]).html).toStrictEqual(r([{ type: "note", text }], opts).html);
+  });
+
+  for (const type of ["note", "paragraph"] as const) {
+    it(`${type}: **<script>x</script>** is escaped INSIDE the emphasis; an unpaired ** stays text`, () => {
+      const html = r([{ type, text: "**<script>x</script>** og ** alene" }]).html;
+      expect(html).toContain("<strong>&lt;script&gt;x&lt;/script&gt;</strong> og ** alene");
+      expect(html).not.toContain("<script>");
+    });
+  }
+
+  it("a value filled into a placeholder is never emphasised", () => {
+    const out = renderTemplate({ subject: "s", blocks: [{ type: "note", text: "Hej {{navn}}" }] }, withHtml, { navn: "**Bo**" });
+    expect(out.html).toContain("Hej **Bo**");
+  });
+
+  it("without paragraphHtml the paragraph renders as before and notes say why", () => {
+    const out = r([{ type: "paragraph", text: "**fed**" }], opts);
+    expect(out.html).toContain("**fed**");
+    expect(out.notes.some((n) => n.includes("paragraphHtml"))).toBe(true);
+  });
+
+  it("the derived preheader drops the asterisks", () => {
+    expect(derivePreheader([{ type: "paragraph", text: "**Vigtigt:** læs dette" }])).toStrictEqual("Vigtigt: læs dette");
   });
 });

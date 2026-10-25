@@ -74,6 +74,18 @@ const MUTATIONS = [
     replace: "        const check = { ok: true } as const;",
     expect: ["relative url renders as plain text"],
   },
+  {
+    name: "emphasise BEFORE escaping (F040.3)",
+    find: "        out.push(withClass(opts.primitives.noteBox(emphasize(escapeHtml(b.text)), {",
+    replace: "        out.push(withClass(opts.primitives.noteBox(escapeHtml(emphasize(b.text)), {",
+    expect: ["note: **<script>x</script>** is escaped INSIDE"],
+  },
+  {
+    name: "a paragraph ignores paragraphHtml (F040.3)",
+    find: "        if (html !== escaped && opts.primitives.paragraphHtml) {",
+    replace: "        if (false && opts.primitives.paragraphHtml) {",
+    expect: ["paragraph: render **Indtil nogen bekræfter** as <strong>"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "mtplmut-"));
