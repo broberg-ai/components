@@ -88,7 +88,9 @@ describe("AC1 — a valid proof is accepted; each wrong one is refused on its ow
 
   it("iat outside ±60 s is refused (both directions)", async () => {
     const t = await bound();
-    for (const skew of [-61_000, 61_000]) {
+    // ±62 s, not ±61: iat is whole seconds, so a proof made late in a second at +61 s
+    // truncates to +60.x of the verifier's clock and passes — it flaked the 0.21.1 gate.
+    for (const skew of [-62_000, 62_000]) {
       const p = await proof(t, { now: () => Date.now() + skew });
       await expect(verifier().verify(t, { dpop: { proof: p, method: "GET", url: URL_ } })).rejects.toThrow(/iat is outside ±60s/);
     }

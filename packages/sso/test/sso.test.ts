@@ -1389,7 +1389,11 @@ describe("a failed callback says WHICH of the three things went wrong", () => {
     // The server's window, measured either side of it. 250/350 rather than
     // 299/301: the route reads the real clock, and a second spent building the
     // request would tip a one-second margin over and make this flake.
-    const stale = await callback(await txCookieAt(NOW - 350));
+    // NOW is taken at collection time; in a long full-suite run that is minutes before
+    // this line, which aged the "fresh" cookie past 300 s and flaked (25/10). Read the
+    // clock HERE, where the boundary is actually measured.
+    const now = Math.floor(Date.now() / 1000);
+    const stale = await callback(await txCookieAt(now - 350));
     expect(await errorOf(stale)).toBe("login_expired");
 
     // And the fresh one is accepted — proven by REACHING completeLogin, not by
@@ -1397,7 +1401,7 @@ describe("a failed callback says WHICH of the three things went wrong", () => {
     // satisfied by any other failure and prove nothing about the boundary.
     const reached = { hit: false };
     await routes(reached).app.request("https://app.example/callback?code=c&state=the-state", {
-      headers: { cookie: await txCookieAt(NOW - 250) },
+      headers: { cookie: await txCookieAt(now - 250) },
     });
     expect(reached.hit).toBe(true);
 

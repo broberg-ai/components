@@ -231,7 +231,7 @@ export interface ExchangeUserTokenOptions {
   issuer?: string;
   /** The app that holds the user's token — it must be the token's own client (BID refuses otherwise). */
   clientId: string;
-  /** A confidential app proves itself with its secret (Basic). A public app (an extension) omits it. */
+  /** A confidential app proves itself with its secret (in the form body, client_secret_post). A public app (an extension) omits it. */
   clientSecret?: string;
   /** The user's BID access token. Never logged, never in an error. */
   subjectToken: string;
@@ -275,13 +275,12 @@ export async function exchangeUserToken(opts: ExchangeUserTokenOptions): Promise
   if (opts.scope) form.set("scope", opts.scope);
   const tokenUrl = `${issuer}/oauth2/token`;
   const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded" };
-  if (opts.clientSecret) {
-    // Form-encoded before base64 (RFC 6749 §2.3.1), exactly like introspectToken and
-    // client.embedded — a secret with ":" or "%" must not mean two different things.
-    headers.authorization = `Basic ${btoa(`${encodeURIComponent(opts.clientId)}:${encodeURIComponent(opts.clientSecret)}`)}`;
-  } else {
-    form.set("client_id", opts.clientId);
-  }
+  // F084.184 — credentials in the BODY (client_secret_post), as the code grant sends them.
+  // BID registers confidential clients with tokenEndpointAuthMethod=client_secret_post and
+  // its library enforces the registered method, so Basic here was a 400 invalid_client
+  // («client_unauthenticated») for every confidential app — measured at buzzalert-admin.
+  form.set("client_id", opts.clientId);
+  if (opts.clientSecret) form.set("client_secret", opts.clientSecret);
   if (opts.dpopKey) headers.dpop = await createDpopProof(opts.dpopKey, { method: "POST", url: tokenUrl, now });
   let res: Response;
   try {

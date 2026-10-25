@@ -20,18 +20,22 @@ function fakeBid(answer: () => Response | Promise<Response> = () => Response.jso
 }
 
 describe("F084.179 — exchangeUserToken", () => {
-  it("a confidential app: Basic (form-encoded before base64), the user token as access_token type, resource + scope → {token, exp}", async () => {
+  it("a confidential app: client_id + client_secret in the BODY (client_secret_post — what BID registers), NO Basic header; the user token as access_token type, resource + scope → {token, exp}", async () => {
+    // F084.184 — BID enforces the registered method. Basic here was 400 invalid_client
+    // «client_unauthenticated» at buzzalert-admin (bid #4792).
     const bid = fakeBid();
     const r = await exchangeUserToken({ clientId: "jam", clientSecret: "s:e%c", subjectToken: "user-at", resource: "https://cardmem.com", scope: "cardmem:mockups:read", fetchImpl: bid.fetchImpl });
     expect(r).toStrictEqual({ token: TICKET, exp: EXP });
     expect(bid.calls.map((c) => c.url)).toStrictEqual([`${ISS}/oauth2/token`]);
-    expect(bid.calls[0]!.headers.authorization).toBe(`Basic ${btoa("jam:s%3Ae%25c")}`);
+    expect(bid.calls[0]!.headers.authorization).toBeUndefined();
     expect(bid.calls[0]!.form).toStrictEqual({
       grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
       subject_token: "user-at",
       subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
       resource: "https://cardmem.com",
       scope: "cardmem:mockups:read",
+      client_id: "jam",
+      client_secret: "s:e%c",
     });
     expect(bid.calls[0]!.headers.dpop).toBeUndefined();
   });
