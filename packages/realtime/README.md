@@ -43,7 +43,9 @@ rt.presence.list(`jam:${id}`);
 - **Access is yours.** The package does not know who may see a channel — check before `stream()` and before `publish()`.
 - Event types starting with `$` are the package's own; a type or id with a newline is refused.
 
-### Per-subscriber view and named events (0.2.0, F103.4)
+### Per-subscriber view and named events (0.2.1, F103.4)
+
+0.2.0 was tagged but never published — its release gate ran on a commit with a stale internal pin. 0.2.1 is the same code.
 
 One channel, a different view per subscriber — no channel per audience:
 
