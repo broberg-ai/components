@@ -1043,6 +1043,11 @@ export function createSsoClient(
         code_challenge: await challengeFor(codeVerifier),
         code_challenge_method: "S256",
         nonce,
+        // F084.183 — the redirect the code is BOUND to, the same value /oauth2/token sends.
+        // Without it BID bound the code to the client's FIRST registered redirect, and an
+        // app served from another of its registered hosts (Jam on jams.party) got
+        // «invalid_grant — redirect_uri mismatch» at the exchange.
+        redirect_uri: config.redirectUri,
         ...(input.intent === "signup" ? { intent: "signup", name: input.name, terms_version: input.termsVersion } : {}),
         ...(input.endUserIp ? { end_user_ip: input.endUserIp } : {}),
       });

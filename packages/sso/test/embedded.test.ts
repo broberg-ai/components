@@ -85,7 +85,9 @@ describe("components-F084.165 — embedded login from the server", () => {
     expect(s.expiresIn).toBe(600);
     const start = bid.log.find((c) => c.path === "/embedded/start")!;
     expect(start.auth).toBe(`Basic ${btoa(`${CLIENT_ID}:${SECRET}`)}`);
-    expect(Object.keys(start.body).sort()).toStrictEqual(["client_id", "code_challenge", "code_challenge_method", "email", "end_user_ip", "nonce"]);
+    expect(Object.keys(start.body).sort()).toStrictEqual(["client_id", "code_challenge", "code_challenge_method", "email", "end_user_ip", "nonce", "redirect_uri"]);
+    // F084.183 — the code is bound to THIS redirect, and the exchange below sends the same one.
+    expect(start.body.redirect_uri).toBe(REDIRECT);
     expect(start.body).toMatchObject({ client_id: CLIENT_ID, email: "anne@eksempel.dk", code_challenge_method: "S256", end_user_ip: "203.0.113.7" });
     expect(start.body.code_challenge).toBe(await challenge(s.flow.codeVerifier));
     const step = await sso.embedded.verify(s.flow, "481072");
@@ -95,6 +97,7 @@ describe("components-F084.165 — embedded login from the server", () => {
     expect(step.result.claims.nonce).toBe(s.flow.nonce);
     expect(Object.keys(step.result).sort()).toStrictEqual(["accessToken", "claims", "expiresIn", "idToken", "refreshToken", "unverifiedClaims"]);
     expect(bid.log.find((c) => c.path === "/oauth2/token")!.body).toMatchObject({ grant_type: "authorization_code", client_id: CLIENT_ID, client_secret: SECRET, redirect_uri: REDIRECT });
+    expect(bid.log.find((c) => c.path === "/oauth2/token")!.body.redirect_uri).toBe(start.body.redirect_uri);
   });
 
   test("second factor by app code and by SMS — each ends in the same result", async () => {
@@ -170,7 +173,7 @@ describe("components-F084.165 — signup (F084.167)", () => {
     expect(await sso.embedded.terms("da")).toStrictEqual({ version: TERMS, text: "Ved at oprette et BID accepterer du …", links: [{ label: "Privatlivspolitik", url: "https://id.broberg.ai/privatliv" }] });
     const ok = await sso.embedded.start({ email: "ny@eksempel.dk", intent: "signup", name: "Ny Bruger", termsVersion: TERMS });
     expect(ok.ok).toBe(true);
-    expect(bid.log.filter((c) => c.path === "/embedded/start").at(-1)!.body).toMatchObject({ intent: "signup", name: "Ny Bruger", terms_version: TERMS });
+    expect(bid.log.filter((c) => c.path === "/embedded/start").at(-1)!.body).toMatchObject({ intent: "signup", name: "Ny Bruger", terms_version: TERMS, redirect_uri: REDIRECT });
     expect(await sso.embedded.start({ email: "ny@eksempel.dk", intent: "signup", name: "Ny Bruger", termsVersion: "2026-01-01" })).toStrictEqual({ ok: false, error: { kind: "terms_outdated", version: TERMS } });
   });
 
