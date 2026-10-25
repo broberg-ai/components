@@ -66,8 +66,12 @@ export async function handleDeviceBeacon(
 export interface SendLaunchBeaconOptions {
   /** Query parameter carrying the launch marker. Default `src`, as the server side. */
   launchParam?: string;
-  /** Injected for tests; defaults to the global `fetch`. */
-  fetchImpl?: typeof fetch;
+  /**
+   * Injected for tests; defaults to the global `fetch`. Typed STRUCTURALLY:
+   * `typeof fetch` differs per runtime (Bun adds `preconnect`), so a plain
+   * function would not satisfy it everywhere.
+   */
+  fetchImpl?: (input: string, init: RequestInit) => Promise<unknown>;
   /** Injected for tests; defaults to `location.search`. */
   search?: string;
 }
@@ -82,7 +86,7 @@ export async function sendLaunchBeacon(endpoint: string, opts: SendLaunchBeaconO
     const search = opts.search ?? loc?.search ?? "";
     const marker = new URLSearchParams(search).get(opts.launchParam ?? "src");
     const body = marker && LAUNCH_TOKEN.test(marker) ? JSON.stringify({ launch: marker }) : "{}";
-    const f = opts.fetchImpl ?? fetch;
+    const f = opts.fetchImpl ?? ((input: string, init: RequestInit) => fetch(input, init));
     await f(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -121,7 +121,7 @@ An unrecognised marker returns `unknown` rather than `browser` — a misconfigur
 `start_url` should be visible, not silently indistinguishable from a real
 browser visit.
 
-## Counting it — `/store` (0.4.0)
+## Counting it — `/store` (0.4.1)
 
 So no consumer rolls its own table: `createSqlDeviceStore` is the same shape as
 `@broberg/feature-stats`' `createSqlFeatureStore`. It takes anything with
@@ -144,7 +144,7 @@ bucket either: an anonymous counter is what lets this run without a consent
 prompt. The day is yours to choose (the store has no clock, and which time zone
 a day is belongs to the app).
 
-## API on another domain — `/beacon` (0.4.0)
+## API on another domain — `/beacon` (0.4.1)
 
 `launch: "installed"` comes from `?src=pwa` in the **page's** URL. When your API
 lives on another origin, the middleware only sees the API call's URL, and every

@@ -151,7 +151,7 @@ describe("sendLaunchBeacon — Tier 0: reads the page's own query string and NO 
     vi.stubGlobal("navigator", trap("navigator"));
     vi.stubGlobal("screen", trap("screen"));
     vi.stubGlobal("matchMedia", () => { touched.push("matchMedia()"); return {}; });
-    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    const fetchImpl = vi.fn(async (_input: string, _init: RequestInit) => new Response(null, { status: 204 }));
 
     const ok = await sendLaunchBeacon("https://api.example.dk/device", { search: "?src=pwa&x=1", fetchImpl });
 
@@ -164,7 +164,7 @@ describe("sendLaunchBeacon — Tier 0: reads the page's own query string and NO 
   });
 
   it("no marker → an empty body; an unsafe marker is not forwarded", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    const fetchImpl = vi.fn(async (_input: string, _init: RequestInit) => new Response(null, { status: 204 }));
     await sendLaunchBeacon("/d", { search: "", fetchImpl });
     await sendLaunchBeacon("/d", { search: "?src=%3Cscript%3E", fetchImpl });
     const bodies = fetchImpl.mock.calls.map((c) => (c as unknown as [string, RequestInit])[1].body);
@@ -172,7 +172,7 @@ describe("sendLaunchBeacon — Tier 0: reads the page's own query string and NO 
   });
 
   it("never throws into the page: a failing fetch returns false", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => { throw new Error("offline"); });
+    const fetchImpl = vi.fn(async (_input: string, _init: RequestInit): Promise<Response> => { throw new Error("offline"); });
     await expect(sendLaunchBeacon("/d", { search: "?src=pwa", fetchImpl })).resolves.toBe(false);
   });
 });
