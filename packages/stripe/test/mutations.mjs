@@ -222,7 +222,7 @@ function redSet() {
     // was undefended by construction — four probe mutations came back UNCAUGHT
     // on their first run, and the harness was right to say so. A harness that
     // runs a subset of the tests reports on the subset.
-    execFileSync("npx", ["vitest", "run", "test/fields.test.ts", "test/probe.test.ts", "test/spec-drift.test.ts", "test/direct.test.ts"], {
+    execFileSync("npx", ["vitest", "run", "test/fields.test.ts", "test/probe.test.ts", "test/spec-drift.test.ts", "test/direct.test.ts", "test/webhook-worker-build.test.ts"], {
       cwd: PKG,
       stdio: "pipe",
     });
