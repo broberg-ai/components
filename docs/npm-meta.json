@@ -229,8 +229,8 @@
  },
  "@broberg/stripe": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/stripe",
-  "version": "0.5.0",
-  "publishedAt": "2026-10-23T10:10:42.611Z",
+  "version": "0.5.1",
+  "publishedAt": "2026-10-25T02:32:02.815Z",
   "provenance": "yes"
  },
  "@broberg/pwa": {
