@@ -168,6 +168,10 @@ derived on the server from the beacon request's own headers. The sender uses
 `fetch(…, { keepalive, credentials: "omit" })`, not `navigator.sendBeacon`, so
 it touches no device accessor at all, and it never throws into your page.
 
+The route takes no login by nature — it is an anonymous counter — so anyone can
+post to it and inflate the numbers. Put a per-IP rate limit in front of it
+(`@broberg/apikey` has one) rather than trusting the totals as exact.
+
 ## Tier 1 — `/client`, behind a consent gate
 
 ```ts
