@@ -1,0 +1,55 @@
+{
+  "name": "@broberg/backup",
+  "version": "0.1.0",
+  "description": "Nightly encrypted logical backup for the broberg.ai fleet, ported from broberg-id's production backup. JSON dump of the app's own tables → gzip → AES-256-GCM, the key wrapped with RSA-OAEP: the machine can encrypt, never open. Read back and sha-checked before it says ok; 30-day retention; a freshness answer for an uptime probe.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsup",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json && node ../../scripts/mutations-if-changed.mjs test/mutations.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "backup",
+    "restore",
+    "encrypted backup",
+    "aes-256-gcm",
+    "rsa-oaep",
+    "r2",
+    "retention",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/backup"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

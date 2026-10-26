@@ -162,7 +162,7 @@
         "@broberg/secret-scan",
         "@broberg/settings",
         "@broberg/stripe",
-        "@broberg/webpush"
+        "@broberg/webpush", "@broberg/backup"
       ],
       "min_tests": {
         "@broberg/bodymap": 67,
@@ -175,7 +175,7 @@
         "@broberg/secret-scan": 140,
         "@broberg/settings": 10,
         "@broberg/stripe": 38,
-        "@broberg/webpush": 38
+        "@broberg/webpush": 38, "@broberg/backup": 7
       }
     }
   ]
