@@ -50,7 +50,7 @@ const MUTATIONS = [
     file: "index",
     from: "  const readBackMatches = back !== null && sha256(back.bytes) === ciphertextSha256;",
     to: "  const readBackMatches = true;",
-    expect: ["read back wrong → readBackMatches false, and NOTHING old is deleted"],
+    expect: ["read back wrong → readBackMatches false"],
   },
   {
     // Old copies deleted before the new one is proven: a bad night eats the last good backups.
@@ -58,7 +58,7 @@ const MUTATIONS = [
     file: "index",
     from: "  if (readBackMatches) {\n    for (let d = KEEP_DAYS + 1;",
     to: "  if (true) {\n    for (let d = KEEP_DAYS + 1;",
-    expect: ["read back wrong → readBackMatches false, and NOTHING old is deleted"],
+    expect: ["an unproven new copy deletes NOTHING old — a bad night must not eat the last good backups"],
   },
   {
     // The window off by one: day 30 is deleted, so 'keep 30 days' keeps 29.

@@ -142,14 +142,21 @@ describe("runDbBackup (ported from broberg-id)", () => {
     expect(r.alreadyToday).toBeUndefined();
   });
 
-  test("read back wrong → readBackMatches false, and NOTHING old is deleted", async () => {
+  test("read back wrong → readBackMatches false", async () => {
+    const store = memory();
+    const lying: BackupStore = { ...store, get: async () => ({ bytes: new Uint8Array([9, 9, 9]) }) };
+    const r = await runDbBackup({ source, store: lying, publicKeyPem, what: "test", now: Date.UTC(2026, 8, 30) });
+    expect(r.readBackMatches).toBe(false);
+  });
+
+  test("an unproven new copy deletes NOTHING old — a bad night must not eat the last good backups", async () => {
     const store = memory();
     const now = Date.UTC(2026, 8, 30);
     const old = objectKey(new Date(now - (KEEP_DAYS + 1) * 86_400_000).toISOString().slice(0, 10));
     store.mem.set(old, new Uint8Array([1]));
     const lying: BackupStore = { ...store, get: async () => ({ bytes: new Uint8Array([9, 9, 9]) }) };
     const r = await runDbBackup({ source, store: lying, publicKeyPem, what: "test", now });
-    expect(r.readBackMatches).toBe(false);
+    expect(r.deleted).toBe(0);
     expect(store.mem.has(old)).toBe(true);
   });
 });
