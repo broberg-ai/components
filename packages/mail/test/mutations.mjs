@@ -365,6 +365,14 @@ const MUTATIONS = [
     expect: ["p=none and a missing rua are each named"],
   },
   {
+    // F005.26 (review) — sp= ignored: `p=reject; sp=none` would promise BIMI on send.<domain>, which enforces nothing.
+    name: "a subdomain is judged by the organisation's p= instead of sp=",
+    file: "verify",
+    from: "    const tag = viaOrg && t.sp !== undefined ? 'sp' : 'p';\n",
+    to: "    const tag = 'p';\n",
+    expect: ["a subdomain under the organisational record is judged by sp=, not p= (p=reject; sp=none is NOT enforced)"],
+  },
+  {
     // F005.26 — a DNS failure reported as "missing" sends people to add records that may already exist.
     name: "a DNS failure is reported as absent",
     file: "verify",

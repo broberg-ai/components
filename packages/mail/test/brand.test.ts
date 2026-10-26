@@ -62,6 +62,18 @@ describe('F005.26 — checkBrandReadiness', () => {
     expect(r.warnings.every((w) => w.includes('not checked'))).toBe(true);
   });
 
+  it('a subdomain under the organisational record is judged by sp=, not p= (p=reject; sp=none is NOT enforced)', async () => {
+    const org = { '_dmarc.x.dk': [['v=DMARC1; p=reject; sp=none; pct=100; rua=mailto:d@x.dk; adkim=s; aspf=s']] };
+    const sub = await checkBrandReadiness('a@send.x.dk', { resolver: resolver(org) });
+    expect(sub.warnings.some((w) => w.includes('sp=none'))).toBe(true);
+    // NEGATIVE CONTROL: the org domain itself is governed by p= and is enforced.
+    const apex = await checkBrandReadiness('a@x.dk', { resolver: resolver(org) });
+    expect(apex.warnings.some((w) => w.includes('BIMI needs'))).toBe(false);
+    // and an org record with no sp= still falls back to p= for the subdomain
+    const noSp = await checkBrandReadiness('a@send.x.dk', { resolver: resolver({ '_dmarc.x.dk': [['v=DMARC1; p=none; rua=mailto:d@x.dk']] }) });
+    expect(noSp.warnings.some((w) => w.includes('is p=none'))).toBe(true);
+  });
+
   it('parseTags reads a policy, case-insensitive tag names', () => {
     expect(parseTags('v=DMARC1; P=reject;rua=mailto:a@b ')).toEqual({ v: 'DMARC1', p: 'reject', rua: 'mailto:a@b' });
   });

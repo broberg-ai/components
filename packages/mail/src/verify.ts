@@ -677,10 +677,14 @@ export async function checkBrandReadiness(
     const t = parseTags(dm.record);
     const pct = t.pct !== undefined ? Number(t.pct) : undefined;
     dmarc = { host: dm.host, p: t.p, sp: t.sp, pct, rua: t.rua, adkim: t.adkim, aspf: t.aspf };
-    const p = (t.p ?? '').toLowerCase();
+    // A subdomain that inherits the organisational record is governed by sp=, not p=
+    // (RFC 7489 §6.3) — `p=reject; sp=none` leaves send.<domain> unenforced.
+    const viaOrg = dm.host !== `_dmarc.${domain}`;
+    const tag = viaOrg && t.sp !== undefined ? 'sp' : 'p';
+    const p = (t[tag] ?? '').toLowerCase();
     if (!t.rua) warnings.push(`DMARC on ${dm.host} has no rua= — no reports arrive, so alignment cannot be measured before tightening.`);
     if (p !== 'quarantine' && p !== 'reject') {
-      warnings.push(`DMARC on ${dm.host} is p=${t.p ?? '(missing)'} — BIMI needs p=quarantine or p=reject. Tighten only once the rua reports show every legitimate sender aligned.`);
+      warnings.push(`DMARC on ${dm.host} is ${tag}=${t[tag] ?? '(missing)'}${tag === 'sp' ? ` (the policy for subdomains like ${domain})` : ''} — BIMI needs ${tag}=quarantine or ${tag}=reject. Tighten only once the rua reports show every legitimate sender aligned.`);
     } else {
       if (pct !== undefined && pct < 100) warnings.push(`DMARC on ${dm.host} has pct=${pct} — BIMI needs pct=100.`);
       if ((t.adkim ?? 'r').toLowerCase() !== 's' || (t.aspf ?? 'r').toLowerCase() !== 's') {
