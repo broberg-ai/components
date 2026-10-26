@@ -205,14 +205,14 @@
  },
  "@broberg/auth-relay": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/auth-relay",
-  "version": "0.3.3",
-  "publishedAt": "2026-10-26T17:06:07.577Z",
+  "version": "0.3.5",
+  "publishedAt": "2026-10-26T21:11:25.682Z",
   "provenance": "yes"
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.58",
-  "publishedAt": "2026-10-26T19:02:00.476Z",
+  "version": "0.1.59",
+  "publishedAt": "2026-10-26T22:13:15.824Z",
   "provenance": "yes"
  },
  "@broberg/lens-svg": {
@@ -361,8 +361,8 @@
  },
  "@broberg/ai-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
-  "version": "0.68.0",
-  "publishedAt": "2026-10-25T23:41:05.454Z",
+  "version": "0.68.1",
+  "publishedAt": "2026-10-26T20:40:45.097Z",
   "provenance": "yes"
  },
  "@broberg/fleet-client": {

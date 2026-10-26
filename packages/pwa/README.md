@@ -22,6 +22,8 @@ transformIndexHtml: () => [{ tag: "script", children: staleShellGuardScript(), i
 
 When one of the page's OWN same-origin `/assets/` scripts or stylesheets fails to load, it navigates to the same URL with `?_v=<time>` (an address the browser store has never seen), at most once per 30 s, and removes `_v` from the address bar on the fresh page. Images, foreign scripts and files outside `/assets/` never trigger it. `staleShellGuardScript({ storageKey })` sets your own sessionStorage key.
 
+**Pitfall — your server must answer a missing asset with 404.** The guard only hears an `error` event. A SPA fallback that serves `index.html` with **200** for every unknown path also answers `/assets/app-<old-hash>.js` with HTML: the browser gets a 200, the script fails to parse, no `error` fires, and the window stays white. Measured by cardmem on prod 26/10. Exclude `/assets/*` from the fallback (`@broberg/deploy-core`'s Fly Live server already does: its SPA fallback only answers extensionless browser navigations).
+
 On Fly Live, `@broberg/deploy-core` ≥ 0.8.2 also serves old hashed assets from the kept deploys (F033.20), so the 404 does not happen in the first place. This guard covers every other host.
 
 ## 0.8.0 — native icon sets from the same SVG (F021.12)
