@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-25T15:32:49.795Z",
+ "checked_at": "2026-10-26T06:53:19.846Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -43,7 +43,7 @@
    "verdict": "OK"
   },
   "@broberg/app-shell": {
-   "version": "0.24.0",
+   "version": "0.25.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -376,7 +376,7 @@
    "verdict": "OK"
   },
   "@broberg/deploy-core": {
-   "version": "0.6.0",
+   "version": "0.8.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -783,7 +783,7 @@
    "verdict": "OK"
   },
   "@broberg/local-guard": {
-   "version": "0.1.0",
+   "version": "0.2.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -894,7 +894,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-core": {
-   "version": "0.9.2",
+   "version": "0.10.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -968,7 +968,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-templates": {
-   "version": "0.2.2",
+   "version": "0.3.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1634,7 +1634,7 @@
    "verdict": "OK"
   },
   "@broberg/sso": {
-   "version": "0.21.0",
+   "version": "0.21.2",
    "status": "ok",
    "prod": {
     "critical": 0,
