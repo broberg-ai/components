@@ -155,6 +155,9 @@ describe("an app that does not exist", () => {
     }).catch((e: Error) => e);
     expect((err as Error).message).toContain("does not exist");
     expect((err as Error).message).toContain("flyctl apps create broberg-helpdesk-console --org");
+    // F033.19 — the same Fly answer for a token that may not see the app (helpdesk, CI).
+    expect((err as Error).message).toContain("FLY_API_TOKEN is not allowed to see it");
+    expect((err as Error).message).toContain("flyctl status --app broberg-helpdesk-console");
   });
 
   it("a status failure that is NOT a missing app is reported as itself", async () => {

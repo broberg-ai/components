@@ -335,8 +335,13 @@ function assertAppExists(appName: string, cwd: string): void {
   if (res.ok) return;
   if (/could not find app/i.test(res.stderr)) {
     throw new Error(
-      `Fly app "${appName}" does not exist. This function deploys INTO an app that already exists — it does not create one.\n` +
-        `Create it first:  flyctl apps create ${appName} --org <your-org>`,
+      // F033.19 — Fly answers "Could not find App" both when the app is missing AND
+      // when FLY_API_TOKEN may not see it (a token scoped to another app or org).
+      // Naming only the first sent helpdesk after the wrong cause in CI.
+      `Fly could not find app "${appName}": either it does not exist, or FLY_API_TOKEN is not allowed to see it ` +
+        `(a token scoped to another app or org gets the same answer).\n` +
+        `Tell them apart: run  flyctl status --app ${appName}  with your own login — if that works, the token's scope is the problem.\n` +
+        `If the app really is missing (this function deploys INTO an existing app, it does not create one):  flyctl apps create ${appName} --org <your-org>`,
     );
   }
   throw new Error(`flyctl could not read the status of app "${appName}": ${res.stderr.trim()}`);
