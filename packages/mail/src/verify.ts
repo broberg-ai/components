@@ -566,3 +566,140 @@ export async function verifySendingDomain(
 
   return { ok, domain, spf, dkim: dkimState, mx: mxState, dmarc: dmarcState, missing, unknown, foundAt, summary };
 }
+
+// ─────────────────────────────────────── BIMI readiness (F005.26)
+//
+// Owner's rule 26/10 (D-b1f7f8): every repo that sends mail follows BIMI, so a
+// logo can one day show beside our mails in Gmail, Apple Mail and Yahoo. BIMI
+// needs an ENFORCED DMARC policy (quarantine/reject, pct=100), a default._bimi
+// record, an SVG Tiny PS logo and — for Gmail/Apple — a VMC/CMC certificate.
+//
+// This only REPORTS. It never blocks a send: a warning about a logo must not cost
+// anyone their password-reset mail. Separate from verifySendingDomain on purpose,
+// so that function's `ok` (can we deliver at all?) keeps meaning what it meant.
+
+/** The tags of a DMARC policy we care about. Absent tag → undefined. */
+export interface DmarcPolicy {
+  /** Where the policy was found — the domain itself or its organisational domain. */
+  host: string;
+  p?: string;
+  sp?: string;
+  pct?: number;
+  rua?: string;
+  adkim?: string;
+  aspf?: string;
+}
+
+export interface BimiRecord {
+  host: string;
+  /** Logo URL (must be an https SVG Tiny PS). */
+  l?: string;
+  /** Certificate URL (VMC or CMC). Without it Gmail and Apple show no logo. */
+  a?: string;
+}
+
+export interface BrandReadiness {
+  domain: string;
+  /** null = looked and found no policy; 'unknown' = could not ask DNS. */
+  dmarc: DmarcPolicy | null | 'unknown';
+  bimi: BimiRecord | null | 'unknown';
+  /** Plain-language findings, most important first. Empty = ready for BIMI as far as DNS can tell. */
+  warnings: string[];
+}
+
+/** `v=DMARC1; p=none; rua=…` → { v, p, rua }. Tag names lower-cased; values trimmed. */
+export function parseTags(record: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of record.split(';')) {
+    const i = part.indexOf('=');
+    if (i <= 0) continue;
+    out[part.slice(0, i).trim().toLowerCase()] = part.slice(i + 1).trim();
+  }
+  return out;
+}
+
+/** Where a BIMI record could live, nearest first — same walk as DMARC (selector `default`). */
+export function bimiHosts(domain: string): string[] {
+  return dmarcHosts(domain).map((h) => h.replace(/^_dmarc\./, 'default._bimi.'));
+}
+
+async function firstRecord(
+  hosts: string[],
+  dns: Pick<DnsResolver, 'resolveTxt'>,
+  accept: (record: string) => boolean,
+): Promise<{ host: string; record: string } | null | 'unknown'> {
+  let unknown = false;
+  for (const host of hosts) {
+    try {
+      const txt = await dns.resolveTxt(host);
+      const hit = txt.map((parts) => parts.join('').trim()).find(accept);
+      if (hit) return { host, record: hit };
+    } catch (err) {
+      if (!ABSENT_CODES.has((err as { code?: string }).code ?? '')) unknown = true;
+    }
+  }
+  return unknown ? 'unknown' : null;
+}
+
+/**
+ * How far is this sender from showing a logo? Reports DMARC policy and BIMI
+ * record, and lists what is missing in the order to fix it. Never throws.
+ *
+ * ```ts
+ * const r = await checkBrandReadiness(process.env.MAIL_FROM!);
+ * for (const w of r.warnings) console.warn('[mail] BIMI:', w);
+ * ```
+ */
+export async function checkBrandReadiness(
+  rawFrom: string,
+  options: { resolver?: Pick<DnsResolver, 'resolveTxt'> } = {},
+): Promise<BrandReadiness> {
+  const dns = options.resolver ?? { resolveTxt };
+  let domain: string;
+  try {
+    domain = senderDomain(rawFrom);
+  } catch {
+    return { domain: rawFrom, dmarc: 'unknown', bimi: 'unknown', warnings: [`${JSON.stringify(rawFrom)} is not a domain or address — nothing was checked.`] };
+  }
+
+  const [dm, bi] = await Promise.all([
+    firstRecord(dmarcHosts(domain), dns, (r) => r.toLowerCase().startsWith('v=dmarc1')),
+    firstRecord(bimiHosts(domain), dns, (r) => r.toLowerCase().startsWith('v=bimi1')),
+  ]);
+
+  const warnings: string[] = [];
+  let dmarc: BrandReadiness['dmarc'] = 'unknown';
+  if (dm === 'unknown') warnings.push(`Could not look up DMARC for ${domain} — not checked.`);
+  else if (dm === null) {
+    dmarc = null;
+    warnings.push(`No DMARC policy for ${domain}. BIMI needs one. First step: TXT _dmarc.${domain} "v=DMARC1; p=none; rua=mailto:<report-address>" — then read the reports before tightening.`);
+  } else {
+    const t = parseTags(dm.record);
+    const pct = t.pct !== undefined ? Number(t.pct) : undefined;
+    dmarc = { host: dm.host, p: t.p, sp: t.sp, pct, rua: t.rua, adkim: t.adkim, aspf: t.aspf };
+    const p = (t.p ?? '').toLowerCase();
+    if (!t.rua) warnings.push(`DMARC on ${dm.host} has no rua= — no reports arrive, so alignment cannot be measured before tightening.`);
+    if (p !== 'quarantine' && p !== 'reject') {
+      warnings.push(`DMARC on ${dm.host} is p=${t.p ?? '(missing)'} — BIMI needs p=quarantine or p=reject. Tighten only once the rua reports show every legitimate sender aligned.`);
+    } else {
+      if (pct !== undefined && pct < 100) warnings.push(`DMARC on ${dm.host} has pct=${pct} — BIMI needs pct=100.`);
+      if ((t.adkim ?? 'r').toLowerCase() !== 's' || (t.aspf ?? 'r').toLowerCase() !== 's') {
+        warnings.push(`DMARC on ${dm.host} uses relaxed alignment (adkim=${t.adkim ?? 'r'}, aspf=${t.aspf ?? 'r'}) — the fleet target is adkim=s; aspf=s.`);
+      }
+    }
+  }
+
+  let bimi: BrandReadiness['bimi'] = 'unknown';
+  if (bi === 'unknown') warnings.push(`Could not look up BIMI for ${domain} — not checked.`);
+  else if (bi === null) {
+    bimi = null;
+    warnings.push(`No BIMI record (default._bimi.${domain}). Add TXT "v=BIMI1; l=https://<host>/logo.svg; a=" once the logo is SVG Tiny PS.`);
+  } else {
+    const t = parseTags(bi.record);
+    bimi = { host: bi.host, l: t.l || undefined, a: t.a || undefined };
+    if (!t.l) warnings.push(`BIMI on ${bi.host} has no logo URL (l=).`);
+    else if (!/^https:\/\//i.test(t.l)) warnings.push(`BIMI logo on ${bi.host} must be served over https.`);
+    if (!t.a) warnings.push(`BIMI on ${bi.host} has no certificate (a=) — Yahoo and others may show the logo; Gmail and Apple will not until a VMC or CMC is added.`);
+  }
+  return { domain, dmarc, bimi, warnings };
+}

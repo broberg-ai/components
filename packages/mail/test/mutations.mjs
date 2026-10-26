@@ -356,6 +356,22 @@ const MUTATIONS = [
     to: "",
     expect: ["an empty list is no secret"],
   },
+  {
+    // F005.26 — p=none passes as if it were enforced: BIMI would be promised on a domain that cannot show it.
+    name: "a non-enforcing DMARC policy is accepted for BIMI",
+    file: "verify",
+    from: "    if (p !== 'quarantine' && p !== 'reject') {\n",
+    to: "    if (false) {\n",
+    expect: ["p=none and a missing rua are each named"],
+  },
+  {
+    // F005.26 — a DNS failure reported as "missing" sends people to add records that may already exist.
+    name: "a DNS failure is reported as absent",
+    file: "verify",
+    from: "      if (!ABSENT_CODES.has((err as { code?: string }).code ?? '')) unknown = true;\n",
+    to: "",
+    expect: ["a DNS failure is \"unknown\", never \"missing\""],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "mailmut-"));

@@ -308,6 +308,15 @@ export const INFRA = [
     ],
   },
   {
+    id: "mail-brand", name: "Mail brand — DMARC + BIMI (sender logo in the inbox)", role: "Make every sending domain able to show our logo in Gmail, Apple Mail and Yahoo",
+    kw: ["bimi","dmarc","spf","dkim","sender logo","mail logo","brand indicators","vmc","cmc","svg tiny ps","tiny-ps","inbox logo","deliverability","afsenderlogo","logo i indbakken","mail-logo","afsender","kode-mail logo"],
+    region: "DNS via cardmem (D-4092fb) · check in @broberg/mail/verify",
+    notes: "OWNER'S RULE 26/10 (D-b1f7f8): every repo that SENDS MAIL follows BIMI, so a logo can show beside our mails. Four requirements, free steps first: (a) DMARC — start p=none with rua=mailto:<report-address>, read the reports for at least two weeks, fix any sender that does not align, then p=quarantine and finally p=reject with pct=100 and adkim=s; aspf=s. BIMI needs quarantine or reject. Going straight to reject can bounce our own mail from an unaligned sender. (b) BIMI record: TXT default._bimi.<domain> \"v=BIMI1; l=https://<host>/logo.svg; a=<certificate-url>\" — a subdomain can carry its own record, otherwise the organisational domain's applies. (c) Logo as SVG Tiny PS: baseProfile=\"tiny-ps\" version=\"1.2\", square viewBox, a <title>, no scripts/event handlers/external references/<image>, under 32 KB. (d) Gmail and Apple show the logo only with a certificate in a=: VMC (registered trademark, about USD 1,000-1,500 a year) or CMC (no trademark, but the logo documented in public use for 12+ months); Yahoo and others may show it without. CHECK IT: checkBrandReadiness(from) in @broberg/mail/verify (0.18.0) lists what is missing in fix order and never blocks a send. DNS records are created by cardmem from a list (domain · name · type · value · TTL). Fleet rollout and inventory: components F005.28.",
+    tips: [
+      { t: "Measured 26/10 with checkBrandReadiness: broberg.ai and webhouse.dk already run p=quarantine (rua buddy+dmarc@broberg.ai) but with relaxed alignment and no BIMI record; jams.party has p=none + a BIMI record without a certificate. A subdomain like send.broberg.ai inherits broberg.ai's DMARC but may carry its own BIMI logo (default._bimi.send.broberg.ai).", by: "components", tag: "bimi-measured" },
+    ],
+  },
+  {
     id: "pitch", name: "Pitch Vault", role: "Customer pitches — create, publish & share branded pitch pages",
     kw: ["pitch","pitches","customer pitch","sales pitch","presentation","proposal","pitch vault","deck","slides","pitch.broberg.dk"],
     region: "Fly arn (pitch.broberg.dk)",

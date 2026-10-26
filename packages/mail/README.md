@@ -17,6 +17,22 @@ to send transactional mail across every `@broberg/*` app.
 pnpm add @broberg/mail
 ```
 
+## BIMI readiness — `checkBrandReadiness()` (0.18.0, F005.26)
+
+The owner's rule (26/10, D-b1f7f8): every repo that sends mail follows BIMI, so our logo can show beside our mails in Gmail, Apple Mail and Yahoo. `checkBrandReadiness(from)` (in `@broberg/mail/verify`) reports how far a sender is from that, in fix order. It only REPORTS — sending is never blocked by it.
+
+```ts
+import { checkBrandReadiness } from "@broberg/mail/verify";
+const r = await checkBrandReadiness(process.env.MAIL_FROM!);
+for (const w of r.warnings) console.warn("[mail] BIMI:", w);
+// r.dmarc → { host, p, sp, pct, rua, adkim, aspf } | null | "unknown"
+// r.bimi  → { host, l, a } | null | "unknown"
+```
+
+It names: no DMARC (with the first-step record), `p=none`, no `rua`, `pct<100`, relaxed alignment (fleet target `adkim=s; aspf=s`), no `default._bimi` record, a logo not on https, and no certificate (`a=` — Gmail and Apple need a VMC or CMC). A subdomain falls back to its organisational domain for both records. A DNS failure is `"unknown"`, never "missing".
+
+**Order matters:** `p=none` + `rua` first, read the reports for at least two weeks, then `quarantine`, then `reject`. Going straight to `reject` can bounce your own mail from a sender that is not aligned yet. DNS changes go through cardmem. The full guide is on Discovery (infra «mail-brand»).
+
 ## Usage
 
 ```ts
