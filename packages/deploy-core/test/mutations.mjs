@@ -235,8 +235,8 @@ const MUTATIONS = [
     // The other half: immutable on everything would freeze an unhashed file for a year.
     name: "every file is immutable, hashed or not",
     file: "fly-live-assets",
-    from: ".test(relative(CURRENT, p))) {",
-    to: ".test(relative(CURRENT, p)) || true) {",
+    from: "  if (isHashedAsset(relative(CURRENT, p))) return IMMUTABLE;",
+    to: "  if (isHashedAsset(relative(CURRENT, p)) || true) return IMMUTABLE;",
     expect: ["an UNHASHED file is not made immutable"],
   },
   {
