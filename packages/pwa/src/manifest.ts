@@ -272,3 +272,6 @@ export function pwaMetaTags(opts: MetaTagsOptions = {}): MetaTag[] {
   }
   return tags;
 }
+
+// F021.13 — the stale-page guard belongs with the other <head> helpers.
+export { staleShellGuardScript, STALE_SHELL_STORAGE_KEY, STALE_SHELL_WINDOW_MS, STALE_SHELL_PARAM } from "./stale-shell.js";

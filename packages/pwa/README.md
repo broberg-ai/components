@@ -8,6 +8,22 @@ as one small, framework- and bundler-agnostic package instead of a fifth copy.
 npm i @broberg/pwa
 ```
 
+## 0.9.0 — a stale page reloads itself fresh, once: `staleShellGuardScript()` (F021.13)
+
+After a deploy, an installed app can start on its stored copy of the page. That copy points at `/assets/` files the deploy removed, they 404, and the window stays **white**. A plain reload can get the same stored page back. This guard is helpdesk's (F047.5/F047.6, in production), ported as is:
+
+```ts
+import { staleShellGuardScript } from "@broberg/pwa/manifest";
+
+// Vite: first thing in <head>, before your app script
+transformIndexHtml: () => [{ tag: "script", children: staleShellGuardScript(), injectTo: "head-prepend" }],
+// Next: <Script id="stale-shell" strategy="beforeInteractive">{staleShellGuardScript()}</Script>
+```
+
+When one of the page's OWN same-origin `/assets/` scripts or stylesheets fails to load, it navigates to the same URL with `?_v=<time>` (an address the browser store has never seen), at most once per 30 s, and removes `_v` from the address bar on the fresh page. Images, foreign scripts and files outside `/assets/` never trigger it. `staleShellGuardScript({ storageKey })` sets your own sessionStorage key.
+
+On Fly Live, `@broberg/deploy-core` ≥ 0.8.2 also serves old hashed assets from the kept deploys (F033.20), so the 404 does not happen in the first place. This guard covers every other host.
+
 ## 0.8.0 — native icon sets from the same SVG (F021.12)
 
 For Capacitor (iOS/Android) and Tauri apps, so none of them keeps its own icon script:

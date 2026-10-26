@@ -28,6 +28,7 @@ const CLI = join(HERE, 'src/cli.ts');
 const OFFER = join(HERE, 'src/should-offer.ts');
 const MANIFEST = join(HERE, 'src/manifest.ts');
 const NATIVE = join(HERE, 'src/native.ts');
+const STALE = join(HERE, 'src/stale-shell.ts');
 
 /** The 0.2.2 shape, verbatim: four names, and the two that mattered missing. */
 const OLD_LIST = `    const updater = createPwaUpdater({
@@ -38,6 +39,24 @@ const OLD_LIST = `    const updater = createPwaUpdater({
     });`;
 
 const MUTATIONS = [
+  {
+    name: 'F021.13 the origin check is dropped (a failing CDN script reloads the page)',
+    file: STALE,
+    from: '    if (url.origin !== w.location.origin || url.pathname.indexOf("/assets/") !== 0) return;',
+    to: '    if (url.pathname.indexOf("/assets/") !== 0) return;',
+  },
+  {
+    name: 'F021.13 the 30 s window is dropped (a genuinely missing asset reloads in a loop)',
+    file: STALE,
+    from: '      if (Date.now() - sidst < ${STALE_SHELL_WINDOW_MS}) return;\n',
+    to: '',
+  },
+  {
+    name: 'F021.13 a plain reload instead of a fresh address (the store answers with the same stale page)',
+    file: STALE,
+    from: '      w.location.replace(frisk.toString());',
+    to: '      w.location.reload();',
+  },
   {
     name: 'F021.9 the manifest icons[] keep pointing at the SVGs (iOS shows a screenshot again)',
     file: RASTER,
