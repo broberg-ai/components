@@ -33,6 +33,20 @@ It names: no DMARC (with the first-step record), `p=none`, no `rua`, `pct<100`, 
 
 **Order matters:** `p=none` + `rua` first, read the reports for at least two weeks, then `quarantine`, then `reject`. Going straight to `reject` can bounce your own mail from a sender that is not aligned yet. DNS changes go through cardmem. The full guide is on Discovery (infra «mail-brand»).
 
+### The logo file — `validateBimiSvg()` (0.19.0, F005.27)
+
+BIMI shows a logo only if it is **SVG Tiny PS**, and a wrong file is dropped without any error — the mail just arrives with initials. Check the file before the DNS record points at it:
+
+```ts
+import { readFileSync } from "node:fs";
+import { validateBimiSvg } from "@broberg/mail/verify";
+const problems = validateBimiSvg(readFileSync("brand/bimi.svg", "utf8"));
+// [] = passes. Otherwise [{ rule, message }, …], rule ∈ size · root · version · base-profile ·
+// view-box · square · root-position · title · script · event-handler · external-reference · image · foreign-object
+```
+
+Rules: root `<svg version="1.2" baseProfile="tiny-ps">`, a square `viewBox`, no `x=`/`y=` on the root, a non-empty `<title>`, no `<script>`, event handlers, `<image>`, `<foreignObject>` or external `href` (only `#id`), at most 32 KB. Measured: the owner-approved broberg.ai B mark and the live Jam logo both pass. A subdomain is judged by the organisation's `sp=` when it inherits the record (0.18.1).
+
 ## Usage
 
 ```ts

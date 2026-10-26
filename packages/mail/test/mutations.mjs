@@ -365,6 +365,22 @@ const MUTATIONS = [
     expect: ["p=none and a missing rua are each named"],
   },
   {
+    // F005.27 — the square rule dropped: a 2:1 banner logo passes, and Gmail shows initials instead.
+    name: "a non-square BIMI logo passes the check",
+    file: "verify",
+    from: "    else if (parts[2] !== parts[3]) add('square'",
+    to: "    else if (false) add('square'",
+    expect: ["a non-square viewBox is named; a missing one is named differently"],
+  },
+  {
+    // F005.27 — any href accepted: an external reference (a tracking pixel, a remote file) passes.
+    name: "an external href passes the BIMI logo check",
+    file: "verify",
+    from: "    if (!m[1]!.startsWith('#')) {",
+    to: "    if (false) {",
+    expect: ["an external href is named; a same-file #id is fine"],
+  },
+  {
     // F005.26 (review) — sp= ignored: `p=reject; sp=none` would promise BIMI on send.<domain>, which enforces nothing.
     name: "a subdomain is judged by the organisation's p= instead of sp=",
     file: "verify",

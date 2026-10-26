@@ -707,3 +707,64 @@ export async function checkBrandReadiness(
   }
   return { domain, dmarc, bimi, warnings };
 }
+
+// ─────────────────────────────────────── BIMI logo check (F005.27)
+//
+// BIMI shows a logo only when it is SVG Tiny Portable/Secure (SVG Tiny PS). A
+// logo that breaks a rule is dropped by Gmail, Apple Mail and Yahoo WITHOUT any
+// error — the mail simply arrives with initials. So each brand gets a check it
+// can run on its own file before the DNS record points at it.
+//
+// String rules, not an XML parser: the package stays dependency-free, and every
+// rule below is about the root element, a tag that must not exist, or an
+// attribute that must not appear — none needs a full tree.
+
+export interface BimiSvgProblem {
+  /** Stable name for the rule, so a caller can test for it. */
+  rule: 'size' | 'root' | 'version' | 'base-profile' | 'view-box' | 'square' | 'root-position' | 'title' | 'script' | 'event-handler' | 'external-reference' | 'image' | 'foreign-object';
+  message: string;
+}
+
+/** The BIMI group's ceiling for the logo file. */
+export const BIMI_SVG_MAX_BYTES = 32 * 1024;
+
+/** An empty list means the file passes every rule this check knows. */
+export function validateBimiSvg(svg: string): BimiSvgProblem[] {
+  const problems: BimiSvgProblem[] = [];
+  const add = (rule: BimiSvgProblem['rule'], message: string) => problems.push({ rule, message });
+
+  const bytes = new TextEncoder().encode(svg).length;
+  if (bytes > BIMI_SVG_MAX_BYTES) add('size', `The file is ${bytes} bytes — BIMI allows at most ${BIMI_SVG_MAX_BYTES} (32 KB).`);
+
+  const root = /<svg\b[^>]*>/i.exec(svg)?.[0];
+  if (!root) {
+    add('root', 'No <svg> element found.');
+    return problems;
+  }
+  const attr = (name: string) => new RegExp(`\\s${name}\\s*=\\s*["']([^"']*)["']`, 'i').exec(root)?.[1];
+
+  if (attr('version') !== '1.2') add('version', `The root <svg> needs version="1.2" (found ${attr('version') === undefined ? 'none' : `"${attr('version')}"`}).`);
+  if ((attr('baseProfile') ?? '').toLowerCase() !== 'tiny-ps') add('base-profile', `The root <svg> needs baseProfile="tiny-ps" (found ${attr('baseProfile') === undefined ? 'none' : `"${attr('baseProfile')}"`}).`);
+
+  const viewBox = attr('viewBox');
+  if (viewBox === undefined) add('view-box', 'The root <svg> needs a viewBox.');
+  else {
+    const parts = viewBox.trim().split(/[\s,]+/).map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) add('view-box', `viewBox "${viewBox}" is not four numbers.`);
+    else if (parts[2] !== parts[3]) add('square', `The logo must be square — viewBox is ${parts[2]}×${parts[3]}.`);
+  }
+  if (attr('x') !== undefined || attr('y') !== undefined) add('root-position', 'The root <svg> must not carry x= or y=.');
+
+  if (!/<title\b[^>]*>\s*[^<\s][^<]*<\/title>/i.test(svg)) add('title', 'A non-empty <title> is required (the brand name).');
+  if (/<script\b/i.test(svg)) add('script', '<script> is not allowed.');
+  if (/\son[a-z]+\s*=/i.test(svg)) add('event-handler', 'Event handler attributes (onclick=, onload=, …) are not allowed.');
+  if (/<image\b/i.test(svg)) add('image', '<image> is not allowed — the logo must be vector shapes only.');
+  if (/<foreignObject\b/i.test(svg)) add('foreign-object', '<foreignObject> is not allowed.');
+  for (const m of svg.matchAll(/\s(?:xlink:)?href\s*=\s*["']([^"']*)["']/gi)) {
+    if (!m[1]!.startsWith('#')) {
+      add('external-reference', `External reference "${m[1]}" is not allowed — only same-file links (#id).`);
+      break;
+    }
+  }
+  return problems;
+}
