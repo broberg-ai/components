@@ -71,6 +71,10 @@ async function serveStatic(pathname, req) {
     return fileResponse(full);
   } catch {
     try { await access(\`\${full}.html\`); return fileResponse(\`\${full}.html\`); } catch {}
+    if (isHashedAsset(rel)) {
+      const kept = await findInKeptDeploys(rel);
+      if (kept) return new Response(Bun.file(kept), { headers: IMMUTABLE });
+    }
     // F033.12 — an unknown ROUTE is the SPA's own; an unknown ASSET is a broken
     // deploy. TWO clauses, and neither is sufficient alone: an Accept check by
     // itself hands index.html to a fetch() for a missing JSON file, and an
@@ -103,10 +107,34 @@ function fileResponse(p, status = 200) { return new Response(Bun.file(p), { stat
 // Anything else is left as it was: a year on an unhashed file is the same bug.
 function cacheHeaders(p) {
   if (p.endsWith(".html")) return { "cache-control": "no-cache" };
-  if (/^assets\\/(.+\\/)?[^/]+-[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9]+$/.test(relative(CURRENT, p))) {
-    return { "cache-control": "public, max-age=31536000, immutable" };
-  }
+  if (isHashedAsset(relative(CURRENT, p))) return IMMUTABLE;
   return {};
+}
+
+const IMMUTABLE = { "cache-control": "public, max-age=31536000, immutable" };
+/** A content-hashed asset name: the bytes behind it can never change. */
+function isHashedAsset(rel) {
+  return /^assets\\/(.+\\/)?[^/]+-[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9]+$/.test(rel);
+}
+
+// F033.20 — owner-reported: every INSTALLED app went white after a deploy, and
+// Cmd+Shift+R did not help. A page the app (or its service worker) already
+// holds asks for /assets/<old-hash>.js; the deploy removed it from current/, so
+// 404 → nothing drawn. But the last KEEP_DEPLOYS deploys are still on disk, so
+// the file EXISTS. A hashed name can never mean different bytes, so serving it
+// from an older deploy is safe — and it lets the old page draw instead of
+// going white. Only hashed assets: an old robots.txt must never come back.
+async function findInKeptDeploys(rel) {
+  let entries;
+  try { entries = await readdir(DEPLOYS, { withFileTypes: true }); } catch { return null; }
+  const currentId = await readCurrentDeployId();
+  const dirs = entries.filter(e => e.isDirectory() && e.name !== currentId).map(e => e.name).sort().reverse();
+  for (const name of dirs) {
+    const candidate = safeJoin(join(DEPLOYS, name), rel);
+    if (!candidate) return null;
+    try { if ((await stat(candidate)).isFile()) return candidate; } catch {}
+  }
+  return null;
 }
 
 function verifyAuth(req, url, body) {

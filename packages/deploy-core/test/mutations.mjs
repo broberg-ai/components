@@ -38,6 +38,23 @@ if (dirty) {
 
 const MUTATIONS = [
   {
+    // F033.20 — THE DEFECT, RESTORED: an old page's hashed asset is on disk in a
+    // kept deploy and still answers 404, so an installed app goes white.
+    name: "the kept-deploy fallback is dropped (an old page's assets 404 again)",
+    file: "fly-live-assets",
+    from: "      const kept = await findInKeptDeploys(rel);",
+    to: "      const kept = null;",
+    expect: ["an asset only in the PREVIOUS deploy is served with its own bytes and the immutable header"],
+  },
+  {
+    // F033.20 — the fallback widened to ANY file: an old robots.txt comes back.
+    name: "the kept-deploy fallback is widened to unhashed files",
+    file: "fly-live-assets",
+    from: "    if (isHashedAsset(rel)) {\n      const kept",
+    to: "    if (true) {\n      const kept",
+    expect: ["NEGATIVE: an UNHASHED file only in the old deploy stays 404 (an old robots.txt must never come back)"],
+  },
+  {
     // F033.12 — the trap in the obvious implementation. Without the extension
     // guard a dropped /assets/app-abc123.js answers index.html with 200, the
     // browser fails on a parse error naming the wrong problem, and an
