@@ -355,8 +355,8 @@
  },
  "@broberg/ai-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
-  "version": "0.67.0",
-  "publishedAt": "2026-10-25T17:16:56.277Z",
+  "version": "0.68.0",
+  "publishedAt": "2026-10-25T23:41:05.454Z",
   "provenance": "yes"
  },
  "@broberg/fleet-client": {
