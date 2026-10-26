@@ -206,6 +206,22 @@ const MUTATIONS = [
     to: "",
     expect: ["a request that never answers fails after requestTimeoutMs"],
   },
+  {
+    // F033.17 — the owner-reported white screen, restored: HTML without no-cache.
+    name: "HTML is sent without Cache-Control again (the white screen after a deploy)",
+    file: "fly-live-assets",
+    from: '  if (p.endsWith(".html")) return { "cache-control": "no-cache" };',
+    to: "",
+    expect: ["all say no-cache"],
+  },
+  {
+    // The other half: immutable on everything would freeze an unhashed file for a year.
+    name: "every file is immutable, hashed or not",
+    file: "fly-live-assets",
+    from: ".test(relative(CURRENT, p))) {",
+    to: ".test(relative(CURRENT, p)) || true) {",
+    expect: ["an UNHASHED file is not made immutable"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "deploymut-"));

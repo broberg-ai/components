@@ -92,7 +92,21 @@ function looksLikeRoute(pathname, req) {
   return !last.includes(".");
 }
 
-function fileResponse(p, status = 200) { return new Response(Bun.file(p), { status }); }
+function fileResponse(p, status = 200) { return new Response(Bun.file(p), { status, headers: cacheHeaders(p) }); }
+
+// F033.17 — owner-reported: a PWA started on a WHITE screen after every deploy.
+// With no Cache-Control the browser guessed how long index.html stays fresh,
+// reused the old one, and asked for /assets/<old-hash>.js that the deploy had
+// removed → 404 on JS and CSS → nothing drawn. HTML must always be revalidated;
+// a HASHED asset never changes under its name, so it may be kept for a year.
+// Anything else is left as it was: a year on an unhashed file is the same bug.
+function cacheHeaders(p) {
+  if (p.endsWith(".html")) return { "cache-control": "no-cache" };
+  if (/^assets\\/(.+\\/)?[^/]+-[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9]+$/.test(relative(CURRENT, p))) {
+    return { "cache-control": "public, max-age=31536000, immutable" };
+  }
+  return {};
+}
 
 function verifyAuth(req, url, body) {
   const sig = req.headers.get("x-cms-signature"), ts = req.headers.get("x-cms-timestamp");

@@ -115,3 +115,42 @@ describe("F033.12 — with the flag ON", () => {
     expect(await r.text()).toContain("body{}");
   });
 });
+
+// F033.17 — owner-reported white screen after every deploy: the browser reused a
+// cached index.html pointing at assets the deploy had removed. Asserted against
+// the booted server, same as above.
+describe("F033.17 — Cache-Control: HTML is revalidated, hashed assets are immutable", () => {
+  let s: Awaited<ReturnType<typeof boot>>;
+  beforeAll(async () => {
+    s = await boot({ SPA_FALLBACK: "true" });
+    mkdirSync(join(s.dir, "current", "assets"), { recursive: true });
+    writeFileSync(join(s.dir, "current", "assets", "main-AbC123xy.js"), "console.log(1)");
+    writeFileSync(join(s.dir, "current", "assets", "logo.svg"), "<svg/>");
+    writeFileSync(join(s.dir, "current", "om.html"), INDEX);
+    writeFileSync(join(s.dir, "current", "404.html"), "<!doctype html><title>404</title>");
+  }, 30_000);
+  afterAll(() => s?.stop());
+
+  it("/, /om, an SPA route and the 404 page all say no-cache", async () => {
+    for (const [p, status] of [["/", 200], ["/om", 200], ["/en/rute", 200], ["/mangler.png", 404]] as const) {
+      const r = await fetch(`${s.url}${p}`, { headers: HTML });
+      expect(r.status, p).toBe(status);
+      expect(r.headers.get("cache-control"), p).toBe("no-cache");
+    }
+  });
+
+  it("a hashed file under /assets/ is immutable for a year — and keeps its content type", async () => {
+    const r = await fetch(`${s.url}/assets/main-AbC123xy.js`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(r.headers.get("content-type") ?? "").toContain("javascript");
+  });
+
+  it("an UNHASHED file is not made immutable (that would be the same bug in another file)", async () => {
+    for (const p of ["/real.css", "/assets/logo.svg"]) {
+      const r = await fetch(`${s.url}${p}`);
+      expect(r.status, p).toBe(200);
+      expect(r.headers.get("cache-control") ?? "", p).not.toContain("immutable");
+    }
+  });
+});
