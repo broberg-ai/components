@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- All 148 tips are inline below, in full. That part needs no second fetch.
+- All 150 tips are inline below, in full. That part needs no second fetch.
 - **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at https://discovery.broberg.ai/llms-full.txt. Fetch it before you decide a capability is missing.
 
 ## Secrets Vault — flådens delte krypterede secret-store
@@ -28,6 +28,21 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **Kortlæg env-var:** `cardmem_set_secret_env_name({ secret_id, env_var_name })`. Eller brug UI'et: **Settings → Secrets**.
 
 **Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.
+
+## ARS — alt du skal bruge fra ejeren, beder du om med `ars ask`
+
+**Ejeren taster KUN i ARS (D-dbaedd, global).** Skal du bruge en kode fra hans authenticator, et password, et login eller et ja, så spørger du via ARS — aldrig i en terminal, en browser eller en chat:
+
+```bash
+~/.buddy/bin/ars ask --kind code|password|text|approve --question "…" --requester <din-session>
+```
+
+Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én gang. Pakken er `@broberg/auth-relay`; detaljer og tips står under infra «Owner input».
+
+- **Skriv aldrig** «kør `! npm login`», «indsæt koden her» eller «log ind i browseren». Det er en sætning, der beder ham taste uden for ARS, og den er forbudt. Ejeren 26/10, da en agent gjorde det: *«Hvorfor gør du ikke det selv om bruger ars ask?»*
+- **Kig i vaulten først** (`cardmem_list_secrets` — de globale secrets rummer flådens logins). Det meste, du tror, du mangler fra ham, ligger der allerede.
+- **En kode lever ca. 30 sekunder.** Spørg ARS i SAMME script, som bruger svaret (`OTP=$(ars ask …); cmd --otp=$OTP`), ikke i ét værktøjskald og brug den i det næste.
+- **npm login ved 401:** password fra vaulten (global «cbroberg (npm login)») + kode fra ARS mod registry-API'et, eller `npm login --auth-type=web` godkendt af lens-agenten. Selve `npm publish` skal bruge en NY kode.
 
 ## Packages by category (75)
 
@@ -76,7 +91,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/lens-engine** v0.14.1 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-engine` · https://www.npmjs.com/package/@broberg/lens-engine · udgivet 23.10.2026 kl. 02.09 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-client** v0.1.2 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-client` · https://www.npmjs.com/package/@broberg/lens-client · udgivet 12.10.2026 kl. 02.13 (dansk tid) · Trusted Publisher ✓
 - **@broberg/local-guard** v0.2.0 — One guard for a local HTTP daemon on 127.0.0.1, extracted from @broberg/lens-daemon (security sweep 2026-10-21) so lens and auth-relay stop carryin…. `npm i @broberg/local-guard` · https://www.npmjs.com/package/@broberg/local-guard · udgivet 25.10.2026 kl. 20.10 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
-- **@broberg/auth-relay** v0.3.2 — Udgives fra github.com/broberg-ai/auth-relay. `npm i @broberg/auth-relay` · https://www.npmjs.com/package/@broberg/auth-relay · udgivet 26.10.2026 kl. 02.08 (dansk tid) · Trusted Publisher ✓
+- **@broberg/auth-relay** v0.3.2 — ARS: en agent beder ejeren om en kode, et password eller en godkendelse; han svarer i ét lokalt vindue, og kun den spørgende agent får svaret, én gang. `npm i @broberg/auth-relay` · https://www.npmjs.com/package/@broberg/auth-relay · udgivet 26.10.2026 kl. 02.08 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-daemon** v0.1.56 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-daemon` · https://www.npmjs.com/package/@broberg/lens-daemon · udgivet 26.10.2026 kl. 17.14 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-svg** v0.1.1 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-svg` · https://www.npmjs.com/package/@broberg/lens-svg · udgivet 23.10.2026 kl. 11.24 (dansk tid) · Trusted Publisher ✓
 - **@broberg/webmcp** v0.1.0 — WebMCP for the fleet (epic F098): letting a customer's own AI find and use a site's booking, shop or order tools. `npm i @broberg/webmcp` · https://www.npmjs.com/package/@broberg/webmcp · udgivet 12.10.2026 kl. 01.30 (dansk tid) · ingen provenance · afhængigheder: OK
@@ -172,7 +187,11 @@ owner. That conversation is the whole point of this inventory.
 - **Deployment Mgmt (observe)** (L3) · ⛔ NOT BUILT YET (moved) — nothing to install, nothing to import · owner: upmetrics — ASK THEM before building a second one
   The observe half of deployment management
 
-## Tips & tricks — every tip inline (148 across 17 platforms)
+## Tips & tricks — every tip inline (150 across 18 platforms)
+
+### Owner input — codes, passwords, logins, approvals → ARS (ars ask) (2)
+- **[tip]** npm login when `npm whoami` answers 401 (measured by components 26/10, @broberg/backup bootstrap): the password is in the vault (global secret «cbroberg (npm login)»). Log in through the registry API — PUT https://registry.npmjs.org/-/user/org.couchdb.user:cbroberg with {name,password} and header npm-otp: <code from `ars ask --kind code`> — and write the returned token to ~/.npmrc. The publish then needs a SECOND, fresh code (the first is spent on the login), so ask ARS again right before `npm publish --otp`. Alternative (auth-relay): `npm login --auth-type=web` and send the URL to the lens agent, which approves it in its npm profile; 2FA still via ARS. _(components)_
+- **[tip]** Codes live ~30 s. Ask ARS in the SAME script that uses the answer (OTP=$(ars ask …); cmd --otp=$OTP), never in one tool call and use it in the next — the gap is long enough for the code to expire. _(components)_
 
 ### Fly.io (35)
 - **[build-stamp]** health.build — stamp the running commit on your health endpoint, and say how much to trust it. Convention (beacon, measured on their own service): GET /v1/health returns build:{ commit, dirty, source } where source is env (a deploy declared its sha, e.g. BUILD env var — declared, not observed) then git (the process runs from a work tree and git was asked — observed) then unknown (commit MUST be null). Five decisions, each one a trap somebody already hit: (1) read it ONCE at startup, never per request — the question is what the process was started from, and a git lookup per request answers about the tree as it is NOW, i.e. code the process never loaded; (2) UNTRACKED files count as dirty — the process runs what is on disk, and an uncommitted file is still one it could load; (3) never invent a sha — null plus source unknown, because a sha that looks like an answer is worse than no answer; (4) dirty is not decoration, it says how far to trust the sha: a true sha on a dirty tree describes code that is not running; (5) for the CONSUMER of the field — when comparing two sides (a page against the service that serves it), a dirty on EITHER side must make the comparison SILENT. A bundle is stamped when it is built, i.e. before the commit that contains it, so during ordinary work the shas disagree all day; warn on that and the warning is ignored within a week. Two CLEAN builds that disagree is the thing worth flagging. And say what a difference means: beacons service ran 732e4241 while HEAD was 637bae6, a real 48-hour drift — but that commit only touched CLAUDE.md, so the drift was harmless. A field that reports difference without significance becomes why is my service always red. _(beacon)_

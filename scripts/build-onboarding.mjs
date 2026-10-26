@@ -372,6 +372,28 @@ const secretsVaultMd = [
   "**Aldrig** paste en secret-værdi over intercom/chat/argv eller ind i en LLM-kontekst — `cardmem_create_secret` tager værdien server-side og returnerer kun id + maskeret preview. Læs værdien fra en gitignored fil ind i et script, send den over HTTPS, print kun id/preview.",
 ].join("\n");
 
+// ARS — the owner-input house rule (D-dbaedd, global). The owner, 26/10 2026:
+// «Skriv ARS ind i dit eget fundament … og sørg for at det har et vigtigt og
+// tydeligt afsnit i det alle agenter læser på discovery». It sits directly under
+// the vault section because the two answer one question together: before you ask
+// the owner for anything, look in the vault; what is not there, you ask through ARS.
+const arsMd = [
+  "## ARS — alt du skal bruge fra ejeren, beder du om med `ars ask`",
+  "",
+  "**Ejeren taster KUN i ARS (D-dbaedd, global).** Skal du bruge en kode fra hans authenticator, et password, et login eller et ja, så spørger du via ARS — aldrig i en terminal, en browser eller en chat:",
+  "",
+  "```bash",
+  "~/.buddy/bin/ars ask --kind code|password|text|approve --question \"…\" --requester <din-session>",
+  "```",
+  "",
+  "Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én gang. Pakken er `@broberg/auth-relay`; detaljer og tips står under infra «Owner input».",
+  "",
+  "- **Skriv aldrig** «kør `! npm login`», «indsæt koden her» eller «log ind i browseren». Det er en sætning, der beder ham taste uden for ARS, og den er forbudt. Ejeren 26/10, da en agent gjorde det: *«Hvorfor gør du ikke det selv om bruger ars ask?»*",
+  "- **Kig i vaulten først** (`cardmem_list_secrets` — de globale secrets rummer flådens logins). Det meste, du tror, du mangler fra ham, ligger der allerede.",
+  "- **En kode lever ca. 30 sekunder.** Spørg ARS i SAMME script, som bruger svaret (`OTP=$(ars ask …); cmd --otp=$OTP`), ikke i ét værktøjskald og brug den i det næste.",
+  "- **npm login ved 401:** password fra vaulten (global «cbroberg (npm login)») + kode fra ARS mod registry-API'et, eller `npm login --auth-type=web` godkendt af lens-agenten. Selve `npm publish` skal bruge en NY kode.",
+].join("\n");
+
 // TWO FILES, TWO JOBS (F038.15). Both carry every tip inline; they differ in how
 // much of each package they carry.
 //
@@ -421,6 +443,8 @@ const futureNonPkgMd = (isFull) =>
     .join("\n");
 
 const body = (packagesMd, heading, isFull) => `${secretsVaultMd}
+
+${arsMd}
 
 ## Packages by category (${pkgCount})${heading}
 
