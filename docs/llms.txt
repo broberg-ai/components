@@ -98,7 +98,7 @@ Vaulten **erstatter ikke `.env`** — `.env` er stadig helt fint til lokal dev. 
 - **@broberg/seti-client** v0.4.0 — The SETI streaming-chat client. `npm i @broberg/seti-client` · https://www.npmjs.com/package/@broberg/seti-client · udgivet 11.08.2026 kl. 18.55 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/seti-server** v0.2.5 — The SETI proxy router. `npm i @broberg/seti-server` · https://www.npmjs.com/package/@broberg/seti-server · udgivet 18.06.2026 kl. 00.39 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/soundkit** v0.1.0 — SoundKit. `npm i @broberg/soundkit` · https://www.npmjs.com/package/@broberg/soundkit · udgivet 11.07.2026 kl. 18.58 (dansk tid) · ingen provenance · afhængigheder: OK
-- **@broberg/deploy-core** v0.7.0 — The fleet's shared deploy execution layer. `npm i @broberg/deploy-core` · https://www.npmjs.com/package/@broberg/deploy-core · udgivet 26.10.2026 kl. 01.54 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
+- **@broberg/deploy-core** v0.8.0 — The fleet's shared deploy execution layer. `npm i @broberg/deploy-core` · https://www.npmjs.com/package/@broberg/deploy-core · udgivet 26.10.2026 kl. 03.14 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/changelog** (planned) — Auto product-changelog from git history. `npm i @broberg/changelog`
 - **@broberg/email-shell** (planned) — NOT A PACKAGE YET. `npm i @broberg/email-shell`
 
