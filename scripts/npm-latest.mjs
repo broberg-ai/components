@@ -44,10 +44,44 @@ async function fetchOne(pkg) {
   return { pkg, version, published, provenance };
 }
 
+// F038.46 — the docs-stale check rebuilds once with EXTERNAL packages frozen to the
+// committed docs/npm-meta.json, so a release from another repo (lens, auth-relay,
+// ai-sdk …) is told apart from a change in this repo. Only that check sets the env;
+// every normal build still asks the registry about everything.
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/** Names of the packages PUBLISHED FROM THIS REPO (a packages/*\/package.json here). */
+export function ownPackages() {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "packages");
+  return new Set(
+    readdirSync(dir)
+      .map((d) => join(dir, d, "package.json"))
+      .filter((f) => existsSync(f))
+      .map((f) => JSON.parse(readFileSync(f, "utf8")).name),
+  );
+}
+
+function frozenExternal() {
+  const file = process.env.DISCOVERY_FREEZE_EXTERNAL;
+  if (!file) return null;
+  return { meta: JSON.parse(readFileSync(file, "utf8")), own: ownPackages() };
+}
+
 /** Every package's latest release, newest first. Throws if ANY lookup fails —
  *  a partial answer would silently crown the wrong package. */
 export async function fetchLatestReleases(packages) {
   const unique = [...new Set(packages)];
-  const results = await Promise.all(unique.map(fetchOne));
+  const frozen = frozenExternal();
+  const results = await Promise.all(
+    unique.map((pkg) => {
+      const m = frozen && !frozen.own.has(pkg) ? frozen.meta[pkg] : undefined;
+      if (m?.version && m?.publishedAt) {
+        return { pkg, version: m.version, published: m.publishedAt, provenance: m.provenance === "yes" };
+      }
+      return fetchOne(pkg);
+    }),
+  );
   return results.sort((a, b) => b.published.localeCompare(a.published));
 }
