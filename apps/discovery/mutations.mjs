@@ -83,7 +83,7 @@ function redSet() {
   let out = "";
   let died = false;
   try {
-    out = execFileSync("npx", ["vitest", "run", "server.test.ts", "--reporter=verbose"], {
+    out = execFileSync("npx", ["vitest", "run", "server.test.ts", "store-health.test.ts", "--reporter=verbose"], {
       cwd: HERE,
       encoding: "utf8",
       stdio: "pipe",
