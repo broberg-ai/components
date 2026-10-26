@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-26T06:53:19.846Z",
+ "checked_at": "2026-10-26T15:59:27.190Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -102,6 +102,43 @@
    },
    "outdated": {
     "total": 9,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "osv": {
+    "status": "ok",
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0,
+    "unrated": 0,
+    "findings": []
+   },
+   "verdict": "OK"
+  },
+  "@broberg/backup": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 1,
+    "high": 2,
+    "moderate": 8,
+    "low": 1
+   },
+   "outdated": {
+    "total": 4,
     "shipped": 0,
     "deprecated": 0
    },
@@ -857,7 +894,7 @@
    "verdict": "OK"
   },
   "@broberg/mail": {
-   "version": "0.17.0",
+   "version": "0.19.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1131,10 +1168,10 @@
     "low": 0
    },
    "dev": {
-    "critical": 1,
-    "high": 2,
-    "moderate": 8,
-    "low": 1
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
    },
    "outdated": {
     "total": 4,
