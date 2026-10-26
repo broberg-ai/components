@@ -11,6 +11,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createLogger } from "@broberg/logger";
 import { requestLogger, errorLogger } from "@broberg/logger/hono";
+import { init as upmetricsInit, captureException } from "@upmetrics/sdk";
 // Single source of truth — shared with scripts/build-inventory.mjs.
 import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
 // F083 — the FLEET roster is DERIVED from every repo's real package.json files,
@@ -345,7 +346,23 @@ const app = new Hono();
 // Before cors/routes so a request is logged even when a later middleware rejects it.
 // /health is skipped: Fly probes it constantly and it would drown the real traffic.
 app.use("*", requestLogger(log, { skip: (c) => c.req.path === "/health" }));
-app.onError(errorLogger(log));
+// F038.47 — errors also reach Upmetrics. The DSN was a Fly secret for months while
+// nothing called init, so a 25-minute outage of 500s (F039.10, 26/10) left zero
+// issues for this repo to close. Ship dark: no DSN → no reporter. Only the method
+// and path go along — enroll keys travel in headers, so headers and bodies never do.
+type ErrorReporter = (err: unknown, ctx: { method: string; path: string }) => void;
+let reportError: ErrorReporter | null = null;
+if (process.env.UPMETRICS_DSN) {
+  upmetricsInit({ dsn: process.env.UPMETRICS_DSN, environment: process.env.NODE_ENV ?? "production", release: VERSION });
+  reportError = (err, ctx) => { captureException(err, ctx); };
+}
+/** Test seam: swap the reporter (null = ship dark). */
+export function __setErrorReporter(fn: ErrorReporter | null) { reportError = fn; }
+const logError = errorLogger(log);
+app.onError((err, c) => {
+  try { reportError?.(err, { method: c.req.method, path: c.req.path }); } catch (e) { log.warn("upmetrics report failed", { err: e }); }
+  return logError(err, c);
+});
 app.use("/api/*", cors()); // public read-only catalogue — any repo/browser may query
 app.use("/", cors());
 

@@ -66,6 +66,13 @@ const MUTATIONS = [
     from: "        if (store) await store.ping();\n",
     to: "",
   },
+  {
+    // F038.47 — THE DEFECT, RESTORED: onError logs but never reports, so an outage
+    // leaves Upmetrics empty and the repo has nothing to close.
+    name: "onError stops reporting to Upmetrics (a 25-minute outage leaves zero issues)",
+    from: "  try { reportError?.(err, { method: c.req.method, path: c.req.path }); } catch (e) {",
+    to: "  try { void reportError; } catch (e) {",
+  },
 ];
 
 // DELIBERATELY ABSENT, recorded rather than left as an uncaught line: "owns is
@@ -83,7 +90,7 @@ function redSet() {
   let out = "";
   let died = false;
   try {
-    out = execFileSync("npx", ["vitest", "run", "server.test.ts", "store-health.test.ts", "--reporter=verbose"], {
+    out = execFileSync("npx", ["vitest", "run", "server.test.ts", "store-health.test.ts", "upmetrics-report.test.ts", "--reporter=verbose"], {
       cwd: HERE,
       encoding: "utf8",
       stdio: "pipe",
