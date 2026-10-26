@@ -464,7 +464,30 @@ app.get("/", (c) => {
   return c.html(withConsent(LANDING));
 });
 
-app.get("/health", (c) => c.json({ ok: true, service: "discovery", version: VERSION }));
+// F039.10 — /health is what Fly's check reads, so it must say whether THIS machine
+// can serve. It used to answer ok without touching the store: on 26/10 a machine
+// that could not reach Turso answered 500 to everything for 25 minutes while its
+// check stayed green, and Fly kept routing to it. No store configured (dev,
+// tests) is not "down". The reason is one word — never a host or an error text.
+const HEALTH_STORE_TIMEOUT_MS = 2000;
+app.get("/health", async (c) => {
+  const base = { service: "discovery", version: VERSION };
+  try {
+    // The whole probe — connecting included — sits under the timeout: Fly's own
+    // check gives up at 5 s, and a store that hangs must read as down, not slow.
+    const configured = await Promise.race([
+      (async () => {
+        const store = await getEnrollStore();
+        if (store) await store.ping();
+        return store !== null;
+      })(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), HEALTH_STORE_TIMEOUT_MS)),
+    ]);
+    return c.json({ ok: true, ...base, store: configured ? "ok" : "not_configured" });
+  } catch {
+    return c.json({ ok: false, ...base, store: "unreachable" }, 503);
+  }
+});
 
 // F098.1 — a fictional bookable page to measure what AI agents can do with it.
 app.route("/webmcp-lab", webmcpLab().app);

@@ -59,6 +59,13 @@ const MUTATIONS = [
     from: "  const mergedFrom = names.filter((n, i) => n !== asked && perName[i].length > 0);",
     to: "  const mergedFrom = [];",
   },
+  {
+    // F039.10 — THE DEFECT, RESTORED: /health answers ok without asking the
+    // store, so Fly keeps routing to a machine that can serve nothing.
+    name: "/health no longer probes the store (a dead machine stays in rotation)",
+    from: "        if (store) await store.ping();\n",
+    to: "",
+  },
 ];
 
 // DELIBERATELY ABSENT, recorded rather than left as an uncaught line: "owns is

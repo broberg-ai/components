@@ -75,6 +75,8 @@ export interface EnrollStore {
    * reset would be a TOFU-bypass surface. Returns rows removed (0 if not bound).
    */
   resetSessionKey(session: string): Promise<number>;
+  /** F039.10 — one cheap round-trip, so /health can say whether this machine can reach the store. */
+  ping(): Promise<void>;
 }
 
 export function makeEnrollStore(client: Client): EnrollStore {
@@ -117,6 +119,9 @@ export function makeEnrollStore(client: Client): EnrollStore {
       const rs = await client.execute({ sql: "DELETE FROM session_keys WHERE session = ?", args: [session] });
       return rs.rowsAffected;
     },
+    async ping() {
+      await client.execute("SELECT 1");
+    },
   };
 }
 
@@ -133,6 +138,10 @@ export function getEnrollStore(): Promise<EnrollStore | null> {
       await client.execute(CREATE_KEYS);
       return makeEnrollStore(client);
     })();
+    // F039.10 — never keep a REJECTED init. It used to be cached, so one failed
+    // connect at boot answered every later request with the same error in 0 ms
+    // until the machine was restarted — even after the network had healed.
+    _init.catch(() => { _init = null; });
   }
   return _init;
 }
