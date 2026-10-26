@@ -44,7 +44,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 - **En kode lever ca. 30 sekunder.** Spørg ARS i SAMME script, som bruger svaret (`OTP=$(ars ask …); cmd --otp=$OTP`), ikke i ét værktøjskald og brug den i det næste.
 - **npm login ved 401:** password fra vaulten (global «cbroberg (npm login)») + kode fra ARS mod registry-API'et, eller `npm login --auth-type=web` godkendt af lens-agenten. Selve `npm publish` skal bruge en NY kode.
 
-## Packages by category (75)
+## Packages by category (76)
 
 ### L0 — Rails (foundation every app stands on)
 - **@broberg/theme** v0.13.3 — The design-token foundation every surface inherits, plus prePaintScript(): the <head> string that sets the theme before the first paint, so no app …. `npm i @broberg/theme` · https://www.npmjs.com/package/@broberg/theme · udgivet 11.10.2026 kl. 12.22 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
@@ -53,6 +53,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 - **@broberg/config** v0.4.0 — The fleet's single-source config helper. `npm i @broberg/config` · https://www.npmjs.com/package/@broberg/config · udgivet 25.10.2026 kl. 00.40 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/mail** v0.19.0 — The fleet's thin Resend send primitive, plus a status lookup that answers whether a mail actually arrived. `npm i @broberg/mail` · https://www.npmjs.com/package/@broberg/mail · udgivet 26.10.2026 kl. 15.25 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/media** v0.6.0 — The fleet's provider-agnostic media-storage facade. `npm i @broberg/media` · https://www.npmjs.com/package/@broberg/media · udgivet 14.10.2026 kl. 01.35 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
+- **@broberg/backup** v0.1.0 — Ported from broberg-id's production backup (src/db-backup.ts, nightly since 29 Sep 2026, read back and sha-checked every night). `npm i @broberg/backup` · https://www.npmjs.com/package/@broberg/backup · udgivet 26.10.2026 kl. 17.47 (dansk tid) · ingen provenance · afhængigheder: OK
 - **@broberg/mail-core** v0.10.0 — DELIVERED by @broberg/mail-core (F023.1). `npm i @broberg/mail-core` · https://www.npmjs.com/package/@broberg/mail-core · udgivet 25.10.2026 kl. 22.20 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/media-transform** v0.2.0 — The fleet's server-side image-transform primitive. `npm i @broberg/media-transform` · https://www.npmjs.com/package/@broberg/media-transform · udgivet 25.10.2026 kl. 01.06 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/cron** v0.2.0 — The fleet's typed self-service client for cronjobs.webhouse.net. `npm i @broberg/cron` · https://www.npmjs.com/package/@broberg/cron · udgivet 28.08.2026 kl. 11.55 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK

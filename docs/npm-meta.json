@@ -23,6 +23,12 @@
   "publishedAt": "2026-10-13T23:35:43.931Z",
   "provenance": "yes"
  },
+ "@broberg/backup": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/backup",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-26T16:47:06.445Z",
+  "provenance": "no"
+ },
  "@broberg/mail-core": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail-core",
   "version": "0.10.0",
