@@ -12,7 +12,7 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("F039.10 — the enroll store", () => {
+describe("F039.10 — the enroll store", { timeout: 30_000 }, () => {
   it("a failed first connect is NOT remembered: the next call retries and gets a working store", async () => {
     process.env.ENROLL_DB_URL = REFUSED;
     const { getEnrollStore } = await import("./enroll");
@@ -25,7 +25,9 @@ describe("F039.10 — the enroll store", () => {
   });
 });
 
-describe("F039.10 — /health tells Fly whether this machine can serve", () => {
+// Importing server.ts takes seconds when several test files load it at once; the
+// response-time bound (< 3 s) is asserted inside the test, not via the test timeout.
+describe("F039.10 — /health tells Fly whether this machine can serve", { timeout: 30_000 }, () => {
   it("store unreachable → 503 with a one-word reason and no host in the body", async () => {
     process.env.ENROLL_DB_URL = REFUSED;
     const { app } = await import("./server");
