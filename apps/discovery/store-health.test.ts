@@ -39,6 +39,17 @@ describe("F039.10 — /health tells Fly whether this machine can serve", () => {
     expect(JSON.stringify(body)).not.toContain("127.0.0.1");
   });
 
+  it("connected at boot, network lost since → 503 (the 26/10 machine: init had succeeded, every query failed)", async () => {
+    process.env.ENROLL_DB_URL = ":memory:";
+    const { app } = await import("./server");
+    const { getEnrollStore } = await import("./enroll");
+    const store = (await getEnrollStore())!;
+    vi.spyOn(store, "ping").mockRejectedValue(Object.assign(new Error("ECONNREFUSED"), { code: "ECONNREFUSED" }));
+    const res = await app.request("/health");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, store: "unreachable" });
+  });
+
   it("store answers → 200 ok", async () => {
     process.env.ENROLL_DB_URL = ":memory:";
     const { app } = await import("./server");
