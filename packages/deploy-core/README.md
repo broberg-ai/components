@@ -12,6 +12,12 @@ It does **not** contain Cloudflare Pages, GitHub Pages or a deploy-event bus.
 Earlier versions of this package's description said it did; the code never had
 them (planned in F033.2 / F033.3).
 
+## Fly Live: a server fix reaches apps that already run (0.8.0, F033.18)
+
+`flyLiveDeploy` syncs CONTENT to an app that answers `/_icd/health`; it never replaced the server code inside the container. A server fix (0.7.0's Cache-Control) therefore reached only apps that happened to be re-provisioned. Now the server reports `FLY_LIVE_SERVER_VERSION` — a hash of its own code and Dockerfile, so it changes whenever the server does — and `flyLiveDeploy` takes the infra path when a live app reports a different version. The result says why: `{ mode: "infra", reason: "server version 1.0.0 ≠ 82b3…" }`.
+
+**The first deploy after upgrading is a full infra deploy, once per app** (every running server reports the old "1.0.0"). After that, deploys are content syncs again. `chooseDeployMode(health, expected, forceInfra)` is exported if you want to decide yourself.
+
 ## FlyClient
 
 ```ts

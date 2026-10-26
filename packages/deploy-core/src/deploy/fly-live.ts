@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
-import { FLY_LIVE_DOCKERFILE, FLY_LIVE_SERVER_TS, FLY_LIVE_TOML_TEMPLATE } from "./fly-live-assets.js";
+import { FLY_LIVE_DOCKERFILE, FLY_LIVE_SERVER_TS, FLY_LIVE_SERVER_VERSION, FLY_LIVE_TOML_TEMPLATE } from "./fly-live-assets.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +53,8 @@ export interface FlyLiveDeployResult {
   filesUnchanged: number;
   durationMs: number;
   serverVersion?: string;
+  /** F033.18 — why this mode was taken, e.g. "server version 1.0.0 ≠ 3f2a…". */
+  reason: string;
 }
 
 export interface ManifestRecord {
@@ -510,6 +512,24 @@ export async function flyLiveRebuildInfra(
 // ── High-level deploy entry point ─────────────────────────────────────────────
 
 /**
+ * F033.18 — sync or infra? A live app whose SERVER is older than this package's
+ * must be re-provisioned: a content sync never replaces server.ts, so a server fix
+ * (F033.17's Cache-Control) would otherwise reach only apps that happen to rebuild.
+ */
+export function chooseDeployMode(
+  health: { ok: boolean; version?: string } | null,
+  expected: string = FLY_LIVE_SERVER_VERSION,
+  forceInfra = false,
+): { mode: "infra" | "sync"; reason: string } {
+  if (forceInfra) return { mode: "infra", reason: "forceInfra" };
+  if (!health?.ok) return { mode: "infra", reason: "app not reachable" };
+  if (health.version !== expected) {
+    return { mode: "infra", reason: `server version ${health.version ?? "unknown"} \u2260 ${expected}` };
+  }
+  return { mode: "sync", reason: `server version ${expected} is current` };
+}
+
+/**
  * Deploy files to a Fly Live app.
  * - If the app is reachable, uses content-sync (no flyctl required).
  * - If the app is unreachable or `forceInfra` is set, falls back to full infra provision.
@@ -522,16 +542,17 @@ export async function flyLiveDeploy(
   const t0 = Date.now();
   const baseUrl = options?.baseUrl ?? `https://${config.appName}.fly.dev`;
 
-  // Check if the endpoint is alive
-  let appAlive = false;
+  // Alive AND running this package's server? Otherwise provision (F033.18).
+  let health: { ok: boolean; version?: string } | null = null;
   if (!options?.forceInfra) {
     try {
       const healthRes = await icdFetch(baseUrl, "GET", "/_icd/health", new Uint8Array(0), config.syncSecret);
-      appAlive = healthRes.ok;
+      health = { ok: healthRes.ok, version: healthRes.ok ? ((await healthRes.json()) as { version?: string }).version : undefined };
     } catch {}
   }
+  const decision = chooseDeployMode(health, FLY_LIVE_SERVER_VERSION, options?.forceInfra);
 
-  if (!appAlive) {
+  if (decision.mode === "infra") {
     // Provision infra first
     await flyLiveRebuildInfra(config, { baseUrl });
   }
@@ -548,7 +569,8 @@ export async function flyLiveDeploy(
 
   return {
     url: config.customDomain ? `https://${config.customDomain}` : baseUrl,
-    mode: appAlive ? "sync" : "infra",
+    mode: decision.mode,
+    reason: decision.reason,
     filesUploaded: syncResult.filesUploaded,
     filesRemoved: syncResult.filesRemoved,
     filesUnchanged: syncResult.filesUnchanged,

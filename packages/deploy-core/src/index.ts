@@ -7,7 +7,9 @@ export {
   signIcdRequest,
   generateSyncSecret,
   redactSyncSecret,
+  chooseDeployMode,
 } from "./deploy/fly-live.js";
+export { FLY_LIVE_SERVER_VERSION } from "./deploy/fly-live-assets.js";
 
 export type {
   FlyLiveConfig,

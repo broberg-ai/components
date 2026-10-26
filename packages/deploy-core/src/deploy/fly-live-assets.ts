@@ -1,7 +1,8 @@
 // Embedded assets for the Fly Live sync-endpoint server.
 // Written to a temp dir at infra-provision time; never required for content-sync.
+import { createHash } from "node:crypto";
 
-export const FLY_LIVE_SERVER_TS = `// Fly Live sync-endpoint server. Runs inside the Docker image on Fly.io.
+const SERVER_TEMPLATE = `// Fly Live sync-endpoint server. Runs inside the Docker image on Fly.io.
 // Serves static files from /srv/current AND handles HMAC-signed /_icd/* endpoints.
 // Auth: HMAC-SHA256 over \`\${timestamp}\\n\${method}\\n\${pathWithQuery}\\n\${sha256(body)}\`.
 // Atomic deploys: staging dir under /srv/deploys/<id>/, symlink swap at /srv/current.
@@ -13,7 +14,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
-const SERVER_VERSION = "1.0.0";
+const SERVER_VERSION = "__FLY_LIVE_SERVER_VERSION__";
 const PORT = Number(process.env.PORT || 8080);
 const DATA_ROOT = process.env.SITE_DATA_ROOT || "/srv";
 const CURRENT = join(DATA_ROOT, "current");
@@ -252,3 +253,16 @@ primary_region = "{{REGION}}"
   destination = "/srv"
   initial_size = "1gb"
 `;
+
+// F033.18 — the server's version IS a hash of the code it runs (+ its Dockerfile).
+// It was a hand-kept "1.0.0" that nobody ever bumped, so a running app could not
+// say it was old — and flyLiveDeploy, which only syncs CONTENT to a live app,
+// never delivered a server fix (helpdesk measured it on F033.17). A hash cannot
+// be forgotten: change the server and the version changes with it.
+export const FLY_LIVE_SERVER_VERSION = createHash("sha256")
+  .update(SERVER_TEMPLATE)
+  .update(FLY_LIVE_DOCKERFILE)
+  .digest("hex")
+  .slice(0, 12);
+
+export const FLY_LIVE_SERVER_TS = SERVER_TEMPLATE.replace("__FLY_LIVE_SERVER_VERSION__", FLY_LIVE_SERVER_VERSION);

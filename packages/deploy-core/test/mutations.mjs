@@ -222,6 +222,22 @@ const MUTATIONS = [
     to: ".test(relative(CURRENT, p)) || true) {",
     expect: ["an UNHASHED file is not made immutable"],
   },
+  {
+    // F033.18 — the version comparison is dropped: a live app on an old server is synced again.
+    name: "a live app on an OLDER server is only synced (the server fix never arrives)",
+    file: "fly-live",
+    from: "  if (health.version !== expected) {",
+    to: "  if (false) {",
+    expect: ["a live app on an OLDER server"],
+  },
+  {
+    // F033.18 — the version is a hand-kept constant again.
+    name: "the server reports a hand-kept version again",
+    file: "fly-live-assets",
+    from: 'export const FLY_LIVE_SERVER_TS = SERVER_TEMPLATE.replace("__FLY_LIVE_SERVER_VERSION__", FLY_LIVE_SERVER_VERSION);',
+    to: 'export const FLY_LIVE_SERVER_TS = SERVER_TEMPLATE.replace("__FLY_LIVE_SERVER_VERSION__", "1.0.0");',
+    expect: ["the shipped server carries it"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "deploymut-"));
