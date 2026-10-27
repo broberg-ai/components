@@ -205,14 +205,14 @@
  },
  "@broberg/auth-relay": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/auth-relay",
-  "version": "0.3.6",
-  "publishedAt": "2026-10-27T00:29:35.264Z",
+  "version": "0.3.8",
+  "publishedAt": "2026-10-27T01:37:06.485Z",
   "provenance": "yes"
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.60",
-  "publishedAt": "2026-10-27T00:59:36.496Z",
+  "version": "0.1.61",
+  "publishedAt": "2026-10-27T01:43:49.395Z",
   "provenance": "yes"
  },
  "@broberg/lens-svg": {
