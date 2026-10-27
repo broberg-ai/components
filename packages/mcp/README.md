@@ -22,9 +22,10 @@ npm i @broberg/mcp @modelcontextprotocol/sdk zod
 > **required** peer and is *not* installed automatically — a missing one shows up
 > only when the server fails to boot. `express` + `jose` are optional (OAuth only).
 
-> **zod `^3 || ^4` (since 0.5.0).** Both majors work: on zod 4 the toolkit uses
-> zod's own `z.toJSONSchema()` (draft-2020-12, what MCP wants); on zod 3 it uses
-> `zod-to-json-schema`. Still **dedupe to a single zod major** in your consumer —
+> **zod `^4.6.6` (since 0.11.0; was `^3 || ^4` from 0.5.0).** zod 3 is no longer
+> accepted — it is hit by GHSA-mrhx-c7xc-m3w5 and gets no patch (see
+> [zod ≥ 4.6.6](#zod--466-security)). The toolkit uses zod's own `z.toJSONSchema()`
+> (draft-2020-12, what MCP wants). Still **dedupe to a single zod major** in your consumer —
 > better-auth pulls zod4 while older MCP SDKs peer zod3, and two SDK copies give
 > incompatible `Server<>` types. If a shape ever fails to convert, the toolkit
 > now **throws `EmptyInputSchemaError`** instead of quietly registering a tool
