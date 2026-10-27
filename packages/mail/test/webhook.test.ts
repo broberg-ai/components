@@ -289,3 +289,56 @@ describe('handleMailWebhook', () => {
     expect(done).toBe(true);
   });
 });
+
+describe('verify runs BEFORE parse — a tampered body never reaches onEvent (F005.7 AC6)', () => {
+  it('valid-looking JSON whose bytes differ from what was signed is refused before parsing', async () => {
+    // Signed as "delivered", then swapped for a perfectly parseable "bounced".
+    // If parse ran first (or verify were skipped) onEvent would see a bounce.
+    const forged = JSON.stringify({ type: 'email.bounced', data: { email_id: 're_abc123', to: ['medlem@klub.dk'] } });
+    const onEvent = vi.fn();
+    const res = await handleMailWebhook(forged, signed(DELIVERED), { secret: SECRET, onEvent });
+    expect(res.status).toBe(401);
+    expect(res.body.reason).toBe('no_signature_match');
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('framework adapters — Hono and Next are the core, not copies of it', () => {
+  function request(body: string, headers: Record<string, string>) {
+    return new Request('https://app.test/webhooks/mail', { method: 'POST', body, headers });
+  }
+
+  it('hono: a signed request reaches onEvent and answers 202', async () => {
+    const { mailWebhook } = await import('../src/hono');
+    const onEvent = vi.fn();
+    const res = await mailWebhook({ secret: SECRET, onEvent })({ req: { raw: request(DELIVERED, signed(DELIVERED)) } });
+    expect(res.status).toBe(202);
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'delivered', providerId: 're_abc123' }));
+  });
+
+  it('hono: a missing secret answers 401 and never calls onEvent', async () => {
+    const { mailWebhook } = await import('../src/hono');
+    const onEvent = vi.fn();
+    const res = await mailWebhook({ secret: undefined, onEvent })({ req: { raw: request(DELIVERED, signed(DELIVERED)) } });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ ok: false, reason: 'no_secret' });
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('next: a tampered body answers 401 and never calls onEvent', async () => {
+    const { mailWebhookRoute } = await import('../src/next');
+    const onEvent = vi.fn();
+    const tampered = DELIVERED.replace('Kampprogram', 'Kampprogram!');
+    const res = await mailWebhookRoute({ secret: SECRET, onEvent })(request(tampered, signed(DELIVERED)));
+    expect(res.status).toBe(401);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('next: a signed request reaches onEvent and answers 202', async () => {
+    const { mailWebhookRoute } = await import('../src/next');
+    const onEvent = vi.fn();
+    const res = await mailWebhookRoute({ secret: SECRET, onEvent })(request(DELIVERED, signed(DELIVERED)));
+    expect(res.status).toBe(202);
+    expect(onEvent).toHaveBeenCalledOnce();
+  });
+});

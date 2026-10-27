@@ -328,3 +328,17 @@ export type {
   WebhookAdminResult,
   ReplayFailedReport,
 } from './webhook-admin';
+
+/**
+ * The same handler as a fetch-standard function: `Request` in, `Response` out.
+ * Both framework adapters (`@broberg/mail/hono`, `@broberg/mail/next`) are this,
+ * so neither can drift from the core — and it reads the body as TEXT, never as
+ * parsed JSON, because a re-serialised body will not verify (see verifyWebhook).
+ */
+export function mailWebhookFetchHandler(config: WebhookHandlerConfig): (req: Request) => Promise<Response> {
+  return async (req) => {
+    const rawBody = await req.text();
+    const { status, body } = await handleMailWebhook(rawBody, req.headers, config);
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  };
+}

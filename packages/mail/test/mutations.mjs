@@ -356,6 +356,23 @@ const MUTATIONS = [
     expect: ["replays every failed event across pages, and nothing else"],
   },
   {
+    // F005.7 AC1 — a no-op verifier: every signature "matches". The tampered-body
+    // case must go red, or the forged-body test proves nothing.
+    name: "verifyWebhook accepts any signature (a no-op verifier)",
+    file: "webhook",
+    from: "  return { ok: false, reason: 'no_signature_match' };\n}\n",
+    to: "  return { ok: true };\n}\n",
+    expect: ["a forged body with a valid-looking signature is rejected", "valid-looking JSON whose bytes differ from what was signed is refused before parsing"],
+  },
+  {
+    // F005.7 AC6 — the handler parses and delivers without honouring the verdict.
+    name: "handleMailWebhook ignores a failed verification",
+    file: "webhook",
+    from: "  if (!verified.ok) {\n",
+    to: "  if (false) {\n",
+    expect: ["401s an unverified request and never calls onEvent", "hono: a missing secret answers 401 and never calls onEvent"],
+  },
+  {
     // F005.21 — a rotation list that ends up empty must still mean "no secret",
     // never fall through to a verifier with nothing to compare against.
     name: "an empty secret list is no longer refused as no_secret",
