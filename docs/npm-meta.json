@@ -175,8 +175,8 @@
  },
  "@broberg/app-shell": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/app-shell",
-  "version": "0.25.0",
-  "publishedAt": "2026-10-25T23:33:34.738Z",
+  "version": "0.25.1",
+  "publishedAt": "2026-10-27T02:14:25.851Z",
   "provenance": "yes"
  },
  "@broberg/notify": {
@@ -205,8 +205,8 @@
  },
  "@broberg/auth-relay": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/auth-relay",
-  "version": "0.3.8",
-  "publishedAt": "2026-10-27T01:37:06.485Z",
+  "version": "0.3.9",
+  "publishedAt": "2026-10-27T02:05:53.680Z",
   "provenance": "yes"
  },
  "@broberg/lens-daemon": {
