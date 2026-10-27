@@ -479,7 +479,21 @@ gets backwards:
 > recipient, and `failed` is the strict branch — loosening the default would
 > widen the gate at every consumer that has not yet handled a new case. To
 > separate "one of three was skipped" from "all three were", you need the
-> suppression list itself, and `getSuppressions()` does not exist yet (F005.12).
+> suppression list itself — `getSuppressions()` (0.20.0, F005.12):
+>
+> ```ts
+> import { getSuppressions } from "@broberg/mail";
+> const r = await getSuppressions({ apiKey }, { limit: 100 });   // one page; follow hasMore with { after }
+> if (!r.ok) keepFailed(r.detail);          // could_not_ask is NEVER «nobody is suppressed»
+> else markSkipped(r.suppressions.map((s) => s.email));
+> ```
+>
+> A lookup that could not run (no key, a send-only key's 401, 404, a network
+> error, an unreadable body) returns `could_not_ask` with a reason and **no list
+> at all** — so it can never be read as «nobody was suppressed, so everyone got it».
+> The verdict mapping is **unchanged**: we have not measured a multi-recipient
+> suppressed send ourselves, so `suppressed → failed` stays and the deciding is the
+> consumer's, with this list as the evidence.
 >
 > **Resend does not document this behaviour anywhere.** The measurement above is
 > the only evidence there is; it is not a quote from a spec.

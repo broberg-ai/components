@@ -855,3 +855,108 @@ export async function getInboundEmail(
   }
   return { ok: true, mail: toInboundEmail(body as Record<string, unknown>) };
 }
+
+// ─── F005.12 — the suppression list ─────────────────────────────────────────
+
+const RESEND_SUPPRESSIONS_ENDPOINT = "https://api.resend.com/suppressions";
+
+/** One address the provider will not send to, and why it is there. */
+export interface Suppression {
+  id: string;
+  email: string;
+  /** "bounce" | "complaint" | "manual", or a value this version does not know (kept verbatim). */
+  origin: string;
+  /** The send that put the address on the list, when the provider says. */
+  sourceId?: string;
+  /** Provider timestamp, ISO-8601, as sent. */
+  createdAt?: string;
+}
+
+export interface SuppressionQuery {
+  /** 1–100, the provider's page size. */
+  limit?: number;
+  /** Cursor: the id of the last suppression on the previous page. */
+  after?: string;
+  /** Cursor: the id of the first suppression on the next page. */
+  before?: string;
+  origin?: "bounce" | "complaint" | "manual";
+}
+
+/**
+ * The answer to "who will the provider not send to?".
+ *
+ * ═══ A FAILED LOOKUP IS NEVER AN EMPTY LIST ═══
+ *
+ * `last_event` is a MESSAGE status (F005.12): `suppressed` on a multi-recipient
+ * send means AT LEAST ONE address was skipped. This list is how a consumer finds
+ * out WHICH — and the trap is in the failure: a lookup that could not run, read
+ * as `[]`, concludes «nobody was suppressed, so everyone got it». That is the
+ * green direction to fail in, so it has no shape here. `could_not_ask` carries
+ * the reason; `suppressions` exists only on `ok: true`.
+ *
+ *     const r = await getSuppressions({ apiKey, fetch });
+ *     if (!r.ok) keepTheStricterVerdict(r.detail);   // do NOT treat as "none"
+ */
+export type SuppressionLookup =
+  | { ok: true; suppressions: Suppression[]; hasMore: boolean }
+  | { ok: false; reason: "could_not_ask"; detail: string };
+
+/** Lists ONE page of the provider's suppression list (GET /suppressions). */
+export async function getSuppressions(
+  config: { apiKey?: string; fetch?: typeof fetch } = {},
+  query: SuppressionQuery = {},
+): Promise<SuppressionLookup> {
+  const fail = (detail: string): SuppressionLookup => ({ ok: false, reason: "could_not_ask", detail });
+  const doFetch = config.fetch ?? (typeof fetch === "function" ? fetch : undefined);
+  if (!config.apiKey) return fail("no API key, so the provider was never asked");
+  if (!doFetch) return fail("no fetch available (pass config.fetch)");
+  if (query.limit !== undefined && (!Number.isInteger(query.limit) || query.limit < 1 || query.limit > 100)) {
+    return fail(`limit must be an integer from 1 to 100 (got ${String(query.limit)})`);
+  }
+
+  const params = new URLSearchParams();
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  if (query.after) params.set("after", query.after);
+  if (query.before) params.set("before", query.before);
+  if (query.origin) params.set("origin", query.origin);
+  const qs = params.toString();
+
+  let res: Response;
+  try {
+    res = await doFetch(`${RESEND_SUPPRESSIONS_ENDPOINT}${qs ? `?${qs}` : ""}`, {
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+    });
+  } catch (err) {
+    return fail(`could not reach the provider: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (res.status === 401 || res.status === 403) {
+    return fail(
+      "this API key is not authorised to read the suppression list (a send-only key answers 401) — " +
+        "this does NOT mean nobody is suppressed",
+    );
+  }
+  if (res.status === 404) return fail("the provider has no suppressions endpoint at that URL (404) — not an empty list");
+  if (!res.ok) return fail(`the provider answered HTTP ${res.status}`);
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    return fail("the provider's response was not JSON");
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body) || !Array.isArray((body as { data?: unknown }).data)) {
+    return fail("the provider's response carried no data array — refusing to read that as an empty list");
+  }
+
+  const suppressions: Suppression[] = [];
+  for (const raw of (body as { data: unknown[] }).data) {
+    if (!raw || typeof raw !== "object") return fail("a suppression entry was not an object");
+    const r = raw as Record<string, unknown>;
+    if (typeof r.email !== "string" || !r.email) return fail("a suppression entry carried no email");
+    const s: Suppression = { id: typeof r.id === "string" ? r.id : "", email: r.email, origin: typeof r.origin === "string" ? r.origin : "" };
+    if (typeof r.source_id === "string") s.sourceId = r.source_id;
+    if (typeof r.created_at === "string") s.createdAt = r.created_at;
+    suppressions.push(s);
+  }
+  return { ok: true, suppressions, hasMore: (body as { has_more?: unknown }).has_more === true };
+}

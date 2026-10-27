@@ -106,7 +106,7 @@ const VERDICT: Record<MailEventType, MailVerdict> = {
  * for one recipient, and `failed` is the STRICT branch. Loosening the default
  * would widen the gate at every consumer that has not yet handled a new case
  * (F070). To tell "one of three" from "all three" you need the suppression list
- * itself — see F005.12; there is no getSuppressions() yet.
+ * itself — see F005.12 and getSuppressions() (0.20.0).
  *
  * Resend's own documentation does not describe this behaviour at all, so the
  * measurement above is the ONLY evidence. Do not upgrade it to a spec claim.

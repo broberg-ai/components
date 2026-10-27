@@ -50,6 +50,14 @@ for (const [name, file] of Object.entries(FILES)) {
 
 const MUTATIONS = [
   {
+    // F005.12 — the green direction: a send-only key's 401 read as «nobody is suppressed».
+    name: "a failed suppression lookup returns an empty list (everyone looks delivered)",
+    file: "index",
+    from: '    return fail(\n      "this API key is not authorised to read the suppression list (a send-only key answers 401) — " +\n        "this does NOT mean nobody is suppressed",\n    );\n',
+    to: "    return { ok: true, suppressions: [], hasMore: false };\n",
+    expect: ["NO failure ever yields a list: 401, 403, 404, 500, network, not-JSON, no data array, a malformed entry, no key"],
+  },
+  {
     // F005.24 — the key dropped: a resumed queue would send the same mail twice.
     name: "the Idempotency-Key header is not sent (a resumed queue sends twice)",
     file: "index",
