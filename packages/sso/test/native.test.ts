@@ -84,9 +84,23 @@ describe("components-F084.185 — native passkey login", () => {
 
   it("the user cancelling Face ID is `cancelled` — and BID is never asked to verify", async () => {
     const bid = fakeBid();
-    const r = await nativePasskeyLogin({ ...base, fetch: bid.f, getAssertion: async () => { throw new Error("The operation was cancelled"); } });
+    const cancel = Object.assign(new Error("The operation either timed out or was not allowed"), { name: "NotAllowedError" });
+    const r = await nativePasskeyLogin({ ...base, fetch: bid.f, getAssertion: async () => { throw cancel; } });
     expect(r.ok === false && r.reason).toBe("cancelled");
     expect(bid.calls).not.toContain("POST /embedded/passkey/verify");
+  });
+
+  it("buzzalert #5255: an UNCLASSIFIED platform error is `platform_failed` with its message — never «you cancelled»", async () => {
+    const bid = fakeBid();
+    const ios = Object.assign(new Error("The operation couldn't be completed. (com.apple.AuthenticationServices.AuthorizationError error 1004.)"), { name: "Error", code: 1004 });
+    const r = await nativePasskeyLogin({ ...base, fetch: bid.f, getAssertion: async () => { throw ios; } });
+    expect(r).toStrictEqual({ ok: false, reason: "platform_failed", message: ios.message });
+    expect(bid.calls).not.toContain("POST /embedded/passkey/verify");
+    const abort = Object.assign(new Error("aborted"), { name: "AbortError" });
+    const r2 = await nativePasskeyLogin({ ...base, fetch: fakeBid().f, getAssertion: async () => { throw abort; } });
+    expect(r2.ok === false && r2.reason).toBe("cancelled");
+    const explicit = await nativePasskeyLogin({ ...base, fetch: fakeBid().f, getAssertion: async () => { throw new NativePasskeyPlatformError("platform_failed", "x"); } });
+    expect(explicit.ok === false && explicit.reason).toBe("platform_failed");
   });
 
   it("no passkey on the phone is `no_credential`, not cancelled", async () => {

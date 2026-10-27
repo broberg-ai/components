@@ -293,7 +293,8 @@ else switch (r.reason) { case "cancelled": case "no_credential": case "rejected"
 
 - **Discoverable credentials only** — BID sends no `allowCredentials`; the passkey the user picks decides the account.
 - **`userVerification: "required"` is set by the package**, so no app can ask the platform for a passkey without Face ID / fingerprint / PIN.
-- Four outcomes, kept apart because they need different answers: `cancelled` (user closed the prompt), `no_credential` (no passkey on this phone), `rejected` (BID refused: unknown/unregistered client, bad or expired assertion, locked after too many tries), `unavailable` (BID did not answer). Nothing throws.
+- Five outcomes, kept apart because they need different answers: `cancelled` (user closed the prompt), `no_credential` (no passkey on this phone), `platform_failed` (the phone's passkey system itself failed — e.g. iOS error 1004, the app is not associated with id.broberg.ai; a setup fault, log `message`), `rejected` (BID refused: unknown/unregistered client, bad or expired assertion, locked after too many tries), `unavailable` (BID did not answer). Nothing throws.
+- An error your `getAssertion` throws WITHOUT classifying it is read by name: `NotAllowedError` / `AbortError` → `cancelled`, anything else → `platform_failed` (0.23.0; 0.22.0 called every unknown error «cancelled», which hid a real setup fault as «you cancelled»).
 - Verify the returned `id_token` where you trust the result (your server), as with any login.
 
 ## What it will never do

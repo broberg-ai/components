@@ -41,11 +41,15 @@ export type AuthenticationResponseJSON = Record<string, unknown> & { id: string;
 
 /**
  * Thrown by the app's `getAssertion` to say WHY the platform gave no assertion.
- * Anything else it throws is treated as the user cancelling — the common case, and
- * the one that must never be reported as "BID rejected you".
+ *
+ * Anything ELSE it throws is classified by name: a WebAuthn-style `NotAllowedError`
+ * or `AbortError` is the user cancelling; everything else is `platform_failed` with
+ * the platform's own message. 0.22.0 treated every unknown error as "cancelled", so
+ * an iOS ASAuthorizationError 1004 («app not associated with the domain») read as
+ * «you cancelled» on the owner's iPhone (buzzalert #5255, 17 flows, no /verify).
  */
 export class NativePasskeyPlatformError extends Error {
-  constructor(readonly reason: "cancelled" | "no_credential", message?: string) {
+  constructor(readonly reason: "cancelled" | "no_credential" | "platform_failed", message?: string) {
     super(message ?? reason);
     this.name = "NativePasskeyPlatformError";
   }
@@ -74,15 +78,17 @@ export interface NativePasskeyTokens {
 }
 
 /**
- * Four ways a login can fail, kept apart because they need opposite answers on screen:
- * - `cancelled`     — the user closed Face ID. Say nothing, or offer to try again.
- * - `no_credential` — this phone has no passkey for BID. Offer another login / set one up.
+ * Five ways a login can fail, kept apart because they need opposite answers on screen:
+ * - `cancelled`       — the user closed Face ID. Say nothing, or offer to try again.
+ * - `no_credential`   — this phone has no passkey for BID. Offer another login / set one up.
+ * - `platform_failed` — the phone's passkey system itself failed (e.g. the app is not
+ *                       associated with id.broberg.ai). A setup fault, not the user — log `message`.
  * - `rejected`      — BID refused (wrong passkey, expired flow, unknown client). Do not retry blindly.
  * - `unavailable`   — BID did not answer. Retry later.
  */
 export type NativePasskeyResult =
   | { ok: true; tokens: NativePasskeyTokens }
-  | { ok: false; reason: "cancelled" | "no_credential" | "rejected" | "unavailable"; message: string };
+  | { ok: false; reason: "cancelled" | "no_credential" | "platform_failed" | "rejected" | "unavailable"; message: string };
 
 const b64url = (bytes: Uint8Array): string => {
   let s = "";
@@ -95,6 +101,12 @@ export async function createPkcePair(): Promise<{ verifier: string; challenge: s
   const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
   return { verifier, challenge };
+}
+
+/** An error the app did NOT classify: a cancel by its standard name, otherwise a platform failure. */
+function platformReason(e: unknown): "cancelled" | "platform_failed" {
+  const name = typeof e === "object" && e !== null ? String((e as { name?: unknown }).name ?? "") : "";
+  return name === "NotAllowedError" || name === "AbortError" ? "cancelled" : "platform_failed";
 }
 
 class Step extends Error {
@@ -156,7 +168,7 @@ export async function nativePasskeyLogin(input: NativePasskeyLoginInput): Promis
     try {
       assertion = await input.getAssertion(options);
     } catch (e) {
-      const reason = e instanceof NativePasskeyPlatformError ? e.reason : "cancelled";
+      const reason = e instanceof NativePasskeyPlatformError ? e.reason : platformReason(e);
       return { ok: false, reason, message: e instanceof Error ? e.message : String(e) };
     }
 
