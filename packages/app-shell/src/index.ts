@@ -77,6 +77,12 @@ export interface NavSection<Icon = unknown> {
 }
 export interface NavGroup<Icon = unknown> {
   label: string;
+  /**
+   * F029.14 — a stable key for the group's testids (`sidebar-group-<id>`, `-unlabelled`,
+   * `-action`). Without it the testid is a slug of the TRANSLATED label, so it changes
+   * with the language and loses æøå. Set it once per group when your app is translated.
+   */
+  id?: string;
   items: NavItem<Icon>[];
   /** F092.20 — "plain": the group label in normal text (not uppercase/mono). */
   variant?: "default" | "plain";

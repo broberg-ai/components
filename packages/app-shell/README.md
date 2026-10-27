@@ -53,6 +53,14 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.26.0 — a sidebar group's testid stays the same in every language (F029.14)
+
+A group's testid used to be a slug of its translated label, so «Opsætning» became `sidebar-group-ops-tning` and English «Setup» `sidebar-group-setup` — a Lens test written in one language broke in the other. Give the group an `id` and every testid it renders uses it instead: `sidebar-group-<id>`, `sidebar-group-<id>-unlabelled`, `sidebar-group-<id>-action`. Without `id` nothing changes.
+
+```ts
+{ id: "setup", label: t.setup, items: [...] }
+```
+
 ## 0.25.2 — the organisation menu leaves other fields' arrow keys alone (F029.13)
 
 While the menu is open, arrow keys, Home/End and Enter/Space are handled only when focus is inside the switcher. A field the user tabbed to keeps its own keys. Escape still closes from anywhere.

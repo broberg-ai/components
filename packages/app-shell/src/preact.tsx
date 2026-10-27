@@ -759,7 +759,9 @@ export function Sidebar(p: SidebarProps) {
           {p.groups.map((g) => {
             const fixed = g.hideLabel || g.collapsible === false;
             const open = railed || fixed || !folded.has(g.label);
-            const slug = g.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+            // F029.14 — `id` keeps the testid the same in every language; the label slug
+            // changes with the translation and strips æøå («Opsætning» → ops-tning).
+            const slug = g.id ?? g.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (
               <div
                 class={"bas-group" + (g.variant === "plain" ? " bas-group--plain" : "")}
