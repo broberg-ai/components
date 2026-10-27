@@ -31,7 +31,7 @@ const MUTATIONS = [
     name: "the scope is ignored (every tenant shares one key)",
     find: "    if (!keks.has(v)) keks.set(v, scope === undefined ? aesKey(bytes) : scopedKey(bytes, scope));",
     replace: "    if (!keks.has(v)) keks.set(v, aesKey(bytes));",
-    expect: ["cannot be opened by tenant-b"],
+    expect: ["the KEY itself differs per scope"],
   },
   {
     // F102.2 — the bytes path loses its context binding: a file copied to another row opens there.

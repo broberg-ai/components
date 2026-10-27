@@ -61,6 +61,25 @@ describe("F102.2 — scope: each customer its own key", () => {
     expect(await code(a.open(await none.seal("x", { aad: AAD }), { aad: AAD }))).toBe("invalid");
   });
 
+  it("the KEY itself differs per scope: the wrapped data key opens with HKDF(key, scope), never with the raw key — same aad", async () => {
+    // The wrap aad also carries the scope, so the refusal above would hold even with ONE shared key.
+    // This asks the key directly: unwrap with the raw key-ring key vs. the HKDF-derived one.
+    const raw = Uint8Array.from(atob(K1), (c) => c.charCodeAt(0));
+    const te = new TextEncoder();
+    const ikm = await crypto.subtle.importKey("raw", raw, "HKDF", false, ["deriveKey"]);
+    const derive = (scope: string) =>
+      crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: te.encode("seal1-scope"), info: te.encode(scope) }, ikm, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    const rawKek = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    const sealed = await createSealer({ keys: { 1: K1 }, current: 1, scope: "tenant-a" }).seal("x", { aad: AAD });
+    const [, , wrapIv, wrapped] = sealed.split(".");
+    const b = (x: string) => Uint8Array.from(atob(x.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+    const unwrap = (key: CryptoKey) =>
+      crypto.subtle.decrypt({ name: "AES-GCM", iv: b(wrapIv!), additionalData: te.encode("seal1|dek|1|scope|tenant-a") }, key, b(wrapped!)).then((d) => new Uint8Array(d).length, () => "refused");
+    expect(await unwrap(await derive("tenant-a"))).toBe(32);
+    expect(await unwrap(await derive("tenant-b"))).toBe("refused");
+    expect(await unwrap(rawKek)).toBe("refused");
+  });
+
   it("the same scope always derives the same key (a fresh sealer for tenant-a opens yesterday's value)", async () => {
     const s = await createSealer({ keys: { 1: K1 }, current: 1, scope: "tenant-a" }).seal("v", { aad: AAD });
     expect(await createSealer({ keys: { 1: K1 }, current: 1, scope: "tenant-a" }).open(s, { aad: AAD })).toBe("v");
