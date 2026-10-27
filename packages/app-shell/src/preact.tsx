@@ -2235,7 +2235,32 @@ export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch, roleLabel 
     const onDown = (e: MouseEvent) => {
       if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    // F029.13 — keyboard-drivable (D-4cd764): arrows/Home/End move focus among
+    // the choosable items (wrapping, disabled ones skipped), Enter/Space choose,
+    // Escape closes and hands focus back to the button.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        root.current?.querySelector<HTMLButtonElement>(".bas-tenant__btn")?.focus();
+        return;
+      }
+      const items = [...(menu.current?.querySelectorAll<HTMLButtonElement>(".bas-tenant__item:not(:disabled)") ?? [])];
+      if (!items.length) return;
+      const at = items.indexOf(document.activeElement as HTMLButtonElement);
+      let next = -1;
+      if (e.key === "ArrowDown") next = (at + 1) % items.length;
+      else if (e.key === "ArrowUp") next = at <= 0 ? items.length - 1 : at - 1;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = items.length - 1;
+      else if ((e.key === "Enter" || e.key === " ") && at >= 0) {
+        e.preventDefault(); // we choose here; stop the native button click choosing a second time
+        items[at]!.click();
+        return;
+      }
+      if (next < 0) return;
+      e.preventDefault();
+      items[next]!.focus();
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -2243,6 +2268,15 @@ export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch, roleLabel 
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  // F029.13 — opening moves focus INTO the menu: the active organisation, or
+  // the first choosable one when the active one cannot be chosen.
+  useEffect(() => {
+    const el = menu.current;
+    if (!open || !el) return;
+    const items = [...el.querySelectorAll<HTMLButtonElement>(".bas-tenant__item:not(:disabled)")];
+    (items.find((i) => i.classList.contains("is-active")) ?? items[0])?.focus();
+  }, [open, rows]);
 
   const active = rows?.find((r) => r.tenant.slug === activeSlug);
   const label = active?.tenant.name ?? activeSlug;

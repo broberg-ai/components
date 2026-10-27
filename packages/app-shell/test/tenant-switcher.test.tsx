@@ -166,3 +166,64 @@ describe("TenantSwitcher on a phone (appkit pilot, 7/10)", () => {
     });
   });
 });
+
+// F029.13 — buzzalert #5141: the menu listened only for Escape. D-4cd764: every
+// pick-list is keyboard-drivable — arrows move, Enter chooses, Escape closes.
+describe("TenantSwitcher — keyboard (F029.13)", () => {
+  const ROWS4: TenantMembershipRow[] = [
+    ...ROWS.slice(0, 2),
+    ROWS[2]!, // suspended — must be skipped
+    { tenant: { id: "t-g", slug: "gamma", name: "Gamma" }, role: "member" },
+  ];
+  const focused = () => document.activeElement?.getAttribute("data-testid");
+  const key = (k: string) => fireEvent.keyDown(document, { key: k });
+
+  it("opening puts focus on the ACTIVE organisation, not on the button", async () => {
+    render(<TenantSwitcher lang="da" activeSlug="beta" adapter={adapterOf(ROWS4)} onSwitch={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTestId("tenant-switcher-label").textContent).toBe("Beta Butik"));
+    fireEvent.click(screen.getByTestId("tenant-switcher-button"));
+    await waitFor(() => expect(focused()).toBe("tenant-switcher-item-beta"));
+  });
+
+  it("ArrowDown/ArrowUp move with wrap and skip the suspended one; Home/End jump to the ends", async () => {
+    render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS4)} onSwitch={vi.fn()} />);
+    await openMenu();
+    await waitFor(() => expect(focused()).toBe("tenant-switcher-item-alpha"));
+    const seen: (string | null | undefined)[] = [];
+    for (const k of ["ArrowDown", "ArrowDown", "ArrowDown", "ArrowUp", "ArrowUp", "End", "Home"]) {
+      key(k);
+      seen.push(focused());
+    }
+    expect(seen).toStrictEqual([
+      "tenant-switcher-item-beta",
+      "tenant-switcher-item-gamma", // sleepy skipped
+      "tenant-switcher-item-alpha", // wrap
+      "tenant-switcher-item-gamma", // wrap back
+      "tenant-switcher-item-beta",
+      "tenant-switcher-item-gamma",
+      "tenant-switcher-item-alpha",
+    ]);
+  });
+
+  it("Enter and Space choose the focused organisation — once", async () => {
+    for (const k of ["Enter", " "]) {
+      const onSwitch = vi.fn(async () => {});
+      render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS4)} onSwitch={onSwitch} />);
+      await openMenu();
+      await waitFor(() => expect(focused()).toBe("tenant-switcher-item-alpha"));
+      key("ArrowDown");
+      key(k);
+      await waitFor(() => expect(onSwitch.mock.calls).toStrictEqual([["beta"]]));
+      cleanup();
+    }
+  });
+
+  it("Escape closes and gives focus back to the button", async () => {
+    render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS4)} onSwitch={vi.fn()} />);
+    await openMenu();
+    await waitFor(() => expect(focused()).toBe("tenant-switcher-item-alpha"));
+    key("Escape");
+    await waitFor(() => expect(screen.queryByTestId("tenant-switcher-menu")).toBeNull());
+    expect(focused()).toBe("tenant-switcher-button");
+  });
+});
