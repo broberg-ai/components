@@ -666,6 +666,26 @@ rather than being reshaped into a type we do model.
 `verifyWebhook` and `parseMailEvent` are exported separately if you want to wire
 your own handler. Zero dependencies — `node:crypto` only.
 
+### Hono and Next adapters (v0.21.0, F005.7)
+
+The same verified handler, wired for your framework. Neither adapter depends on
+hono or next; both read the body as raw text, which is required for the signature
+to verify.
+
+```ts
+// Hono
+import { mailWebhook } from "@broberg/mail/hono";
+app.post("/webhooks/mail", mailWebhook({ secret: env.RESEND_WEBHOOK_SECRET, onEvent }));
+
+// Next.js App Router — app/api/webhooks/mail/route.ts
+import { mailWebhookRoute } from "@broberg/mail/next";
+export const POST = mailWebhookRoute({ secret: process.env.RESEND_WEBHOOK_SECRET, onEvent });
+```
+
+Without a secret, every request gets a 401 and `onEvent` is never called.
+A tampered body is rejected before it is parsed. Any other framework can use
+`mailWebhookFetchHandler(config)` from `@broberg/mail/webhook` (`Request → Response`).
+
 ## Webhook admin (v0.16.0, F005.21) — see what never reached you, and send it again
 
 When your webhook endpoint was down or answered wrong, the delivery event was lost to you and your
