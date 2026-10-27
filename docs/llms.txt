@@ -92,7 +92,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 - **@broberg/lens-engine** v0.14.1 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-engine` · https://www.npmjs.com/package/@broberg/lens-engine · udgivet 23.10.2026 kl. 02.09 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-client** v0.1.2 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-client` · https://www.npmjs.com/package/@broberg/lens-client · udgivet 12.10.2026 kl. 02.13 (dansk tid) · Trusted Publisher ✓
 - **@broberg/local-guard** v0.2.0 — One guard for a local HTTP daemon on 127.0.0.1, extracted from @broberg/lens-daemon (security sweep 2026-10-21) so lens and auth-relay stop carryin…. `npm i @broberg/local-guard` · https://www.npmjs.com/package/@broberg/local-guard · udgivet 25.10.2026 kl. 20.10 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
-- **@broberg/auth-relay** v0.3.5 — ARS: en agent beder ejeren om en kode, et password eller en godkendelse; han svarer i ét lokalt vindue, og kun den spørgende agent får svaret, én gang. `npm i @broberg/auth-relay` · https://www.npmjs.com/package/@broberg/auth-relay · udgivet 26.10.2026 kl. 22.11 (dansk tid) · Trusted Publisher ✓
+- **@broberg/auth-relay** v0.3.5 — ARS: en agent beder ejeren om en kode, et password eller en godkendelse; han svarer i ét lokalt vindue, og kun den spørgende agent får svaret, én gang. `npm i @broberg/auth-relay` · https://www.npmjs.com/package/@broberg/auth-relay · udgivet 27.10.2026 kl. 01.29 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-daemon** v0.1.59 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-daemon` · https://www.npmjs.com/package/@broberg/lens-daemon · udgivet 26.10.2026 kl. 23.13 (dansk tid) · Trusted Publisher ✓
 - **@broberg/lens-svg** v0.1.1 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens-svg` · https://www.npmjs.com/package/@broberg/lens-svg · udgivet 23.10.2026 kl. 11.24 (dansk tid) · Trusted Publisher ✓
 - **@broberg/webmcp** v0.1.0 — WebMCP for the fleet (epic F098): letting a customer's own AI find and use a site's booking, shop or order tools. `npm i @broberg/webmcp` · https://www.npmjs.com/package/@broberg/webmcp · udgivet 12.10.2026 kl. 01.30 (dansk tid) · ingen provenance · afhængigheder: OK
@@ -124,7 +124,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk` · https://www.npmjs.com/package/@broberg/db-sdk · udgivet 23.09.2026 kl. 19.28 (dansk tid) · Trusted Publisher ✓
-- **@broberg/ai-sdk** v0.68.1 — The fleet LLM SDK. `npm i @broberg/ai-sdk` · https://www.npmjs.com/package/@broberg/ai-sdk · udgivet 26.10.2026 kl. 21.40 (dansk tid) · Trusted Publisher ✓
+- **@broberg/ai-sdk** v0.69.0 — The fleet LLM SDK. `npm i @broberg/ai-sdk` · https://www.npmjs.com/package/@broberg/ai-sdk · udgivet 27.10.2026 kl. 01.20 (dansk tid) · Trusted Publisher ✓
 - **@upmetrics/sdk** v0.11.2 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.2.0 — The typed fleet-comms client. `npm i @broberg/fleet-client` · https://www.npmjs.com/package/@broberg/fleet-client · udgivet 24.10.2026 kl. 17.40 (dansk tid) · Trusted Publisher ✓
