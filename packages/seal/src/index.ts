@@ -26,6 +26,12 @@ export interface SealerConfig {
   keys: Record<number, string>;
   /** The version new values are sealed with. Must be in `keys`. */
   current: number;
+  /**
+   * F102.2 — derive every key-ring key per scope (e.g. a tenant id) with HKDF-SHA-256, so values in one
+   * scope are never wrapped with the same key as another scope's. A value sealed under scope A cannot be
+   * opened by a sealer for scope B — not even with the same key ring and aad. Omitted: unchanged (0.1.0).
+   */
+  scope?: string;
 }
 
 export interface Sealer {
@@ -37,6 +43,10 @@ export interface Sealer {
   needsRewrap(sealed: string): boolean;
   /** Re-encrypt the value's data key under `current`; the payload and its aad binding are not touched. */
   rewrap(sealed: string): Promise<string>;
+  /** F102.2 — seal raw bytes (a file) without a base64 round-trip. Same envelope, key ring and aad rules. */
+  sealBytes(data: Uint8Array, o: { aad: string }): Promise<Uint8Array>;
+  /** F102.2 — open what sealBytes produced. Throws SealError("invalid") for a wrong aad or any tampering. */
+  openBytes(sealed: Uint8Array, o: { aad: string }): Promise<Uint8Array>;
 }
 
 const enc = new TextEncoder();
@@ -58,6 +68,18 @@ const subtle = () => {
   return s;
 };
 const random = (n: number) => globalThis.crypto.getRandomValues(new Uint8Array(n));
+// F102.2 — per-scope KEK: HKDF-SHA-256(ikm = key-ring key, salt = "seal1-scope", info = scope). Fixed salt and
+// info encoding so the same scope always derives the same key.
+async function scopedKey(raw: Uint8Array, scope: string): Promise<CryptoKey> {
+  const ikm = await subtle().importKey("raw", raw as BufferSource, "HKDF", false, ["deriveKey"]);
+  return subtle().deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt: enc.encode("seal1-scope") as BufferSource, info: enc.encode(scope) as BufferSource },
+    ikm,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
 const aesKey = (raw: Uint8Array) => subtle().importKey("raw", raw as BufferSource, "AES-GCM", false, ["encrypt", "decrypt"]);
 async function encrypt(key: CryptoKey, iv: Uint8Array, data: Uint8Array, aad: string): Promise<Uint8Array> {
   return new Uint8Array(await subtle().encrypt({ name: "AES-GCM", iv: iv as BufferSource, additionalData: enc.encode(aad) as BufferSource }, key, data as BufferSource));
@@ -72,7 +94,31 @@ async function decrypt(key: CryptoKey, iv: Uint8Array, data: Uint8Array, aad: st
 // The payload is bound to the CONTEXT only; the key-ring version is bound where it belongs — on the DEK's
 // wrap. That is what lets rewrap() touch 32 bytes and never the payload.
 const payloadAad = (aad: string) => `${PREFIX}|${aad}`;
-const wrapAad = (version: number) => `${PREFIX}|dek|${version}`;
+const wrapAad = (version: number, scope?: string) =>
+  scope === undefined ? `${PREFIX}|dek|${version}` : `${PREFIX}|dek|${version}|scope|${scope}`;
+
+// F102.2 — binary envelope for sealBytes: magic · KEK version (uint32 BE) · wrapIv · wrapped DEK · iv · ciphertext+tag.
+const BYTES_MAGIC = enc.encode("SEB1");
+const WRAPPED_BYTES = KEY_BYTES + 16; // DEK + GCM tag
+const BYTES_HEADER = BYTES_MAGIC.length + 4 + IV_BYTES + WRAPPED_BYTES + IV_BYTES;
+function parseBytes(sealed: Uint8Array): Parts {
+  if (!(sealed instanceof Uint8Array) || sealed.length < BYTES_HEADER + 16 || BYTES_MAGIC.some((b, i) => sealed[i] !== b)) {
+    throw new SealError("bad_format", "not a sealBytes value");
+  }
+  let o = BYTES_MAGIC.length;
+  const version = new DataView(sealed.buffer, sealed.byteOffset + o, 4).getUint32(0);
+  o += 4;
+  const take = (n: number) => { const part = sealed.subarray(o, o + n); o += n; return part; };
+  return { version, wrapIv: take(IV_BYTES), wrapped: take(WRAPPED_BYTES), iv: take(IV_BYTES), data: sealed.subarray(o) };
+}
+function joinBytes(version: number, wrapIv: Uint8Array, wrapped: Uint8Array, iv: Uint8Array, data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(BYTES_HEADER + data.length);
+  out.set(BYTES_MAGIC, 0);
+  new DataView(out.buffer).setUint32(BYTES_MAGIC.length, version);
+  let o = BYTES_MAGIC.length + 4;
+  for (const part of [wrapIv, wrapped, iv, data]) { out.set(part, o); o += part.length; }
+  return out;
+}
 
 interface Parts { version: number; wrapIv: Uint8Array; wrapped: Uint8Array; iv: Uint8Array; data: Uint8Array }
 function parse(sealed: string): Parts {
@@ -94,25 +140,31 @@ export function createSealer(config: SealerConfig): Sealer {
     raw.set(Number(v), bytes);
   }
   if (!raw.has(config.current)) throw new SealError("unknown_version", `current version ${config.current} is not in the key ring`);
+  const scope = config.scope;
+  if (scope !== undefined && (typeof scope !== "string" || !scope)) throw new TypeError("scope must be a non-empty string");
   const keks = new Map<number, Promise<CryptoKey>>();
   const kek = (v: number) => {
     const bytes = raw.get(v);
     if (!bytes) throw new SealError("unknown_version", `key version ${v} is not in the key ring`);
-    if (!keks.has(v)) keks.set(v, aesKey(bytes));
+    if (!keks.has(v)) keks.set(v, scope === undefined ? aesKey(bytes) : scopedKey(bytes, scope));
     return keks.get(v)!;
   };
-  const unwrap = async (p: Parts) => decrypt(await kek(p.version), p.wrapIv, p.wrapped, wrapAad(p.version));
+  const unwrap = async (p: Parts) => decrypt(await kek(p.version), p.wrapIv, p.wrapped, wrapAad(p.version, scope));
+  const sealParts = async (plain: Uint8Array, aad: string) => {
+    const v = config.current;
+    const dek = random(KEY_BYTES);
+    const iv = random(IV_BYTES);
+    const wrapIv = random(IV_BYTES);
+    const data = await encrypt(await aesKey(dek), iv, plain, payloadAad(aad));
+    const wrapped = await encrypt(await kek(v), wrapIv, dek, wrapAad(v, scope));
+    return { v, wrapIv, wrapped, iv, data };
+  };
 
   return {
     async seal(plaintext, o) {
       if (typeof plaintext !== "string") throw new TypeError("seal() takes a string");
       if (typeof o?.aad !== "string" || !o.aad) throw new TypeError("seal() needs { aad } — the context the value belongs to");
-      const v = config.current;
-      const dek = random(KEY_BYTES);
-      const iv = random(IV_BYTES);
-      const wrapIv = random(IV_BYTES);
-      const data = await encrypt(await aesKey(dek), iv, enc.encode(plaintext), payloadAad(o.aad));
-      const wrapped = await encrypt(await kek(v), wrapIv, dek, wrapAad(v));
+      const { v, wrapIv, wrapped, iv, data } = await sealParts(enc.encode(plaintext), o.aad);
       return join(v, wrapIv, wrapped, iv, data);
     },
     async open(sealed, o) {
@@ -130,7 +182,19 @@ export function createSealer(config: SealerConfig): Sealer {
       const dek = await unwrap(p);
       const v = config.current;
       const wrapIv = random(IV_BYTES);
-      return join(v, wrapIv, await encrypt(await kek(v), wrapIv, dek, wrapAad(v)), p.iv, p.data);
+      return join(v, wrapIv, await encrypt(await kek(v), wrapIv, dek, wrapAad(v, scope)), p.iv, p.data);
+    },
+    async sealBytes(data, o) {
+      if (!(data instanceof Uint8Array)) throw new TypeError("sealBytes() takes a Uint8Array");
+      if (typeof o?.aad !== "string" || !o.aad) throw new TypeError("sealBytes() needs { aad } — the context the value belongs to");
+      const p = await sealParts(data, o.aad);
+      return joinBytes(p.v, p.wrapIv, p.wrapped, p.iv, p.data);
+    },
+    async openBytes(sealed, o) {
+      if (typeof o?.aad !== "string" || !o.aad) throw new TypeError("openBytes() needs { aad }");
+      const p = parseBytes(sealed);
+      const dek = await unwrap(p);
+      return decrypt(await aesKey(dek), p.iv, p.data, payloadAad(o.aad));
     },
   };
 }

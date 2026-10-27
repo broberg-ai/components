@@ -27,6 +27,20 @@ const original = readFileSync(SRC, "utf8");
 
 const MUTATIONS = [
   {
+    // F102.2 — the scope is ignored: tenant A's values are wrapped with the same key as tenant B's.
+    name: "the scope is ignored (every tenant shares one key)",
+    find: "    if (!keks.has(v)) keks.set(v, scope === undefined ? aesKey(bytes) : scopedKey(bytes, scope));",
+    replace: "    if (!keks.has(v)) keks.set(v, aesKey(bytes));",
+    expect: ["cannot be opened by tenant-b"],
+  },
+  {
+    // F102.2 — the bytes path loses its context binding: a file copied to another row opens there.
+    name: "openBytes does not check the aad",
+    find: "      return decrypt(await aesKey(dek), p.iv, p.data, payloadAad(o.aad));\n    },\n  };",
+    replace: "      return decrypt(await aesKey(dek), p.iv, p.data, payloadAad(o.aad)).catch(() => new Uint8Array(0));\n    },\n  };",
+    expect: ["the wrong aad and one flipped byte"],
+  },
+  {
     name: "the context is not bound (aad dropped from the payload)",
     find: "const payloadAad = (aad: string) => `${PREFIX}|${aad}`;",
     replace: "const payloadAad = (_aad: string) => `${PREFIX}|`;",
@@ -34,8 +48,8 @@ const MUTATIONS = [
   },
   {
     name: "one data key for every value (no fresh DEK)",
-    find: "      const dek = random(KEY_BYTES);\n      const iv = random(IV_BYTES);",
-    replace: "      const dek = new Uint8Array(KEY_BYTES);\n      const iv = random(IV_BYTES);",
+    find: "    const dek = random(KEY_BYTES);\n    const iv = random(IV_BYTES);",
+    replace: "    const dek = new Uint8Array(KEY_BYTES);\n    const iv = random(IV_BYTES);",
     expect: ["its OWN random data key"],
   },
   {

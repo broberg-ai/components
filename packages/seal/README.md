@@ -16,6 +16,19 @@ const stored = await sealer.seal(customerKey, { aad: `${tenantId}:openai-key` })
 const key = await sealer.open(stored, { aad: `${tenantId}:openai-key` });
 ```
 
+## Files and one key per customer (0.2.0)
+
+```ts
+// bytes in, bytes out — a 10 MB file is not turned into a 13 MB base64 string
+const sealedFile = await sealer.sealBytes(fileBytes, { aad: `${tenantId}:attachment:${id}` }); // → Uint8Array
+const fileBytes2 = await sealer.openBytes(sealedFile, { aad: `${tenantId}:attachment:${id}` });
+
+// a key per customer: every key-ring key is derived per scope (HKDF-SHA-256)
+const forTenant = createSealer({ keys: keysFromEnv(process.env.SEAL_KEYS), current: 1, scope: tenantId });
+```
+
+With `scope`, tenant A's values are never wrapped with the same key as tenant B's: a value sealed for one scope does not open in another, not even with the same key ring and `aad`. The same scope always derives the same key, so a fresh sealer for the tenant opens yesterday's values, and `rewrap()` keeps the scope. Without `scope` nothing changes — values sealed by 0.1.0 open exactly as before. `sealBytes` uses its own binary envelope (`SEB1` · version · wrapped data key · iv · ciphertext); the overhead is fixed and does not grow with the file.
+
 ## Keys
 
 ```bash

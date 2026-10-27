@@ -1,6 +1,6 @@
 {
   "name": "@broberg/seal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Encrypt secrets you must store and read back — a customer's own API key, an OAuth refresh token — with AES-256-GCM envelope encryption, a required context (AAD) and key rotation. Web Crypto only, zero dependencies; Node, Bun, Deno and edge.",
   "type": "module",
   "license": "MIT",
