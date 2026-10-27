@@ -205,15 +205,21 @@
  },
  "@broberg/auth-relay": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/auth-relay",
-  "version": "0.3.11",
-  "publishedAt": "2026-10-27T09:16:44.919Z",
+  "version": "0.3.12",
+  "publishedAt": "2026-10-27T12:54:32.556Z",
   "provenance": "yes"
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.61",
-  "publishedAt": "2026-10-27T01:43:49.395Z",
+  "version": "0.1.62",
+  "publishedAt": "2026-10-27T13:11:54.822Z",
   "provenance": "yes"
+ },
+ "@broberg/lens-measure": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/lens-measure",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-27T12:47:35.127Z",
+  "provenance": "no"
  },
  "@broberg/lens-svg": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-svg",
