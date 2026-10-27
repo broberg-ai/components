@@ -53,6 +53,10 @@ the user menu reads and writes theme, palette, surfaces and backdrop through it.
 | `TenantSwitcher` | The user's own organisations, the active one marked, switching through the app's route (0.7.1). |
 | `AnalyticsPage` | The app's own visitors, page views, page views per day and most visited pages, from Upmetrics (0.6.0). |
 
+## 0.25.2 — the organisation menu leaves other fields' arrow keys alone (F029.13)
+
+While the menu is open, arrow keys, Home/End and Enter/Space are handled only when focus is inside the switcher. A field the user tabbed to keeps its own keys. Escape still closes from anywhere.
+
 ## 0.25.1 — the organisation menu works from the keyboard (F029.13)
 
 `TenantSwitcher` used to listen only for Escape. Now, per D-4cd764: opening the menu puts focus on the active organisation; ArrowDown/ArrowUp move between the organisations you can choose (wrapping, a suspended one is skipped); Home/End jump to the ends; Enter or Space chooses; Escape closes and gives focus back to the button. No visual change, no new props.

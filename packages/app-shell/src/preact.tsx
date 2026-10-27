@@ -2244,6 +2244,8 @@ export function TenantSwitcher({ lang, activeSlug, adapter, onSwitch, roleLabel 
         root.current?.querySelector<HTMLButtonElement>(".bas-tenant__btn")?.focus();
         return;
       }
+      // Only while focus is in the switcher — never steal arrows from a field the user tabbed to.
+      if (!root.current?.contains(document.activeElement)) return;
       const items = [...(menu.current?.querySelectorAll<HTMLButtonElement>(".bas-tenant__item:not(:disabled)") ?? [])];
       if (!items.length) return;
       const at = items.indexOf(document.activeElement as HTMLButtonElement);

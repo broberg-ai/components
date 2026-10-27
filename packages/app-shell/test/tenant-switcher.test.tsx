@@ -218,6 +218,22 @@ describe("TenantSwitcher — keyboard (F029.13)", () => {
     }
   });
 
+  it("arrows are NOT taken from a field outside the switcher while the menu is open", async () => {
+    render(
+      <div>
+        <TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS4)} onSwitch={vi.fn()} />
+        <input data-testid="other-field" />
+      </div>,
+    );
+    await openMenu();
+    await waitFor(() => expect(focused()).toBe("tenant-switcher-item-alpha"));
+    const other = screen.getByTestId("other-field");
+    other.focus();
+    const ev = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true });
+    other.dispatchEvent(ev);
+    expect([focused(), ev.defaultPrevented]).toStrictEqual(["other-field", false]);
+  });
+
   it("Escape closes and gives focus back to the button", async () => {
     render(<TenantSwitcher lang="da" activeSlug="alpha" adapter={adapterOf(ROWS4)} onSwitch={vi.fn()} />);
     await openMenu();
