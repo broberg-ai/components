@@ -271,6 +271,31 @@ const terms = await client.embedded.terms("da");                                
 - **The app's name on the terms (0.20.0, BID F084.177).** `terms(lang)` sends your `client_id`, so BID's consent text
   can say «hos <your app>».
 
+## Face ID / fingerprint login from a native app — `@broberg/sso/native` (0.22.0, F084.185)
+
+A Capacitor app (iOS or Android) logs in with the phone's passkey through BID's embedded passkey flow. This entry runs **on the device** as a public client — PKCE, no client secret, no dependencies (only `fetch` and Web Crypto) — so it does not pull the server client into the app.
+
+```ts
+import { nativePasskeyLogin, NativePasskeyPlatformError } from "@broberg/sso/native";
+
+const r = await nativePasskeyLogin({
+  baseUrl: "https://id.broberg.ai",
+  clientId: "buzz-ios",               // registered with BID as a native client (iOS app id / Android package + SHA-256)
+  getAssertion: async (options) => {  // YOUR Capacitor passkey plugin — this package does not pick one
+    // options = { challenge, rpId: "id.broberg.ai", timeout, userVerification: "required" }
+    // return a standard AuthenticationResponseJSON (id, rawId, type, response.{clientDataJSON, authenticatorData, signature, userHandle}, base64url)
+    // throw new NativePasskeyPlatformError("no_credential") when the phone has no passkey for BID
+  },
+});
+if (r.ok) saveSecurely(r.tokens);     // tokens are returned, never stored by the package
+else switch (r.reason) { case "cancelled": case "no_credential": case "rejected": case "unavailable": /* … */ }
+```
+
+- **Discoverable credentials only** — BID sends no `allowCredentials`; the passkey the user picks decides the account.
+- **`userVerification: "required"` is set by the package**, so no app can ask the platform for a passkey without Face ID / fingerprint / PIN.
+- Four outcomes, kept apart because they need different answers: `cancelled` (user closed the prompt), `no_credential` (no passkey on this phone), `rejected` (BID refused: unknown/unregistered client, bad or expired assertion, locked after too many tries), `unavailable` (BID did not answer). Nothing throws.
+- Verify the returned `id_token` where you trust the result (your server), as with any login.
+
 ## What it will never do
 
 No passwords. No passkey registration. No social-provider keys. No email
