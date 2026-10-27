@@ -13,8 +13,8 @@
  },
  "@broberg/mail": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail",
-  "version": "0.19.0",
-  "publishedAt": "2026-10-26T14:25:41.095Z",
+  "version": "0.20.0",
+  "publishedAt": "2026-10-27T22:11:16.390Z",
   "provenance": "yes"
  },
  "@broberg/media": {
@@ -211,8 +211,8 @@
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.66",
-  "publishedAt": "2026-10-27T20:38:10.354Z",
+  "version": "0.1.67",
+  "publishedAt": "2026-10-27T22:09:00.805Z",
   "provenance": "yes"
  },
  "@broberg/lens-measure": {
