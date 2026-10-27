@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { BodyMap3D, seamBlend, seamWeight, ensureNormals, isTap, TAP_MAX_DISTANCE, INTENSITY_SIZE, shouldShowHint } from "../src/three.js";
+import { BodyMap3D, seamBlend, seamWeight, ensureNormals, isTap, TAP_MAX_DISTANCE, INTENSITY_SIZE, TOUCH_MIN, shouldShowHint } from "../src/three.js";
 import { readFileSync } from "node:fs";
 import { REGIONS, defaultPalette, defaultUi, STAGE_BG, type BodymapPalette } from "../src/index.js";
 
@@ -515,5 +515,44 @@ describe("the intensity buttons are circles, all of one size", () => {
     // sibling's, so the two halves carry ONE value.
     expect(INTENSITY_SIZE).toBeGreaterThanOrEqual(44);
     expect(INTENSITY_SIZE).toBe(46);
+  });
+});
+
+// F052.34 — the panel cannot open in happy-dom (no WebGL, no region can be picked), so the
+// geometry is asserted on the source of the ONE style each control uses. A per-button
+// override, a flexing width or a square corner all show up here.
+describe("F052.34 — circles of one size, and no control under the touch floor", () => {
+  const src = readFileSync(`${process.cwd()}/src/three.tsx`, "utf8");
+  const styleOf = (testid: string) => {
+    const at = src.indexOf(`data-testid=${testid}`);
+    expect(at, `no element with data-testid=${testid}`).toBeGreaterThan(-1);
+    const m = src.slice(at, at + 900).match(/style=\{\{([^}]*)\}\}/);
+    expect(m, `no inline style on ${testid}`).not.toBeNull();
+    return m![1];
+  };
+
+  it("ALL eleven intensity buttons share ONE style: fixed width = height = minWidth = INTENSITY_SIZE, no padding, round", () => {
+    const s = styleOf("{`bodymap3d-intensity-${i}`}");
+    // one element rendered in a loop over 0..10, so one style is all eleven
+    expect(src).toMatch(/\[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10\]\.map|Array\.from\(\{ length: 11 \}/);
+    expect(s).toContain("width: INTENSITY_SIZE");
+    expect(s).toContain("height: INTENSITY_SIZE");
+    expect(s).toContain("minWidth: INTENSITY_SIZE");
+    expect(s).toContain("padding: 0");
+    expect(s).toContain('borderRadius: "50%"');
+  });
+
+  it("the size fits «10» with room: at least 2.5× a 16px digit row", () => {
+    // «10» is two digits; at the inherited body size (~16px) two digits are ~18px wide.
+    expect(INTENSITY_SIZE).toBeGreaterThanOrEqual(40);
+  });
+
+  it("the panel's close is round and NOT under the 44px touch floor", () => {
+    const s = styleOf('"bodymap3d-close"');
+    expect(s).toContain("width: TOUCH_MIN");
+    expect(s).toContain("height: TOUCH_MIN");
+    expect(s).toContain('borderRadius: "50%"');
+    expect(TOUCH_MIN).toBe(44);
+    expect(INTENSITY_SIZE).toBeGreaterThanOrEqual(TOUCH_MIN);
   });
 });

@@ -347,6 +347,13 @@ export interface BodyMap3DProps {
 export const INTENSITY_SIZE = 46;
 
 /**
+ * F052.34 — the touch floor F052.8 set for this component (a phone is its primary
+ * surface). The panel's close control was 40×40 — round, but under the floor; it now
+ * takes exactly this. INTENSITY_SIZE sits above it.
+ */
+export const TOUCH_MIN = 44;
+
+/**
  * F052.33 — should the help note be on screen at all?
  *
  * Extracted because the renderer's own answer is unreachable from a unit test:
@@ -919,7 +926,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
                   aria-label={L.close}
                   onClick={() => setSelected(null)}
                   /* Round, like every other close in a consuming app. (F052.34) */
-                  style={{ ...btn(chrome), width: 40, height: 40, minWidth: 40, padding: 0, borderRadius: "50%", fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
+                  style={{ ...btn(chrome), width: TOUCH_MIN, height: TOUCH_MIN, minWidth: TOUCH_MIN, padding: 0, borderRadius: "50%", fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
                 >×</button>
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.intensity}</div>
