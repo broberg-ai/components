@@ -289,8 +289,8 @@
  },
  "@broberg/seal": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/seal",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-20T08:52:10.220Z",
+  "version": "0.2.0",
+  "publishedAt": "2026-10-27T15:45:23.496Z",
   "provenance": "no"
  },
  "@broberg/mail-templates": {
