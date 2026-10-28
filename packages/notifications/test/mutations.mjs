@@ -33,8 +33,8 @@ const MUTATIONS = [
   {
     name: 'bell: outside-click guards on the trigger only (cardmem: portalled panel loses every click)',
     file: REACT,
-    from: '() => [panelRef.current, triggerRef?.current ?? null],',
-    to: '() => [triggerRef?.current ?? null],',
+    from: '        panelRef.current,\n        triggerRef?.current ?? null,\n',
+    to: '        triggerRef?.current ?? null,\n',
   },
   {
     name: 'bell: Escape hardcoded to close (one keypress dismisses an incident alarm)',
