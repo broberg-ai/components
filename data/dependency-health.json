@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-27T06:47:37.283Z",
+ "checked_at": "2026-10-28T07:37:15.313Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -22,8 +22,8 @@
    },
    "dev": {
     "critical": 3,
-    "high": 2,
-    "moderate": 9,
+    "high": 1,
+    "moderate": 10,
     "low": 1
    },
    "outdated": {
@@ -43,7 +43,7 @@
    "verdict": "OK"
   },
   "@broberg/app-shell": {
-   "version": "0.25.2",
+   "version": "0.26.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -59,8 +59,8 @@
    },
    "dev": {
     "critical": 2,
-    "high": 4,
-    "moderate": 8,
+    "high": 3,
+    "moderate": 9,
     "low": 1
    },
    "outdated": {
@@ -95,10 +95,10 @@
     "low": 1
    },
    "dev": {
-    "critical": 0,
+    "critical": 1,
     "high": 0,
     "moderate": 0,
-    "low": 0
+    "low": 3
    },
    "outdated": {
     "total": 9,
@@ -118,7 +118,7 @@
   },
   "@broberg/backup": {
    "version": "0.1.0",
-   "status": "ok",
+   "status": "error",
    "prod": {
     "critical": 0,
     "high": 0,
@@ -133,15 +133,16 @@
    },
    "dev": {
     "critical": 1,
-    "high": 2,
-    "moderate": 8,
+    "high": 1,
+    "moderate": 9,
     "low": 1
    },
    "outdated": {
-    "total": 4,
+    "total": 0,
     "shipped": 0,
     "deprecated": 0
    },
+   "error": "pnpm outdated --format json failed: Command failed: pnpm outdated --format json",
    "osv": {
     "status": "ok",
     "critical": 0,
@@ -151,10 +152,10 @@
     "unrated": 0,
     "findings": []
    },
-   "verdict": "OK"
+   "verdict": "kunne ikke tjekke"
   },
   "@broberg/bodymap": {
-   "version": "0.13.2",
+   "version": "0.13.3",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -858,7 +859,7 @@
   },
   "@broberg/logger": {
    "version": "0.2.3",
-   "status": "ok",
+   "status": "error",
    "prod": {
     "critical": 0,
     "high": 0,
@@ -878,10 +879,11 @@
     "low": 0
    },
    "outdated": {
-    "total": 6,
-    "shipped": 1,
+    "total": 0,
+    "shipped": 0,
     "deprecated": 0
    },
+   "error": "pnpm outdated --format json failed: Command failed: pnpm outdated --format json",
    "osv": {
     "status": "ok",
     "critical": 0,
@@ -891,10 +893,10 @@
     "unrated": 0,
     "findings": []
    },
-   "verdict": "OK"
+   "verdict": "kunne ikke tjekke"
   },
   "@broberg/mail": {
-   "version": "0.19.0",
+   "version": "0.21.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -931,7 +933,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-core": {
-   "version": "0.10.0",
+   "version": "0.10.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1058,8 +1060,8 @@
    },
    "dev": {
     "critical": 1,
-    "high": 12,
-    "moderate": 14,
+    "high": 13,
+    "moderate": 15,
     "low": 2
    },
    "outdated": {
@@ -1671,7 +1673,7 @@
    "verdict": "OK"
   },
   "@broberg/sso": {
-   "version": "0.21.2",
+   "version": "0.23.0",
    "status": "ok",
    "prod": {
     "critical": 0,
