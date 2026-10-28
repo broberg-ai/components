@@ -31,8 +31,8 @@
  },
  "@broberg/mail-core": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail-core",
-  "version": "0.10.0",
-  "publishedAt": "2026-10-25T21:20:45.462Z",
+  "version": "0.10.1",
+  "publishedAt": "2026-10-28T03:17:25.503Z",
   "provenance": "yes"
  },
  "@broberg/media-transform": {
