@@ -30,7 +30,13 @@ export interface BrandColors {
    *  for a dark-card brand; textColor's default adapts automatically. */
   cardBg?: string;
   /** Body text color. Default derived from cardBg (light card → dark text,
-   *  dark card → light text) so a dark-card brand isn't illegible by default. */
+   *  dark card → light text) so a dark-card brand isn't illegible by default.
+   *
+   *  ⚠️ OUTLOOK iOS INVERTS THE DIRECTION. It maps a DARK source colour to a
+   *  LIGHT rendered one — measured by fd-sundhed on a real iPhone, 2026-08-19:
+   *  #1a1c2b → #c1c2d1 and #4a4d63 → #a7a9bf. So if a line reads too faint at
+   *  the recipient, make this source colour DARKER, not lighter. "Lighten it"
+   *  is the intuitive fix and makes it worse. */
   textColor?: string;
   /** Page background behind the card. Default '#f4f4f5'. */
   backdropColor?: string;

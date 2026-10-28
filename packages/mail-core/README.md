@@ -64,7 +64,23 @@ Every other color has a sensible neutral default (`cardBg` #fffffe — see below
 
 Table-based layout throughout (`role="presentation"` tables, not flex/grid), inline styles, `prefers-color-scheme` + Outlook.com's `[data-ogsc]` dark-mode-inversion guards. `cta()` renders a table-cell button, never a bare `<a>`/`<button>` some clients strip styling from.
 
+## Outlook iOS in dark mode — measured, and the direction is inverted
+
+Measured by **fd-sundhed** on a real iPhone running Outlook iOS (2026-08-19):
+
+- **Outlook maps a dark source colour to a light rendered one:** `#1a1c2b → #c1c2d1`, `#4a4d63 → #a7a9bf`. To make a too-faint line MORE readable at the recipient, make the source colour **darker**. "Lighten it" is the intuitive fix, and it makes the line worse. The same warning sits on `BrandColors.textColor`, so your editor shows it where you set the value.
+- **Three force-light techniques had ZERO effect there, not a partial one:** `light only` color-scheme metas + CSS, `[data-ogsc]`/`[data-ogsb]` rules, and `#fffffe` instead of `#ffffff`. Asked for `#141969`, got `#484090`. Asked for `#fffffe`, got `#484848`, and the card and the footer landed on the same colour, so the footer stopped being a zone at all. **They stay in the shell because Apple Mail honours them.** Do not add a fourth layer expecting it to fix Outlook.
+- What actually doubled legibility (2.0:1 → 4.9:1) was structural: no mid-tones, structure from rule-and-space instead of fills, no gradient, and a button with a fill AND a border.
+
+`eyebrow()`, `noteBox()` and `heading({ emphasis })` exist because **vn-leker** measured that a consumer had to hand-write them. Every primitive is optional: a mail with three plain lines is a valid mail, so a template built on this must not make a field required just because an example had it.
+
+## Fonts: `fontSerif` and `fontSans` are fallback STACKS
+
+Pass a stack, never a single family name: `"'Playfair Display',Georgia,'Times New Roman',serif"`. Outlook does not guarantee webfonts, and the answer to that is to LAYER the brand font over safe fallbacks, not to remove it. A single name removes the design for Apple Mail too, the client that can show it.
+
 ## Logo attachments
+
+**This is the RECOMMENDED route for a logo, not an alternative.** A mail fetches a hosted logo every time it is opened, for years. If that file ever moves, every mail you have ever sent loses its logo, retroactively. A CID attachment travels inside the mail and cannot break that way. A hosted URL is the fallback (`logo: { cid, url }` carries both and degrades), and a `data:` URI is refused because Gmail's image proxy strips it.
 
 `makeLogoAttachment(filePath)` reads a file from a **caller-supplied full path** (never assumes `process.cwd()`) and returns a Resend-shaped inline (CID) attachment — or `null` if the file is missing, so a missing logo degrades gracefully instead of breaking a transactional send.
 
