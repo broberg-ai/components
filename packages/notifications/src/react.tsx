@@ -26,6 +26,16 @@ function useBell() {
 }
 
 /**
+ * The shell and its current state, for code INSIDE the provider — chiefly a row
+ * that opens a stacked layer (an alarm) with `shell.pushLayer(...)`, or a full
+ * page that reads `state.rows`. Without it the only handle on the shell is the
+ * provider's own, and a row could not stack anything.
+ */
+export function useBellShell(): { shell: BellShell; state: BellState } {
+  return useBell();
+}
+
+/**
  * ONE provider owns the count, the list and the panel.
  *
  * This is the shape that makes xrt81's production bug unrepresentable rather
