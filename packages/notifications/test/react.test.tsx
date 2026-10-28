@@ -373,3 +373,29 @@ describe("every string the shell renders is the consumer's (AC#14 / AC#18)", () 
     expect(ours).not.toMatch(/notification|mark all|see all|nothing|close|empty|read/i);
   });
 });
+
+describe("a click INSIDE a stacked layer does not close the panel under it (found by Lens in a real engine)", () => {
+  it("pointerdown + click on the alarm's button closes only the alarm, and focus returns to the row", async () => {
+    render(<BellProvider config={config()}><Bell /><BellPanel><AlarmRow /></BellPanel><AlarmLayer /></BellProvider>);
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    const rowEl = await screen.findByTestId("alarm-row");
+    await act(async () => { rowEl.focus(); fireEvent.click(rowEl); });
+    const ack = await screen.findByTestId("alarm-ack");
+    // what a real browser does on a mouse click — the event happy-dom's click() omits
+    await act(async () => { fireEvent.pointerDown(ack); fireEvent.mouseDown(ack); fireEvent.click(ack); });
+    expect(screen.queryByTestId("bell-layer-alarm")).toBeNull();
+    expect(screen.queryByTestId("bell-panel")).not.toBeNull();
+    expect(document.activeElement).toBe(rowEl);
+  });
+
+  it("while a modal sits on top, a background click closes nothing", async () => {
+    render(<BellProvider config={config()}><Bell /><BellPanel><AlarmRow /></BellPanel><AlarmLayer /><main data-testid="bg">bg</main></BellProvider>);
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await act(async () => { fireEvent.click(await screen.findByTestId("alarm-row")); });
+    await screen.findByTestId("bell-layer-alarm");
+    const bg = screen.getByTestId("bg");
+    await act(async () => { fireEvent.pointerDown(bg); fireEvent.mouseDown(bg); fireEvent.click(bg); });
+    expect(screen.queryByTestId("bell-layer-alarm")).not.toBeNull();
+    expect(screen.queryByTestId("bell-panel")).not.toBeNull();
+  });
+});

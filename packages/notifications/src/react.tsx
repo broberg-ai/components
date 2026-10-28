@@ -112,9 +112,18 @@ export function BellPanel({ children, className, triggerRef }: {
 
   useEffect(() => {
     if (!state.open) return;
+    // A STACKED layer (an alarm opened from a row) is rendered outside the
+    // panel, so a click in it is "outside" the panel — and closed the whole
+    // stack in a real browser (Lens, 28/10; happy-dom never fires the
+    // pointerdown that triggers it). Layers count as inside, and while a layer
+    // sits on top, an outside click is the layer's business, not the panel's.
     const h = makeOutsideClickHandler(
-      () => [panelRef.current, triggerRef?.current ?? null],
-      () => shell.close(),
+      () => [
+        panelRef.current,
+        triggerRef?.current ?? null,
+        ...Array.from(panelRef.current?.ownerDocument.querySelectorAll<HTMLElement>("[data-bell-layer]") ?? []),
+      ],
+      () => { if (shell.getState().layers.length <= 1) shell.close(); },
     );
     h.attach();
     return () => h.detach();
@@ -122,10 +131,23 @@ export function BellPanel({ children, className, triggerRef }: {
 
   useKeyboardLayer(panelRef, isTop, shell);
 
+  // Focus INTO the panel on open (the first focusable, or the panel itself when
+  // it is empty — the most common screen), and back to the trigger on close.
+  const panelReturn = state.layers[0]?.focusReturn;
+  useEffect(() => {
+    if (!state.open) return;
+    const el = panelRef.current;
+    (el?.querySelector<HTMLElement>(FOCUSABLE) ?? el)?.focus?.();
+    return () => {
+      if (panelReturn && typeof (panelReturn as HTMLElement).focus === "function") (panelReturn as HTMLElement).focus();
+    };
+  }, [state.open, panelReturn]);
+
   if (!state.open) return null;
   return (
     <div
       ref={panelRef}
+      tabIndex={-1}
       id={PANEL_ID}
       data-testid="bell-panel"
       className={className}
@@ -226,7 +248,7 @@ export function BellLayer({ id, children, className }: { id: string; children: R
 
   if (!layer) return null;
   return (
-    <div ref={ref} data-testid={`bell-layer-${id}`} tabIndex={-1} className={className}
+    <div ref={ref} data-testid={`bell-layer-${id}`} data-bell-layer="" tabIndex={-1} className={className}
       role={layer.modal ? "alertdialog" : "dialog"} aria-modal={layer.modal}>
       {children}
     </div>
