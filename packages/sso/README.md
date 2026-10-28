@@ -698,6 +698,38 @@ await fetch("https://discovery.broberg.ai/api/fleet", { headers: { authorization
 - **Errors:** `TicketExchangeError` (BID refused — `code` is BID's name for it, `status` the HTTP status; permanent, fix the rule) · `TicketUnavailableError` (BID or the platform unreachable / 5xx; transient) · `NoWorkloadIdentityError`. BID's codes include `no_rule_for_audience`, `scope_not_allowed`, `service_not_registered`, `audience_unknown`, `workflow_not_allowed`, `fly_org_untrusted`, `fly_audience_mismatch`, `github_owner_untrusted`, `client_mismatch`, `issuer_unknown`.
 - The ticket is never logged or put in an error message.
 
+### On Fly, if your container does not run as root: `EACCES /.fly/api`
+
+`/.fly/api` is created by Fly **at machine start**, owned `root:root` with mode
+`srwxr-xr-x`. A container that runs as a non-root user (`USER bun`, `USER node`)
+cannot connect, and `fetchTicket` fails with
+`TicketUnavailableError: Fly OIDC socket: connect EACCES /.fly/api`.
+
+**The proven pattern** — from buzzalert-core (in production), reused by cardmem
+and measured on a real Fly machine (28 Oct 2026): start as root, give the
+socket to your app's GROUP, then drop privileges for the app itself.
+
+```sh
+#!/bin/sh
+# fly-entrypoint.sh — runs as root, only long enough to hand over the socket
+set -e
+if [ -S /.fly/api ]; then
+  chgrp bun /.fly/api && chmod g+w /.fly/api
+fi
+exec setpriv --reuid=bun --regid=bun --init-groups bun run server.ts
+```
+
+```dockerfile
+# remove `USER bun` — the entrypoint drops to bun itself
+COPY fly-entrypoint.sh /fly-entrypoint.sh
+ENTRYPOINT ["/fly-entrypoint.sh"]
+```
+
+- **It must happen at runtime**, in the entrypoint: the socket does not exist at build time.
+- **Group-write, not `chmod 666`.** 666 hands the machine's OIDC identity to *every* process in the container; `g+w` gives it to your app's group only.
+- **Do not run the whole app as root** to make the error go away.
+- `setpriv` is in util-linux, present in the Debian-based `-slim` images (`oven/bun:1-slim`, `node:24-slim`). Swap `bun` for your image's user.
+
 ## A ticket on behalf of a USER — `exchangeUserToken` (0.20.0, F084.179, BID F087.37)
 
 A signed-in user's BID access token, exchanged for a ticket to ONE receiver. Same ticket format as the

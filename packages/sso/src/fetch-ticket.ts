@@ -101,7 +101,14 @@ export function flyOidcOverSocket(aud: string): Promise<string> {
         });
       },
     );
-    req.on("error", (e) => reject(new TicketUnavailableError(`Fly OIDC socket: ${e.message}`)));
+    req.on("error", (e) => {
+      // A non-root container cannot open the root-owned socket. Name the fix, not
+      // only the symptom — every app hitting this has otherwise had to ask.
+      const hint = (e as NodeJS.ErrnoException).code === "EACCES"
+        ? " — the container runs as a non-root user and /.fly/api is root-owned. Give the socket to your app's group in a root entrypoint, then drop privileges (see @broberg/sso README: «On Fly, if your container does not run as root»)."
+        : "";
+      reject(new TicketUnavailableError(`Fly OIDC socket: ${e.message}${hint}`));
+    });
     req.end(body);
   });
 }
