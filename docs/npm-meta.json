@@ -85,8 +85,8 @@
  },
  "@broberg/lens": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens",
-  "version": "0.3.2",
-  "publishedAt": "2026-10-12T00:12:59.358Z",
+  "version": "0.3.3",
+  "publishedAt": "2026-10-28T09:48:06.660Z",
   "provenance": "yes"
  },
  "@broberg/auth": {
@@ -211,8 +211,8 @@
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.72",
-  "publishedAt": "2026-10-28T01:45:11.791Z",
+  "version": "0.1.73",
+  "publishedAt": "2026-10-28T09:21:42.517Z",
   "provenance": "yes"
  },
  "@broberg/lens-measure": {
