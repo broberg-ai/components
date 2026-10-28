@@ -211,8 +211,8 @@
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.70",
-  "publishedAt": "2026-10-27T23:28:51.867Z",
+  "version": "0.1.72",
+  "publishedAt": "2026-10-28T01:45:11.791Z",
   "provenance": "yes"
  },
  "@broberg/lens-measure": {
