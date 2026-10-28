@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-28T07:37:15.313Z",
+ "checked_at": "2026-10-28T10:53:19.107Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -118,7 +118,7 @@
   },
   "@broberg/backup": {
    "version": "0.1.0",
-   "status": "error",
+   "status": "ok",
    "prod": {
     "critical": 0,
     "high": 0,
@@ -138,11 +138,10 @@
     "low": 1
    },
    "outdated": {
-    "total": 0,
+    "total": 4,
     "shipped": 0,
     "deprecated": 0
    },
-   "error": "pnpm outdated --format json failed: Command failed: pnpm outdated --format json",
    "osv": {
     "status": "ok",
     "critical": 0,
@@ -152,7 +151,7 @@
     "unrated": 0,
     "findings": []
    },
-   "verdict": "kunne ikke tjekke"
+   "verdict": "OK"
   },
   "@broberg/bodymap": {
    "version": "0.13.3",
@@ -415,7 +414,7 @@
   },
   "@broberg/deploy-core": {
    "version": "0.8.2",
-   "status": "ok",
+   "status": "error",
    "prod": {
     "critical": 0,
     "high": 0,
@@ -435,10 +434,11 @@
     "low": 0
    },
    "outdated": {
-    "total": 4,
+    "total": 0,
     "shipped": 0,
     "deprecated": 0
    },
+   "error": "pnpm outdated --format json failed: Command failed: pnpm outdated --format json",
    "osv": {
     "status": "ok",
     "critical": 0,
@@ -448,11 +448,11 @@
     "unrated": 0,
     "findings": []
    },
-   "verdict": "OK"
+   "verdict": "kunne ikke tjekke"
   },
   "@broberg/device-stats": {
    "version": "0.4.1",
-   "status": "ok",
+   "status": "error",
    "prod": {
     "critical": 0,
     "high": 0,
@@ -472,10 +472,11 @@
     "low": 0
    },
    "outdated": {
-    "total": 5,
+    "total": 0,
     "shipped": 0,
     "deprecated": 0
    },
+   "error": "pnpm outdated --format json failed: Command failed: pnpm outdated --format json",
    "osv": {
     "status": "ok",
     "critical": 0,
@@ -485,7 +486,7 @@
     "unrated": 0,
     "findings": []
    },
-   "verdict": "OK"
+   "verdict": "kunne ikke tjekke"
   },
   "@broberg/editor": {
    "version": "0.1.0",
@@ -600,7 +601,7 @@
   },
   "@broberg/forms-turnstile": {
    "version": "0.4.0",
-   "status": "ok",
+   "status": "error",
    "prod": {
     "critical": 0,
     "high": 0,
@@ -620,10 +621,11 @@
     "low": 0
    },
    "outdated": {
-    "total": 8,
+    "total": 0,
     "shipped": 0,
     "deprecated": 0
    },
+   "error": "pnpm outdated --format json failed: Command failed: pnpm outdated --format json",
    "osv": {
     "status": "ok",
     "critical": 0,
@@ -633,7 +635,7 @@
     "unrated": 0,
     "findings": []
    },
-   "verdict": "OK"
+   "verdict": "kunne ikke tjekke"
   },
   "@broberg/gravatar": {
    "version": "0.2.1",
@@ -822,43 +824,6 @@
   },
   "@broberg/local-guard": {
    "version": "0.2.0",
-   "status": "ok",
-   "prod": {
-    "critical": 0,
-    "high": 0,
-    "moderate": 0,
-    "low": 0
-   },
-   "peer": {
-    "critical": 0,
-    "high": 0,
-    "moderate": 0,
-    "low": 0
-   },
-   "dev": {
-    "critical": 0,
-    "high": 0,
-    "moderate": 0,
-    "low": 0
-   },
-   "outdated": {
-    "total": 4,
-    "shipped": 0,
-    "deprecated": 0
-   },
-   "osv": {
-    "status": "ok",
-    "critical": 0,
-    "high": 0,
-    "moderate": 0,
-    "low": 0,
-    "unrated": 0,
-    "findings": []
-   },
-   "verdict": "OK"
-  },
-  "@broberg/logger": {
-   "version": "0.2.3",
    "status": "error",
    "prod": {
     "critical": 0,
@@ -894,6 +859,43 @@
     "findings": []
    },
    "verdict": "kunne ikke tjekke"
+  },
+  "@broberg/logger": {
+   "version": "0.2.3",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 6,
+    "shipped": 1,
+    "deprecated": 0
+   },
+   "osv": {
+    "status": "ok",
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0,
+    "unrated": 0,
+    "findings": []
+   },
+   "verdict": "OK"
   },
   "@broberg/mail": {
    "version": "0.21.0",
@@ -1192,7 +1194,7 @@
    "verdict": "OK"
   },
   "@broberg/notifications": {
-   "version": "0.4.0",
+   "version": "0.5.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1213,7 +1215,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 10,
+    "total": 12,
     "shipped": 0,
     "deprecated": 0
    },
@@ -1378,7 +1380,7 @@
   },
   "@broberg/seal": {
    "version": "0.2.0",
-   "status": "ok",
+   "status": "error",
    "prod": {
     "critical": 0,
     "high": 0,
@@ -1398,10 +1400,11 @@
     "low": 0
    },
    "outdated": {
-    "total": 4,
+    "total": 0,
     "shipped": 0,
     "deprecated": 0
    },
+   "error": "pnpm outdated --format json failed: Command failed: pnpm outdated --format json",
    "osv": {
     "status": "ok",
     "critical": 0,
@@ -1411,7 +1414,7 @@
     "unrated": 0,
     "findings": []
    },
-   "verdict": "OK"
+   "verdict": "kunne ikke tjekke"
   },
   "@broberg/secret-scan": {
    "version": "0.14.3",
