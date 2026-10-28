@@ -45,6 +45,7 @@ try {
 const lines = text.split("\n");
 const missing = [];
 const unmarked = [];
+const contradictions = [];
 
 for (const r of rows) {
   const line = lines.find((l) => l.includes(`**${r.nm}**`));
@@ -61,6 +62,17 @@ for (const r of rows) {
   const marker =
     r.s === "shipped" ? "NOT AN NPM PACKAGE" : r.s == null ? "STATUS NOT RECORDED" : "NOT BUILT YET";
   if (!line.includes(marker)) unmarked.push(`${r.nm} (expected "${marker}")`);
+
+  // F038.18 AC#5 — the self-contradiction, asserted mechanically. A line that says
+  // "nothing to install, nothing to import" must not sit above a description that
+  // tells you how to call the thing: an endpoint, an MCP verb, an image ref or an
+  // install line. That pairing is how Trail was listed as not built while its own
+  // entry named the two verbs you use it with.
+  if (line.includes("nothing to install, nothing to import")) {
+    const desc = lines[lines.indexOf(line) + 1] ?? "";
+    const callable = desc.match(/https?:\/\/|mcp__[a-z_]+|\b(?:npm i|npm install|pnpm add|bun add)\b|\b(?:ghcr\.io|registry\.fly\.io|docker\.io)\//);
+    if (callable) contradictions.push(`${r.nm} (says nothing to import, yet its description has "${callable[0]}")`);
+  }
 }
 
 // THE HUMAN PAGE IS A SECOND SURFACE, and leaving it out is how the first cut of
@@ -80,7 +92,7 @@ if (!base) {
   for (const r of rows) if (!html.includes(esc(r.nm))) htmlMissing.push(r.nm);
 }
 
-if (missing.length || unmarked.length || htmlMissing.length) {
+if (missing.length || unmarked.length || htmlMissing.length || contradictions.length) {
   if (missing.length)
     console.error(
       `✗ ${missing.length} of ${rows.length} non-package row(s) are MISSING from llms.txt:\n    ` +
@@ -92,6 +104,12 @@ if (missing.length || unmarked.length || htmlMissing.length) {
       `✗ ${unmarked.length} row(s) appear WITHOUT their status marker on the same line:\n    ` +
         unmarked.join("\n    ") +
         `\n  A planned item that reads like an available one is worse than not listing it.`,
+    );
+  if (contradictions.length)
+    console.error(
+      `✗ ${contradictions.length} row(s) say NOT BUILT — nothing to import — above a description that names how to call them:\n    ` +
+        contradictions.join("\n    ") +
+        `\n  Either the status is wrong or the description is. F038.18: this is how Trail was listed as not existing.`,
     );
   if (htmlMissing.length)
     console.error(
