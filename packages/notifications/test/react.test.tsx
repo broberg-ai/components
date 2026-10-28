@@ -139,3 +139,19 @@ describe("the empty panel is the common case (AC#6/#15, DOM half)", () => {
     expect(screen.queryByTestId("bell-panel")).not.toBeNull();
   });
 });
+
+describe("redraw, never re-mount (AC#20, DOM half)", () => {
+  it("the panel node is the SAME node after mark-all", async () => {
+    render(
+      <BellProvider config={config()}>
+        <Bell />
+        <BellPanel><BellMarkAll /></BellPanel>
+      </BellProvider>,
+    );
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    const before = await screen.findByTestId("bell-panel");
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-mark-all")); });
+    await waitFor(() => expect(screen.getByTestId("bell-count").textContent).toBe("0"));
+    expect(screen.getByTestId("bell-panel")).toBe(before);
+  });
+});
