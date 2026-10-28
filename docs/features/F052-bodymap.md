@@ -152,3 +152,7 @@ does the `.glb` 200 from their *deployed* url (a canvas with no model is black â
 a deploy problem wearing a capture problem's clothes); is the canvas inside an
 ancestor with a transform/filter/backdrop-filter; is it mounted lazily behind
 something their run never opens.
+
+## Reuse
+
+This IS the shared capability: @broberg/bodymap (owned by components) is the fleet's one body pain-map. Discovery had no body/pain-map primitive; fd-sundhed is the first consumer. three.js is used for the 3D view (no @broberg/* 3D package exists).
