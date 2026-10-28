@@ -3642,7 +3642,7 @@ jobs:
     needs: gate
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    timeout-minutes: 20 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
+    timeout-minutes: 25 # the npm wait below is up to 15 min (measured ~7½); GitHub would otherwise wait 360
     permissions:
       contents: write # the one job here that writes back to the repo
     steps:
@@ -3673,16 +3673,22 @@ jobs:
       # WAIT FOR THE REGISTRY, don't race it. A green publish job, a registry
       # document, and an installable version land minutes apart; bumping on the
       # first would name a version a consumer cannot yet resolve.
+      #
+      # 15 minutes, not 5. This job needs only `gate`, so its clock starts while
+      # the package's own publish job is still building — measured 28/10 twice
+      # (mail 0.21.0, sso 0.23.1): npm served the version ~7½ min after this
+      # step began, the 5-minute wait gave up, the roster stayed behind, and the
+      # next Discovery run went red on main until someone bumped it by hand.
       - name: Wait until npm actually serves it
         run: |
-          for i in $(seq 1 20); do
+          for i in $(seq 1 60); do
             if npm view "${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }}" version >/dev/null 2>&1; then
               echo "npm serves ${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }}"
               exit 0
             fi
             sleep 15
           done
-          echo "::warning::npm did not serve ${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }} within 5 minutes — not bumping. check-roster-versions will catch it on the next Discovery run."
+          echo "::warning::npm did not serve ${{ steps.t.outputs.pkg }}@${{ steps.t.outputs.ver }} within 15 minutes — not bumping. check-roster-versions will catch it on the next Discovery run."
           echo "SKIP=1" >> "$GITHUB_ENV"
 
       # TWO PACKAGES CAN RELEASE AT ONCE, and then two roster jobs race for the
