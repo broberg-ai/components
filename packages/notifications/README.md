@@ -368,6 +368,12 @@ import { BellProvider, Bell, BellPanel, BellMarkAll, BellRow, BellLayer, useBell
 </BellProvider>
 ```
 
+**Install `@broberg/ui-controls-core` alongside `/react` or `/preact`.** It is an
+*optional* peer only because the headless core does not need it; both wrappers
+import it for outside-click, and without it they fail to load
+(`Cannot find module '@broberg/ui-controls-core'` — measured on a clean install
+of 0.5.0). Verified working on Preact 10.29 and 11.1.
+
 `onActivate` returns `"navigate"` (closes the panel) or `"stay"` (an alarm row
 pushes its layer with `useBellShell().shell.pushLayer({ id, modal: true,
 focusReturn: rowEl })`). `onCount(n)` is your OS badge, called in the same
