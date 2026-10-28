@@ -87,6 +87,8 @@ export function Bell({ className, render }: {
 }
 
 const PANEL_ID = "broberg-bell-panel";
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /**
  * The panel. Renders where you put it — portal it yourself if your topbar has a
@@ -209,9 +211,22 @@ export function BellLayer({ id, children, className }: { id: string; children: R
 
   useKeyboardLayer(ref, isTop, shell);
 
+  // Focus INTO the layer when it opens, and BACK to what it declared when it
+  // closes — for an alarm opened from a row, that is the ROW, not the bell.
+  // The shell computes the target; only a DOM wrapper can move focus there.
+  const focusReturn = layer?.focusReturn;
+  useEffect(() => {
+    if (!layer) return;
+    const first = ref.current?.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? ref.current)?.focus?.();
+    return () => {
+      if (focusReturn && typeof (focusReturn as HTMLElement).focus === "function") (focusReturn as HTMLElement).focus();
+    };
+  }, [layer !== undefined, focusReturn]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!layer) return null;
   return (
-    <div ref={ref} data-testid={`bell-layer-${id}`} className={className}
+    <div ref={ref} data-testid={`bell-layer-${id}`} tabIndex={-1} className={className}
       role={layer.modal ? "alertdialog" : "dialog"} aria-modal={layer.modal}>
       {children}
     </div>
@@ -241,9 +256,7 @@ function useKeyboardLayer(ref: RefObject<HTMLElement | null>, isTop: boolean, sh
     if (e.key !== "Tab") return;
     const el = ref.current;
     if (!el) return;
-    const items = el.querySelectorAll<HTMLElement>(
-      'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
-    );
+    const items = el.querySelectorAll<HTMLElement>(FOCUSABLE);
     // An EMPTY panel has none of these, and that is the most ordinary screen
     // there is. Swallow the key rather than indexing into nothing.
     if (items.length === 0) { e.preventDefault(); return; }

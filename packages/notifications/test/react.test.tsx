@@ -254,3 +254,122 @@ describe("the full page works without the bell ever being opened (AC#19)", () =>
     expect(screen.queryByTestId("bell-panel")).toBeNull();
   });
 });
+
+function AlarmRow({ onEscape }: { onEscape?: () => "close" | "keep" }) {
+  const { shell } = useBellShell();
+  return (
+    <button type="button" data-testid="alarm-row"
+      onClick={(e) => shell.pushLayer({ id: "alarm", modal: true, focusReturn: e.currentTarget, onEscape })}>alarm</button>
+  );
+}
+function AlarmLayer() {
+  const { shell } = useBellShell();
+  return (
+    <BellLayer id="alarm">
+      <button type="button" data-testid="alarm-ack" onClick={() => { shell.popLayer(); }}>Kvittér</button>
+    </BellLayer>
+  );
+}
+
+describe("two stacked layers: focus goes in, and back to the ROW (AC#2, DOM half)", () => {
+  it("opening the alarm focuses inside it; closing returns focus to the row that opened it — not the bell", async () => {
+    render(
+      <BellProvider config={config()}>
+        <Bell />
+        <BellPanel><AlarmRow /></BellPanel>
+        <AlarmLayer />
+      </BellProvider>,
+    );
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    const rowEl = await screen.findByTestId("alarm-row");
+    await act(async () => { rowEl.focus(); fireEvent.click(rowEl); });
+    const ack = await screen.findByTestId("alarm-ack");
+    expect(document.activeElement).toBe(ack);
+    await act(async () => { fireEvent.click(ack); });
+    expect(screen.queryByTestId("bell-layer-alarm")).toBeNull();
+    expect(screen.queryByTestId("bell-panel")).not.toBeNull(); // the panel underneath survives
+    expect(document.activeElement).toBe(rowEl);
+    expect(document.activeElement).not.toBe(screen.getByTestId("bell-trigger"));
+  });
+});
+
+describe("Escape is an outcome, in the DOM (AC#3, DOM half)", () => {
+  it("a non-modal panel closes on Escape", async () => {
+    render(<BellProvider config={config()}><Bell /><BellPanel><span>x</span></BellPanel></BellProvider>);
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await screen.findByTestId("bell-panel");
+    await act(async () => { fireEvent.keyDown(document, { key: "Escape" }); });
+    expect(screen.queryByTestId("bell-panel")).toBeNull();
+  });
+
+  it("a MODAL layer refuses Escape by default — alarm AND panel stay", async () => {
+    render(<BellProvider config={config()}><Bell /><BellPanel><AlarmRow /></BellPanel><AlarmLayer /></BellProvider>);
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await act(async () => { fireEvent.click(await screen.findByTestId("alarm-row")); });
+    await screen.findByTestId("bell-layer-alarm");
+    await act(async () => { fireEvent.keyDown(document, { key: "Escape" }); });
+    expect(screen.queryByTestId("bell-layer-alarm")).not.toBeNull();
+    expect(screen.queryByTestId("bell-panel")).not.toBeNull();
+  });
+
+  it("a layer whose handler says 'close' closes on Escape, and only that layer", async () => {
+    render(<BellProvider config={config()}><Bell /><BellPanel><AlarmRow onEscape={() => "close"} /></BellPanel><AlarmLayer /></BellProvider>);
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await act(async () => { fireEvent.click(await screen.findByTestId("alarm-row")); });
+    await screen.findByTestId("bell-layer-alarm");
+    await act(async () => { fireEvent.keyDown(document, { key: "Escape" }); });
+    expect(screen.queryByTestId("bell-layer-alarm")).toBeNull();
+    expect(screen.queryByTestId("bell-panel")).not.toBeNull();
+  });
+});
+
+describe("anchoring is owned or handed off explicitly (AC#9, DOM half)", () => {
+  function SheetOpener() {
+    const { shell, state } = useBellShell();
+    return (
+      <>
+        <button type="button" data-testid="open-sheet" onClick={() => { void shell.open(); }}>sheet</button>
+        <output data-testid="anchor">{state.open ? (state.anchor ? "anchored" : "sheet") : "closed"}</output>
+      </>
+    );
+  }
+  it("one provider serves an anchored dropdown (rect captured at open) AND a bottom sheet (no anchor)", async () => {
+    render(<BellProvider config={config()}><Bell /><BellPanel><span>x</span></BellPanel><SheetOpener /></BellProvider>);
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await waitFor(() => expect(screen.getByTestId("anchor").textContent).toBe("anchored"));
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); }); // close
+    await act(async () => { fireEvent.click(screen.getByTestId("open-sheet")); });
+    await waitFor(() => expect(screen.getByTestId("anchor").textContent).toBe("sheet"));
+    expect(screen.queryByTestId("bell-panel")).not.toBeNull();
+  });
+});
+
+describe("every string the shell renders is the consumer's (AC#14 / AC#18)", () => {
+  it("with sentinel labels, every shell-owned text AND aria-label is one of them — no English of ours", async () => {
+    const sentinel = { bell: "ZZ-bell", panel: "ZZ-panel", markAll: "ZZ-markall", seeAll: "ZZ-seeall", empty: "ZZ-empty", close: "ZZ-close" };
+    const { container } = render(
+      <>
+        <BellProvider config={config({ labels: sentinel })}>
+          <Bell />
+          <BellPanel><BellMarkAll /></BellPanel>
+        </BellProvider>
+        <BellProvider config={config({ labels: sentinel, loadRows: async () => [], countUnseen: async () => 0 })}>
+          <Bell />
+          <BellPanel><span /></BellPanel>
+        </BellProvider>
+      </>,
+    );
+    for (const t of screen.getAllByTestId("bell-trigger")) await act(async () => { fireEvent.click(t); });
+    await screen.findByTestId("bell-empty");
+    const allowed = new Set(Object.values(sentinel));
+    const ariaLabels = Array.from(container.ownerDocument.querySelectorAll("[aria-label]")).map((e) => e.getAttribute("aria-label")!);
+    expect(ariaLabels.length).toBeGreaterThan(0);
+    for (const a of ariaLabels) expect(allowed.has(a)).toBe(true);
+    const text = container.ownerDocument.body.textContent ?? "";
+    expect(text).toContain("ZZ-markall");
+    expect(text).toContain("ZZ-empty");
+    // Strip the consumer's own strings; whatever is left must hold no words of ours.
+    const ours = [...allowed].reduce((t, l) => t.split(l).join(""), text);
+    expect(ours).not.toMatch(/notification|mark all|see all|nothing|close|empty|read/i);
+  });
+});

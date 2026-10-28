@@ -19,9 +19,47 @@ import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutat
 const HERE = new URL('../', import.meta.url).pathname;
 const INDEX = join(HERE, 'src/index.ts');
 const SHELL = join(HERE, 'src/shell.ts');
+const REACT = join(HERE, 'src/react.tsx');
 const SRC_FOR_GUARD = 'src/index.ts';
 
 const MUTATIONS = [
+  // F074.4 AC#13 — the six defects four consumers each shipped, one mutation apiece.
+  {
+    name: 'bell: the trigger holds its OWN count (xrt81: two bells, two numbers)',
+    file: REACT,
+    from: '<span data-testid="bell-count">{state.count}</span>',
+    to: '<span data-testid="bell-count">{useRef(state.count).current}</span>',
+  },
+  {
+    name: 'bell: outside-click guards on the trigger only (cardmem: portalled panel loses every click)',
+    file: REACT,
+    from: '() => [panelRef.current, triggerRef?.current ?? null],',
+    to: '() => [triggerRef?.current ?? null],',
+  },
+  {
+    name: 'bell: Escape hardcoded to close (one keypress dismisses an incident alarm)',
+    file: SHELL,
+    from: 'const outcome = top.onEscape ? top.onEscape() : top.modal ? "keep" : "close";',
+    to: 'const outcome = "close" as EscapeOutcome;',
+  },
+  {
+    name: 'bell: every row is assumed to navigate (an alarm row closes the panel)',
+    file: REACT,
+    from: 'onClick={async () => { if ((await onActivate()) === "navigate") shell.close(); }}',
+    to: 'onClick={async () => { await onActivate(); shell.close(); }}',
+  },
+  {
+    name: 'bell: focus returned to the bell, not the row (the declared target is dropped)',
+    file: REACT,
+    from: 'if (focusReturn && typeof (focusReturn as HTMLElement).focus === "function") (focusReturn as HTMLElement).focus();',
+    to: 'void focusReturn;',
+  },
+  {
+    name: 'bell: the clear-control is disabled from the count (xrt81: bell 1, panel 4, dead button)',
+    file: REACT,
+    from: 'disabled={state.rows.length === 0}',
+    to: 'disabled={state.count === 0}',
+  },
   // F074.4 — the shell. Each restores one defect a consumer actually shipped.
   {
     name: 'shell: a stale read may overwrite a newer one (the network decides the order)',
