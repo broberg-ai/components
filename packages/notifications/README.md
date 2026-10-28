@@ -383,6 +383,24 @@ problem: buttons get translated because someone can see them.
 > builds the wrong screen **with a clear conscience** — which is what makes it hard
 > to catch in review.
 
+### A fixed bottom bar: set `overscroll-behavior: none`
+
+If your app has a fixed bottom bar (a tab bar, a composer), the panel opens over
+it — and on an iPhone running the app **in standalone mode** (added to the home
+screen), a scroll that reaches the panel's end rubber-bands the whole page, and
+the fixed bar floats loose and drifts with it. It does not reproduce in Safari
+with an address bar, nor in any desktop browser, so it is invisible until a real
+user meets it.
+
+```css
+html, body { overscroll-behavior: none; }
+/* and on the panel's own scroll container */
+.your-panel-list { overscroll-behavior: contain; }
+```
+
+This is your CSS, not the shell's — the shell does not own your page. It is
+written here because the fourth consumer otherwise hits it blind.
+
 ### The stack, not "one dialog at a time"
 
 A row can open a modal **on top of** the still-open panel. `pushLayer` stacks;
