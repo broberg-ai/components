@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-10-27T09:53:45.688Z",
+ "scanned_at": "2026-10-28T10:39:58.890Z",
  "repos_scanned": 83,
  "repos_failed": 0,
- "manifests_read": 307,
+ "manifests_read": 308,
  "manifests_unreadable": 0,
- "edges": 436,
+ "edges": 441,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -316,12 +316,12 @@
     ],
     "@broberg/ai-sdk": [
      {
-      "range": "0.66.1",
+      "range": "0.69.0",
       "field": "devDependencies",
       "at": "apps/api/package.json"
      },
      {
-      "range": "0.66.1",
+      "range": "0.69.0",
       "field": "dependencies",
       "at": "packages/core/package.json"
      }
@@ -371,6 +371,20 @@
     "@broberg/mail": [
      {
       "range": "0.17.0",
+      "field": "dependencies",
+      "at": "packages/core/package.json"
+     }
+    ],
+    "@broberg/media": [
+     {
+      "range": "0.6.0",
+      "field": "dependencies",
+      "at": "packages/core/package.json"
+     }
+    ],
+    "@broberg/media-transform": [
+     {
+      "range": "0.2.0",
       "field": "dependencies",
       "at": "packages/core/package.json"
      }
@@ -726,6 +740,11 @@
       "range": "0.21.0",
       "field": "dependencies",
       "at": "apps/core/package.json"
+     },
+     {
+      "range": "0.23.0",
+      "field": "dependencies",
+      "at": "apps/mobile/package.json"
      }
     ],
     "@broberg/tenant": [
@@ -876,7 +895,7 @@
     ],
     "@broberg/lens-daemon": [
      {
-      "range": "0.1.60",
+      "range": "0.1.74",
       "field": "dependencies",
       "at": "apps/agent/package.json"
      }
@@ -1501,6 +1520,13 @@
       "at": "apps/server/package.json"
      }
     ],
+    "@broberg/mail": [
+     {
+      "range": "^0.19.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json"
+     }
+    ],
     "@broberg/mcp": [
      {
       "range": "^0.11.1",
@@ -1929,6 +1955,13 @@
     "@broberg/mail": [
      {
       "range": "0.16.0",
+      "field": "dependencies",
+      "at": "apps/landing/package.json"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.22.0",
       "field": "dependencies",
       "at": "apps/landing/package.json"
      }
@@ -3350,10 +3383,17 @@
   },
   "broberg-ai/voice-engine": {
    "branch": "main",
-   "manifests": 0,
+   "manifests": 1,
    "unreadable": 0,
-   "no_manifests": true,
-   "deps": {}
+   "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.69.0",
+      "field": "dependencies",
+      "at": "scripts/tts/package.json"
+     }
+    ]
+   }
   },
   "broberg-ai/xrt81": {
    "branch": "main",
