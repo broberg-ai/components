@@ -18,9 +18,35 @@ import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutat
 
 const HERE = new URL('../', import.meta.url).pathname;
 const INDEX = join(HERE, 'src/index.ts');
+const SHELL = join(HERE, 'src/shell.ts');
 const SRC_FOR_GUARD = 'src/index.ts';
 
 const MUTATIONS = [
+  // F074.4 — the shell. Each restores one defect a consumer actually shipped.
+  {
+    name: 'shell: a stale read may overwrite a newer one (the network decides the order)',
+    file: SHELL,
+    from: "    if (mine !== ticket) return null;\n",
+    to: "",
+  },
+  {
+    name: 'shell: the OS badge is skipped at zero instead of cleared',
+    file: SHELL,
+    from: "badgeSent = true; onCount?.(state.count); }",
+    to: "badgeSent = true; if (state.count > 0) onCount?.(state.count); }",
+  },
+  {
+    name: 'shell: mark-all redraws twice (cleared set, then count)',
+    file: SHELL,
+    from: "      const cleared = await markAllSeen();\n      const next = await read();\n      set({ ...(next ?? {}), clearedIds: cleared });",
+    to: "      const cleared = await markAllSeen();\n      set({ clearedIds: cleared });\n      await refresh();",
+  },
+  {
+    name: 'shell: a refresh updates the count without the rows (two sources)',
+    file: SHELL,
+    from: "    return rows === undefined ? { count } : { count, rows };",
+    to: "    return { count };",
+  },
   // A SECOND COUNTER APPEARS. This is the whole defect, in one line: the bell
   // reading one number while the badge reads another. xrt81 lived it (F074.27)
   // and paid for it with a test that sent badge=0 and deleted the number it was

@@ -229,3 +229,87 @@ describe("no count is ever ARITHMETIC — it comes from the store", () => {
     expect(shell.getState().count).toBe(0);
   });
 });
+
+const rowOf = (id: string, seenAt: number | null = null) => ({
+  id, kind: "info", title: id, body: null, navigate: null, refId: null, createdAt: 0, seenAt,
+});
+
+describe("the OS badge rides the SAME update as the bell (AC#22)", () => {
+  it("fires with the bell's number, and a drop to 0 CLEARS rather than being skipped", async () => {
+    const badge: number[] = [];
+    const shell = make({ onCount: (n) => badge.push(n) });
+    await shell.refresh();
+    expect(badge).toStrictEqual([3]);
+    expect(shell.getState().count).toBe(3);
+    await shell.markAllSeen();
+    expect(badge).toStrictEqual([3, 0]);
+    expect(shell.getState().count).toBe(0);
+  });
+
+  it("an unchanged count does not re-fire the badge", async () => {
+    const badge: number[] = [];
+    const shell = make({ onCount: (n) => badge.push(n) });
+    await shell.refresh();
+    await shell.refresh();
+    expect(badge).toStrictEqual([3]);
+  });
+});
+
+describe("count and list from ONE place, in ONE pass (AC#25)", () => {
+  it("a refresh updates both in the same notification, never one without the other", async () => {
+    let rows = [rowOf("a")];
+    let count = 1;
+    const shell = make({ countUnseen: async () => count, loadRows: async () => rows });
+    await shell.refresh();
+    const seen: Array<{ count: number; rows: number }> = [];
+    shell.subscribe((s) => seen.push({ count: s.count, rows: s.rows.length }));
+    rows = [rowOf("a"), rowOf("b")];
+    count = 2;
+    await shell.refresh();
+    expect(seen).toStrictEqual([{ count: 2, rows: 2 }]);
+  });
+});
+
+describe("exactly ONE redraw per action, whatever order the network answers in (AC#20)", () => {
+  it("markAllSeen notifies subscribers exactly once", async () => {
+    const shell = make({ loadRows: async () => [rowOf("a")] });
+    await shell.refresh();
+    let n = 0;
+    shell.subscribe(() => { n++; });
+    await shell.markAllSeen();
+    expect(n).toBe(1);
+  });
+
+  it("two in-flight reads answered OUT OF ORDER produce one redraw, from the newest", async () => {
+    const answers: Array<(v: number) => void> = [];
+    const shell = make({ countUnseen: () => new Promise<number>((r) => answers.push(r)) });
+    const states: number[] = [];
+    shell.subscribe((s) => states.push(s.count));
+    const first = shell.refresh();
+    const second = shell.refresh();
+    answers[1]!(7); // the NEWER read answers first
+    answers[0]!(5); // the stale one answers last — it must not win
+    await Promise.all([first, second]);
+    expect(states).toStrictEqual([7]);
+    expect(shell.getState().count).toBe(7);
+  });
+});
+
+describe("clearedIds is LAYERED on server state, never instead of it (AC#21)", () => {
+  it("after mark-all, the rows read as seen (server) AND the cleared ones stay highlighted", async () => {
+    let rows = [rowOf("a"), rowOf("b")];
+    const shell = make({
+      loadRows: async () => rows,
+      markAllSeen: async () => { rows = rows.map((r) => ({ ...r, seenAt: 99 })); return ["a", "b"]; },
+    });
+    await shell.open();
+    await shell.markAllSeen();
+    const st = shell.getState();
+    expect(st.rows.map((r) => r.seenAt)).toStrictEqual([99, 99]);
+    expect(st.clearedIds).toStrictEqual(["a", "b"]);
+    // and a further fresh server read keeps the highlight for the visit
+    await shell.refresh();
+    expect(shell.getState().clearedIds).toStrictEqual(["a", "b"]);
+    expect(shell.getState().rows.map((r) => r.seenAt)).toStrictEqual([99, 99]);
+  });
+});

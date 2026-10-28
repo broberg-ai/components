@@ -99,6 +99,13 @@ export interface BellShellConfig {
   markAllSeen: () => Promise<string[]>;
   /** Rows to render. The shell never fetches; it is handed what to show. */
   loadRows?: () => Promise<NotificationRow[]>;
+  /**
+   * The OS badge hook (`navigator.setAppBadge` / `clearAppBadge`), fired with
+   * the SAME number in the SAME update that changes the bell — so the badge and
+   * the bell cannot drift, which is exactly what broke xrt81 (F074.27). A count
+   * of 0 is passed as 0 and must CLEAR the badge; it is never skipped.
+   */
+  onCount?: (count: number) => void;
 }
 
 export interface BellState {
@@ -152,19 +159,40 @@ export interface BellShell {
 const PANEL: Layer = { id: "panel", modal: false, focusReturn: null };
 
 export function createBellShell(config: BellShellConfig): BellShell {
-  const { countUnseen, markAllSeen, loadRows, labels } = config;
+  const { countUnseen, markAllSeen, loadRows, labels, onCount } = config;
   if (!labels) throw new Error("@broberg/notifications/shell: `labels` is required — the shell ships no default strings.");
 
   let state: BellState = { open: false, count: 0, rows: [], layers: [], anchor: null, clearedIds: [] };
   const subs = new Set<(s: BellState) => void>();
 
+  // The badge is told once at the first count, then on every change — including
+  // a change TO zero, which must clear it rather than be skipped.
+  let badgeSent = false;
   const set = (patch: Partial<BellState>): void => {
+    const countChanged = patch.count !== undefined && patch.count !== state.count;
     state = { ...state, ...patch };
     for (const fn of subs) fn(state);
+    if (countChanged || (patch.count !== undefined && !badgeSent)) { badgeSent = true; onCount?.(state.count); }
+  };
+
+  // COUNT AND LIST COME FROM ONE PLACE, IN ONE PASS. A consumer cannot hand the
+  // shell a list from one source and a number from another, and a refresh never
+  // updates one without the other — two sources is F074.27 one surface out.
+  //
+  // AND THE NETWORK DOES NOT DECIDE THE ORDER. Every read takes a ticket; a
+  // response that is not the newest ticket is dropped, so two in-flight reads
+  // produce ONE redraw from the latest, never two in whatever order they land.
+  let ticket = 0;
+  const read = async (): Promise<Partial<BellState> | null> => {
+    const mine = ++ticket;
+    const [count, rows] = await Promise.all([countUnseen(), loadRows ? loadRows() : Promise.resolve(undefined)]);
+    if (mine !== ticket) return null;
+    return rows === undefined ? { count } : { count, rows };
   };
 
   const refresh = async (): Promise<void> => {
-    set({ count: await countUnseen() });
+    const next = await read();
+    if (next) set(next);
   };
 
   return {
@@ -181,7 +209,6 @@ export function createBellShell(config: BellShellConfig): BellShell {
       // open/close without owning this would leave every consumer to re-measure
       // at a moment that has already passed.
       set({ open: true, anchor, layers: [{ ...PANEL, focusReturn }] });
-      if (loadRows) set({ rows: await loadRows() });
       await refresh();
     },
 
@@ -225,9 +252,13 @@ export function createBellShell(config: BellShellConfig): BellShell {
     refresh,
 
     async markAllSeen() {
+      // ONE redraw per user action: the cleared set, the new count and the new
+      // rows land together. clearedIds is LAYERED on the server's rows — the
+      // rows read as seen (server truth) AND the cleared ones stay highlighted
+      // for the visit; neither overwrites the other.
       const cleared = await markAllSeen();
-      set({ clearedIds: cleared });
-      await refresh();
+      const next = await read();
+      set({ ...(next ?? {}), clearedIds: cleared });
       return cleared;
     },
   };
