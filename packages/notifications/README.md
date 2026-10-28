@@ -339,10 +339,39 @@ Part of the [broberg.ai shared inventory](https://discovery.broberg.ai). Built b
 
 ---
 
-## `@broberg/notifications/shell` — the bell and its panel (F074.4, in progress)
+## `@broberg/notifications/shell` — the bell and its panel (F074.4, since 0.5.0)
 
-> **Not published yet.** The headless state machine is here; the `/react` and
-> `/preact` wrappers are not. Nothing to adopt until they land.
+Three entries: `/shell` (headless, no framework), `/react` and `/preact`. The
+Preact entry is **the same code** as the React one, re-pointed at
+`preact/compat` at build time — one implementation, and the SAME behaviour suite
+runs against both. Proven in a real browser for both builds (Lens): Tab and
+Shift+Tab never leave the panel or a stacked alarm, a focusable element behind
+the panel is never reached, Escape cannot dismiss a modal alarm, focus returns
+to the row that opened the alarm and then to the bell, and the empty panel holds
+focus.
+
+```tsx
+import { BellProvider, Bell, BellPanel, BellMarkAll, BellRow, BellLayer, useBellShell }
+  from "@broberg/notifications/react";   // or "@broberg/notifications/preact"
+
+<BellProvider config={{ labels, countUnseen, markAllSeen, loadRows, onCount: setAppBadge }}>
+  <Bell />                                 {/* mount as many as you like — one count */}
+  <BellPanel triggerRef={bellRef}>
+    <BellMarkAll />                        {/* enabled by visible rows, never by the count */}
+    {rows.map((r) => (
+      <BellRow key={r.id} id={r.id} onActivate={() => (isAlarm(r) ? openAlarm(r) : navigate(r))}>
+        <YourRow row={r} />                {/* the row stays yours */}
+      </BellRow>
+    ))}
+  </BellPanel>
+  <BellLayer id="alarm">…</BellLayer>      {/* modal ON TOP of the panel */}
+</BellProvider>
+```
+
+`onActivate` returns `"navigate"` (closes the panel) or `"stay"` (an alarm row
+pushes its layer with `useBellShell().shell.pushLayer({ id, modal: true,
+focusReturn: rowEl })`). `onCount(n)` is your OS badge, called in the same
+update as the bell — `0` clears it.
 
 Four apps each hand-rolled the same bell, and each got the same things wrong. The
 row is **not** the shared part — three brands, three row shapes. The *shell* is:

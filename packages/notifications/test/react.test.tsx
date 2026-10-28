@@ -169,7 +169,7 @@ describe("a row can refuse to navigate (AC#7)", () => {
       </BellProvider>,
     );
     await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
-    await act(async () => { fireEvent.click(await screen.findByTestId("bell-row-alarm")); });
+    { const el = await screen.findByTestId("bell-row-alarm"); await act(async () => { fireEvent.click(el); }); }
     expect(screen.queryByTestId("bell-panel")).not.toBeNull();
     expect(go).not.toHaveBeenCalled();
     await act(async () => { fireEvent.click(screen.getByTestId("bell-row-info")); });
@@ -192,7 +192,7 @@ describe("clearedIds survives the visit in the DOM (AC#8, wrapper half)", () => 
     );
     const { rerender } = render(ui(1));
     await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
-    await act(async () => { fireEvent.click(await screen.findByTestId("bell-mark-all")); });
+    { const el = await screen.findByTestId("bell-mark-all"); await act(async () => { fireEvent.click(el); }); }
     await waitFor(() => expect(screen.getByTestId("bell-row-a").getAttribute("data-cleared")).toBe("true"));
     await act(async () => { fireEvent.click(screen.getByTestId("bell-row-a")); });
     rerender(ui(2));
@@ -305,7 +305,7 @@ describe("Escape is an outcome, in the DOM (AC#3, DOM half)", () => {
   it("a MODAL layer refuses Escape by default — alarm AND panel stay", async () => {
     render(<BellProvider config={config()}><Bell /><BellPanel><AlarmRow /></BellPanel><AlarmLayer /></BellProvider>);
     await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
-    await act(async () => { fireEvent.click(await screen.findByTestId("alarm-row")); });
+    { const el = await screen.findByTestId("alarm-row"); await act(async () => { fireEvent.click(el); }); }
     await screen.findByTestId("bell-layer-alarm");
     await act(async () => { fireEvent.keyDown(document, { key: "Escape" }); });
     expect(screen.queryByTestId("bell-layer-alarm")).not.toBeNull();
@@ -315,7 +315,7 @@ describe("Escape is an outcome, in the DOM (AC#3, DOM half)", () => {
   it("a layer whose handler says 'close' closes on Escape, and only that layer", async () => {
     render(<BellProvider config={config()}><Bell /><BellPanel><AlarmRow onEscape={() => "close"} /></BellPanel><AlarmLayer /></BellProvider>);
     await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
-    await act(async () => { fireEvent.click(await screen.findByTestId("alarm-row")); });
+    { const el = await screen.findByTestId("alarm-row"); await act(async () => { fireEvent.click(el); }); }
     await screen.findByTestId("bell-layer-alarm");
     await act(async () => { fireEvent.keyDown(document, { key: "Escape" }); });
     expect(screen.queryByTestId("bell-layer-alarm")).toBeNull();
@@ -391,7 +391,7 @@ describe("a click INSIDE a stacked layer does not close the panel under it (foun
   it("while a modal sits on top, a background click closes nothing", async () => {
     render(<BellProvider config={config()}><Bell /><BellPanel><AlarmRow /></BellPanel><AlarmLayer /><main data-testid="bg">bg</main></BellProvider>);
     await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
-    await act(async () => { fireEvent.click(await screen.findByTestId("alarm-row")); });
+    { const el = await screen.findByTestId("alarm-row"); await act(async () => { fireEvent.click(el); }); }
     await screen.findByTestId("bell-layer-alarm");
     const bg = screen.getByTestId("bg");
     await act(async () => { fireEvent.pointerDown(bg); fireEvent.mouseDown(bg); fireEvent.click(bg); });

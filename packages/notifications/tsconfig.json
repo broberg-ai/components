@@ -19,7 +19,8 @@
   ],
   "exclude": [
     "src/react.tsx",
+    "src/preact.tsx",
     "test/react.test.tsx"
   ],
-  "_comment": "F074.4 \u2014 the CORE is environment-agnostic on purpose (node, bun, browser, service worker), so `lib` deliberately has no DOM. Widening it would let `document` into index.ts with no signal. The React entry gets its own config instead; running both is what keeps the property true."
+  "_comment": "F074.4 — the CORE is environment-agnostic on purpose (node, bun, browser, service worker), so `lib` deliberately has no DOM. Widening it would let `document` into index.ts with no signal. The React entry gets its own config instead; running both is what keeps the property true."
 }

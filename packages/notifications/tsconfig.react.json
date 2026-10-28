@@ -11,6 +11,7 @@
   },
   "include": [
     "src/react.tsx",
+    "src/preact.tsx",
     "src/shell.ts",
     "src/types.ts",
     "test/react.test.tsx"
