@@ -141,13 +141,54 @@ export function BellPanel({ children, className, triggerRef }: {
   );
 }
 
-/** «Mark all read». Holds `clearedIds` for the visit; the shell owns that. */
+/**
+ * «Mark all read». Holds `clearedIds` for the visit; the shell owns that.
+ *
+ * ENABLED BY WHAT IS VISIBLE, NEVER BY THE COUNT. A consumer's count may
+ * exclude rows its list shows (muted categories — that is why the core does not
+ * own the count), so `disabled={count === 0}` locks a user out of clearing rows
+ * they can see. Measured live at xrt81: bell 1, panel highlighting 4, one click
+ * from a dead button. Disabled only when there is nothing on screen to clear.
+ */
 export function BellMarkAll({ className }: { className?: string }) {
-  const { shell } = useBell();
+  const { shell, state } = useBell();
   return (
     <button type="button" data-testid="bell-mark-all" className={className}
+      disabled={state.rows.length === 0}
       onClick={() => { void shell.markAllSeen(); }}>
       {shell.labels.markAll}
+    </button>
+  );
+}
+
+/** What a row decided when it was activated. */
+export type RowOutcome = "navigate" | "stay";
+
+/**
+ * One row's activation, with the OUTCOME decided by the consumer.
+ *
+ * The shell never assumes "click row → navigate and close": an alarm row must
+ * open an acknowledge dialog instead, and an alarm that silently navigates is
+ * worse than one that does nothing. `"navigate"` closes the panel; `"stay"`
+ * leaves it open (push your modal layer from `onActivate` with useBellShell).
+ * A prop, not core: one of four consumers needs it.
+ *
+ * `data-cleared` marks the rows the last «mark all read» cleared — held for the
+ * visit by the shell, so it survives a re-render and a fresh server read.
+ */
+export function BellRow({ id, onActivate, children, className }: {
+  id: string;
+  onActivate: () => RowOutcome | Promise<RowOutcome>;
+  children: ReactNode;
+  className?: string;
+}) {
+  const { shell, state } = useBell();
+  const cleared = state.clearedIds.includes(id);
+  return (
+    <button type="button" data-testid={`bell-row-${id}`} data-cleared={cleared ? "true" : undefined}
+      className={className}
+      onClick={async () => { if ((await onActivate()) === "navigate") shell.close(); }}>
+      {children}
     </button>
   );
 }

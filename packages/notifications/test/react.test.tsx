@@ -9,7 +9,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, act, cleanup, waitFor } from "@testing-library/react";
 import { createPortal } from "react-dom";
 import { useRef } from "react";
-import { BellProvider, Bell, BellPanel, BellMarkAll, BellLayer, useBellShell } from "../src/react.js";
+import { BellProvider, Bell, BellPanel, BellMarkAll, BellLayer, BellRow, useBellShell } from "../src/react.js";
 import type { BellShellConfig } from "../src/shell.js";
 import type { NotificationRow } from "../src/types.js";
 
@@ -153,5 +153,104 @@ describe("redraw, never re-mount (AC#20, DOM half)", () => {
     await act(async () => { fireEvent.click(screen.getByTestId("bell-mark-all")); });
     await waitFor(() => expect(screen.getByTestId("bell-count").textContent).toBe("0"));
     expect(screen.getByTestId("bell-panel")).toBe(before);
+  });
+});
+
+describe("a row can refuse to navigate (AC#7)", () => {
+  it("'stay' keeps the panel open; 'navigate' closes it", async () => {
+    const go = vi.fn();
+    render(
+      <BellProvider config={config()}>
+        <Bell />
+        <BellPanel>
+          <BellRow id="alarm" onActivate={() => "stay"}>alarm</BellRow>
+          <BellRow id="info" onActivate={() => { go(); return "navigate"; }}>info</BellRow>
+        </BellPanel>
+      </BellProvider>,
+    );
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await act(async () => { fireEvent.click(await screen.findByTestId("bell-row-alarm")); });
+    expect(screen.queryByTestId("bell-panel")).not.toBeNull();
+    expect(go).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-row-info")); });
+    expect(go).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.queryByTestId("bell-panel")).toBeNull());
+  });
+});
+
+describe("clearedIds survives the visit in the DOM (AC#8, wrapper half)", () => {
+  it("after mark-all, tapping one row and re-rendering leaves the OTHER cleared rows highlighted", async () => {
+    const cfg = config();
+    const ui = (n: number) => (
+      <BellProvider config={cfg}>
+        <Bell />
+        <BellPanel>
+          <BellMarkAll />
+          {["a", "b", "c"].map((id) => <BellRow key={id} id={id} onActivate={() => "stay"}>{`${id}${n}`}</BellRow>)}
+        </BellPanel>
+      </BellProvider>
+    );
+    const { rerender } = render(ui(1));
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await act(async () => { fireEvent.click(await screen.findByTestId("bell-mark-all")); });
+    await waitFor(() => expect(screen.getByTestId("bell-row-a").getAttribute("data-cleared")).toBe("true"));
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-row-a")); });
+    rerender(ui(2));
+    expect(["b", "c"].map((id) => screen.getByTestId(`bell-row-${id}`).getAttribute("data-cleared"))).toStrictEqual(["true", "true"]);
+  });
+});
+
+describe("the clear-control is enabled by what is VISIBLE, never by the count (AC#24)", () => {
+  it("rows on screen + a count of 0 (muted rows) → the button is ENABLED", async () => {
+    render(
+      <BellProvider config={config({ countUnseen: async () => 0, loadRows: async () => [row("m1"), row("m2")] })}>
+        <Bell />
+        <BellPanel><BellMarkAll /></BellPanel>
+      </BellProvider>,
+    );
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    const btn = (await screen.findByTestId("bell-mark-all")) as HTMLButtonElement;
+    await waitFor(() => expect(screen.getByTestId("bell-count").textContent).toBe("0"));
+    expect(btn.disabled).toBe(false);
+  });
+
+  it("the count says 1 while 4 rows show (xrt81's live state) → still enabled", async () => {
+    render(
+      <BellProvider config={config({ countUnseen: async () => 1, loadRows: async () => ["a", "b", "c", "d"].map(row) })}>
+        <Bell />
+        <BellPanel><BellMarkAll /></BellPanel>
+      </BellProvider>,
+    );
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    const btn = (await screen.findByTestId("bell-mark-all")) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+  });
+});
+
+describe("an absent optional child renders NOTHING — never the text 'null' (AC#23)", () => {
+  it("every optional slot empty, through the real render path", async () => {
+    const { container } = render(
+      <BellProvider config={config()}>
+        <Bell render={undefined} />
+        <BellPanel triggerRef={undefined}>{null}{undefined}</BellPanel>
+        <BellLayer id="never">{null}</BellLayer>
+      </BellProvider>,
+    );
+    await act(async () => { fireEvent.click(screen.getByTestId("bell-trigger")); });
+    await screen.findByTestId("bell-panel");
+    const text = container.ownerDocument.body.textContent ?? "";
+    expect(text).not.toMatch(/\bnull\b|\bundefined\b/);
+  });
+});
+
+describe("the full page works without the bell ever being opened (AC#19)", () => {
+  function FullPage() {
+    const { state } = useBellShell();
+    return <ul data-testid="page">{state.rows.map((r) => <li key={r.id}>{r.title}</li>)}</ul>;
+  }
+  it("renders the rows from the provider alone, panel never opened", async () => {
+    render(<BellProvider config={config()}><FullPage /></BellProvider>);
+    await waitFor(() => expect(screen.getByTestId("page").querySelectorAll("li").length).toBe(3));
+    expect(screen.queryByTestId("bell-panel")).toBeNull();
   });
 });
