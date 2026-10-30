@@ -1,6 +1,6 @@
 {
   "name": "@broberg/cron",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Typed self-service client for cronjobs.webhouse.net — register + manage HTTP cron jobs over the Bearer-authed /api/jobs API (create/list/update/delete/pause/run), with a per-repo scoped token and per-job target headers kept server-side (never in the URL or logs). Dependency-free; runs in Node, Bun and edge.",
   "type": "module",
   "license": "MIT",
@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json && (node scripts/contract-drift.mjs || [ $? -eq 2 ])",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json && (node scripts/contract-drift.mjs || [ $? -eq 2 ]) && node ../../scripts/mutations-if-changed.mjs test/mutations.mjs",
     "typecheck": "tsc --noEmit",
     "gen": "openapi-typescript https://cronjobs.webhouse.net/api/openapi.json -o src/schema.ts",
     "check:drift": "node scripts/contract-drift.mjs"

@@ -69,7 +69,32 @@ const { key } = await cron.mintKey({ name: "xrt81 production", scope: "xrt81" })
 The admin token that mints per-repo tokens lives with **buddy** (one audited
 privileged path); ordinary repos consume a scoped token they were provisioned.
 
-## Three things the types cannot tell you
+## Four things the types cannot tell you
+
+### A bad or expired token is a REDIRECT, not a 401 (since 0.3.0, F041.4)
+
+cronjobs.webhouse.net answers a wrong or expired token with **`307 → /login`**,
+not `401`. Up to 0.2.0 the client followed it, got a `200` with 12 kB of login
+HTML, and returned that page typed as `Job[]` — so `jobs.length` was 12057, a
+number that looks like an answer (measured on the live service, 15/9).
+
+Since 0.3.0 the client **never follows a redirect**:
+
+```ts
+try { await cron.listJobs(); }
+catch (e) {
+  if (e instanceof CronError && e.status === 307 && e.location === "/login") {
+    // the token was not accepted — renew it
+  }
+}
+```
+
+- A redirect to the login page throws `CronError` with the real `status` (307),
+  `location`, and a message saying the token was not accepted.
+- Any **other** redirect (e.g. a `308` to a moved endpoint) throws with its
+  status and target — and does **not** claim the token is bad.
+- A `200` whose body is not JSON throws `cron_not_json` naming the content-type
+  and the first ~80 characters, instead of being returned cast to your type.
 
 ### `externalId` uses a COLON — `repo:job-name`
 

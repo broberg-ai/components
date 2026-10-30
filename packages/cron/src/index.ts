@@ -68,12 +68,15 @@ export class CronError extends Error {
   readonly status: number;
   readonly code?: CronErrorCode;
   readonly details?: unknown;
-  constructor(status: number, message: string, code?: CronErrorCode, details?: unknown) {
+  /** For a 3xx: where the service tried to send us. Never followed (F041.4). */
+  readonly location?: string;
+  constructor(status: number, message: string, code?: CronErrorCode, details?: unknown, location?: string) {
     super(message);
     this.name = "CronError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.location = location;
   }
 }
 
@@ -162,17 +165,42 @@ export function createCron(config: CronClientConfig = {}): CronClient {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     if (!token) throw new CronError(0, "no_token (set CRONJOBS_API_TOKEN or pass config.token)");
     if (!doFetch) throw new CronError(0, "no_fetch (no global fetch; pass config.fetch)");
+    // F041.4 — NEVER follow a redirect. The service answers a bad or expired
+    // token with 307 → /login, not 401; followed, that became a 200 with a
+    // 12 kB login page, returned typed as Job[] (measured). A 3xx is reported
+    // as itself, with where it pointed.
     const res = await doFetch(`${baseUrl}${path}`, {
       method,
+      redirect: "manual",
       headers: {
         Authorization: `Bearer ${token}`,
         ...(body !== undefined ? { "content-type": "application/json" } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
+    if ((res.status >= 300 && res.status < 400) || res.type === "opaqueredirect") {
+      const location = res.headers.get("location") ?? undefined;
+      const toLogin = location !== undefined && /\/login\b|\/signin\b|\/auth\b/i.test(location);
+      throw new CronError(
+        res.status,
+        toLogin
+          ? `cron_redirect_${res.status}: redirected to the login page (${location}) — the token was not accepted. This service answers a bad or expired token with a redirect, not a 401.`
+          : `cron_redirect_${res.status}: the service redirected to ${location ?? "(no Location header)"} instead of answering. Not followed — the endpoint may have moved.`,
+        undefined,
+        undefined,
+        location,
+      );
+    }
     const text = await res.text();
     const data = text ? safeJson(text) : undefined;
     if (!res.ok) throw parseError(res.status, data);
+    // A 200 that is not JSON is not data. Returning it cast to T is how a login
+    // page became a Job[] — name what arrived instead.
+    if (typeof data === "string") {
+      const ct = res.headers.get("content-type") ?? "no content-type";
+      const head = text.replace(/\s+/g, " ").slice(0, 80);
+      throw new CronError(res.status, `cron_not_json: expected JSON, got ${ct}: ${head}${text.length > 80 ? "…" : ""}`);
+    }
     return data as T;
   }
 
