@@ -50,12 +50,14 @@ const MUTATIONS = [
     file: "index",
     from: "          pruneSkipped.push({ key, reason: e instanceof Error ? e.message : String(e) });\n",
     to: "          throw e;\n",
+    expect: ["a LOCKED old copy (store refuses the delete) does not fail the backup"],
   },
   {
     name: "prune:false is ignored (old copies on a locked bucket are deleted anyway)",
     file: "index",
     from: "  if (readBackMatches && input.prune !== false) {",
     to: "  if (readBackMatches) {",
+    expect: ["prune:false leaves old copies alone"],
   },
   {
     // The proof step skipped: an upload that 200'd is called a backup without the bytes ever being read back.
