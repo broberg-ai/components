@@ -271,8 +271,8 @@
  },
  "@broberg/logger": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/logger",
-  "version": "0.2.3",
-  "publishedAt": "2026-09-10T19:36:26.596Z",
+  "version": "0.3.0",
+  "publishedAt": "2026-10-30T16:58:50.287Z",
   "provenance": "yes"
  },
  "@broberg/http": {
