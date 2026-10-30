@@ -102,6 +102,41 @@ describe("runDbBackup (ported from broberg-id)", () => {
     expect(store.mem.has(objectKey(d(KEEP_DAYS + 10)))).toBe(false);
   });
 
+  test("a LOCKED old copy (store refuses the delete) does not fail the backup — it is reported and retried next night", async () => {
+    // BID 30 Oct 2026: an R2 object lock counts from UPLOAD time, so a file named
+    // 31 days back was still locked, delete answered 409, and the whole backup
+    // endpoint failed although the new copy was written and read back.
+    const store = memory();
+    const now = Date.UTC(2026, 9, 30);
+    const d = (n: number) => new Date(now - n * 86_400_000).toISOString().slice(0, 10);
+    const locked = objectKey(d(KEEP_DAYS + 1));
+    store.mem.set(locked, new Uint8Array([1]));
+    store.mem.set(objectKey(d(KEEP_DAYS + 2)), new Uint8Array([1]));
+    const realDelete = store.delete;
+    store.delete = async (k) => {
+      if (k === locked) throw new Error("HTTP 409 ObjectLockedByBucketPolicy");
+      return realDelete(k);
+    };
+    const r = await runDbBackup({ source, store, publicKeyPem, what: "test", now });
+    expect(r.readBackMatches).toBe(true);
+    expect(r.pruneSkipped).toStrictEqual([{ key: locked, reason: "HTTP 409 ObjectLockedByBucketPolicy" }]);
+    expect(store.mem.has(locked)).toBe(true); // still there — retried next night
+    expect(store.mem.has(objectKey(d(KEEP_DAYS + 2)))).toBe(false); // the rest was still cleaned
+    expect(r.deleted).toBe(9); // ten days in the window, one refused
+  });
+
+  test("prune:false leaves old copies alone (a locked bucket + a storage lifecycle rule)", async () => {
+    const store = memory();
+    const now = Date.UTC(2026, 9, 30);
+    const old = objectKey(new Date(now - (KEEP_DAYS + 1) * 86_400_000).toISOString().slice(0, 10));
+    store.mem.set(old, new Uint8Array([1]));
+    const r = await runDbBackup({ source, store, publicKeyPem, what: "test", now, prune: false });
+    expect(r.readBackMatches).toBe(true);
+    expect(store.mem.has(old)).toBe(true);
+    expect(r.deleted).toBe(0);
+    expect(r.pruneSkipped).toStrictEqual([]);
+  });
+
   test("PREFIX BOUNDARY: an app's retention never touches another app's prefix in the same bucket", async () => {
     const store = memory();
     const now = Date.UTC(2026, 8, 30);

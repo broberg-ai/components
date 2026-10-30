@@ -53,6 +53,15 @@ export interface BackupResult {
   ciphertextSha256: string;
   readBackMatches: boolean;
   deleted: number;
+  /**
+   * Retention deletes the store REFUSED. Never thrown: on a bucket with an
+   * object lock the lock runs from UPLOAD time, not from the date in the key, so
+   * a file named 31 days back can still be locked (BID, 30 Oct 2026: HTTP 409 on
+   * a file uploaded a day after its name). The backup itself is already written
+   * and read back by then — a refused cleanup must not turn it into a failure.
+   * The key stays in the window, so the next night tries again.
+   */
+  pruneSkipped: { key: string; reason: string }[];
   /** Today's copy already existed and matched its manifest — nothing written. */
   alreadyToday?: boolean;
 }
@@ -91,6 +100,12 @@ export async function runDbBackup(input: {
   /** Object prefix; give each app its own when they share a bucket. Default "db-backup". */
   prefix?: string;
   now?: number;
+  /**
+   * Delete days 31-40 back after a proven new copy. Default true. Pass false for
+   * a bucket with an object lock, and let a storage lifecycle rule expire old
+   * copies instead — the store knows when a lock ends; the key's date does not.
+   */
+  prune?: boolean;
 }): Promise<BackupResult> {
   const now = input.now ?? Date.now();
   const today = day(now);
@@ -120,6 +135,7 @@ export async function runDbBackup(input: {
         ciphertextSha256: sha,
         readBackMatches: true,
         deleted: 0,
+        pruneSkipped: [],
         alreadyToday: true,
       };
     }
@@ -178,16 +194,24 @@ export async function runDbBackup(input: {
 
   // Retention: days 31-40 back, under THIS prefix only. Only after a proven new copy.
   let deleted = 0;
-  if (readBackMatches) {
+  const pruneSkipped: { key: string; reason: string }[] = [];
+  if (readBackMatches && input.prune !== false) {
     for (let d = KEEP_DAYS + 1; d <= KEEP_DAYS + 10; d++) {
       const old = day(now - d * 86_400_000);
-      await input.store.delete(objectKey(old, prefix));
-      await input.store.delete(manifestKey(old, prefix));
-      deleted++;
+      let ok = true;
+      for (const key of [objectKey(old, prefix), manifestKey(old, prefix)]) {
+        try {
+          await input.store.delete(key);
+        } catch (e) {
+          ok = false;
+          pruneSkipped.push({ key, reason: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      if (ok) deleted++;
     }
   }
 
-  return { object, manifest, tables: counts, plaintextBytes: plain.length, ciphertextSha256, readBackMatches, deleted };
+  return { object, manifest, tables: counts, plaintextBytes: plain.length, ciphertextSha256, readBackMatches, deleted, pruneSkipped };
 }
 
 /**

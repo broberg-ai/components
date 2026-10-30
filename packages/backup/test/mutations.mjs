@@ -44,6 +44,19 @@ for (const [name, file] of Object.entries(FILES)) {
 }
 
 const MUTATIONS = [
+  // BID 30/10: a refused delete (R2 object lock) failed a backup that was already written.
+  {
+    name: "a refused retention delete fails the whole backup again",
+    file: "index",
+    from: "          pruneSkipped.push({ key, reason: e instanceof Error ? e.message : String(e) });\n",
+    to: "          throw e;\n",
+  },
+  {
+    name: "prune:false is ignored (old copies on a locked bucket are deleted anyway)",
+    file: "index",
+    from: "  if (readBackMatches && input.prune !== false) {",
+    to: "  if (readBackMatches) {",
+  },
   {
     // The proof step skipped: an upload that 200'd is called a backup without the bytes ever being read back.
     name: "read-back is assumed to match",
