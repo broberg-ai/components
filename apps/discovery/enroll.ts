@@ -21,6 +21,9 @@ export interface Enrollment {
   commit: string | null;
   notes: string | null;
   updated_at: number;
+  /** F039.8 — the repo (`owner/name`) the session reported. null = it did not
+   *  say, and nothing is inferred from the name: a name is not an identity. */
+  repo: string | null;
 }
 
 export interface EnrollInput {
@@ -30,6 +33,8 @@ export interface EnrollInput {
   role?: Role;
   commit?: string | null;
   notes?: string | null;
+  /** F039.8 — `owner/name`. Absent = legacy, session-name-only row. */
+  repo?: string | null;
 }
 
 const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS enrollments (
@@ -42,6 +47,26 @@ const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS enrollments (
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (session, pkg)
 )`;
+
+// F039.8 — a session NAME is not unique (two sessions called `sanne` ran at
+// once; `cardmem` answers for three repos), so an enrollment that names its repo
+// is keyed on (session, repo, pkg) here. ADDITIVE on purpose: the legacy table
+// above keeps every existing row exactly as it is, and an enrollment without a
+// repo still lands there. Reads return both. No row is rebuilt or moved.
+const CREATE_REPO_TABLE = `CREATE TABLE IF NOT EXISTS enrollments_by_repo (
+  session TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  pkg TEXT NOT NULL,
+  version TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'uses',
+  commit_sha TEXT,
+  notes TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (session, repo, pkg)
+)`;
+
+/** `owner/name`, as GitHub spells it. */
+export const REPO_SLUG = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 // Trust-on-first-use per-session keys: each session generates its OWN key
 // (openssl rand -hex 32) and places it in its OWN .env — no central key to
@@ -62,10 +87,11 @@ const rowToEnrollment = (r: Row): Enrollment => ({
   commit: r.commit_sha == null ? null : String(r.commit_sha),
   notes: r.notes == null ? null : String(r.notes),
   updated_at: Number(r.updated_at),
+  repo: r.repo == null ? null : String(r.repo),
 });
 
 export interface EnrollStore {
-  /** Idempotent on (session, pkg) — re-enrolling updates the version/role in place. */
+  /** Idempotent on (session, pkg), or (session, repo, pkg) when a repo is given. */
   upsert(input: EnrollInput): Promise<Enrollment>;
   list(): Promise<Enrollment[]>;
   bySession(session: string): Promise<Enrollment[]>;
@@ -92,6 +118,19 @@ export function makeEnrollStore(client: Client): EnrollStore {
       const commit = input.commit ?? null;
       const notes = input.notes ?? null;
       const updated_at = Date.now();
+      const repo = input.repo ?? null;
+      if (repo) {
+        await client.execute({
+          sql: `INSERT INTO enrollments_by_repo (session, repo, pkg, version, role, commit_sha, notes, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session, repo, pkg) DO UPDATE SET
+                  version = excluded.version, role = excluded.role,
+                  commit_sha = excluded.commit_sha, notes = excluded.notes,
+                  updated_at = excluded.updated_at`,
+          args: [input.session, repo, input.pkg, input.version, role, commit, notes, updated_at],
+        });
+        return { session: input.session, pkg: input.pkg, version: input.version, role, commit, notes, updated_at, repo };
+      }
       await client.execute({
         sql: `INSERT INTO enrollments (session, pkg, version, role, commit_sha, notes, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -101,14 +140,19 @@ export function makeEnrollStore(client: Client): EnrollStore {
                 updated_at = excluded.updated_at`,
         args: [input.session, input.pkg, input.version, role, commit, notes, updated_at],
       });
-      return { session: input.session, pkg: input.pkg, version: input.version, role, commit, notes, updated_at };
+      return { session: input.session, pkg: input.pkg, version: input.version, role, commit, notes, updated_at, repo: null };
     },
     async list() {
-      const rs = await client.execute("SELECT * FROM enrollments ORDER BY updated_at DESC");
+      const rs = await client.execute(
+        "SELECT *, NULL AS repo FROM enrollments UNION ALL SELECT session, pkg, version, role, commit_sha, notes, updated_at, repo FROM enrollments_by_repo ORDER BY updated_at DESC",
+      );
       return rs.rows.map(rowToEnrollment);
     },
     async bySession(session) {
-      const rs = await client.execute({ sql: "SELECT * FROM enrollments WHERE session = ? ORDER BY pkg", args: [session] });
+      const rs = await client.execute({
+        sql: "SELECT *, NULL AS repo FROM enrollments WHERE session = ? UNION ALL SELECT session, pkg, version, role, commit_sha, notes, updated_at, repo FROM enrollments_by_repo WHERE session = ? ORDER BY pkg",
+        args: [session, session],
+      });
       return rs.rows.map(rowToEnrollment);
     },
     async sessionKeyHash(session) {
@@ -141,6 +185,7 @@ export function getEnrollStore(): Promise<EnrollStore | null> {
       if (!url) return null;
       const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
       await client.execute(CREATE_TABLE);
+      await client.execute(CREATE_REPO_TABLE);
       await client.execute(CREATE_KEYS);
       return makeEnrollStore(client);
     })();

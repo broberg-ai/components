@@ -574,6 +574,48 @@ describe("auto-enrollment (F039) — registered sessions only (F038.21)", () => 
     expect(other.owns).toEqual([]);
     expect(other.gap.some((g: { package: string }) => g.package === "@broberg/ai-sdk")).toBe(true);
   });
+
+  // F039.8 — a session NAME is not an identity.
+  it("F039.8: two enrolments from ONE session name with different repos are TWO rows, not one overwritten", async () => {
+    await register("name-twice-test", KEY);
+    expect((await enroll({ session: "name-twice-test", pkg: "@broberg/mail", version: "0.1.0", repo: "webhousecode/sanneandersen" })).status).toBe(200);
+    expect((await enroll({ session: "name-twice-test", pkg: "@broberg/mail", version: "0.2.0", repo: "broberg-ai/sanne-site" })).status).toBe(200);
+    const roster = await (await fleet("/api/enrollments")).json();
+    const mine = roster.enrollments.filter((e: { session: string }) => e.session === "name-twice-test");
+    expect(mine.map((e: { repo: string; version: string }) => `${e.repo}@${e.version}`).sort()).toStrictEqual([
+      "broberg-ai/sanne-site@0.2.0",
+      "webhousecode/sanneandersen@0.1.0",
+    ]);
+    const status = await (await fleet("/api/sessions/name-twice-test")).json();
+    expect(status.repos).toStrictEqual(["broberg-ai/sanne-site", "webhousecode/sanneandersen"]);
+    expect(status.enrolled).toHaveLength(2);
+    expect(status.repos_note).toMatch(/^MERGED: this answer covers 2 repos/);
+  });
+
+  it("F039.8: an enrolment WITHOUT a repo reads repo:null with a note — never a repo derived from the name", async () => {
+    await register("sanneandersen-test", KEY);
+    expect((await enroll({ session: "sanneandersen-test", pkg: "@broberg/mail", version: "0.1.0" })).status).toBe(200);
+    const status = await (await fleet("/api/sessions/sanneandersen-test")).json();
+    expect(status.enrolled[0].repo).toBeNull();
+    expect(status.repos).toStrictEqual([]);
+    expect(status.repo_unknown).toBe(1);
+    expect(status.repos_note).toMatch(/never named their repo \(repo: null\) — nothing is inferred/);
+  });
+
+  it("F039.8: a malformed repo is refused (400), never stored as if resolved", async () => {
+    await register("bad-repo-test", KEY);
+    for (const repo of ["sanne", "a/b/c", "https://github.com/a/b", 42]) {
+      expect((await enroll({ session: "bad-repo-test", pkg: "@broberg/mail", version: "0.1.0", repo })).status).toBe(400);
+    }
+  });
+
+  it("F039.8: the SAME registered key enrolls with a repo — no new key, no lockout", async () => {
+    await register("same-key-test", KEY);
+    expect((await enroll({ session: "same-key-test", pkg: "@broberg/mail", version: "0.1.0" })).status).toBe(200);
+    const res = await enroll({ session: "same-key-test", pkg: "@broberg/mail", version: "0.1.0", repo: "broberg-ai/components" });
+    expect(res.status).toBe(200);
+    expect((await res.json()).key).toBe("matched");
+  });
 });
 
 describe("F038.22 / F038.24 — the fleet part needs a registered session and is noindex", () => {

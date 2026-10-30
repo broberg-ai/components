@@ -27,7 +27,7 @@ try {
 const fleetRows = buildFleetRows(fleetScan);
 const fleetAge = scanAge(fleetScan);
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
-import { getEnrollStore, toRole, type Role } from "./enroll";
+import { getEnrollStore, REPO_SLUG, toRole, type Role } from "./enroll";
 import { securityBehind, SECURITY_NOTE, type SecMark } from "./security-behind";
 import { measuredFor, reconcile, repoForSession, STALE_DAYS } from "./fleet-reconcile";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
@@ -326,7 +326,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
     { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
-    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a BID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?} — role 'uses' (default) | 'src' | 'not_relevant' (this package can never apply to THIS repo: taken out of its gap; version may be omitted)", example: "/api/enroll" },
+    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a BID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?,repo?} — repo = 'owner/name' (F039.8: a session NAME is not unique; with repo, one name reporting for two repos stays two rows) — role 'uses' (default) | 'src' | 'not_relevant' (this package can never apply to THIS repo: taken out of its gap; version may be omitted)", example: "/api/enroll" },
     { method: "GET", path: "/api/speech-dictionary", description: "@broberg/speech-dictionary's current terms + corrections, always the latest committed state (F044.1)", example: "/api/speech-dictionary" },
     { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff. REGISTERED EDITORS ONLY (F044.3): an edit commits and auto-publishes a new npm patch version, so a session is registered by components (ask_peer components), never by its own first call; send the key components registered as header x-speech-dict-key + body.session. An unknown session gets 401 session_not_registered. Body {session,addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
   ],
@@ -749,10 +749,21 @@ app.get("/api/sessions/:session", async (c) => {
   const primary = aliases[asked] ?? asked;
   const names = [primary, ...Object.keys(aliases).filter((k) => aliases[k] === primary)];
   const perName = await Promise.all(names.map((n) => (store ? store.bySession(n) : Promise.resolve([]))));
-  // Dedupe on (session,pkg) is already the store's invariant; dedupe on pkg here
-  // because the SAME package may be enrolled under both names.
+  // Dedupe on (repo, pkg): the SAME package may be enrolled under both names
+  // (one answer), while two REPOS behind one name are two answers (F039.8) — a
+  // dedupe on pkg alone would silently merge them back into one.
   const seen = new Set<string>();
-  const rows = perName.flat().filter((e) => (seen.has(e.pkg) ? false : (seen.add(e.pkg), true)));
+  const rows = perName.flat().filter((e) => { const k = `${e.repo ?? ""}\u0000${e.pkg}`; return seen.has(k) ? false : (seen.add(k), true); });
+  // F039.8 — say which repo(s) this answer covers. A row that never named its
+  // repo is counted as unknown, never resolved from the name.
+  const repos = [...new Set(rows.flatMap((e) => (e.repo ? [e.repo] : [])))].sort();
+  const repoUnknown = rows.filter((e) => !e.repo).length;
+  const reposNote =
+    repos.length > 1
+      ? `MERGED: this answer covers ${repos.length} repos reporting under one session name — each row carries its repo; do not read the gap as one codebase's.`
+      : repoUnknown
+        ? `${repoUnknown} row(s) never named their repo (repo: null) — nothing is inferred from the session name. Re-enroll with "repo":"owner/name" to fix it.`
+        : null;
   // F039.6 — a package the repo marked not-relevant for itself is neither an
   // adoption nor a to-do: listed on its own, out of the gap, out of `enrolled`.
   const enrolled = rows.filter((e) => e.role !== "not_relevant");
@@ -820,6 +831,9 @@ app.get("/api/sessions/:session", async (c) => {
     session: asked,
     resolved_session: primary,
     merged_from: mergedFrom,
+    repos,
+    repo_unknown: repoUnknown,
+    ...(reposNote ? { repos_note: reposNote } : {}),
     owns,
     enrolled,
     available,
@@ -866,6 +880,11 @@ app.post("/api/enroll", async (c) => {
   if (!packageNames.has(pkg)) {
     return c.json({ error: `unknown package "${pkg}" — must be a published @broberg package`, packages: [...packageNames] }, 400);
   }
+  // F039.8 — the repo is the identity a session NAME cannot be. Optional (every
+  // repo enrolled today keeps working without it), but when given it must be a
+  // real `owner/name`: a malformed one would look resolved and be wrong.
+  const repo = body.repo == null || body.repo === "" ? null : typeof body.repo === "string" && REPO_SLUG.test(body.repo) ? body.repo : undefined;
+  if (repo === undefined) return c.json({ error: "repo must be owner/name (as GitHub spells it), or omitted" }, 400);
 
   let keyStatus: "matched" | "ticket";
   if (ticketSession) {
@@ -897,6 +916,7 @@ app.post("/api/enroll", async (c) => {
     role,
     commit: typeof body.commit === "string" ? body.commit : null,
     notes: typeof body.notes === "string" ? body.notes : null,
+    repo,
   });
   return c.json({ ok: true, key: keyStatus, enrollment });
 });
