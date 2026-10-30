@@ -71,12 +71,19 @@ privileged path); ordinary repos consume a scoped token they were provisioned.
 
 ## Four things the types cannot tell you
 
-### A bad or expired token is a REDIRECT, not a 401 (since 0.3.0, F041.4)
+### A rejected token can be a REDIRECT, not a 401 (since 0.3.0, F041.4)
 
-cronjobs.webhouse.net answers a wrong or expired token with **`307 → /login`**,
-not `401`. Up to 0.2.0 the client followed it, got a `200` with 12 kB of login
-HTML, and returned that page typed as `Job[]` — so `jobs.length` was 12057, a
-number that looks like an answer (measured on the live service, 15/9).
+What cronjobs.webhouse.net answers depends on the token's SHAPE (measured 30/10 2026, confirmed by the cronjobs session):
+
+| request | answer |
+|---|---|
+| `Authorization: Bearer cj_<wrong>` | `401` |
+| `Authorization: Bearer <anything not cj_…>` | `307 → /login` |
+| no `Authorization` header | `307 → /login` |
+
+Up to 0.2.0 the client followed the `307`, got a `200` with 12 kB of login HTML,
+and returned that page typed as `Job[]` — so `jobs.length` was 12057, a number
+that looks like an answer (measured 15/9 with a non-`cj_` token).
 
 Since 0.3.0 the client **never follows a redirect**:
 
@@ -90,7 +97,8 @@ catch (e) {
 ```
 
 - A redirect to the login page throws `CronError` with the real `status` (307),
-  `location`, and a message saying the token was not accepted.
+  `location`, and a message saying the token was missing or not accepted.
+- A wrong `cj_` token is a plain `401` `CronError`, as before.
 - Any **other** redirect (e.g. a `308` to a moved endpoint) throws with its
   status and target — and does **not** claim the token is bad.
 - A `200` whose body is not JSON throws `cron_not_json` naming the content-type

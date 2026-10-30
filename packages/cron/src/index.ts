@@ -184,7 +184,7 @@ export function createCron(config: CronClientConfig = {}): CronClient {
       throw new CronError(
         res.status,
         toLogin
-          ? `cron_redirect_${res.status}: redirected to the login page (${location}) — the token was not accepted. This service answers a bad or expired token with a redirect, not a 401.`
+          ? `cron_redirect_${res.status}: redirected to the login page (${location}) — the token was missing or not accepted. This service answers a token that is not a cj_ key (or no token) with a redirect, not a 401.`
           : `cron_redirect_${res.status}: the service redirected to ${location ?? "(no Location header)"} instead of answering. Not followed — the endpoint may have moved.`,
         undefined,
         undefined,
