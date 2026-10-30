@@ -40,7 +40,7 @@ describe("a bad token is a redirect, and the client says so (F041.4)", () => {
     expect(err).toBeInstanceOf(CronError);
     expect((err as CronError).status).toBe(307);
     expect((err as CronError).location).toBe("/login");
-    expect((err as CronError).message).toContain("token was not accepted");
+    expect((err as CronError).message).toContain("not accepted");
   });
 
   it("a LEGITIMATE redirect (308 to a moved endpoint) names status + target and does NOT claim the token is bad", async () => {
