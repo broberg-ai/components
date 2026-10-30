@@ -43,8 +43,8 @@
  },
  "@broberg/cron": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/cron",
-  "version": "0.2.0",
-  "publishedAt": "2026-08-28T09:55:35.588Z",
+  "version": "0.4.0",
+  "publishedAt": "2026-10-30T18:06:57.036Z",
   "provenance": "yes"
  },
  "@broberg/chat": {
