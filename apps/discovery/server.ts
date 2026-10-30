@@ -13,7 +13,7 @@ import { createLogger } from "@broberg/logger";
 import { requestLogger, errorLogger } from "@broberg/logger/hono";
 import { init as upmetricsInit, captureException } from "@upmetrics/sdk";
 // Single source of truth — shared with scripts/build-inventory.mjs.
-import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
+import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, SESSION_REPOS, npmUrl, repoUrl } from "../../scripts/inventory-data.mjs";
 // F083 — the FLEET roster is DERIVED from every repo's real package.json files,
 // refreshed by a daily job. The hand-written array survives only as role text
 // and `pub` (what a session publishes), which no manifest can tell us.
@@ -29,6 +29,7 @@ const fleetAge = scanAge(fleetScan);
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
 import { getEnrollStore, type Role } from "./enroll";
 import { securityBehind, SECURITY_NOTE, type SecMark } from "./security-behind";
+import { measuredFor, reconcile, repoForSession, STALE_DAYS } from "./fleet-reconcile";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
 // edit: 503s until GITHUB_WRITE_TOKEN + SPEECH_DICT_EDIT_KEY are configured).
 import { readDictionary, editDictionary, authenticateEditor, type EditDiff } from "./speech-dictionary";
@@ -793,6 +794,24 @@ app.get("/api/sessions/:session", async (c) => {
   );
   const behind = securityBehind(enrolled, rosterRows);
 
+  // F039.6 — reconcile the self-report against what Discovery MEASURED in the
+  // session's repo (daily package.json scan). Nothing is corrected or deleted;
+  // the disagreement is shown. No mapped repo → measured is null, said plainly.
+  const repo = repoForSession(primary, fleetScan, SESSION_REPOS as Record<string, string>);
+  const occurrences = repo ? measuredFor(repo, fleetScan) : [];
+  const rec = reconcile(enrolled, occurrences, Date.now());
+  const measured = repo
+    ? {
+        repo,
+        scanned_at: (fleetScan as { scanned_at?: string })?.scanned_at ?? null,
+        occurrences,
+        unreported: rec.unreported,
+        mismatch: rec.mismatch,
+        note:
+          "Measured from the repo's package.json files (one row per occurrence), not self-reported. These are RANGES as written, not the installed version. unreported = in the repo but never self-reported (a partial enrollment); mismatch = a self-reported version that differs from an exact pin.",
+      }
+    : { repo: null, note: `No scanned repo is mapped to ${primary}, so nothing was measured — this is not evidence either way.` };
+
   return c.json({
     session: asked,
     resolved_session: primary,
@@ -804,6 +823,9 @@ app.get("/api/sessions/:session", async (c) => {
     gap_confidence: gapConfidence,
     gap_note: gapNote,
     ...(behind.length ? { security_behind: behind, security_note: SECURITY_NOTE } : {}),
+    measured,
+    stale_enrollments: rec.stale,
+    stale_note: `An enrollment not re-confirmed for ${STALE_DAYS} days is listed as stale: nobody confirmed it lately — not that it is wrong. Nothing is removed.`,
   });
 });
 

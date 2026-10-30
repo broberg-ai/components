@@ -638,3 +638,21 @@ describe("F039.9 — /api/sessions/:session carries security_behind only when th
   });
 });
 
+
+describe("F039.6 — /api/sessions/:session reconciles against the repo scan", () => {
+  it("buddy: measured carries several @broberg/ai-sdk rows, and what was never reported is named", async () => {
+    const s = await (await fleet("/api/sessions/buddy")).json();
+    expect(s.measured.repo).toBe("webhousecode/buddy");
+    const ai = s.measured.occurrences.filter((o: { pkg: string }) => o.pkg === "@broberg/ai-sdk");
+    expect(ai.length).toBeGreaterThan(1);
+    expect(Array.isArray(s.measured.unreported)).toBe(true);
+    expect(Array.isArray(s.stale_enrollments)).toBe(true);
+  });
+
+  it("an unmapped session says nothing was measured — never an empty 'all fine'", async () => {
+    const s = await (await fleet("/api/sessions/no-such-session-xyz")).json();
+    expect(s.measured.repo).toBeNull();
+    expect(s.measured.note).toMatch(/not evidence either way/);
+    expect("occurrences" in s.measured).toBe(false);
+  });
+});

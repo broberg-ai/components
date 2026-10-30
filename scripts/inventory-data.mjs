@@ -505,6 +505,14 @@ export function repoUrl(c) {
 // FALSE MERGE makes it look right while pointing at the wrong repo.
 //
 // So: a name that looks like another name is not evidence. Ask, or measure.
+// F039.6 — which repo a session's MEASURED dependencies come from (data/fleet-deps.json).
+// Most sessions are named after their repo and resolve by name; this lists only
+// the ones that are not. Keyed on the PRIMARY session (after SESSION_ALIASES).
+export const SESSION_REPOS = {
+  bid: "broberg-ai/broberg-id",
+  sanne: "webhousecode/sanneandersen",
+};
+
 export const SESSION_ALIASES = {
   // Enrolled under a raw session-UUID instead of a repo name, so the rows were
   // invisible to the repo forever. Both resolved by buddy from two independent
