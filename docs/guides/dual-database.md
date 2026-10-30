@@ -59,6 +59,7 @@ FROM pg_replication_slots;
 ## 3. Hvem får besked, og hvornår
 
 - **Et menneske får besked, når reserven har været usund i 10 minutter i træk:** én mail pr. episode. Et kort blink giver ingen mail (BID).
+- **Undtagelse — med det samme, uden de 10 minutter:** fejler skemaopdateringen af reserven under en udrulning, alarmerer BID **straks**, og alarmen står, indtil en senere opdatering lykkes (`migration_failed` i `src/reserve-watch.ts`). Det er den del, der lukker hullet i «primæren først»: reserven kan være bagud, men aldrig uden at nogen ved det.
 - **Episoden gemmes i databasen**, fordi der kører flere maskiner — ellers sender hver maskine sin egen mail (BID).
 - **Tjek, at alarmen har en modtager.** BID's alarm stod uden modtager i drift (29/10).
 
@@ -68,8 +69,8 @@ GitHubs egen `schedule` er upålidelig til vagter: *målt hos BID — 5 kørsler
 
 ## 5. IP-vagten: mål igen, før den handler
 
-En vagt, der skifter adgang (fx åbner reservens IP-liste ved et nedbrud), skal **måle igen efter ca. 90 s**, før den gør noget. Et enkelt fejlet målepunkt er ikke et nedbrud (BID).
-Reference: `fd-sundhed` · `apps/web/src/lib/reserve/reserve-ip-guard.ts`.
+En vagt, der skifter adgang (fx åbner reservens IP-liste ved et nedbrud), skal **måle igen efter ca. 90 s**, før den gør noget. Et enkelt fejlet målepunkt er ikke et nedbrud (BID, F084.197).
+Reference: `broberg-id` · `src/reserve-ip-guard.ts` (de 90 s) · `fd-sundhed` · `apps/web/src/lib/reserve/reserve-ip-guard.ts`.
 
 ## Tjekliste før en app går i drift med en reserve
 
