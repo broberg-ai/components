@@ -38,6 +38,7 @@ COPY apps/discovery/ticket-registry.ts ./ticket-registry.ts
 COPY apps/discovery/packages-page.ts ./packages-page.ts
 COPY apps/discovery/package-detail-page.ts ./package-detail-page.ts
 COPY apps/discovery/images-page.ts ./images-page.ts
+COPY apps/discovery/security-behind.ts ./security-behind.ts
 
 # F039.5 owner-only session-key reset, run via `flyctl ssh` (no HTTP endpoint).
 COPY apps/discovery/scripts/reset-session-key.mjs ./scripts/reset-session-key.mjs
