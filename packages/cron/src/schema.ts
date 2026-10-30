@@ -1013,13 +1013,15 @@ export interface components {
             retryStrategy?: "fixed" | "exponential";
             webhookToken?: string;
             enabled?: boolean;
-            /** @description Unix ms */
-            lastRunAt?: number | null;
+            /** Format: date-time */
+            lastRunAt?: string | null;
             lastRunStatus?: string | null;
-            /** @description Unix ms */
-            nextRunAt?: number | null;
-            createdAt?: number;
-            updatedAt?: number;
+            /** Format: date-time */
+            nextRunAt?: string | null;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
             /** @description Owner/repo key; null = unowned (legacy/admin space) */
             scope?: string | null;
             /** @description Client idempotency key, unique per scope */
@@ -1069,9 +1071,10 @@ export interface components {
         Execution: {
             id?: string;
             jobId?: string;
-            /** @description Unix ms */
-            startedAt?: number;
-            completedAt?: number | null;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            completedAt?: string | null;
             /** @description ms */
             duration?: number | null;
             /** @enum {string} */
@@ -1100,17 +1103,18 @@ export interface components {
             /** @description true if last run succeeded or never ran */
             ok?: boolean;
             lastRunStatus?: string | null;
-            /** @description Unix ms */
-            lastRunAt?: number | null;
-            /** @description Unix ms */
-            nextRunAt?: number | null;
+            /** Format: date-time */
+            lastRunAt?: string | null;
+            /** Format: date-time */
+            nextRunAt?: string | null;
             lastExecution?: {
                 id?: string;
                 /** @enum {string} */
                 status?: "success" | "failure" | "timeout" | "running" | "skipped" | "deferred" | "missed";
-                /** @description Unix ms */
-                startedAt?: number;
-                completedAt?: number | null;
+                /** Format: date-time */
+                startedAt?: string;
+                /** Format: date-time */
+                completedAt?: string | null;
                 /** @description ms */
                 duration?: number | null;
                 statusCode?: number | null;

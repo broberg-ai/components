@@ -69,40 +69,36 @@ const { key } = await cron.mintKey({ name: "xrt81 production", scope: "xrt81" })
 The admin token that mints per-repo tokens lives with **buddy** (one audited
 privileged path); ordinary repos consume a scoped token they were provisioned.
 
-## Four things the types cannot tell you
+## Things the types cannot tell you
 
-### A rejected token can be a REDIRECT, not a 401 (since 0.3.0, F041.4)
+### A rejected token — the client never follows a redirect (since 0.4.0, F041.4)
 
-What cronjobs.webhouse.net answers depends on the token's SHAPE (measured 30/10 2026, confirmed by the cronjobs session):
+**Today (measured 30/10 2026, after cronjobs F017.1, sha 34094ce):** every `/api/*`
+call with a wrong token, a non-`cj_` token or no header answers **`401`** with
+`{"error":{"code":"unauthorized","message":"Authentication required"}}` and no
+`Location`. That reaches you as a normal `CronError` with `status: 401`.
 
-| request | answer |
-|---|---|
-| `Authorization: Bearer cj_<wrong>` | `401` |
-| `Authorization: Bearer <anything not cj_…>` | `307 → /login` |
-| no `Authorization` header | `307 → /login` |
+**Why the client still guards against redirects:** until that fix, a non-`cj_`
+token or a missing header got **`307 → /login`**. Up to 0.2.0 the client followed
+it, got a `200` with 12 kB of login HTML, and returned that page typed as
+`Job[]` — `jobs.length` was 12057, a number that looks like an answer (measured
+15/9). A service can regress, so the client now **never follows a redirect**:
 
-Up to 0.2.0 the client followed the `307`, got a `200` with 12 kB of login HTML,
-and returned that page typed as `Job[]` — so `jobs.length` was 12057, a number
-that looks like an answer (measured 15/9 with a non-`cj_` token).
-
-Since 0.3.0 the client **never follows a redirect**:
-
-```ts
-try { await cron.listJobs(); }
-catch (e) {
-  if (e instanceof CronError && e.status === 307 && e.location === "/login") {
-    // the token was not accepted — renew it
-  }
-}
-```
-
-- A redirect to the login page throws `CronError` with the real `status` (307),
+- A redirect to a login page throws `CronError` with the real `status`,
   `location`, and a message saying the token was missing or not accepted.
-- A wrong `cj_` token is a plain `401` `CronError`, as before.
-- Any **other** redirect (e.g. a `308` to a moved endpoint) throws with its
-  status and target — and does **not** claim the token is bad.
-- A `200` whose body is not JSON throws `cron_not_json` naming the content-type
-  and the first ~80 characters, instead of being returned cast to your type.
+- Any **other** redirect (e.g. a `308` to a moved endpoint) throws with its status
+  and target — and does **not** claim the token is bad.
+- A `200` whose body is not JSON throws `cron_not_json` naming the content-type and
+  the first ~80 characters, instead of being returned cast to your type.
+
+### Timestamps are ISO strings (0.4.0 — a type change)
+
+`lastRunAt`, `nextRunAt`, `createdAt`, `updatedAt` and the execution times
+(`startedAt`, `completedAt`) are **ISO-8601 strings** on the wire, e.g.
+`"2026-10-30T17:00:00.628Z"`. The service's own spec said "integer, Unix ms"
+until 30/10 2026 (cronjobs a1b3a75 fixed it), so 0.3.x and earlier typed them as
+`number` while the value was always a string. **If you did arithmetic on them,
+it was already wrong; the types now say so.** Parse with `new Date(job.lastRunAt)`.
 
 ### `externalId` uses a COLON — `repo:job-name`
 

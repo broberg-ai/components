@@ -1,6 +1,6 @@
 {
   "name": "@broberg/cron",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Typed self-service client for cronjobs.webhouse.net — register + manage HTTP cron jobs over the Bearer-authed /api/jobs API (create/list/update/delete/pause/run), with a per-repo scoped token and per-job target headers kept server-side (never in the URL or logs). Dependency-free; runs in Node, Bun and edge.",
   "type": "module",
   "license": "MIT",
