@@ -71,8 +71,8 @@ const MUTATIONS = [
     // Old copies deleted before the new one is proven: a bad night eats the last good backups.
     name: "retention runs even when the new copy is not proven",
     file: "index",
-    from: "  if (readBackMatches) {\n    for (let d = KEEP_DAYS + 1;",
-    to: "  if (true) {\n    for (let d = KEEP_DAYS + 1;",
+    from: "  if (readBackMatches && input.prune !== false) {",
+    to: "  if (input.prune !== false) {",
     expect: ["an unproven new copy deletes NOTHING old — a bad night must not eat the last good backups"],
   },
   {
@@ -87,8 +87,8 @@ const MUTATIONS = [
     // Retention ignores the app's prefix: two apps in one bucket and one deletes in the wrong place.
     name: "retention deletes under the default prefix, not the app's",
     file: "index",
-    from: "      await input.store.delete(objectKey(old, prefix));",
-    to: "      await input.store.delete(objectKey(old));",
+    from: "      for (const key of [objectKey(old, prefix), manifestKey(old, prefix)]) {",
+    to: "      for (const key of [objectKey(old), manifestKey(old)]) {",
     expect: ["PREFIX BOUNDARY: an app's retention never touches another app's prefix in the same bucket"],
   },
   {
