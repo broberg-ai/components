@@ -323,6 +323,7 @@ jobs:
           set -e
           if [ $code -eq 3 ]; then echo "::notice::\"Just shipped\" is PENDING — a release of ours is still publishing; its own discovery run checks the card (F038.48)."; exit 0; fi
           if [ $code -eq 4 ]; then echo "::warning::\"Just shipped\" names an older release — the newest was published from another repo; the daily catch-up refreshes it (F038.48)."; exit 0; fi
+          if [ $code -eq 2 ]; then echo "::warning::Could not reach the npm registry — the \"Just shipped\" card was NOT verified (F038.19). Nothing was found wrong."; exit 0; fi
           exit $code
 
       # F038.15 — the SAME predicate as in `check`, pointed at the live site.

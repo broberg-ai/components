@@ -16,6 +16,25 @@
 
 const REGISTRY = process.env.NPM_REGISTRY ?? "https://registry.npmjs.org";
 
+/**
+ * F038.19 — "I could not ask" is a THIRD answer, not a wrong one. A network
+ * failure or a 5xx means the registry did not answer; a 4xx or a document with
+ * no latest version means it answered something wrong. Still thrown — a build
+ * must never crown a card from a partial answer — but typed, so a GATE can turn
+ * it into a warning that names what was not verified, the way
+ * check-roster-versions.mjs already does (exit 2).
+ */
+export class NpmUnreachableError extends Error {
+  /** @param {string[]} packages @param {number} total */
+  constructor(packages, total, causes) {
+    super(`npm registry did not answer for ${packages.length} of ${total} package(s): ${packages.join(", ")}${causes ? ` (${causes})` : ""}`);
+    this.name = "NpmUnreachableError";
+    this.packages = packages;
+    this.total = total;
+  }
+}
+class Unreachable extends Error {}
+
 /** One package's published truth. Throws — never returns a partial answer. */
 async function fetchOne(pkg) {
   const url = `${REGISTRY}/${pkg.replace("/", "%2F")}`;
@@ -23,8 +42,9 @@ async function fetchOne(pkg) {
   try {
     res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
   } catch (err) {
-    throw new Error(`npm lookup failed for ${pkg}: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Unreachable(`${pkg}: ${err instanceof Error ? err.message : String(err)}`);
   }
+  if (res.status >= 500) throw new Unreachable(`${pkg}: HTTP ${res.status}`);
   if (!res.ok) throw new Error(`npm lookup failed for ${pkg}: HTTP ${res.status}`);
   const doc = await res.json();
   const version = doc?.["dist-tags"]?.latest;
@@ -74,8 +94,8 @@ function frozenExternal() {
 export async function fetchLatestReleases(packages) {
   const unique = [...new Set(packages)];
   const frozen = frozenExternal();
-  const results = await Promise.all(
-    unique.map((pkg) => {
+  const settled = await Promise.allSettled(
+    unique.map(async (pkg) => {
       const m = frozen && !frozen.own.has(pkg) ? frozen.meta[pkg] : undefined;
       if (m?.version && m?.publishedAt) {
         return { pkg, version: m.version, published: m.publishedAt, provenance: m.provenance === "yes" };
@@ -83,5 +103,13 @@ export async function fetchLatestReleases(packages) {
       return fetchOne(pkg);
     }),
   );
-  return results.sort((a, b) => b.published.localeCompare(a.published));
+  // A WRONG answer wins over an absent one: it is a finding, the other is not.
+  const wrong = settled.find((r) => r.status === "rejected" && !(r.reason instanceof Unreachable));
+  if (wrong) throw wrong.reason;
+  const unreachable = settled.flatMap((r, i) => (r.status === "rejected" ? [unique[i]] : []));
+  if (unreachable.length) {
+    const first = settled.find((r) => r.status === "rejected").reason.message;
+    throw new NpmUnreachableError(unreachable, unique.length, first);
+  }
+  return settled.map((r) => r.value).sort((a, b) => b.published.localeCompare(a.published));
 }

@@ -9,7 +9,7 @@
 // not-listening WARNING and then reported success (F038.6).
 import { readFileSync } from "node:fs";
 import { DATA } from "./inventory-data.mjs";
-import { fetchLatestReleases, ownPackages } from "./npm-latest.mjs";
+import { fetchLatestReleases, ownPackages, NpmUnreachableError } from "./npm-latest.mjs";
 import { featuredVerdict, releaseTag, OK } from "./featured-verdict.mjs";
 import { discoveryAuth } from "./discovery-auth.mjs";
 // F038.22 — Discovery is behind login. CI reads it as a registered session:
@@ -56,7 +56,21 @@ const [, headline, pkg, version] = m;
 const pkgs = DATA.flatMap((L) => L.items ?? [])
   .filter((it) => it.s === "shipped" && String(it.pkg ?? "").startsWith("@broberg/"))
   .map((it) => it.pkg);
-const newest = (await fetchLatestReleases(pkgs))[0];
+// F038.19 — the registry not answering is "not verified", never "stale": exit 2,
+// naming every package that was not asked. A wrong answer still throws (exit 1).
+let releases;
+try {
+  releases = await fetchLatestReleases(pkgs);
+} catch (e) {
+  if (!(e instanceof NpmUnreachableError)) throw e;
+  console.error(
+    `\n  ? "Just shipped" could NOT be checked — the npm registry did not answer for ${e.packages.length} of ${e.total} package(s):\n` +
+      e.packages.map((p) => `    ${p}`).join("\n") +
+      `\n  Not verified. It is not a finding about the card, and not a pass either.\n`,
+  );
+  process.exit(2);
+}
+const newest = releases[0];
 
 /** F038.48 — the evidence: this run's start and the publish runs for the newest's tag. */
 async function publishEvidence(tag) {
