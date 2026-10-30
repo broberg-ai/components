@@ -23,6 +23,7 @@
 // package.json reports ZERO for the fleet's heaviest consumers.
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
+import { parse as parseYaml } from "yaml";
 
 /** Only the shared inventory. Everything else is each repo's own business. */
 export const SHARED = /^@(broberg|upmetrics)\//;
@@ -97,6 +98,92 @@ export function discoverRepos(api = ghCli) {
  * renamed branch or a permissions failure — i.e. exactly when a confident
  * all-clear is most wrong.
  */
+// F039.6 AC7 — the INSTALLED version, not the range a manifest asks for.
+// A caret on 0.x locks the minor, so "^0.1.0" and what actually runs drift apart
+// silently. The scan cannot see node_modules (it reads GitHub), so it reads the
+// thing node_modules is built FROM: the lockfile. A manifest belongs to the
+// nearest lockfile at or above its directory. When no version can be read, the
+// occurrence says WHY in `installed_unknown` — the range is never promoted to an
+// installed version, because that is exactly the claim this field exists to stop.
+export const LOCKFILES = ["pnpm-lock.yaml", "package-lock.json", "bun.lock"];
+/** Lockfiles we cannot read — named, so their absence of a version is explained. */
+const UNSUPPORTED_LOCKS = ["bun.lockb", "yarn.lock"];
+
+const dirOf = (path) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
+const ancestors = (dir) => { const out = [dir]; while (dir) { dir = dirOf(dir); out.push(dir); } return out; };
+const rel = (from, to) => (from === to ? "" : from ? to.slice(from.length + 1) : to);
+
+/** Lockfile text → (importerDir, pkg, range) → version | { unknown }. importerDir
+ *  is relative to the lockfile's own directory ("" = its root).
+ *
+ *  A lockfile whose recorded range for this importer differs from the manifest's
+ *  is OUT OF DATE: the manifest was edited and nobody re-locked. What then runs
+ *  depends on the install command, so no version is claimed. Measured 30 Oct
+ *  2026 on buddy: four manifests ask for ai-sdk 0.66.0, its bun.lock still
+ *  records ^0.28.0 / 0.38.0 — reading the lock as-is would have reported 0.28.0
+ *  as installed with the same confidence as a correct answer. */
+const DEP_KINDS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+const stale = (lockRange, range, kind) =>
+  lockRange !== undefined && lockRange !== range ? { unknown: `${kind} out of date with package.json (lock records ${lockRange})` } : null;
+// Compared within the SAME field only: a package listed as devDependency
+// "workspace:*" and peerDependency "^0.5.0" is two correct ranges, not a stale lock.
+const lockedRange = (deps, pkg, field) => deps?.[field]?.[pkg];
+
+export function lockResolver(kind, text) {
+  if (kind === "pnpm-lock.yaml") {
+    const lock = parseYaml(text) || {};
+    const importers = lock.importers || { ".": lock };
+    return (dir, pkg, range, field) => {
+      const imp = importers[dir || "."];
+      if (!imp) return { unknown: "manifest not an importer in pnpm-lock.yaml" };
+      // Its own field first; a peer is satisfied by whichever copy is installed.
+      for (const f of [field, ...DEP_KINDS.filter((k) => k !== field)]) {
+        const v = imp[f]?.[pkg];
+        if (v === undefined) continue;
+        // v9/v6: { specifier, version }. v5: version string, specifier under `specifiers`.
+        const spec = typeof v === "object" ? v.specifier : imp.specifiers?.[pkg];
+        const old = f === field ? stale(spec, range, kind) : null;
+        if (old) return old;
+        const ver = String(typeof v === "object" ? v.version : v).replace(/\(.*$/, "");
+        return /^(link|file|workspace):/.test(ver) ? { unknown: `local ${ver.split(":")[0]} in pnpm-lock.yaml` } : ver;
+      }
+      return { unknown: "not in pnpm-lock.yaml" };
+    };
+  }
+  if (kind === "package-lock.json") {
+    const pkgs = JSON.parse(text).packages || {};
+    return (dir, pkg, range, field) => {
+      const old = stale(lockedRange(pkgs[dir], pkg, field), range, kind);
+      if (old) return old;
+      for (const d of ancestors(dir)) {
+        const e = pkgs[`${d ? `${d}/` : ""}node_modules/${pkg}`];
+        if (!e) continue;
+        return e.link ? { unknown: "local link in package-lock.json" } : e.version ? String(e.version) : { unknown: "no version in package-lock.json" };
+      }
+      return { unknown: "not in package-lock.json" };
+    };
+  }
+  // bun.lock: JSON with trailing commas. `workspaces` is keyed by PATH and carries
+  // each workspace's NAME; `packages` nests a workspace's own copy under that NAME
+  // ("@scope/app/@broberg/x"), falling back to the hoisted "@broberg/x".
+  const lock = JSON.parse(text.replace(/,(\s*[}\]])/g, "$1"));
+  const pkgs = lock.packages || {};
+  const workspaces = lock.workspaces || {};
+  return (dir, pkg, range, field) => {
+    const ws = workspaces[dir];
+    if (!ws) return { unknown: "manifest not a workspace in bun.lock" };
+    const old = stale(lockedRange(ws, pkg, field), range, kind);
+    if (old) return old;
+    for (const key of [ws.name && dir ? `${ws.name}/${pkg}` : null, pkg]) {
+      const e = key && pkgs[key];
+      if (!Array.isArray(e) || typeof e[0] !== "string") continue;
+      const ver = e[0].slice(e[0].lastIndexOf("@") + 1);
+      return /^(workspace|link|file):/.test(ver) || !/^\d/.test(ver) ? { unknown: "local package in bun.lock" } : ver;
+    }
+    return { unknown: "not in bun.lock" };
+  };
+}
+
 export function scanRepo(repo, api = ghCli) {
   const branch = api(`repos/${repo}`).default_branch;
   if (!branch) throw new Error(`${repo}: no default branch in the API response`);
@@ -112,6 +199,34 @@ export function scanRepo(repo, api = ghCli) {
   // a check on its way to being ignored.
   if (tree.length === 0) throw new Error(`${repo}: the tree on ${branch} came back EMPTY — refusing to report this as "no dependencies"`);
   if (manifests.length === 0) return { branch, manifests: 0, unreadable: 0, no_manifests: true, deps: {} };
+
+  // The nearest lockfile per directory. One fetch per lockfile, and only when a
+  // manifest under it actually carries a shared dependency.
+  const locks = new Map();
+  for (const t of tree) {
+    if (t.type !== "blob" || t.path.split("/").includes("node_modules")) continue;
+    const base = t.path.slice(t.path.lastIndexOf("/") + 1);
+    if (LOCKFILES.includes(base) || UNSUPPORTED_LOCKS.includes(base)) {
+      const d = dirOf(t.path);
+      const prev = locks.get(d);
+      // Prefer a lockfile we can read when a directory carries several.
+      if (!prev || (UNSUPPORTED_LOCKS.includes(prev.kind) && LOCKFILES.includes(base))) locks.set(d, { kind: base, sha: t.sha, dir: d });
+    }
+  }
+  const resolve = (manifestPath, pkg, range, field) => {
+    const dir = dirOf(manifestPath);
+    const lock = ancestors(dir).map((d) => locks.get(d)).find(Boolean);
+    if (!lock) return { unknown: "no lockfile committed" };
+    if (UNSUPPORTED_LOCKS.includes(lock.kind)) return { unknown: `${lock.kind} is not read` };
+    if (lock.resolver === undefined) {
+      try {
+        lock.resolver = lockResolver(lock.kind, Buffer.from(api(`repos/${repo}/git/blobs/${lock.sha}`).content, "base64").toString());
+      } catch {
+        lock.resolver = null; // an unreadable lockfile is said, never read as "not installed"
+      }
+    }
+    return lock.resolver ? lock.resolver(rel(lock.dir, dir), pkg, range, field) : { unknown: `${lock.kind} unreadable` };
+  };
 
   const deps = {};
   let unreadable = 0;
@@ -129,7 +244,8 @@ export function scanRepo(repo, api = ghCli) {
     for (const field of DEP_FIELDS) {
       for (const [name, range] of Object.entries(json[field] || {})) {
         if (!SHARED.test(name)) continue;
-        (deps[name] ??= []).push({ range, field, at: f.path });
+        const got = resolve(f.path, name, range, field);
+        (deps[name] ??= []).push({ range, field, at: f.path, ...(typeof got === "string" ? { installed: got } : { installed_unknown: got.unknown }) });
       }
     }
   }

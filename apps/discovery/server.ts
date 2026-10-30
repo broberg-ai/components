@@ -812,7 +812,7 @@ app.get("/api/sessions/:session", async (c) => {
         unreported: rec.unreported,
         mismatch: rec.mismatch,
         note:
-          "Measured from the repo's package.json files (one row per occurrence), not self-reported. These are RANGES as written, not the installed version. unreported = in the repo but never self-reported (a partial enrollment); mismatch = a self-reported version that differs from an exact pin.",
+          "Measured from the repo's package.json files (one row per occurrence), not self-reported. range = what the manifest asks for; installed = what the repo's committed lockfile resolved it to; installed_unknown = why no installed version can be claimed (no lockfile, lockfile out of date with package.json, a local link …). unreported = in the repo but never self-reported (a partial enrollment); mismatch = a self-reported version that differs from the installed one (or, without a readable lockfile, from an exact pin).",
       }
     : { repo: null, note: `No scanned repo is mapped to ${primary}, so nothing was measured — this is not evidence either way.` };
 

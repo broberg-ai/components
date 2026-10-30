@@ -34,7 +34,8 @@ function fakeApi({ branch = "main", files = {}, treeExtra = [] } = {}) {
     }
     const sha = path.split("/git/blobs/")[1];
     const body = files[shas[sha]];
-    const text = body === "BROKEN" ? "{ this is not json" : JSON.stringify(body);
+    // A string body is a raw file (a lockfile); "BROKEN" is one that will not parse.
+    const text = body === "BROKEN" ? "{ this is not json" : typeof body === "string" ? body : JSON.stringify(body);
     return { content: Buffer.from(text).toString("base64") };
   };
 }
@@ -176,6 +177,112 @@ check("a reset further away than the cap is not waited for — the run fails lou
     { resetAt: () => 2 * 3600e3, now: () => 0, sleep: (ms) => slept.push(ms) });
   eq(scanFleet(["broberg-ai/x"], api).repos_failed, 1, "failed");
   eq(slept, [], "never slept");
+});
+
+// F039.6 AC7 — the INSTALLED version, read from the lockfile, never the range.
+const occ = (r, pkg) => r.deps[pkg].map(({ at, range, installed, installed_unknown }) => ({ at, range, installed, installed_unknown }));
+
+check("AC7: package.json says ^0.1.0, the lockfile holds 0.1.3 → installed is 0.1.3, NOT 0.1.0", () => {
+  const api = fakeApi({ files: {
+    "package.json": { dependencies: { "@broberg/a": "^0.1.0" } },
+    "pnpm-lock.yaml": "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      '@broberg/a':\n        specifier: ^0.1.0\n        version: 0.1.3\n",
+  }});
+  eq(occ(scanRepo("o/r", api), "@broberg/a"), [{ at: "package.json", range: "^0.1.0", installed: "0.1.3" }], "installed from pnpm-lock");
+});
+
+check("pnpm monorepo: each importer gets ITS OWN installed version, peer suffix stripped", () => {
+  const api = fakeApi({ files: {
+    "package.json": { private: true },
+    "apps/server/package.json": { dependencies: { "@broberg/ai": "^0.21.1" } },
+    "apps/web/package.json": { devDependencies: { "@broberg/ai": "^0.10.4" } },
+    "pnpm-lock.yaml": [
+      "lockfileVersion: '9.0'", "importers:", "  .: {}",
+      "  apps/server:", "    dependencies:", "      '@broberg/ai':", "        specifier: ^0.21.1", "        version: 0.21.4(zod@4.1.0)",
+      "  apps/web:", "    devDependencies:", "      '@broberg/ai':", "        specifier: ^0.10.4", "        version: 0.10.9", "",
+    ].join("\n"),
+  }});
+  eq(occ(scanRepo("o/r", api), "@broberg/ai"), [
+    { at: "apps/server/package.json", range: "^0.21.1", installed: "0.21.4" },
+    { at: "apps/web/package.json", range: "^0.10.4", installed: "0.10.9" },
+  ], "two installed versions in one repo");
+});
+
+check("package-lock: a nested workspace resolves through the hoisted root node_modules", () => {
+  const api = fakeApi({ files: {
+    "package.json": { workspaces: ["apps/*"] },
+    "apps/x/package.json": { dependencies: { "@broberg/a": "^1.0.0", "@broberg/b": "^2.0.0" } },
+    "package-lock.json": JSON.stringify({ lockfileVersion: 3, packages: {
+      "node_modules/@broberg/a": { version: "1.4.0" },
+      "apps/x/node_modules/@broberg/b": { version: "2.2.0" },
+      "node_modules/@broberg/b": { version: "2.0.0" },
+    } }),
+  }});
+  const r = scanRepo("o/r", api);
+  eq(r.deps["@broberg/a"][0].installed, "1.4.0", "hoisted");
+  eq(r.deps["@broberg/b"][0].installed, "2.2.0", "the nearer node_modules wins over the root");
+});
+
+check("bun.lock (trailing commas): a workspace's own copy is keyed by its NAME, hoisted otherwise", () => {
+  const api = fakeApi({ files: {
+    "package.json": { dependencies: { "@broberg/a": "^0.5.0" } },
+    "apps/voice/package.json": { dependencies: { "@broberg/a": "0.38.0" } },
+    "bun.lock": [
+      "{", '  "lockfileVersion": 1,', '  "workspaces": {',
+      '    "": { "name": "root", "dependencies": { "@broberg/a": "^0.5.0", }, },',
+      '    "apps/voice": { "name": "@w/voice", "dependencies": { "@broberg/a": "0.38.0", }, },',
+      "  },", '  "packages": {',
+      '    "@broberg/a": ["@broberg/a@0.5.7", "", {}, "sha512-x"],',
+      '    "@w/voice/@broberg/a": ["@broberg/a@0.38.0", "", {}, "sha512-y"],',
+      "  },", "}", "",
+    ].join("\n"),
+  }});
+  eq(occ(scanRepo("o/r", api), "@broberg/a").map((o) => o.installed), ["0.5.7", "0.38.0"], "root hoisted, voice its own");
+});
+
+check("a lockfile OUT OF DATE with package.json claims no version — buddy's real 30 Oct case", () => {
+  const api = fakeApi({ files: {
+    "apps/server/package.json": { dependencies: { "@broberg/ai-sdk": "0.66.0" } },
+    "bun.lock": '{ "workspaces": { "apps/server": { "name": "s", "dependencies": { "@broberg/ai-sdk": "^0.28.0" } } },'
+      + ' "packages": { "@broberg/ai-sdk": ["@broberg/ai-sdk@0.28.0", "", {}, "x"] } }',
+  }});
+  eq(occ(scanRepo("o/r", api), "@broberg/ai-sdk"), [{ at: "apps/server/package.json", range: "0.66.0",
+    installed_unknown: "bun.lock out of date with package.json (lock records ^0.28.0)" }], "0.28.0 must NOT be reported as installed");
+  const pnpm = fakeApi({ files: {
+    "package.json": { dependencies: { "@broberg/a": "^0.2.0" } },
+    "pnpm-lock.yaml": "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      '@broberg/a':\n        specifier: ^0.1.0\n        version: 0.1.3\n",
+  }});
+  eq(scanRepo("o/r", pnpm).deps["@broberg/a"][0].installed_unknown, "pnpm-lock.yaml out of date with package.json (lock records ^0.1.0)", "pnpm too");
+});
+
+check("a peer range next to a workspace devDependency is NOT a stale lock (components' real case)", () => {
+  const api = fakeApi({ files: {
+    "packages/x/package.json": { devDependencies: { "@broberg/a": "workspace:*" }, peerDependencies: { "@broberg/a": "^0.5.0" } },
+    "pnpm-lock.yaml": "lockfileVersion: '9.0'\nimporters:\n  packages/x:\n    devDependencies:\n      '@broberg/a':\n        specifier: workspace:*\n        version: link:../a\n",
+  }});
+  eq(scanRepo("o/r", api).deps["@broberg/a"].map((o) => o.installed_unknown), ["local link in pnpm-lock.yaml", "local link in pnpm-lock.yaml"], "both fields");
+});
+
+check("NO lockfile → installed_unknown says so; the range is never promoted to installed", () => {
+  const api = fakeApi({ files: { "package.json": { dependencies: { "@broberg/a": "0.1.0" } } } });
+  eq(occ(scanRepo("o/r", api), "@broberg/a"), [{ at: "package.json", range: "0.1.0", installed_unknown: "no lockfile committed" }], "even an exact pin is not called installed");
+});
+
+check("an UNREADABLE lockfile is said, never read as 'not installed' — and the manifest still counts", () => {
+  const api = fakeApi({ files: { "package.json": { dependencies: { "@broberg/a": "^1" } }, "pnpm-lock.yaml": "BROKEN" } });
+  const r = scanRepo("o/r", api);
+  eq(r.unreadable, 0, "the manifest itself parsed");
+  eq(r.deps["@broberg/a"][0].installed_unknown, "pnpm-lock.yaml unreadable", "reason");
+  eq(r.deps["@broberg/a"][0].installed, undefined, "no version claimed");
+});
+
+check("a workspace link and an unsupported lockfile both explain themselves", () => {
+  const linked = fakeApi({ files: {
+    "packages/x/package.json": { dependencies: { "@broberg/a": "workspace:*" } },
+    "pnpm-lock.yaml": "lockfileVersion: '9.0'\nimporters:\n  packages/x:\n    dependencies:\n      '@broberg/a':\n        specifier: workspace:*\n        version: link:../a\n",
+  }});
+  eq(scanRepo("o/r", linked).deps["@broberg/a"][0].installed_unknown, "local link in pnpm-lock.yaml", "link");
+  const yarn = fakeApi({ files: { "package.json": { dependencies: { "@broberg/a": "^1" } }, "yarn.lock": "# yarn" } });
+  eq(scanRepo("o/r", yarn).deps["@broberg/a"][0].installed_unknown, "yarn.lock is not read", "yarn");
 });
 
 console.log(failures ? `\n${failures} FAILED` : "\nall green");

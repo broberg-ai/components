@@ -7,7 +7,9 @@
 //
 //   measured   — every occurrence the scan found for the session's repo
 //   unreported — packages the scan found that the session never reported (partial)
-//   mismatch   — a reported version that differs from an exact pin in the repo
+//   mismatch   — a reported version that differs from what the repo's lockfile
+//                installed (F039.6 AC7), or — with no readable lockfile — from an
+//                exact pin in its package.json
 //   stale      — an enrollment nobody has confirmed for STALE_DAYS
 //
 // None of these deletes or corrects anything. Stale means "nobody confirmed it
@@ -15,8 +17,11 @@
 
 export const STALE_DAYS = 30;
 
-export interface Occurrence { pkg: string; range: string; at: string; field?: string }
-export interface Scan { scanned_at?: string; repos?: Record<string, { deps?: Record<string, Array<{ range: string; at: string; field?: string }>> }> }
+/** `installed` is read from the repo's lockfile; `installed_unknown` says why it
+ *  could not be (no lockfile, out of date, a local link …). Never both. */
+export interface Occurrence { pkg: string; range: string; at: string; field?: string; installed?: string; installed_unknown?: string }
+type ScanOcc = Omit<Occurrence, "pkg">;
+export interface Scan { scanned_at?: string; repos?: Record<string, { deps?: Record<string, ScanOcc[]> }> }
 
 /** The scanned repo for a (primary) session, or null when none can be named honestly. */
 export function repoForSession(primary: string, scan: Scan, curated: Record<string, string>): string | null {
@@ -27,10 +32,16 @@ export function repoForSession(primary: string, scan: Scan, curated: Record<stri
 
 export function measuredFor(repo: string, scan: Scan): Occurrence[] {
   const deps = scan.repos?.[repo]?.deps ?? {};
-  return Object.entries(deps).flatMap(([pkg, occ]) => occ.map((o) => ({ pkg, range: o.range, at: o.at, ...(o.field ? { field: o.field } : {}) })));
+  return Object.entries(deps).flatMap(([pkg, occ]) => occ.map((o) => ({
+    pkg, range: o.range, at: o.at,
+    ...(o.field ? { field: o.field } : {}),
+    ...(o.installed ? { installed: o.installed } : o.installed_unknown ? { installed_unknown: o.installed_unknown } : {}),
+  })));
 }
 
 const EXACT = /^\d+\.\d+\.\d+$/;
+
+export type Mismatch = { pkg: string; reported: string; at: string } & ({ installed: string } | { pinned: string });
 
 export function reconcile(
   enrolled: ReadonlyArray<{ pkg: string; version: string; updated_at?: number | string; role?: string }>,
@@ -38,15 +49,19 @@ export function reconcile(
   nowMs: number,
 ): {
   unreported: string[];
-  mismatch: Array<{ pkg: string; reported: string; pinned: string; at: string }>;
+  mismatch: Mismatch[];
   stale: string[];
 } {
   const reported = new Set(enrolled.map((e) => e.pkg));
   const unreported = [...new Set(measured.map((m) => m.pkg))].filter((p) => !reported.has(p)).sort();
+  // The INSTALLED version wins when the lockfile gave one; an exact pin is the
+  // fallback; a bare range is never judged.
   const mismatch = enrolled.flatMap((e) =>
-    measured
-      .filter((m) => m.pkg === e.pkg && EXACT.test(m.range) && m.range !== e.version)
-      .map((m) => ({ pkg: e.pkg, reported: e.version, pinned: m.range, at: m.at })),
+    measured.flatMap((m): Mismatch[] => {
+      if (m.pkg !== e.pkg) return [];
+      if (m.installed) return m.installed !== e.version ? [{ pkg: e.pkg, reported: e.version, installed: m.installed, at: m.at }] : [];
+      return EXACT.test(m.range) && m.range !== e.version ? [{ pkg: e.pkg, reported: e.version, pinned: m.range, at: m.at }] : [];
+    }),
   );
   const cutoff = nowMs - STALE_DAYS * 86_400_000;
   // The store keeps updated_at as epoch ms (a number); accept an ISO string too.

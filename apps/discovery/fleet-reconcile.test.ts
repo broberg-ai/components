@@ -41,6 +41,30 @@ describe("F039.6 — reconcile a session against the daily repo scan", () => {
     expect(r.mismatch).toStrictEqual([{ pkg: "@broberg/a", reported: "0.1.0", pinned: "0.1.3", at: "package.json" }]);
   });
 
+  it("AC7: the INSTALLED version (from the lockfile) is what a report is checked against — a caret range is judged once the lock says what it resolved to", () => {
+    const occ = [
+      { pkg: "@broberg/a", range: "^0.1.0", at: "apps/x/package.json", installed: "0.1.3" },
+      { pkg: "@broberg/a", range: "0.1.0", at: "apps/y/package.json", installed: "0.1.0" },
+      { pkg: "@broberg/b", range: "0.2.0", at: "package.json", installed_unknown: "no lockfile committed" },
+    ];
+    const r = reconcile([{ pkg: "@broberg/a", version: "0.1.0" }, { pkg: "@broberg/b", version: "0.1.9" }], occ, Date.now());
+    expect(r.mismatch).toStrictEqual([
+      { pkg: "@broberg/a", reported: "0.1.0", installed: "0.1.3", at: "apps/x/package.json" },
+      { pkg: "@broberg/b", reported: "0.1.9", pinned: "0.2.0", at: "package.json" },
+    ]);
+  });
+
+  it("measuredFor carries installed / installed_unknown through from the scan", () => {
+    const scan = { repos: { "o/r": { deps: { "@broberg/a": [
+      { range: "^1", at: "package.json", installed: "1.2.0" },
+      { range: "^1", at: "x/package.json", installed_unknown: "bun.lock out of date with package.json (lock records ^0.9.0)" },
+    ] } } } };
+    expect(measuredFor("o/r", scan)).toStrictEqual([
+      { pkg: "@broberg/a", range: "^1", at: "package.json", installed: "1.2.0" },
+      { pkg: "@broberg/a", range: "^1", at: "x/package.json", installed_unknown: "bun.lock out of date with package.json (lock records ^0.9.0)" },
+    ]);
+  });
+
   it("STALE past the agreed age — marked, never removed", () => {
     const now = Date.UTC(2026, 9, 30);
     // epoch ms — what the enrollment store actually holds (a string-only version shipped
