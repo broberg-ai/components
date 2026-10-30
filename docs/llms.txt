@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- All 150 tips are inline below, in full. That part needs no second fetch.
+- All 152 tips are inline below, in full. That part needs no second fetch.
 - **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at https://discovery.broberg.ai/llms-full.txt. Fetch it before you decide a capability is missing.
 
 ## Secrets Vault — flådens delte krypterede secret-store
@@ -191,13 +191,14 @@ owner. That conversation is the whole point of this inventory.
 - **Deployment Mgmt (observe)** (L3) · ⛔ NOT BUILT YET (moved) — nothing to install, nothing to import · owner: upmetrics — ASK THEM before building a second one
   The observe half of deployment management
 
-## Tips & tricks — every tip inline (150 across 18 platforms)
+## Tips & tricks — every tip inline (152 across 18 platforms)
 
 ### Owner input — codes, passwords, logins, approvals → ARS (ars ask) (2)
 - **[tip]** npm login when `npm whoami` answers 401 (measured by components 26/10, @broberg/backup bootstrap): the password is in the vault (global secret «cbroberg (npm login)»). Log in through the registry API — PUT https://registry.npmjs.org/-/user/org.couchdb.user:cbroberg with {name,password} and header npm-otp: <code from `ars ask --kind code`> — and write the returned token to ~/.npmrc. The publish then needs a SECOND, fresh code (the first is spent on the login), so ask ARS again right before `npm publish --otp`. Alternative (auth-relay): `npm login --auth-type=web` and send the URL to the lens agent, which approves it in its npm profile; 2FA still via ARS. _(components)_
 - **[tip]** Codes live ~30 s. Ask ARS in the SAME script that uses the answer (OTP=$(ars ask …); cmd --otp=$OTP), never in one tool call and use it in the next — the gap is long enough for the code to expire. _(components)_
 
-### Fly.io (35)
+### Fly.io (36)
+- **[ha]** HIGH AVAILABILITY — 3 machines on 2 regions (2 arn + 1 ams): measured by broberg-id 29/10 when Fly arn could not start machines for hours. primary_region=ams (release_command always starts there); allocate-egress in EVERY region and add each egress (v4+v6) to the DB + reserve allowlists BEFORE the machine starts; prove region 2 with a services-less test machine; a STOPPED reserve in ams does not work (the proxy starts it — Danish users land in ams); cost of a warm ams machine: 29 ms vs 4.6 ms to a Stockholm DB, login 0.89 s vs 0.53 s — the owner must accept it. Estimated ~99.95 % vs ~99.9 %; the next nine needs automatic DB failover. arn stays first; ams is used because arn is MEASURED insufficient alone. Full guide: docs/guides/ha-multi-region.md in broberg-ai/components. _(broberg-id)_
 - **[build-stamp]** health.build — stamp the running commit on your health endpoint, and say how much to trust it. Convention (beacon, measured on their own service): GET /v1/health returns build:{ commit, dirty, source } where source is env (a deploy declared its sha, e.g. BUILD env var — declared, not observed) then git (the process runs from a work tree and git was asked — observed) then unknown (commit MUST be null). Five decisions, each one a trap somebody already hit: (1) read it ONCE at startup, never per request — the question is what the process was started from, and a git lookup per request answers about the tree as it is NOW, i.e. code the process never loaded; (2) UNTRACKED files count as dirty — the process runs what is on disk, and an uncommitted file is still one it could load; (3) never invent a sha — null plus source unknown, because a sha that looks like an answer is worse than no answer; (4) dirty is not decoration, it says how far to trust the sha: a true sha on a dirty tree describes code that is not running; (5) for the CONSUMER of the field — when comparing two sides (a page against the service that serves it), a dirty on EITHER side must make the comparison SILENT. A bundle is stamped when it is built, i.e. before the commit that contains it, so during ordinary work the shas disagree all day; warn on that and the warning is ignored within a week. Two CLEAN builds that disagree is the thing worth flagging. And say what a difference means: beacons service ran 732e4241 while HEAD was 637bae6, a real 48-hour drift — but that commit only touched CLAUDE.md, so the drift was harmless. A field that reports difference without significance becomes why is my service always red. _(beacon)_
 - **[region]** Region is ALWAYS arn (Stockholm). Set primary_region = "arn" — never US/Amsterdam. _(components)_
 - **[cost]** Idle-cheap services: auto_stop_machines = "stop" + auto_start_machines = true + min_machines_running = 0. Cold-start ~1s. _(components)_
@@ -272,7 +273,8 @@ owner. That conversation is the whole point of this inventory.
 - **[accordion]** Gotcha — accordion: with multiple methods enabled (Card + Klarna) the card fields stay COLLAPSED until 'Kort'/'Card' is selected. Click the card row first. _(sanne)_
 - **[verify]** Verify post-payment via sk_test: GET /v1/checkout/sessions?expand[]=data.payment_intent — application_fee_amount is ONLY present on a PAID session (on an open one payment_intent=null). commission / transfer_data / amount_total / shipping_address_collection all readable. _(sanne)_
 
-### Supabase (10)
+### Supabase (11)
+- **[dual-database]** TWO DATABASES (primary + reserve with logical replication) — fleet pattern, read before you add a reserve: replication copies DATA, not SCHEMA. A column added to the primary but not the reserve stops the subscription, the primary holds WAL back, and at max_slot_wal_keep_size the slot is dropped — the reserve is lost (fd-sundhed 28/10: 5 h stalled, 128 MB from lost). ONE door for every schema change (never apply_migration straight to the primary); new table → ALTER SUBSCRIPTION … REFRESH PUBLICATION WITH (copy_data=true); measure health FROM THE PRIMARY (slot missing/inactive, wal_status=lost, no reply >300 s, lag >64–100 MB) on its own route, never the platform health check; alert on LAG, not just on stall; a human gets one mail per episode after 10 min. Two measured orderings (reserve-first vs primary-first + mandatory alarm) — the guide gives both. Full guide: docs/guides/dual-database.md in broberg-ai/components. _(fd-sundhed + broberg-id)_
 - **[region]** Provision in region arn (Stockholm) — same as Fly. _(components)_
 - **[dual-db]** Dual DB (Supabase primary + UpCloud copy): the IP guard for it is reserve-ip-guard — copy broberg-id src/reserve-ip-guard.ts @ edb8feb verbatim (bid + fd-sundhed run it). A COPY, not a package, until a third repo needs it; then ask components to make it one. _(bid)_
 - **[lens]** Authed Lens capture → @broberg/lens; keep only your signInWithPassword in createSession, package owns the rest. _(components)_
