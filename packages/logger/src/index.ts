@@ -44,6 +44,12 @@ export interface LoggerOptions {
    * a logger you must remember to make safe is not safe.
    */
   redact?: boolean;
+  /**
+   * Extra FIELD NAMES whose value is always redacted, on top of
+   * {@link DEFAULT_REDACT_KEYS}. Matched case- and separator-insensitively, at
+   * any depth and in child bindings. Needs `redact` on (the default).
+   */
+  redactKeys?: string[];
   /** Where the finished line goes. Default `console`. Injectable for tests. */
   sink?: (line: string, level: LogLevel) => void;
   /** Fields merged into every line (see {@link Logger.child}). */
@@ -75,6 +81,49 @@ function defaultSink(line: string, level: LogLevel): void {
   // warn/error to stderr so a shell pipeline can separate them; the rest to stdout.
   if (level === "error" || level === "warn") console.error(line);
   else console.log(line);
+}
+
+/**
+ * Field names whose VALUE is redacted whatever its shape (F063.2).
+ *
+ * The pattern pass (@broberg/secret-scan) catches a credential by what it LOOKS
+ * like. A user's password, a PIN or a CPR number looks like nothing — measured on
+ * the published 0.1.0: `{password:'hemmelig123'}` and `{apiKey:'kort'}` went out
+ * verbatim. The only marker such a value has is the key it sits under, so the
+ * key is what we match. Both passes run; neither replaces the other.
+ *
+ * Matching ignores case and separators: `apiKey`, `api_key`, `API-KEY` are one
+ * entry. A list that missed on casing would be the same false green in miniature.
+ */
+export const DEFAULT_REDACT_KEYS: readonly string[] = [
+  "password", "passwd", "pwd", "passphrase", "pin", "cpr", "cprnr", "ssn",
+  "secret", "clientsecret", "privatekey",
+  "authorization", "cookie", "setcookie",
+  "apikey", "xapikey", "accesstoken", "refreshtoken", "idtoken",
+];
+
+const REDACTED_FIELD = "[REDACTED:field]";
+
+function normKey(k: string): string {
+  return k.toLowerCase().replace(/[-_\s.]/g, "");
+}
+
+/**
+ * A copy of `value` with every listed field's value replaced — at any depth,
+ * cycle-safe. Runs on the record BEFORE serialisation; the pattern pass still
+ * runs on the serialised line after it.
+ */
+function redactFields(value: unknown, keys: ReadonlySet<string>, seen = new WeakSet<object>()): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  if (value instanceof Error) return value; // serialised later; its fields go through the pattern pass
+  if (seen.has(value)) return value; // safeStringify marks it [Circular]
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((v) => redactFields(v, keys, seen));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = keys.has(normKey(k)) ? REDACTED_FIELD : redactFields(v, keys, seen);
+  }
+  return out;
 }
 
 /** Errors do not survive JSON.stringify — pull the parts that matter out by hand. */
@@ -134,6 +183,9 @@ export function createLogger(options: LoggerOptions = {}): Logger {
   const min = RANK[level];
   const sink = options.sink ?? defaultSink;
   const redact = options.redact !== false;
+  const redactKeys: ReadonlySet<string> = new Set(
+    [...DEFAULT_REDACT_KEYS, ...(options.redactKeys ?? [])].map(normKey),
+  );
   const pretty = options.pretty === true;
   const bindings = options.bindings ?? {};
   const now = options.now ?? (() => new Date());
@@ -143,7 +195,7 @@ export function createLogger(options: LoggerOptions = {}): Logger {
       if (RANK[lvl] < min) return;
 
       const isErr = message instanceof Error;
-      const record: Record<string, unknown> = {
+      const raw: Record<string, unknown> = {
         level: lvl,
         time: now().toISOString(),
         msg: isErr ? message.message : message,
@@ -152,6 +204,8 @@ export function createLogger(options: LoggerOptions = {}): Logger {
         ...(fields ?? {}),
         ...(isErr ? { err: serialiseError(message) } : {}),
       };
+      // Key names first (a password has no shape), patterns on the line after.
+      const record = redact ? (redactFields(raw, redactKeys) as Record<string, unknown>) : raw;
 
       let line = pretty ? prettyLine(record) : safeStringify(record);
       if (typeof line !== "string") return; // stringify returned undefined

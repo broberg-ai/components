@@ -237,3 +237,79 @@ describe("child bindings", () => {
     expect(last()).not.toContain(SECRET);
   });
 });
+
+describe("redaction by FIELD NAME (F063.2) — a password has no shape", () => {
+  const capture = (opts: Parameters<typeof createLogger>[0] = {}) => {
+    const lines: string[] = [];
+    const log = createLogger({ sink: (l) => lines.push(l), now: () => new Date(0), ...opts });
+    return { log, lines };
+  };
+
+  it("{password:'hemmelig123'} is redacted, not logged verbatim", () => {
+    const { log, lines } = capture();
+    log.info("login", { password: "hemmelig123" });
+    expect(lines[0]).not.toContain("hemmelig123");
+    expect(JSON.parse(lines[0]!).password).toBe("[REDACTED:field]");
+  });
+
+  it("a NESTED field and a child-logger binding are redacted too", () => {
+    const { log, lines } = capture();
+    log.info("nested", { user: { name: "ane", password: "x-nested" } });
+    log.child({ apiKey: "kort" }).info("bound");
+    expect(lines[0]).not.toContain("x-nested");
+    expect(JSON.parse(lines[0]!).user).toStrictEqual({ name: "ane", password: "[REDACTED:field]" });
+    expect(lines[1]).not.toContain("kort");
+    expect(JSON.parse(lines[1]!).apiKey).toBe("[REDACTED:field]");
+  });
+
+  it("matching is case- and separator-insensitive", () => {
+    const { log, lines } = capture();
+    log.info("variants", { apiKey: "a1", api_key: "a2", "API-KEY": "a3", Authorization: "a4" });
+    const rec = JSON.parse(lines[0]!);
+    for (const k of ["apiKey", "api_key", "API-KEY", "Authorization"]) expect(rec[k]).toBe("[REDACTED:field]");
+    for (const v of ["a1", "a2", "a3", "a4"]) expect(lines[0]).not.toContain(`"${v}"`);
+  });
+
+  it("the PATTERN pass still works — key names were added, not substituted", () => {
+    const { log, lines } = capture();
+    log.info("patterns", {
+      note: "sk-proj-" + "A".repeat(48),
+      gh: "ghp_" + "a".repeat(36),
+      // Assembled from parts so the repo's own secret gate does not read the test as a leak.
+      header: "Bearer " + ["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiIxIn0", "c2lnbmF0dXJlc2lnbmF0dXJl"].join("."),
+    });
+    expect(lines[0]).toContain("[REDACTED:openai-api-key]");
+    expect(lines[0]).toContain("[REDACTED:github-token]");
+    expect(lines[0]).toContain("[REDACTED:jwt]");
+  });
+
+  it("NEGATIVE CONTROL: a field not on the list and with no secret shape is logged verbatim", () => {
+    const { log, lines } = capture();
+    log.info("ordinary", { userId: "u-42", passwordChangedAt: "2026-10-30", count: 3 });
+    const rec = JSON.parse(lines[0]!);
+    expect(rec.userId).toBe("u-42");
+    expect(rec.passwordChangedAt).toBe("2026-10-30");
+    expect(rec.count).toBe(3);
+  });
+
+  it("redactKeys EXTENDS the defaults (one option, no fork)", () => {
+    const { log, lines } = capture({ redactKeys: ["memberNumber"] });
+    log.info("extended", { member_number: "M-99", password: "p" });
+    const rec = JSON.parse(lines[0]!);
+    expect(rec.member_number).toBe("[REDACTED:field]");
+    expect(rec.password).toBe("[REDACTED:field]");
+  });
+
+  it("pretty mode redacts by field name as well", () => {
+    const { log, lines } = capture({ pretty: true });
+    log.info("pretty", { password: "pretty-secret" });
+    expect(lines[0]).not.toContain("pretty-secret");
+    expect(lines[0]).toContain("password=[REDACTED:field]");
+  });
+
+  it("redact:false turns key-name redaction off too — one switch, documented", () => {
+    const { log, lines } = capture({ redact: false });
+    log.info("off", { password: "visible" });
+    expect(JSON.parse(lines[0]!).password).toBe("visible");
+  });
+});

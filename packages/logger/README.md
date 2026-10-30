@@ -85,6 +85,22 @@ is enough, and every extra level is a decision every consumer then has to make.
 `log.error(err)` serialises an `Error` as `{ name, message, stack }` — never
 `{}`. Errors nested in fields are serialised too.
 
+## Redaction by field name (since 0.3.0, F063.2)
+
+The pattern pass recognises a credential by its **shape** (an `sk-…` key, a `ghp_…` token, a JWT). A user's password, a PIN or a CPR number has no shape — measured on the published 0.1.0, `{password:'hemmelig123'}` and `{apiKey:'kort'}` went out verbatim. So the logger now ALSO redacts by **field name**, whatever the value looks like:
+
+```ts
+log.info("login", { user: { name: "ane", password: "hemmelig123" } });
+// → {"…","user":{"name":"ane","password":"[REDACTED:field]"}}
+```
+
+- **Default list** (`DEFAULT_REDACT_KEYS`): `password`, `passwd`, `pwd`, `passphrase`, `pin`, `cpr`, `cprnr`, `ssn`, `secret`, `clientSecret`, `privateKey`, `authorization`, `cookie`, `set-cookie`, `apiKey`, `x-api-key`, `accessToken`, `refreshToken`, `idToken`.
+- **Case- and separator-insensitive**: `apiKey`, `api_key`, `API-KEY` are one entry. `Authorization` is caught as `authorization`.
+- **Any depth, and in child bindings** (`log.child({ apiKey })`).
+- **Extend it** with one option — the defaults stay on: `createLogger({ redactKeys: ["memberNumber"] })` (then `member_number` is caught too).
+- **Both passes run.** Field names first, then the ~38 patterns on the serialised line. A field that is not on the list and has no secret shape is logged verbatim — `passwordChangedAt` is not `password`.
+- `redact: false` turns off both.
+
 ## The cost of redaction — measured, not asserted
 
 Redaction runs ~38 regexes over each serialised line. Run `npm run bench`
@@ -96,6 +112,20 @@ redact: true (default)    7.79 µs/call       128,000 calls/s
 
 overhead: 6.4 µs/call (≈5.7× the un-redacted path)
 ```
+
+**The field-name pass (0.3.0), measured as an interleaved A/B on one machine**
+(cb-2, Intel i5-7360U under load, 30 Oct 2026; old and new `dist` alternated three
+times so load hits both):
+
+```
+                     0.2.3 (patterns only)   0.3.0 (field names + patterns)
+redact: true         208–247 µs/call         239–260 µs/call
+```
+
+≈ +10 % (≈ +20 µs) on a redacted call. **The absolute numbers on that machine are
+not comparable to the M1 table above** — the same bench measured the pattern pass
+at ~230 µs there against 7.8 µs on the M1 in August. The M1 figures have not been
+re-measured since; treat them as August's, not as current.
 
 Read that honestly: redaction is **the dominant cost of a log call**, and it is
 still 128 000 lines/second — far more than any app in this fleet produces. Turn
