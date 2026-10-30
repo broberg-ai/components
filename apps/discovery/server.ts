@@ -28,6 +28,7 @@ const fleetRows = buildFleetRows(fleetScan);
 const fleetAge = scanAge(fleetScan);
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
 import { getEnrollStore, type Role } from "./enroll";
+import { securityBehind, SECURITY_NOTE, type SecMark } from "./security-behind";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
 // edit: 503s until GITHUB_WRITE_TOKEN + SPEECH_DICT_EDIT_KEY are configured).
 import { readDictionary, editDictionary, authenticateEditor, type EditDiff } from "./speech-dictionary";
@@ -784,6 +785,14 @@ app.get("/api/sessions/:session", async (c) => {
     ? `UNVERIFIED: ${asked} has never self-reported an adoption, so this gap is every shipped package rather than a measured list. Treat it as "we have not been told", NOT as a to-do list. Fix it from the repo: POST /api/enroll.`
     : `Self-reported: ${asked} has reported ${enrolled.length} adoption(s), so this gap is what it has not told us about. Still not proof a package is unused.`;
 
+  // F039.9 — behind on a release its OWNER marked as a security fix. Present
+  // ONLY when there is something to say: a current session gets no line at all,
+  // so the line's presence carries information instead of being skipped by habit.
+  const rosterRows = (DATA as Array<{ items?: unknown[] }>).flatMap(
+    (L) => (L.items ?? []) as Array<{ pkg?: string; ver?: string; sec?: SecMark[] }>,
+  );
+  const behind = securityBehind(enrolled, rosterRows);
+
   return c.json({
     session: asked,
     resolved_session: primary,
@@ -794,6 +803,7 @@ app.get("/api/sessions/:session", async (c) => {
     gap,
     gap_confidence: gapConfidence,
     gap_note: gapNote,
+    ...(behind.length ? { security_behind: behind, security_note: SECURITY_NOTE } : {}),
   });
 });
 

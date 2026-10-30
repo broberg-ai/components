@@ -616,3 +616,25 @@ describe("F038.22 / F038.24 — the fleet part needs a registered session and is
     }
   });
 });
+
+describe("F039.9 — /api/sessions/:session carries security_behind only when there is something to say", () => {
+  it("a session on @broberg/secret-scan 0.5.0 is told it is behind 0.7.0, with the reason and the note", async () => {
+    const store = (await getEnrollStore())!;
+    await store.upsert({ session: "sec-behind-test", pkg: "@broberg/secret-scan", version: "0.5.0", role: "uses" });
+    const s = await (await fleet("/api/sessions/sec-behind-test")).json();
+    expect(s.security_behind).toHaveLength(1);
+    expect(s.security_behind[0].have).toBe("0.5.0");
+    expect(s.security_behind[0].fixes[0].v).toBe("0.7.0");
+    expect(s.security_note).toMatch(/possibility, not a task/i);
+  });
+
+  it("a CURRENT session, or one on only unmarked packages, gets no security field at all", async () => {
+    const store = (await getEnrollStore())!;
+    await store.upsert({ session: "sec-current-test", pkg: "@broberg/mail", version: "0.1.0", role: "uses" });
+    const s = await (await fleet("/api/sessions/sec-current-test")).json();
+    expect("security_behind" in s).toBe(false);
+    expect("security_note" in s).toBe(false);
+    expect(JSON.stringify(s)).not.toMatch(/no (known )?security (issues|problems)/i);
+  });
+});
+
