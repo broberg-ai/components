@@ -33,6 +33,9 @@ export function reconcile(scan, enrollments) {
   const declared = new Map();
   const originated = new Map();
   for (const e of enrollments) {
+    // F039.6: `not_relevant` says "this can never apply to me" — the opposite of
+    // a claim of use, so it must never be read as "enrolled but not installed".
+    if (e.role === "not_relevant") continue;
     const bucket = e.role === "src" ? originated : declared;
     if (!bucket.has(e.session)) bucket.set(e.session, new Set());
     bucket.get(e.session).add(e.pkg);
@@ -60,7 +63,11 @@ export function reconcile(scan, enrollments) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const scan = JSON.parse(readFileSync(new URL("../data/fleet-deps.json", import.meta.url), "utf8"));
-  const res = await fetch(`${DISCOVERY}/api/enrollments`);
+  // Discovery is closed behind the fleet headers (since 8 Oct 2026); without them
+  // every read is a 401, which must stop the run rather than look like zero rows.
+  const { DISCOVERY_SESSION = "components", DISCOVERY_ENROLL_KEY } = process.env;
+  if (!DISCOVERY_ENROLL_KEY) { console.error("DISCOVERY_ENROLL_KEY is not set — Discovery answers 401 without it"); process.exit(1); }
+  const res = await fetch(`${DISCOVERY}/api/enrollments`, { headers: { "x-discovery-session": DISCOVERY_SESSION, "x-enroll-key": DISCOVERY_ENROLL_KEY } });
   if (!res.ok) { console.error(`could not read ${DISCOVERY}/api/enrollments — HTTP ${res.status}`); process.exit(1); }
   const enrollments = (await res.json()).enrollments ?? [];
   const r = reconcile(scan, enrollments);
