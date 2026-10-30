@@ -296,6 +296,7 @@ jobs:
     permissions: # F038.26 — the OIDC token BID exchanges for a Discovery ticket
       id-token: write
       contents: read
+      actions: read # F038.48 — list publish runs as evidence for PENDING
     timeout-minutes: 10 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     steps:
       - uses: actions/checkout@v4
@@ -309,7 +310,20 @@ jobs:
       # pass. Pointed at the LIVE url, which is the thing it was built to check —
       # its own header says a local file cannot prove a deploy landed.
       - name: The "Just shipped" card on the LIVE site names the newest release
-        run: bun scripts/check-featured-fresh.mjs https://discovery.broberg.ai
+        # F038.48 — 3 = PENDING (our release is still publishing; its own discovery
+        # run checks the card), 4 = published from another repo (daily catch-up).
+        # Both are shown and green; 1 stays a failure. Without this wrapper the
+        # outcomes collapse back to two under `bash -e`.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          bun scripts/check-featured-fresh.mjs https://discovery.broberg.ai
+          code=$?
+          set -e
+          if [ $code -eq 3 ]; then echo "::notice::\"Just shipped\" is PENDING — a release of ours is still publishing; its own discovery run checks the card (F038.48)."; exit 0; fi
+          if [ $code -eq 4 ]; then echo "::warning::\"Just shipped\" names an older release — the newest was published from another repo; the daily catch-up refreshes it (F038.48)."; exit 0; fi
+          exit $code
 
       # F038.15 — the SAME predicate as in `check`, pointed at the live site.
       # The build output being right and the site serving it are different

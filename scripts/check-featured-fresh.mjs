@@ -9,7 +9,8 @@
 // not-listening WARNING and then reported success (F038.6).
 import { readFileSync } from "node:fs";
 import { DATA } from "./inventory-data.mjs";
-import { fetchLatestReleases } from "./npm-latest.mjs";
+import { fetchLatestReleases, ownPackages } from "./npm-latest.mjs";
+import { featuredVerdict, releaseTag, OK } from "./featured-verdict.mjs";
 import { discoveryAuth } from "./discovery-auth.mjs";
 // F038.22 — Discovery is behind login. CI reads it as a registered session:
 // F038.26: a BrobergID ticket (GitHub OIDC, no stored key) — see discovery-auth.mjs.
@@ -57,14 +58,41 @@ const pkgs = DATA.flatMap((L) => L.items ?? [])
   .map((it) => it.pkg);
 const newest = (await fetchLatestReleases(pkgs))[0];
 
-if (pkg !== newest.pkg || version !== newest.version) {
+/** F038.48 — the evidence: this run's start and the publish runs for the newest's tag. */
+async function publishEvidence(tag) {
+  const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env;
+  if (!GITHUB_TOKEN || !GITHUB_REPOSITORY || !GITHUB_RUN_ID) return { githubError: "not running in GitHub Actions with a token" };
+  const gh = async (path) => {
+    const r = await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}${path}`, { headers: { authorization: `Bearer ${GITHUB_TOKEN}`, accept: "application/vnd.github+json" } });
+    if (!r.ok) throw new Error(`HTTP ${r.status} on ${path}`);
+    return r.json();
+  };
+  try {
+    const run = await gh(`/actions/runs/${GITHUB_RUN_ID}`);
+    const runs = await gh(`/actions/workflows/publish.yml/runs?branch=${encodeURIComponent(tag)}&per_page=10`);
+    // A LATER discovery run on main supersedes this one (it deploys a newer commit).
+    const later = await gh(`/actions/workflows/inventory-fresh.yml/runs?branch=main&per_page=20&created=${encodeURIComponent(`>${run.created_at}`)}`);
+    const laterRuns = (later.workflow_runs ?? []).filter((r) => r.id !== run.id && r.event !== "pull_request");
+    return { runStartedAt: run.run_started_at, publishRuns: runs.workflow_runs ?? [], laterRuns };
+  } catch (e) {
+    return { githubError: String(e.message ?? e) };
+  }
+}
+
+const own = ownPackages();
+const stale = pkg !== newest.pkg || version !== newest.version;
+const evidence = stale && own.has(newest.pkg) ? await publishEvidence(releaseTag(newest.pkg, newest.version)) : {};
+const verdict = featuredVerdict({ card: { pkg, version }, newest, own, ...evidence });
+
+if (verdict.code !== OK) {
   // Name BOTH, so the gap is legible rather than a bare false. The card was six
   // weeks stale and said so to nobody.
   console.error(
     `\n  "Just shipped" is stale.\n` +
       `    card   ${pkg}@${version}   (${headline})\n` +
-      `    newest ${newest.pkg}@${newest.version}   published ${newest.published}\n`,
+      `    newest ${newest.pkg}@${newest.version}   published ${newest.published}\n` +
+      `  ${verdict.message}\n`,
   );
-  process.exit(1);
+  process.exit(verdict.code);
 }
 console.log(`✓ "Just shipped" names the newest release: ${pkg}@${version} (${newest.published})`);
