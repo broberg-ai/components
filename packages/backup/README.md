@@ -6,6 +6,7 @@ Nightly encrypted logical backup, ported from broberg-id's production backup (`s
 - **The machine can encrypt, never open**: each backup gets a random AES-256-GCM key, which is wrapped with RSA-OAEP under a **public** key. The private key belongs in the cardmem vault, never on the machine.
 - **Proof before "ok"**: the stored file is fetched back and its sha256 must match what was sent.
 - **One copy per day, 30 days kept**: a second run the same day changes nothing. Days 31–40 back are deleted, but only under your prefix and only after the new copy is proven.
+- **A refused delete never fails the backup** (0.2.0). On a bucket with an object lock, the lock counts from *upload* time, not from the date in the file name, so a copy named 31 days back can still be locked (BID, 30 Oct 2026: HTTP 409). The refused keys are returned in `pruneSkipped` with the store's reason, and the next night tries again. For a locked bucket, pass `prune: false` and let a storage lifecycle rule expire old copies — the store knows when a lock ends; the file name does not.
 - **Freshness for a probe**: `backupFreshness()` answers whether there is a whole copy from today or yesterday. It returns dates and numbers, never contents.
 
 ```ts
