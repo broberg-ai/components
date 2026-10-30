@@ -43,8 +43,10 @@ describe("F039.6 — reconcile a session against the daily repo scan", () => {
 
   it("STALE past the agreed age — marked, never removed", () => {
     const now = Date.UTC(2026, 9, 30);
-    const old = new Date(now - (STALE_DAYS + 1) * 86_400_000).toISOString();
-    const fresh = new Date(now - 86_400_000).toISOString();
+    // epoch ms — what the enrollment store actually holds (a string-only version shipped
+    // red on main because the store's updated_at is a number; tsc caught it).
+    const old = now - (STALE_DAYS + 1) * 86_400_000;
+    const fresh = now - 86_400_000;
     const enrolled = [
       { pkg: "@broberg/a", version: "0.1.3", updated_at: old },
       { pkg: "@broberg/c", version: "1.0.0", updated_at: fresh },
@@ -54,3 +56,19 @@ describe("F039.6 — reconcile a session against the daily repo scan", () => {
     expect(enrolled).toHaveLength(2); // nothing deleted
   });
 });
+
+describe("F039.6 — staleness reads the store's real shape", () => {
+  it("an ISO string works too, and an unreadable time is never called stale", () => {
+    const now = Date.UTC(2026, 9, 30);
+    const r = reconcile(
+      [
+        { pkg: "@broberg/x", version: "1.0.0", updated_at: new Date(now - (STALE_DAYS + 5) * 86_400_000).toISOString() },
+        { pkg: "@broberg/y", version: "1.0.0", updated_at: "not a date" },
+      ],
+      [],
+      now,
+    );
+    expect(r.stale).toStrictEqual(["@broberg/x"]);
+  });
+});
+

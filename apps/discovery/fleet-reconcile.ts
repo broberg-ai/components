@@ -33,7 +33,7 @@ export function measuredFor(repo: string, scan: Scan): Occurrence[] {
 const EXACT = /^\d+\.\d+\.\d+$/;
 
 export function reconcile(
-  enrolled: ReadonlyArray<{ pkg: string; version: string; updated_at?: string; role?: string }>,
+  enrolled: ReadonlyArray<{ pkg: string; version: string; updated_at?: number | string; role?: string }>,
   measured: ReadonlyArray<Occurrence>,
   nowMs: number,
 ): {
@@ -49,8 +49,12 @@ export function reconcile(
       .map((m) => ({ pkg: e.pkg, reported: e.version, pinned: m.range, at: m.at })),
   );
   const cutoff = nowMs - STALE_DAYS * 86_400_000;
+  // The store keeps updated_at as epoch ms (a number); accept an ISO string too.
+  // An unreadable time is NOT stale — no claim is made from a value we cannot read.
+  const at = (v: number | string | undefined): number =>
+    typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : Number.NaN;
   const stale = enrolled
-    .filter((e) => e.updated_at && Date.parse(e.updated_at) < cutoff)
+    .filter((e) => { const t = at(e.updated_at); return Number.isFinite(t) && t < cutoff; })
     .map((e) => e.pkg)
     .sort();
   return { unreported, mismatch, stale };
