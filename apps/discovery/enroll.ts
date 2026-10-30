@@ -5,7 +5,13 @@
 import { createHash } from "node:crypto";
 import { createClient, type Client, type Row } from "@libsql/client";
 
-export type Role = "uses" | "src";
+/**
+ * "not_relevant" (F039.6): set BY the repo itself, for a package that can never
+ * apply to it (a deliberately framework-free repo and a Preact UI kit). It takes
+ * the package out of that repo's gap and nobody else's.
+ */
+export type Role = "uses" | "src" | "not_relevant";
+export const toRole = (v: unknown): Role => (v === "src" ? "src" : v === "not_relevant" ? "not_relevant" : "uses");
 
 export interface Enrollment {
   session: string;
@@ -52,7 +58,7 @@ const rowToEnrollment = (r: Row): Enrollment => ({
   session: String(r.session),
   pkg: String(r.pkg),
   version: String(r.version),
-  role: r.role === "src" ? "src" : "uses",
+  role: toRole(r.role),
   commit: r.commit_sha == null ? null : String(r.commit_sha),
   notes: r.notes == null ? null : String(r.notes),
   updated_at: Number(r.updated_at),
@@ -82,7 +88,7 @@ export interface EnrollStore {
 export function makeEnrollStore(client: Client): EnrollStore {
   return {
     async upsert(input) {
-      const role: Role = input.role === "src" ? "src" : "uses";
+      const role: Role = toRole(input.role);
       const commit = input.commit ?? null;
       const notes = input.notes ?? null;
       const updated_at = Date.now();

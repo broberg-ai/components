@@ -27,7 +27,7 @@ try {
 const fleetRows = buildFleetRows(fleetScan);
 const fleetAge = scanAge(fleetScan);
 // F039 auto-enrollment write-layer (Turso/libSQL; ship-dark when unconfigured).
-import { getEnrollStore, type Role } from "./enroll";
+import { getEnrollStore, toRole, type Role } from "./enroll";
 import { securityBehind, SECURITY_NOTE, type SecMark } from "./security-behind";
 import { measuredFor, reconcile, repoForSession, STALE_DAYS } from "./fleet-reconcile";
 // F044.1 — read+edit surface over @broberg/speech-dictionary's data (ship-dark
@@ -326,7 +326,7 @@ const manifest = () => ({
     { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
     { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
-    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a BID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?}", example: "/api/enroll" },
+    { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a BID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?} — role 'uses' (default) | 'src' | 'not_relevant' (this package can never apply to THIS repo: taken out of its gap; version may be omitted)", example: "/api/enroll" },
     { method: "GET", path: "/api/speech-dictionary", description: "@broberg/speech-dictionary's current terms + corrections, always the latest committed state (F044.1)", example: "/api/speech-dictionary" },
     { method: "POST", path: "/api/speech-dictionary/edit", description: "edit the speech dictionary via a diff. REGISTERED EDITORS ONLY (F044.3): an edit commits and auto-publishes a new npm patch version, so a session is registered by components (ask_peer components), never by its own first call; send the key components registered as header x-speech-dict-key + body.session. An unknown session gets 401 session_not_registered. Body {session,addTerms?,removeTerms?,addCorrections?,removeCorrections?}", example: "/api/speech-dictionary/edit" },
   ],
@@ -752,12 +752,16 @@ app.get("/api/sessions/:session", async (c) => {
   // Dedupe on (session,pkg) is already the store's invariant; dedupe on pkg here
   // because the SAME package may be enrolled under both names.
   const seen = new Set<string>();
-  const enrolled = perName.flat().filter((e) => (seen.has(e.pkg) ? false : (seen.add(e.pkg), true)));
+  const rows = perName.flat().filter((e) => (seen.has(e.pkg) ? false : (seen.add(e.pkg), true)));
+  // F039.6 — a package the repo marked not-relevant for itself is neither an
+  // adoption nor a to-do: listed on its own, out of the gap, out of `enrolled`.
+  const enrolled = rows.filter((e) => e.role !== "not_relevant");
+  const notRelevant = rows.filter((e) => e.role === "not_relevant").map((e) => ({ pkg: e.pkg, notes: e.notes, updated_at: e.updated_at }));
   // Say WHICH identities contributed. A silently merged answer is a new way to
   // be confidently wrong — the caller must be able to see that a merge happened.
   const mergedFrom = names.filter((n, i) => n !== asked && perName[i].length > 0);
 
-  const have = new Set(enrolled.map((e) => e.pkg));
+  const have = new Set(rows.map((e) => e.pkg)); // not-relevant marks leave the gap too
   // A session never "needs to adopt" a package it OWNS — exclude its own
   // published packages (per the FLEET roster's pub list) from the gap, else a
   // package-owner is told it's missing itself (ai-sdk #5335). Keyed on the
@@ -824,6 +828,7 @@ app.get("/api/sessions/:session", async (c) => {
     gap_note: gapNote,
     ...(behind.length ? { security_behind: behind, security_note: SECURITY_NOTE } : {}),
     measured,
+    not_relevant: notRelevant,
     stale_enrollments: rec.stale,
     stale_note: `An enrollment not re-confirmed for ${STALE_DAYS} days is listed as stale: nobody confirmed it lately — not that it is wrong. Nothing is removed.`,
   });
@@ -854,8 +859,10 @@ app.post("/api/enroll", async (c) => {
   }
   const session = ticketSession ?? (typeof body.session === "string" ? body.session : "");
   const pkg = typeof body.pkg === "string" ? body.pkg : "";
-  const version = typeof body.version === "string" ? body.version : "";
-  if (!session || !pkg || !version) return c.json({ error: "session, pkg and version are required" }, 400);
+  const role: Role = toRole(body.role);
+  // A not-relevant mark has no version to report — the repo does not use it.
+  const version = typeof body.version === "string" && body.version ? body.version : role === "not_relevant" ? "-" : "";
+  if (!session || !pkg || !version) return c.json({ error: "session, pkg and version are required (version may be omitted only with role not_relevant)" }, 400);
   if (!packageNames.has(pkg)) {
     return c.json({ error: `unknown package "${pkg}" — must be a published @broberg package`, packages: [...packageNames] }, 400);
   }
@@ -883,7 +890,6 @@ app.post("/api/enroll", async (c) => {
   }
   }
 
-  const role: Role = body.role === "src" ? "src" : "uses";
   const enrollment = await store.upsert({
     session,
     pkg,

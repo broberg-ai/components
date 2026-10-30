@@ -656,3 +656,36 @@ describe("F039.6 — /api/sessions/:session reconciles against the repo scan", (
     expect("occurrences" in s.measured).toBe(false);
   });
 });
+
+describe("F039.6 — a repo marks a package not-relevant for ITSELF", () => {
+  const KEY = "n".repeat(64);
+  const post = (body: object) =>
+    req("/api/enroll", { method: "POST", headers: { "content-type": "application/json", "x-enroll-key": KEY }, body: JSON.stringify(body) });
+
+  it("not_relevant (no version needed) leaves THAT repo's gap, is listed apart, and is not an adoption", async () => {
+    await register("nr-test", KEY);
+    expect((await post({ session: "nr-test", pkg: "@broberg/mail", version: "0.1.0" })).status).toBe(200);
+    const before = await (await fleet("/api/sessions/nr-test")).json();
+    expect(before.gap.some((g: { package: string }) => g.package === "@broberg/bodymap")).toBe(true);
+
+    const res = await post({ session: "nr-test", pkg: "@broberg/bodymap", role: "not_relevant", notes: "framework-free, no UI" });
+    expect(res.status).toBe(200);
+    const after = await (await fleet("/api/sessions/nr-test")).json();
+    expect(after.gap.some((g: { package: string }) => g.package === "@broberg/bodymap")).toBe(false);
+    expect(after.gap.length).toBe(before.gap.length - 1);
+    expect(after.not_relevant).toStrictEqual([expect.objectContaining({ pkg: "@broberg/bodymap", notes: "framework-free, no UI" })]);
+    expect(after.enrolled.some((e: { pkg: string }) => e.pkg === "@broberg/bodymap")).toBe(false);
+    expect(after.enrolled.some((e: { pkg: string }) => e.pkg === "@broberg/mail")).toBe(true);
+  });
+
+  it("the mark is per repo: another session's gap still lists the package", async () => {
+    await register("nr-other", KEY);
+    await post({ session: "nr-other", pkg: "@broberg/mail", version: "0.1.0" });
+    const other = await (await fleet("/api/sessions/nr-other")).json();
+    expect(other.gap.some((g: { package: string }) => g.package === "@broberg/bodymap")).toBe(true);
+  });
+
+  it("a version is still required for an ordinary adoption", async () => {
+    expect((await post({ session: "nr-test", pkg: "@broberg/mail" })).status).toBe(400);
+  });
+});
