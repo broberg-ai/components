@@ -7,7 +7,7 @@
  * eventually says two things.
  */
 import { Hono, type Context, type MiddlewareHandler } from "hono";
-import { loadSsoConfig, type SsoConfig } from "./config.js";
+import { loadSsoConfig, parseSessionProfile, SESSION_PROFILES, SILENT_CHECK_INTERVAL, type SessionProfile, type SsoConfig } from "./config.js";
 import {
   AVATAR_TYPES,
   createSsoClient,
@@ -15,10 +15,11 @@ import {
   mediaType,
   SsoError,
   SsoReauthError,
+  SsoRefreshError,
   type BidProfile,
   type SsoClient,
 } from "./client.js";
-import { expiresAtFrom, newSid, type TokenStore } from "./tokens.js";
+import { expiresAtFrom, newSid, sealedTokenStore, type TokenSet, type TokenStore } from "./tokens.js";
 import {
   cookieHeader,
   readCookie,
@@ -86,6 +87,12 @@ export interface BackchannelOptions {
 }
 
 export interface SsoRoutesOptions {
+  /**
+   * components-F084.163 — "standard" (7 days, renewed on use) or "sensitive"
+   * (30 min idle, max 12 h). Overrides SSO_SESSION_PROFILE. There is no way to
+   * give a number: the numbers are the fleet's (SESSION_PROFILES).
+   */
+  sessionProfile?: SessionProfile;
   /**
    * components-F084.181 — "fly": prove this app at BID's token endpoint with its
    * Fly identity instead of a client_secret (see SsoConfig.clientAuth). Overrides
@@ -219,7 +226,16 @@ function safeReturnTo(raw: string | undefined, fallback: string): string {
 
 export function ssoRoutes(options: SsoRoutesOptions = {}) {
   const baseConfig = options.config ?? loadSsoConfig();
-  const config = options.clientAuth ? { ...baseConfig, clientAuth: options.clientAuth } : baseConfig;
+  // components-F084.163 — a hand-built config from 0.23 may still carry a free
+  // number. Refuse it rather than ignore it: an app that meant 12 hours must not
+  // quietly get 7 days.
+  if ("sessionMaxAge" in (baseConfig as object)) {
+    throw new Error(
+      "ssoRoutes: config.sessionMaxAge is gone (0.24.0) — use sessionProfile: \"standard\" | \"sensitive\". The numbers are fixed fleet-wide.",
+    );
+  }
+  const sessionProfile = parseSessionProfile(options.sessionProfile ?? baseConfig.sessionProfile, "sessionProfile");
+  const config = { ...baseConfig, sessionProfile, ...(options.clientAuth ? { clientAuth: options.clientAuth } : {}) };
   const client = options.client ?? createSsoClient(config);
   const loginPath = options.loginPath ?? "/auth";
   const defaultReturnTo = options.defaultReturnTo ?? "/";
@@ -238,7 +254,8 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     throw new Error("ssoRoutes: backchannel needs a store shared by every instance of the app — there is no in-memory default.");
   }
   const onStoreError = backchannel?.onStoreError ?? "reject";
-  const tokenStore = options.tokenStore;
+  // components-F084.163 — the app's store only ever sees sealed tokens.
+  const tokenStore = options.tokenStore ? sealedTokenStore(options.tokenStore, config.cookieSecret) : undefined;
   const callbackErrors = options.callbackErrors ?? "single";
   const onCallbackRefused =
     options.onCallbackRefused ?? ((cause: CallbackRefusal) => console.warn(`[@broberg/sso] /callback refused: ${cause}`));
@@ -246,6 +263,14 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
   /** A verified session, or null — also null when «Log ud overalt» has ended it. */
   async function liveSession(c: Context): Promise<SessionPayload | null> {
     const session = await verifySession(readCookie(c.req.header("cookie"), config.cookieName), config.cookieSecret);
+    // components-F084.163 — "sensitive" ends 12 h after LOGIN however active.
+    // The cookie's exp carries the 30-minute idle window; this is the ceiling it
+    // can never be renewed past. A session with no iat (minted before 0.6.0)
+    // cannot prove when it began, so it is not trusted under this profile.
+    if (session && config.sessionProfile === "sensitive") {
+      const now = Math.floor(Date.now() / 1000);
+      if (session.iat === undefined || now - session.iat >= SESSION_PROFILES.sensitive.absolute) return null;
+    }
     if (!session || !backchannel) return session;
     try {
       const before = await backchannel.store.revokedBefore(session.sub);
@@ -254,6 +279,109 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     } catch {
       return onStoreError === "allow" ? session : null;
     }
+  }
+
+  /**
+   * components-F084.163 — when this session should end if it is used NOW.
+   * standard: 7 days from now (rolling). sensitive: 30 minutes from now, never
+   * past 12 hours after login.
+   */
+  function sessionExp(iat: number, now: number): number {
+    if (config.sessionProfile === "sensitive") {
+      return Math.min(iat + SESSION_PROFILES.sensitive.absolute, now + SESSION_PROFILES.sensitive.idle);
+    }
+    return now + SESSION_PROFILES.standard.rolling;
+  }
+
+  /**
+   * Renew on use. Re-signed at most once a minute — a cookie on every request
+   * would be a write per page load for nothing. The logout hint (ID token)
+   * cookie is renewed with it, so a rolling session never outlives its hint.
+   */
+  async function renew(c: Context, session: SessionPayload): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = sessionExp(session.iat ?? now, now);
+    if (exp - session.exp < 60) return;
+    const next: SessionPayload = { ...session, exp };
+    const maxAge = exp - now;
+    c.header("Set-Cookie", cookieHeader(config.cookieName, await signSession(next, config.cookieSecret), { maxAge, secure: isSecure(c) }), { append: true });
+    const idt = readCookie(c.req.header("cookie"), idTokenCookie);
+    if (idt) c.header("Set-Cookie", cookieHeader(idTokenCookie, idt, { maxAge, secure: isSecure(c) }), { append: true });
+    c.set(SESSION_KEY, next);
+  }
+
+  /**
+   * components-F084.163 — the hourly silent check, the net under back-channel
+   * logout. Not a new endpoint and not a redirect: a refresh-token renewal,
+   * which BID refuses once the BID login has ended (logout, «Log ud overalt»,
+   * new password, expiry).
+   *   refused (4xx)       → the session ends here, tokens and cookies deleted.
+   *   granted             → rotated tokens stored, checkedAt = now.
+   *   BID down (5xx/net)  → the session stands; retried after CHECK_RETRY.
+   * Only runs for a session with a stored refresh token — an app BID has not
+   * given offline_access keeps exactly its old behaviour.
+   */
+  const CHECK_RETRY = 60;
+  const checking = new Map<string, Promise<boolean>>();
+  const checkFailedAt = new Map<string, number>();
+  async function stillValid(c: Context, session: SessionPayload): Promise<boolean> {
+    if (!tokenStore || !session.sid) return true;
+    const sid = session.sid;
+    // getAccessToken may be spending this refresh token right now; with
+    // rotation, a second parallel renewal would present a spent token and be
+    // REFUSED — and that refusal would log the user out for nothing.
+    await refreshing.get(sid)?.catch(() => undefined);
+    const tokens = await tokenStore.get(sid);
+    if (!tokens?.refreshToken) return true;
+    const now = Math.floor(Date.now() / 1000);
+    if (now - (tokens.checkedAt ?? 0) < SILENT_CHECK_INTERVAL) return true;
+    if (now - (checkFailedAt.get(sid) ?? 0) < CHECK_RETRY) return true;
+    const running = checking.get(sid);
+    if (running) return running;
+    const p = (async (): Promise<boolean> => {
+      let next;
+      try {
+        next = await client.refreshTokens(tokens.refreshToken!);
+      } catch (e) {
+        if (e instanceof SsoRefreshError && e.refused) {
+          await tokenStore.delete(sid);
+          return false;
+        }
+        checkFailedAt.set(sid, now);
+        return true;
+      }
+      checkFailedAt.delete(sid);
+      const at = Math.floor(Date.now() / 1000);
+      const row: TokenSet = {
+        sub: tokens.sub,
+        accessToken: next.accessToken,
+        refreshToken: next.refreshToken ?? tokens.refreshToken!,
+        expiresAt: expiresAtFrom(next.expiresIn, next.accessToken, at),
+        checkedAt: at,
+      };
+      await tokenStore.set(sid, row);
+      return true;
+    })();
+    checking.set(sid, p);
+    try {
+      return await p;
+    } finally {
+      checking.delete(sid);
+    }
+  }
+
+  /** liveSession + the silent check + renew-on-use. What attach and require see. */
+  async function currentSession(c: Context): Promise<SessionPayload | null> {
+    const session = await liveSession(c);
+    if (!session) return null;
+    if (!(await stillValid(c, session))) {
+      c.header("Set-Cookie", cookieHeader(config.cookieName, "", { maxAge: 0, secure: isSecure(c) }), { append: true });
+      c.header("Set-Cookie", cookieHeader(idTokenCookie, "", { maxAge: 0, secure: isSecure(c) }), { append: true });
+      return null;
+    }
+    c.set(SESSION_KEY, session);
+    await renew(c, session);
+    return getSession(c);
   }
 
   const app = new Hono();
@@ -409,7 +537,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     });
 
     const nowS = Math.floor(Date.now() / 1000);
-    const exp = nowS + config.sessionMaxAge;
+    const exp = sessionExp(nowS, nowS);
     // F095.1 — tokens to the server-side store, keyed by a fresh sid; only the
     // sid rides in the cookie.
     let sid: string | undefined;
@@ -420,6 +548,8 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
         accessToken: result.accessToken,
         ...(result.refreshToken ? { refreshToken: result.refreshToken } : {}),
         expiresAt: expiresAtFrom(result.expiresIn, result.accessToken, nowS),
+        // The login itself is BID's confirmation; the first silent check is an hour out.
+        checkedAt: nowS,
       });
     }
     const session: SessionPayload = {
@@ -437,7 +567,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     c.header(
       "Set-Cookie",
       cookieHeader(config.cookieName, await signSession(session, config.cookieSecret), {
-        maxAge: config.sessionMaxAge,
+        maxAge: exp - nowS,
         secure: isSecure(c),
       }),
     );
@@ -449,7 +579,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     c.header(
       "Set-Cookie",
       cookieHeader(idTokenCookie, await signValue(result.idToken, config.cookieSecret), {
-        maxAge: config.sessionMaxAge,
+        maxAge: exp - nowS,
         secure: isSecure(c),
       }),
       { append: true },
@@ -504,13 +634,13 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
 
   /** Reads the session and puts it on the context. Never blocks. */
   const attach: MiddlewareHandler = async (c, next) => {
-    c.set(SESSION_KEY, await liveSession(c));
+    c.set(SESSION_KEY, await currentSession(c));
     await next();
   };
 
   /** Blocks and redirects to login, preserving where the user was going. */
   const require: MiddlewareHandler = async (c, next) => {
-    const session = await liveSession(c);
+    const session = await currentSession(c);
     if (!session) {
       const url = new URL(c.req.url);
       return c.redirect(
@@ -554,6 +684,15 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     // parallel renewal would present an already-spent token and be refused.
     const inFlight = refreshing.get(sid);
     if (inFlight) return inFlight;
+    // The same rule the other way round: let a running silent check finish and
+    // use the token it rotated in.
+    if (checking.has(sid)) {
+      await checking.get(sid);
+      const after = await tokenStore.get(sid);
+      if (!after) throw new SsoReauthError("BID ended this login — log in again.", "refresh_failed");
+      if (after.expiresAt - 30 > Math.floor(Date.now() / 1000)) return after.accessToken;
+      tokens.refreshToken = after.refreshToken;
+    }
     const p = (async () => {
       let next;
       try {
@@ -568,6 +707,8 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
         // Rotation: use the new one if BID issued one, else keep the old.
         ...(next.refreshToken ?? tokens.refreshToken ? { refreshToken: next.refreshToken ?? tokens.refreshToken } : {}),
         expiresAt: expiresAtFrom(next.expiresIn, next.accessToken, Math.floor(Date.now() / 1000)),
+        // A granted renewal IS BID confirming the login (components-F084.163).
+        checkedAt: Math.floor(Date.now() / 1000),
       });
       return next.accessToken;
     })();

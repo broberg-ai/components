@@ -66,6 +66,23 @@ export class SsoReauthError extends SsoError {
 }
 
 /**
+ * components-F084.163 — a refresh-token renewal that BID ANSWERED and did not
+ * grant. `status` is BID's HTTP status. `refused` is true for a 4xx: BID has
+ * decided (the login ended, the token was revoked or reused) and the session
+ * must end. A 5xx or a body we cannot read is NOT a refusal — BID having a bad
+ * minute must never log anyone out. A network failure never becomes this error
+ * at all; it surfaces as whatever fetch threw.
+ */
+export class SsoRefreshError extends SsoError {
+  readonly refused: boolean;
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "SsoRefreshError";
+    this.refused = status >= 400 && status < 500;
+  }
+}
+
+/**
  * F095.2 — BID's app API answered with an error, or did not answer at all.
  * `status` is BID's HTTP status (null when nothing came back: timeout, network);
  * `code` is BID's own `error` field when it sent one. The message carries the
@@ -1143,6 +1160,9 @@ export function createSsoClient(
       const { token_endpoint } = await discovery();
       const res = await fetchImpl(token_endpoint, {
         method: "POST",
+        // components-F084.163 — a server-to-server renewal: never a browser's
+        // cookies riding along, whatever runtime this ends up in.
+        credentials: "omit",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "refresh_token",
@@ -1160,10 +1180,10 @@ export function createSsoClient(
       try {
         body = raw.trim() === "" ? {} : (JSON.parse(raw) as typeof body);
       } catch {
-        throw new SsoError(`token refresh failed (${res.status}): the response body is not JSON`);
+        throw new SsoRefreshError(`token refresh failed (${res.status}): the response body is not JSON`, res.status);
       }
       if (!res.ok || typeof body.access_token !== "string" || body.access_token === "") {
-        throw new SsoError(`token refresh failed (${res.status}): ${body.error ?? "no access_token in response"}`);
+        throw new SsoRefreshError(`token refresh failed (${res.status}): ${body.error ?? "no access_token in response"}`, res.status);
       }
       return {
         accessToken: body.access_token,

@@ -199,8 +199,8 @@
  },
  "@broberg/lens-client": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-client",
-  "version": "0.1.2",
-  "publishedAt": "2026-10-12T00:13:14.093Z",
+  "version": "0.2.0",
+  "publishedAt": "2026-10-31T14:40:06.098Z",
   "provenance": "yes"
  },
  "@broberg/local-guard": {

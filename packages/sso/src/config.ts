@@ -28,15 +28,18 @@ export interface SsoConfig {
   /** Local session cookie name. */
   cookieName: string;
   /**
-   * How long this app trusts its OWN session, in seconds.
+   * How long this app trusts its OWN session — the ONE knob (components-F084.163).
    *
-   * F084.7 decided the fleet's numbers: 7 days for a normal app, and 12 hours
-   * + 30 minutes of inactivity for anything holding personal or health data.
-   * The default here is the 7 days. An app handling patient data MUST set
-   * SSO_SESSION_MAX_AGE=43200 — the default is a normal-app default, not a
-   * safe-for-everything one.
+   * The numbers are the owner's (Decision Register D-38a092) and live in
+   * SESSION_PROFILES, never in env or an adapter:
+   * - "standard" (default): 7 days, ROLLING — every use renews it.
+   * - "sensitive": 30 minutes of inactivity, and never more than 12 hours
+   *   after login however active. For anything holding personal or health data.
+   *
+   * Replaces `sessionMaxAge` / SSO_SESSION_MAX_AGE (0.24.0): a free number let
+   * each app pick its own, which is how a patient app could end up on 7 days.
    */
-  sessionMaxAge: number;
+  sessionProfile: SessionProfile;
   /** Where to send the browser after a logout completes. */
   postLogoutRedirectUri?: string;
   /**
@@ -90,8 +93,30 @@ function parseClientAuth(raw: string | undefined): "secret" | "fly" | undefined 
   throw new SsoConfigError(`SSO_CLIENT_AUTH must be "secret" or "fly" (got ${JSON.stringify(raw)}).`);
 }
 
-/** Seconds in a week — the fleet default from F084.7. */
-export const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+export type SessionProfile = "standard" | "sensitive";
+
+/**
+ * components-F084.163 — the fleet's session lifetimes, in seconds, decided by
+ * the owner 16/9 (D-38a092). ONE place. A test fails if any other code path
+ * can set a session length.
+ */
+export const SESSION_PROFILES = {
+  standard: { rolling: 60 * 60 * 24 * 7 },
+  sensitive: { idle: 60 * 30, absolute: 60 * 60 * 12 },
+} as const;
+
+/** How often a live session asks BID whether its login still stands. */
+export const SILENT_CHECK_INTERVAL = 60 * 60;
+
+/** Seconds in a week — kept as an export for 0.23 importers; the value is SESSION_PROFILES.standard.rolling. */
+export const DEFAULT_SESSION_MAX_AGE = SESSION_PROFILES.standard.rolling;
+
+export function parseSessionProfile(raw: unknown, source: string): SessionProfile {
+  const v = typeof raw === "string" ? raw.trim() : raw;
+  if (v === undefined || v === "") return "standard";
+  if (v === "standard" || v === "sensitive") return v;
+  throw new SsoConfigError(`${source} must be "standard" or "sensitive" (got ${JSON.stringify(raw)}).`);
+}
 
 export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
   const rawIssuer = required(
@@ -129,20 +154,16 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
     );
   }
 
-  const rawMaxAge = env.SSO_SESSION_MAX_AGE?.trim();
-  let sessionMaxAge = DEFAULT_SESSION_MAX_AGE;
-  if (rawMaxAge) {
-    const n = Number(rawMaxAge);
-    // A non-number here would silently become NaN and then a cookie that
-    // expires immediately — an app that cannot keep anyone logged in, with no
-    // error anywhere. Refuse instead.
-    if (!Number.isFinite(n) || n <= 0) {
-      throw new SsoConfigError(
-        `SSO_SESSION_MAX_AGE must be a positive number of seconds (got ${JSON.stringify(rawMaxAge)}).`,
-      );
-    }
-    sessionMaxAge = Math.floor(n);
+  // components-F084.163 — a free number is exactly what the profile replaced.
+  // Refused loudly rather than ignored: an app that set 43200 for patient data
+  // must not silently fall back to 7 days.
+  if (env.SSO_SESSION_MAX_AGE !== undefined && env.SSO_SESSION_MAX_AGE.trim() !== "") {
+    throw new SsoConfigError(
+      "SSO_SESSION_MAX_AGE is gone (0.24.0). Set SSO_SESSION_PROFILE=sensitive for personal or health data " +
+        "(30 min idle, max 12 h), or leave it unset for standard (7 days, renewed on use). The numbers are fixed fleet-wide.",
+    );
   }
+  const sessionProfile = parseSessionProfile(env.SSO_SESSION_PROFILE, "SSO_SESSION_PROFILE");
 
   return {
     issuer,
@@ -155,7 +176,7 @@ export function loadSsoConfig(env: NodeJS.ProcessEnv = process.env): SsoConfig {
     scopes: (env.SSO_SCOPES?.trim() || "openid profile email").split(/\s+/),
     cookieSecret,
     cookieName: env.SSO_COOKIE_NAME?.trim() || "bid_session",
-    sessionMaxAge,
+    sessionProfile,
     postLogoutRedirectUri: env.SSO_POST_LOGOUT_REDIRECT_URI?.trim() || undefined,
     clientSecret: env.SSO_CLIENT_SECRET?.trim() || undefined,
     clientAuth: parseClientAuth(env.SSO_CLIENT_AUTH),

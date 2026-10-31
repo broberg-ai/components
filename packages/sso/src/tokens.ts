@@ -20,6 +20,13 @@ export interface TokenSet {
   refreshToken?: string;
   /** Unix seconds. */
   expiresAt: number;
+  /**
+   * components-F084.163 — unix seconds of the last time BID confirmed this
+   * login (the login itself, or a granted renewal). The hourly silent check
+   * runs when this is an hour old. Absent on rows written before 0.24.0: those
+   * are checked on their next use.
+   */
+  checkedAt?: number;
 }
 
 /**
@@ -92,4 +99,79 @@ export function newSid(): string {
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * components-F084.163 — the tokens are ENCRYPTED before the app's store sees
+ * them. The app's store is a database row, a Redis key, a backup, a log of a
+ * slow query — places a refresh token must not sit readable. AES-256-GCM, key
+ * derived from SSO_COOKIE_SECRET (domain-separated, so it is never the HMAC key
+ * itself). Stored as `enc:v1:<base64url(iv | ciphertext)>`.
+ *
+ * MIGRATION WITHOUT A LOGOUT: a row written by 0.23 or earlier is plaintext and
+ * is read as it is; the next write encrypts it. A value that LOOKS encrypted but
+ * does not open (the secret was rotated) reads as "no tokens" — the session then
+ * behaves exactly like one that never had any, which is the honest answer.
+ */
+const SEALED = "enc:v1:";
+const keys = new Map<string, Promise<CryptoKey>>();
+function aesKey(secret: string): Promise<CryptoKey> {
+  let k = keys.get(secret);
+  if (!k) {
+    k = crypto.subtle
+      .digest("SHA-256", new TextEncoder().encode(`@broberg/sso token-store v1\u0000${secret}`))
+      .then((raw) => crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]));
+    keys.set(secret, k);
+  }
+  return k;
+}
+function b64url(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function unb64url(s: string): Uint8Array {
+  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+export async function sealToken(value: string, secret: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await aesKey(secret), new TextEncoder().encode(value)));
+  const out = new Uint8Array(iv.length + ct.length);
+  out.set(iv);
+  out.set(ct, iv.length);
+  return SEALED + b64url(out);
+}
+/** The plaintext, the legacy plaintext as-is, or null when a sealed value does not open. */
+export async function openToken(value: string, secret: string): Promise<string | null> {
+  if (!value.startsWith(SEALED)) return value;
+  try {
+    const raw = unb64url(value.slice(SEALED.length));
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12) }, await aesKey(secret), raw.slice(12));
+    return new TextDecoder().decode(pt);
+  } catch {
+    return null;
+  }
+}
+/** Wraps the app's store so every token is sealed on the way in and opened on the way out. */
+export function sealedTokenStore(store: TokenStore, secret: string): TokenStore {
+  return {
+    async get(sid) {
+      const row = await store.get(sid);
+      if (!row) return undefined;
+      const accessToken = await openToken(row.accessToken, secret);
+      const refreshToken = row.refreshToken === undefined ? undefined : await openToken(row.refreshToken, secret);
+      if (accessToken === null || refreshToken === null) return undefined;
+      return { ...row, accessToken, ...(refreshToken !== undefined ? { refreshToken } : {}) };
+    },
+    async set(sid, tokens) {
+      await store.set(sid, {
+        ...tokens,
+        accessToken: await sealToken(tokens.accessToken, secret),
+        ...(tokens.refreshToken !== undefined ? { refreshToken: await sealToken(tokens.refreshToken, secret) } : {}),
+      });
+    },
+    delete: (sid) => store.delete(sid),
+    deleteSub: (sub) => store.deleteSub(sub),
+  };
 }

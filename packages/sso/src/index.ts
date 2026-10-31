@@ -12,6 +12,9 @@ export {
   loadSsoConfig,
   SsoConfigError,
   DEFAULT_SESSION_MAX_AGE,
+  SESSION_PROFILES,
+  SILENT_CHECK_INTERVAL,
+  type SessionProfile,
   type SsoConfig,
 } from "./config.js";
 
@@ -114,6 +117,7 @@ export {
 
 export {
   SsoReauthError,
+  SsoRefreshError,
   SsoAppApiError,
   SsoInsufficientScopeError,
   SsoAvatarRejectedError,

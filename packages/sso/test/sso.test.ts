@@ -12,9 +12,10 @@
  * Said plainly rather than left implied, because a suite that looks
  * comprehensive is exactly how the gap gets missed.
  */
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
-import { loadSsoConfig, SsoConfigError } from "../src/config.js";
+import { loadSsoConfig, SsoConfigError, SESSION_PROFILES, SILENT_CHECK_INTERVAL, type SsoConfig } from "../src/config.js";
 import { createSsoClient, SsoError } from "../src/client.js";
 import {
   createJwksCache,
@@ -23,8 +24,8 @@ import {
   JwksUnknownKeyError,
 } from "../src/jwks.js";
 import { signSession, verifySession, signValue, verifyValue } from "../src/session.js";
-import { ssoRoutes, type BackchannelStore, type CallbackRefusal, type SsoRoutesOptions } from "../src/hono.js";
-import { memoryTokenStore } from "../src/tokens.js";
+import { getSession, ssoRoutes, type BackchannelStore, type CallbackRefusal, type SsoRoutesOptions } from "../src/hono.js";
+import { memoryTokenStore, sealedTokenStore } from "../src/tokens.js";
 import { Hono } from "hono";
 
 const ISSUER = "https://id.broberg.ai";
@@ -153,11 +154,9 @@ describe("configuration refuses rather than booting half-set", () => {
     expect(() => loadSsoConfig({ ...ENV, SSO_COOKIE_SECRET: "tooshort" })).toThrow(/at least 32/);
   });
 
-  test("a non-numeric session max age is refused, not silently NaN", () => {
-    // NaN would become a cookie that expires immediately: an app that cannot
-    // keep anyone signed in, with no error anywhere to explain it.
-    expect(() => loadSsoConfig({ ...ENV, SSO_SESSION_MAX_AGE: "seven days" })).toThrow(/positive number/);
-    expect(loadSsoConfig({ ...ENV, SSO_SESSION_MAX_AGE: "43200" }).sessionMaxAge).toBe(43200);
+  test("SSO_SESSION_MAX_AGE is refused outright since 0.24.0 — the profile replaced the free number (F084.163)", () => {
+    expect(() => loadSsoConfig({ ...ENV, SSO_SESSION_MAX_AGE: "43200" })).toThrow(/SSO_SESSION_PROFILE=sensitive/);
+    expect(() => loadSsoConfig({ ...ENV, SSO_SESSION_MAX_AGE: "seven days" })).toThrow(/is gone/);
   });
 
   test("http is refused for a real host, allowed for localhost", () => {
@@ -1985,7 +1984,9 @@ describe("F095.1 — the user's tokens are kept server-side, renewed, and die wi
     const setCookies = cb.headers.getSetCookie();
     const sessionCookie = setCookies.find((x) => x.startsWith(`${config.cookieName}=`))!.split(";")[0]!;
     const session = await verifySession(sessionCookie.split("=")[1]!, config.cookieSecret);
-    return { app, store, config, setCookies, sessionCookie, session, idp, refreshCalls: () => refreshCalls, sentRefresh };
+    // Read and write through the same seal ssoRoutes applies (F084.163): the raw
+    // store only ever holds sealed tokens, and that is asserted on its own there.
+    return { app, store: sealedTokenStore(store, config.cookieSecret), rawStore: store, config, setCookies, sessionCookie, session, idp, refreshCalls: () => refreshCalls, sentRefresh };
   }
   const token = (t: Awaited<ReturnType<typeof setup>>) => t.app.request("https://app.example/token", { headers: { cookie: t.sessionCookie } });
 
@@ -2063,7 +2064,7 @@ describe("F095.1 — the user's tokens are kept server-side, renewed, and die wi
   test("without tokenStore: login is 0.8.0 (no sid, no tokens kept) and getAccessToken says what is missing", async () => {
     const t = await setup({ tokenStore: false });
     expect(t.session!.sid).toBeUndefined();
-    expect(t.store.size).toBe(0);
+    expect(t.rawStore.size).toBe(0);
     expect(await (await token(t)).text()).toBe(
       "ERR getAccessToken needs ssoRoutes({ tokenStore }) — without one the login's tokens are not kept.",
     );
@@ -2109,5 +2110,268 @@ describe("F095.1 — «Log ud overalt» also deletes the user's tokens", () => {
     });
     expect(res.status).toBe(200);
     expect([await tokenStore.get("sid-a"), await tokenStore.get("sid-b"), (await tokenStore.get("sid-c"))?.accessToken]).toEqual([undefined, undefined, "c"]);
+  });
+});
+
+/* ── components-F084.163 — session profiles + the hourly silent check ─────── */
+
+describe("F084.163 — one knob, the owner's numbers, renewed on use, checked hourly", () => {
+  const RT = "rt-SECRET-refresh-0001";
+  const T0 = Date.UTC(2026, 9, 31, 10, 0, 0);
+  const s = (ms: number) => Math.floor(ms / 1000);
+  type Answer = (body: URLSearchParams, init: RequestInit) => Response | Promise<Response>;
+
+  /** makeIdp, plus a refresh token on login and a scriptable answer to grant_type=refresh_token. */
+  async function bid() {
+    const idp = await makeIdp();
+    const renewals: { body: URLSearchParams; credentials: RequestCredentials | undefined }[] = [];
+    let answer: Answer = () => Response.json({ access_token: "at-2", refresh_token: "rt-SECRET-rotated-0002", expires_in: 300 });
+    const fetchImpl = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/oauth2/token")) {
+        const body = new URLSearchParams(String(init.body));
+        if (body.get("grant_type") === "refresh_token") {
+          renewals.push({ body, credentials: init.credentials });
+          return answer(body, init);
+        }
+        const r = (await (await idp.fetchImpl(input, init)).json()) as Record<string, unknown>;
+        return Response.json({ ...r, refresh_token: RT, expires_in: 300 });
+      }
+      return idp.fetchImpl(input, init);
+    }) as unknown as typeof fetch;
+    return { idp, fetchImpl, renewals, answerWith(a: Answer) { answer = a; } };
+  }
+
+  function harness(b: Awaited<ReturnType<typeof bid>>, profile?: "standard" | "sensitive") {
+    const raw = memoryTokenStore({ quiet: true });
+    const config = loadSsoConfig(ENV);
+    const client = createSsoClient(config, { fetchImpl: b.fetchImpl, minRefetchIntervalMs: 0 });
+    const sso = ssoRoutes({ config, client, tokenStore: raw, ...(profile ? { sessionProfile: profile } : {}) });
+    const app = new Hono();
+    app.route("/auth", sso.app);
+    app.get("/me", sso.attach, (c) => c.json({ sub: getSession(c)?.sub ?? null }));
+    app.get("/private", sso.require, (c) => c.text("in"));
+    return { app, raw, sso };
+  }
+
+  async function login(app: Hono, b: Awaited<ReturnType<typeof bid>>) {
+    const start = await app.request("https://app.example/auth/login");
+    const authorize = new URL(start.headers.get("location")!);
+    b.idp.echo(authorize.searchParams.get("nonce")!);
+    const cb = await app.request(
+      "https://app.example/auth/callback?" + new URLSearchParams({ code: "c", state: authorize.searchParams.get("state")! }),
+      { headers: { cookie: start.headers.get("set-cookie")!.split(";")[0]! } },
+    );
+    return cb.headers.getSetCookie();
+  }
+  const pair = (cookies: string[], name: string) => {
+    const hit = cookies.find((c) => c.startsWith(`${name}=`));
+    if (!hit) throw new Error(`no ${name} in ${cookies.join(" | ")}`);
+    return hit.split(";")[0]!;
+  };
+  /** Read the session back from what the BROWSER would store — never from the component. */
+  const stored = async (cookies: string[]) =>
+    verifySession(decodeURIComponent(pair(cookies, "bid_session").slice("bid_session=".length)), ENV.SSO_COOKIE_SECRET!);
+  const maxAge = (cookies: string[]) => Number(/Max-Age=(\d+)/.exec(cookies.find((c) => c.startsWith("bid_session="))!)![1]);
+  const jar = (cookies: string[]) => ["bid_session", "bid_session_idt"].map((n) => pair(cookies, n)).join("; ");
+
+  afterEach(() => vi.useRealTimers());
+
+  /* AC0 — one knob, constants in one place */
+  test("AC0: the numbers are 7 d / 12 h / 30 min / 1 h and live in SESSION_PROFILES", () => {
+    expect(SESSION_PROFILES).toEqual({ standard: { rolling: 604800 }, sensitive: { idle: 1800, absolute: 43200 } });
+    expect(SILENT_CHECK_INTERVAL).toBe(3600);
+    expect(loadSsoConfig(ENV).sessionProfile).toBe("standard");
+    expect(loadSsoConfig({ ...ENV, SSO_SESSION_PROFILE: "sensitive" }).sessionProfile).toBe("sensitive");
+    expect(() => loadSsoConfig({ ...ENV, SSO_SESSION_PROFILE: "43200" })).toThrow(/"standard" or "sensitive"/);
+  });
+
+  test("AC0: neither env nor an adapter can set its own number", () => {
+    expect(() => loadSsoConfig({ ...ENV, SSO_SESSION_MAX_AGE: "86400" })).toThrow(SsoConfigError);
+    const legacy = { ...loadSsoConfig(ENV), sessionMaxAge: 86400 } as unknown as SsoConfig;
+    expect(() => ssoRoutes({ config: legacy })).toThrow(/sessionMaxAge is gone/);
+    expect(() => ssoRoutes({ config: loadSsoConfig(ENV), sessionProfile: "1800" as never })).toThrow(/"standard" or "sensitive"/);
+    // No other source file may carry a session length of its own.
+    const dir = new URL("../src/", import.meta.url);
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".ts") && n !== "config.ts")) {
+      const src = readFileSync(new URL(f, dir), "utf8");
+      expect([f, /604800|43200|60 \* 60 \* 24 \* 7|60 \* 60 \* 12|sessionMaxAge\s*[:=]/.test(src)]).toEqual([f, false]);
+    }
+  });
+
+  /* AC1 — standard is rolling, sensitive is 12 h + 30 min idle */
+  test("AC1 standard: login → 7 d; used at day 6 → renewed to day 13; unused 7 d → gone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app } = harness(b);
+    const first = await login(app, b);
+    expect((await stored(first))!.exp).toBe(s(T0) + 604800);
+    expect(maxAge(first)).toBe(604800);
+
+    vi.setSystemTime(T0 + 6 * 86400_000);
+    const used = await app.request("https://app.example/me", { headers: { cookie: jar(first) } });
+    expect(await used.json()).toEqual({ sub: "user-1" });
+    const renewed = used.headers.getSetCookie();
+    expect((await stored(renewed))!.exp).toBe(s(T0) + 13 * 86400);
+    expect((await stored(renewed))!.iat).toBe(s(T0)); // login time never moves
+    expect(pair(renewed, "bid_session_idt")).toBe(pair(first, "bid_session_idt")); // the hint rides along
+
+    // The ORIGINAL cookie, never used again, is dead at day 7 + 1 s.
+    vi.setSystemTime(T0 + 7 * 86400_000 + 1000);
+    const stale = await app.request("https://app.example/me", { headers: { cookie: jar(first) } });
+    expect(await stale.json()).toEqual({ sub: null });
+    // …while the renewed one still lives.
+    const alive = await app.request("https://app.example/me", { headers: { cookie: jar(renewed) } });
+    expect(await alive.json()).toEqual({ sub: "user-1" });
+  });
+
+  test("AC1 standard: two requests a few seconds apart do not re-sign the cookie (≤ 1×/min)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app } = harness(b);
+    const first = await login(app, b);
+    vi.setSystemTime(T0 + 30_000);
+    const r = await app.request("https://app.example/me", { headers: { cookie: jar(first) } });
+    expect(r.headers.getSetCookie()).toEqual([]);
+  });
+
+  test("AC1 sensitive: 30 min idle ends it; activity renews it; 12 h ends it however active", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app } = harness(b, "sensitive");
+    let cookies = await login(app, b);
+    expect((await stored(cookies))!.exp).toBe(s(T0) + 1800);
+
+    // Idle 31 min → out.
+    vi.setSystemTime(T0 + 31 * 60_000);
+    expect(await (await app.request("https://app.example/me", { headers: { cookie: jar(cookies) } })).json()).toEqual({ sub: null });
+
+    // Fresh login; active every 20 min for 12 h → in all along, out at 12 h.
+    vi.setSystemTime(T0);
+    cookies = await login(app, b);
+    let t = T0;
+    while (t + 20 * 60_000 < T0 + 12 * 3600_000) {
+      t += 20 * 60_000; vi.setSystemTime(t);
+      const r = await app.request("https://app.example/me", { headers: { cookie: jar(cookies) } });
+      expect([new Date(t).toISOString(), await r.json()]).toEqual([new Date(t).toISOString(), { sub: "user-1" }]);
+      const next = r.headers.getSetCookie();
+      if (next.length) cookies = next;
+      expect((await stored(cookies))!.exp).toBeLessThanOrEqual(s(T0) + 43200); // never past the ceiling
+    }
+    vi.setSystemTime(T0 + 12 * 3600_000);
+    expect(await (await app.request("https://app.example/me", { headers: { cookie: jar(cookies) } })).json()).toEqual({ sub: null });
+  });
+
+  test("AC1 sensitive: a cookie minted under «standard» (exp 7 d) is NOT trusted past 12 h when the app switches to sensitive", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0 + 13 * 3600_000);
+    const b = await bid(); const { app } = harness(b, "sensitive");
+    const secret = ENV.SSO_COOKIE_SECRET!;
+    const longLived = await signSession({ sub: "user-1", iat: s(T0), exp: s(T0) + 604800 }, secret);
+    const noIat = await signSession({ sub: "user-1", exp: s(T0) + 604800 }, secret);
+    for (const v of [longLived, noIat]) {
+      const r = await app.request("https://app.example/me", { headers: { cookie: `bid_session=${encodeURIComponent(v)}` } });
+      expect(await r.json()).toEqual({ sub: null });
+    }
+    // Negative control: the same long-lived cookie inside 12 h IS trusted.
+    vi.setSystemTime(T0 + 11 * 3600_000);
+    const ok = await app.request("https://app.example/me", { headers: { cookie: `bid_session=${encodeURIComponent(longLived)}` } });
+    expect(await ok.json()).toEqual({ sub: "user-1" });
+  });
+
+  /* AC2 — the hourly silent check */
+  test("AC2: under an hour → no call; at an hour → grant_type=refresh_token, credentials omit, rotated token stored", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app, raw } = harness(b);
+    const cookies = await login(app, b);
+    const sid = (await stored(cookies))!.sid!;
+
+    vi.setSystemTime(T0 + 59 * 60_000);
+    await app.request("https://app.example/me", { headers: { cookie: jar(cookies) } });
+    expect(b.renewals.length).toBe(0);
+
+    vi.setSystemTime(T0 + 61 * 60_000);
+    const r = await app.request("https://app.example/me", { headers: { cookie: jar(cookies) } });
+    expect(await r.json()).toEqual({ sub: "user-1" });
+    expect(b.renewals.map((x) => [x.body.get("grant_type"), x.body.get("refresh_token"), x.credentials])).toEqual([
+      ["refresh_token", RT, "omit"],
+    ]);
+    const row = await sealedTokenStore(raw, ENV.SSO_COOKIE_SECRET!).get(sid);
+    expect([row?.refreshToken, row?.accessToken, row?.checkedAt]).toEqual(["rt-SECRET-rotated-0002", "at-2", s(T0) + 61 * 60]);
+  });
+
+  test("AC2: BID refuses (400 invalid_grant) → app session AND tokens deleted, require sends to login", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app, raw } = harness(b);
+    const cookies = await login(app, b);
+    const sid = (await stored(cookies))!.sid!;
+    b.answerWith(() => Response.json({ error: "invalid_grant" }, { status: 400 }));
+
+    vi.setSystemTime(T0 + 61 * 60_000);
+    const r = await app.request("https://app.example/private", { headers: { cookie: jar(cookies) } });
+    expect(r.status).toBe(302);
+    expect(r.headers.get("location")).toMatch(/^\/auth\/login\?returnTo=/);
+    expect(r.headers.getSetCookie().filter((c) => /Max-Age=0/.test(c)).map((c) => c.split("=")[0])).toEqual(["bid_session", "bid_session_idt"]);
+    expect(await raw.get(sid)).toBeUndefined();
+  });
+
+  test.each([
+    ["503", () => new Response("down", { status: 503 })],
+    ["network", () => { throw new TypeError("fetch failed"); }],
+    ["200 without a token", () => Response.json({})],
+  ])("AC2: BID down (%s) does NOT log anyone out — the row is untouched", async (_n, a) => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app, raw } = harness(b);
+    const cookies = await login(app, b);
+    const sid = (await stored(cookies))!.sid!;
+    const before = await raw.get(sid);
+    b.answerWith(a as Answer);
+
+    vi.setSystemTime(T0 + 61 * 60_000);
+    const r = await app.request("https://app.example/private", { headers: { cookie: jar(cookies) } });
+    expect([r.status, await r.text()]).toEqual([200, "in"]);
+    expect(await raw.get(sid)).toEqual(before);
+    expect(b.renewals.length).toBe(1);
+    // …and it does not hammer BID on every request while it is down.
+    await app.request("https://app.example/private", { headers: { cookie: jar(cookies) } });
+    expect(b.renewals.length).toBe(1);
+  });
+
+  test("AC2: a session with no refresh token keeps today's behaviour — never a renewal call", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app, raw } = harness(b);
+    const cookies = await login(app, b);
+    const sid = (await stored(cookies))!.sid!;
+    const row = (await raw.get(sid))!;
+    await raw.set(sid, { sub: row.sub, accessToken: row.accessToken, expiresAt: row.expiresAt, checkedAt: 0 });
+    vi.setSystemTime(T0 + 5 * 3600_000);
+    const r = await app.request("https://app.example/me", { headers: { cookie: jar(cookies) } });
+    expect([await r.json(), b.renewals.length]).toEqual([{ sub: "user-1" }, 0]);
+  });
+
+  /* AC3 — the refresh token only server-side, and sealed */
+  test("AC3: the app's store holds the refresh token SEALED; the cookie never carries it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app, raw } = harness(b);
+    const cookies = await login(app, b);
+    const session = (await stored(cookies))!;
+    const row = (await raw.get(session.sid!))!;
+    expect(row.refreshToken!.startsWith("enc:v1:")).toBe(true);
+    expect(JSON.stringify(row)).not.toContain(RT);
+    expect(JSON.stringify(row)).not.toContain("at-1");
+    // The cookie, DECODED (signed, not encrypted — so read its payload), carries neither.
+    expect(JSON.stringify(session)).not.toContain(RT);
+    expect(cookies.join(";")).not.toContain(RT);
+    // Opens with the right secret, not with another.
+    expect((await sealedTokenStore(raw, ENV.SSO_COOKIE_SECRET!).get(session.sid!))!.refreshToken).toBe(RT);
+    expect(await sealedTokenStore(raw, "x".repeat(64)).get(session.sid!)).toBeUndefined();
+  });
+
+  test("AC3: a plaintext row from 0.23 is still read (no mass logout on upgrade) and sealed on its next write", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(T0);
+    const b = await bid(); const { app, raw } = harness(b);
+    const cookies = await login(app, b);
+    const sid = (await stored(cookies))!.sid!;
+    await raw.set(sid, { sub: "user-1", accessToken: "at-old", refreshToken: RT, expiresAt: s(T0) + 300 });
+    vi.setSystemTime(T0 + 61 * 60_000);
+    await app.request("https://app.example/me", { headers: { cookie: jar(cookies) } });
+    expect(b.renewals.map((x) => x.body.get("refresh_token"))).toEqual([RT]);
+    expect((await raw.get(sid))!.refreshToken!.startsWith("enc:v1:")).toBe(true);
   });
 });

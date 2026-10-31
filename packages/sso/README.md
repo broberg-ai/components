@@ -34,15 +34,43 @@ SSO_COOKIE_SECRET=$(openssl rand -hex 32)
 # optional
 SSO_SCOPES="openid profile email"
 SSO_COOKIE_NAME=bid_session
-SSO_SESSION_MAX_AGE=604800              # 7 days (fleet default, F084.7)
+SSO_SESSION_PROFILE=standard            # or "sensitive" — see below (0.24.0)
 SSO_POST_LOGOUT_REDIRECT_URI=https://my.app/
 ```
 
-**Handling personal or health data? Set `SSO_SESSION_MAX_AGE=43200`.** The
-default is twelve hours' worth of convenience too long for that case — F084.7
-decided 12 hours plus a 30-minute inactivity cut for anything holding personal
-or health data. The default is a normal-app default, not a safe-for-everything
-one.
+## How long a login lasts — one knob, the owner's numbers (0.24.0, F084.163)
+
+| `SSO_SESSION_PROFILE` (or `ssoRoutes({ sessionProfile })`) | the session |
+|---|---|
+| `standard` (default) | 7 days, **renewed on every use** — a user active once a week never logs in again |
+| `sensitive` | ends after **30 minutes without use**, and **12 hours after login** however active |
+
+**Handling personal or health data? Set `SSO_SESSION_PROFILE=sensitive`.** The
+numbers are the owner's (Decision Register D-38a092) and live in one place,
+`SESSION_PROFILES`; there is no way to give your own.
+
+**BREAKING in 0.24.0 — `SSO_SESSION_MAX_AGE` and `config.sessionMaxAge` are gone,
+and setting either now THROWS at boot** rather than being ignored: an app that
+had `SSO_SESSION_MAX_AGE=43200` for patient data must not silently fall back to
+7 days. Replace it with `SSO_SESSION_PROFILE=sensitive`. And `standard` changed
+meaning: 0.23 counted 7 days from LOGIN, 0.24 counts 7 days from LAST USE.
+
+**The hourly silent check.** With a `tokenStore` and a refresh token (your BID
+registration has `offline_access` and your `SSO_SCOPES` asks for it — see the
+token store section), every live session asks BID once an hour whether the BID
+login still stands, by renewing its refresh token (`grant_type=refresh_token`,
+`credentials: "omit"`). BID refuses once that login has ended — «Log ud»,
+«Log ud overalt», a new password, expiry — and the app session ends on the next
+request. So an app whose back-channel logout endpoint was down is still logged
+out within an hour. **BID being down never logs anyone out**: a 5xx, a network
+error or an unreadable answer keeps the session, and the check retries after a
+minute. Without a refresh token nothing changes from 0.23.
+
+**The tokens are encrypted before your store sees them** (AES-256-GCM, key
+derived from `SSO_COOKIE_SECRET`, stored as `enc:v1:…`). Rows written by 0.23 are
+plaintext and are read as they are, then sealed on their next write — upgrading
+logs nobody out. Rotating `SSO_COOKIE_SECRET` makes stored tokens unreadable,
+which the app treats as "no tokens" (the same as before rotation for the cookie).
 
 ## What the token exchange tells you when it fails (0.2.3)
 
@@ -471,10 +499,11 @@ app.get("/api/something", sso.require, async (c) => {
 - **Purge old rows yourself — the package cannot.** A session that simply
   expires (no «Log ud»), or a new login that replaces one without a logout,
   leaves its row in your store indefinitely; nothing ever calls `delete` for it.
-  Delete rows older than `sessionMaxAge` (`SSO_SESSION_MAX_AGE`, default 7 days)
-  with a periodic job or a TTL — e.g. store a `createdAt` beside the row and
-  `DELETE FROM tokens WHERE created_at < now - sessionMaxAge`, or a Redis
-  `EX sessionMaxAge`. It matters because with `offline_access` the row holds a
+  Delete rows not WRITTEN for 7 days (`sensitive`: 12 hours) with a periodic job
+  or a TTL — e.g. keep an `updatedAt` beside the row and
+  `DELETE FROM tokens WHERE updated_at < now - 7 days`, or a Redis `EX` renewed on
+  every `set`. A live session with a refresh token is rewritten by the hourly
+  check, so it is never purged while in use (0.24.0). It matters because with `offline_access` the row holds a
   **refresh token**, and a forgotten refresh token is a live credential until
   the user's BID sign-in ends.
 - **Since 0.10.0 the failures are `SsoReauthError`** (a subclass of `SsoError`,
