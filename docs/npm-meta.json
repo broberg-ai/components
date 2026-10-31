@@ -55,8 +55,8 @@
  },
  "@broberg/webpush": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/webpush",
-  "version": "0.6.0",
-  "publishedAt": "2026-10-22T22:40:12.833Z",
+  "version": "0.7.0",
+  "publishedAt": "2026-10-31T07:43:28.616Z",
   "provenance": "yes"
  },
  "@broberg/nativepush": {
