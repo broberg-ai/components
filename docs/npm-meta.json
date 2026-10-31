@@ -317,11 +317,11 @@
   "publishedAt": "2026-10-25T15:13:48.735Z",
   "provenance": "yes"
  },
- "@broberg/voice": {
-  "npmUrl": "https://www.npmjs.com/package/@broberg/voice",
-  "version": "0.2.0",
-  "publishedAt": "2026-10-22T03:55:05.337Z",
-  "provenance": "yes"
+ "@broberg/call": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/call",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-31T23:20:15.085Z",
+  "provenance": "no"
  },
  "@broberg/livesync": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/livesync",
@@ -379,8 +379,8 @@
  },
  "@broberg/ai-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
-  "version": "0.70.0",
-  "publishedAt": "2026-10-31T21:32:35.736Z",
+  "version": "0.70.1",
+  "publishedAt": "2026-10-31T21:41:04.567Z",
   "provenance": "yes"
  },
  "@broberg/fleet-client": {
