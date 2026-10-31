@@ -10,3 +10,9 @@ export { createLibrary, canonicalJson, sourceHash, placeholdersIn } from "./core
 export { renderHtml } from "./render.js";
 export { sha256Hex } from "./sha256.js";
 export * from "./types.js";
+export { library, SOURCES } from "./content/index.js";
+export { PRODUCTS } from "./content/products.js";
+
+import { library } from "./content/index.js";
+/** The fleet's documents: getDocument({ doc, locale, product }). */
+export const getDocument = library.getDocument;

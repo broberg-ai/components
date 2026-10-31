@@ -17,10 +17,26 @@ const K = new Uint32Array([
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
+/** UTF-8 without TextEncoder, so the package needs no DOM lib and runs anywhere. */
+function utf8(s: string): Uint8Array {
+  const out: number[] = [];
+  for (const ch of s) {
+    let c = ch.codePointAt(0)!;
+    // A lone surrogate (half of an emoji) is not a character: like TextEncoder and
+    // every UTF-8 encoder, write U+FFFD instead of the half.
+    if (c >= 0xd800 && c <= 0xdfff) c = 0xfffd;
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+    else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return Uint8Array.from(out);
+}
+
 const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n));
 
 export function sha256Hex(text: string): string {
-  const bytes = new TextEncoder().encode(text);
+  const bytes = utf8(text);
   const bitLen = bytes.length * 8;
   const padded = new Uint8Array(((bytes.length + 9 + 63) >> 6) << 6);
   padded.set(bytes);

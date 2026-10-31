@@ -1,6 +1,6 @@
 # @broberg/legal
 
-**Status: under construction (components F110) — private until the texts are legally reviewed.**
+**Status: 0.1.0 — every document is a DRAFT (`draft: true`, rendered as «UDKAST») until the owner's lawyer has reviewed it (F110.3).**
 
 One set of legal documents for every broberg.ai product — `terms`, `privacy`, `trust`, `dpa`,
 `support` — the same text everywhere, Danish as the master (Danish prevails), English beside it.
