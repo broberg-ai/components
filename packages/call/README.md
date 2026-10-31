@@ -1,17 +1,19 @@
-# @broberg/voice
+# @broberg/call
 
-Voice calls for 2–10 people, like a Slack huddle: the app decides who may enter a room, the audio goes through a self-hosted LiveKit media server (SFU) in the EU, and the browser gets mute, output mute, device choice, per-person volume, who-is-speaking and the participant list. Audio only. Epic F104.
+Voice calls for 2–10 people, like a Slack huddle: the app decides who may enter a room, the audio goes through a self-hosted LiveKit media server (SFU) in the EU, and the browser gets mute, output mute, device choice, per-person volume, who-is-speaking and the participant list. Audio only in 0.1.0. Epic F104.
 
 ```bash
-npm i @broberg/voice
+npm i @broberg/call
 ```
 
-> **Status 0.1.0:** the package is tested against LiveKit's own SDKs (ticket and webhook signature verified with LiveKit's verifier; the browser half against a stand-in room). It has **not yet** been run against a real media server — that is F104.2 (the server in Fly `arn`, tested on iPhone, Android, 4G, a UDP-blocking network, 10 people, and a deploy in the middle of a call).
+> **Renamed from `@broberg/voice` (F104.6).** `@broberg/call` 0.1.0 is `@broberg/voice` 0.2.0 under a new name — same API, same server. Moving over means changing the import path only: `@broberg/voice/server` → `@broberg/call/server`, `@broberg/voice/client` → `@broberg/call/client`. Camera and screen share come in 0.2.0 (F104.7); recording is planned (F104.9).
+>
+> **Server:** the shared LiveKit media server `broberg-voice` (Fly `arn`, voice.broberg.ai, F104.2) with TURN over TLS on 443 in `broberg-voice-turn` (F104.5); both owned by components.
 
-## Server — `@broberg/voice/server`
+## Server — `@broberg/call/server`
 
 ```ts
-import { createRoomToken, verifyWebhook, VoiceError } from "@broberg/voice/server";
+import { createRoomToken, verifyWebhook, VoiceError } from "@broberg/call/server";
 
 // POST /jam/:id/voice-token — check the person's access FIRST, then:
 const token = await createRoomToken({
@@ -33,12 +35,12 @@ if (event.event === "participant_joined") { /* … */ }
 - Missing `apiKey`/`apiSecret` is refused (`VoiceError` `missing_credentials`) — LiveKit's SDK would otherwise silently fall back to `LIVEKIT_*` from the environment.
 - Every rejection of a webhook (changed body, wrong secret, missing header) is `VoiceError` `invalid_webhook`.
 
-## Browser — `@broberg/voice/client`
+## Browser — `@broberg/call/client`
 
 No `node:` imports. Call `joinVoice` from a click: browsers only let audio play after a user gesture.
 
 ```ts
-import { joinVoice } from "@broberg/voice/client";
+import { joinVoice } from "@broberg/call/client";
 
 const call = await joinVoice({ url: "wss://voice.broberg.ai", token });
 

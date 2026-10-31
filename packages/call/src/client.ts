@@ -1,4 +1,4 @@
-// @broberg/voice/client — the browser's half of a voice call (F104.3).
+// @broberg/call/client — the browser's half of a voice call (F104.3).
 //
 // A thin layer over livekit-client that does the four things every app would
 // otherwise get slightly wrong on its own: open the microphone with noise

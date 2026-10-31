@@ -1,4 +1,4 @@
-// @broberg/voice/server — the app's half of a voice call (F104.3).
+// @broberg/call/server — the app's half of a voice call (F104.3).
 //
 // The app never carries audio. It decides who may enter a room, signs a short
 // ticket for that one room, and hears from the media server (LiveKit) through a

@@ -30,7 +30,7 @@ name: publish
 #   • mail-identity-v* → packages/mail-identity → @broberg/mail-identity
 #   • legal-v*         → packages/legal         → @broberg/legal
 #   • realtime-v*     → packages/realtime     → @broberg/realtime
-#   • voice-v*        → packages/voice        → @broberg/voice
+#   • call-v*         → packages/call         → @broberg/call (was @broberg/voice, F104.6)
 #   • mail-templates-v* → packages/mail-templates → @broberg/mail-templates
 #   • forms-turnstile-v* → packages/forms-turnstile → @broberg/forms-turnstile
 #   • sms-v*         → packages/sms         → @broberg/sms
@@ -81,7 +81,7 @@ on:
       - "mail-identity-v*"
       - "legal-v*"
       - "realtime-v*"
-      - "voice-v*"
+      - "call-v*"
       - "mail-templates-v*"
       - "forms-turnstile-v*"
       - "mcp-v*"
@@ -671,9 +671,9 @@ jobs:
         working-directory: packages/realtime
         run: npm publish --access public --provenance
 
-  publish-voice:
+  publish-call:
     needs: gate
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/voice-v')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/call-v')
     runs-on: ubuntu-latest
     timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     permissions:
@@ -699,41 +699,41 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        working-directory: packages/voice
+        working-directory: packages/call
         run: pnpm typecheck
 
       - name: Build
-        working-directory: packages/voice
+        working-directory: packages/call
         run: pnpm build
 
       - name: Test
-        working-directory: packages/voice
+        working-directory: packages/call
         run: pnpm test
 
       - name: Guard — tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/voice-v')
-        working-directory: packages/voice
+        if: startsWith(github.ref, 'refs/tags/call-v')
+        working-directory: packages/call
         run: |
           PKG=$(node -p "require('./package.json').version")
-          TAG="${GITHUB_REF_NAME#voice-v}"
+          TAG="${GITHUB_REF_NAME#call-v}"
           if [ "$PKG" != "$TAG" ]; then
-            echo "::error::tag voice-v$TAG does not match packages/voice version $PKG"
+            echo "::error::tag call-v$TAG does not match packages/call version $PKG"
             exit 1
           fi
 
       - name: Guard — version not already on npm
-        working-directory: packages/voice
+        working-directory: packages/call
         run: |
           PKG=$(node -p "require('./package.json').version")
-          if npm view "@broberg/voice@$PKG" version >/dev/null 2>&1; then
-            echo "::error::@broberg/voice@$PKG already published — bump the version first."
+          if npm view "@broberg/call@$PKG" version >/dev/null 2>&1; then
+            echo "::error::@broberg/call@$PKG already published — bump the version first."
             exit 1
           fi
-          echo "Publishing @broberg/voice@$PKG"
+          echo "Publishing @broberg/call@$PKG"
 
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
-        working-directory: packages/voice
+        working-directory: packages/call
         run: npm publish --access public --provenance
 
   publish-mail-templates:

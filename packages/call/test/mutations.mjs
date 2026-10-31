@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// F104.3 — mutation pass for @broberg/voice (two source files).
+// F104.3 — mutation pass for @broberg/call (two source files).
 //
 // Each mutation is applied to a COPY of src/index.ts and the suite is run against
 // it. The real source is never written to, so an interrupted run cannot leave a
@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutation-marker.mjs";
 
 const REPO = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().trim();
-const PKG = join(REPO, "packages", "voice");
+const PKG = join(REPO, "packages", "call");
 const SERVER = join(PKG, "src", "server.ts");
 const CLIENT = join(PKG, "src", "client.ts");
 const originals = { [SERVER]: readFileSync(SERVER, "utf8"), [CLIENT]: readFileSync(CLIENT, "utf8") };
@@ -163,7 +163,7 @@ const redSets = [];
 
 // BEFORE the first mutation. Written after it, the marker would leave open the
 // exact window it exists to close.
-writeMarker({ harness: "@broberg/voice test/mutations.mjs", file: SERVER });
+writeMarker({ harness: "@broberg/call test/mutations.mjs", file: SERVER });
 try {
   for (const m of MUTATIONS) {
     for (const [f, text] of Object.entries(originals)) writeFileSync(f, text);
@@ -232,7 +232,7 @@ try {
   // The guard. A restore that FAILED is otherwise indistinguishable from one
   // that was not needed — which is how buddy's harness lost a file on
   // 2026-08-14 with a green run to show for it. Does not return on mismatch.
-  for (const [f, text] of Object.entries(originals)) assertRestored({ harness: "@broberg/voice test/mutations.mjs", file: f, expected: text });
+  for (const [f, text] of Object.entries(originals)) assertRestored({ harness: "@broberg/call test/mutations.mjs", file: f, expected: text });
   rmSync(backup, { recursive: true, force: true });
   clearMarker();
 }
