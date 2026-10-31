@@ -12,7 +12,8 @@ if [ -z "$FGS_IP" ]; then
 fi
 : "${VOICE_PUBLIC_IP:?VOICE_PUBLIC_IP (the app's dedicated IPv4) must be set}"
 : "${LIVEKIT_KEYS:?LIVEKIT_KEYS must be set as a Fly secret}"
-sed -e "s/__FGS_IP__/$FGS_IP/g" -e "s/__PUBLIC_IP__/$VOICE_PUBLIC_IP/g" \
+: "${LIVEKIT_TURN_SECRET:?LIVEKIT_TURN_SECRET (shared with broberg-voice-turn) must be set as a Fly secret}"
+sed -e "s/__FGS_IP__/$FGS_IP/g" -e "s/__PUBLIC_IP__/$VOICE_PUBLIC_IP/g" -e "s/__TURN_SECRET__/$LIVEKIT_TURN_SECRET/g" \
   /etc/livekit.template.yaml > /tmp/livekit.yaml
 echo "entrypoint: UDP bound to fly-global-services $FGS_IP, advertising $VOICE_PUBLIC_IP"
 exec /livekit-server --config /tmp/livekit.yaml

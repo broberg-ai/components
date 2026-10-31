@@ -91,6 +91,18 @@ export {
 } from "./ticket.js";
 
 export {
+  verifyAgentCard,
+  createAgentCardVerifier,
+  createA2AVerifier,
+  agentCardJwksUri,
+  canonicalize,
+  type AgentCardResult,
+  type AgentCardFailure,
+  type AgentCardVerifierOptions,
+  type A2APrincipal,
+} from "./agent-card.js";
+
+export {
   createJwksCache,
   JwksError,
   JwksUnavailableError,

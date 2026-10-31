@@ -784,6 +784,34 @@ const { token, exp } = await exchangeUserToken({
   `subject_is_ticket`, `session_ended`, `no_rule_for_audience`, `scope_not_allowed`, `client_unauthenticated`.
 - BID issues nothing without a rule for (your app, the receiver). Ask broberg-id for the rule.
 
+## A2A: checking another agent's card and ticket — `verifyAgentCard` / `createA2AVerifier` (0.25.0, F084.182)
+
+BID publishes every ACTIVE agent's A2A v1.0.0 card at `<issuer>/agents/<agent-id>/agent-card.json`,
+signed per §8.4 (detached JWS, EdDSA, over the RFC 8785 canonical form of the card without its
+`signatures`).
+
+```ts
+import { verifyAgentCard, createA2AVerifier } from "@broberg/sso";
+
+const r = await verifyAgentCard(card, { issuer: "https://id.broberg.ai" });
+if (!r.ok) return r.reason === "jwks_unreachable" ? res503() : res401(r.reason);
+r.kid; r.card; // the card without its signatures
+
+const a2a = createA2AVerifier({ issuer: "https://id.broberg.ai", audience: "https://my.agent" });
+const p = await a2a.verify(ticket);      // everything createTicketVerifier checks, plus:
+p.agentCard;                             // agent tickets: the issuer's card URL for THAT agent; else null
+```
+
+- **`jku` in a card is never followed.** The key set is derived from the issuer you configured;
+  a card naming another `jku` is refused as `untrusted_jku` and that URL is not fetched — a forged
+  card would otherwise name its own judge.
+- **Named outcomes:** `malformed` · `untrusted_jku` · `unknown_kid` · `bad_signature` ·
+  `jwks_unreachable`. Only the last means "could not check right now" (503, retry); the rest mean
+  "not acceptable".
+- **An agent ticket's `agent_card` must be `<issuer>/agents/<sub>/agent-card.json`** — anything
+  else is refused, so a receiver that goes on to fetch the card cannot be pointed at another host.
+- `canonicalize()` (JCS) is exported and passes RFC 8785's own test vectors. No new dependency.
+
 ## Login without a client secret — `clientAuth: "fly"` (0.21.0, F084.181, BID F084.180)
 
 An app on Fly can prove itself at BID's token endpoint with its Fly identity instead of a
