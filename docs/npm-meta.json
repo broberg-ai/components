@@ -41,6 +41,12 @@
   "publishedAt": "2026-10-31T12:19:43.837Z",
   "provenance": "yes"
  },
+ "@broberg/legal": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/legal",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-31T21:08:35.681Z",
+  "provenance": "no"
+ },
  "@broberg/media-transform": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/media-transform",
   "version": "0.2.0",
