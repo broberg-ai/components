@@ -115,8 +115,8 @@
  },
  "@broberg/device-stats": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/device-stats",
-  "version": "0.4.1",
-  "publishedAt": "2026-10-25T02:59:30.036Z",
+  "version": "0.5.0",
+  "publishedAt": "2026-10-31T08:17:58.441Z",
   "provenance": "yes"
  },
  "@broberg/feature-stats": {
