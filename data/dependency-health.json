@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-10-30T07:42:07.525Z",
+ "checked_at": "2026-10-31T07:28:04.049Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -117,7 +117,7 @@
    "verdict": "OK"
   },
   "@broberg/backup": {
-   "version": "0.1.0",
+   "version": "0.2.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -339,7 +339,7 @@
    "verdict": "OK"
   },
   "@broberg/cron": {
-   "version": "0.2.0",
+   "version": "0.4.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -356,7 +356,7 @@
    "dev": {
     "critical": 0,
     "high": 8,
-    "moderate": 2,
+    "moderate": 3,
     "low": 0
    },
    "outdated": {
@@ -857,7 +857,7 @@
    "verdict": "OK"
   },
   "@broberg/logger": {
-   "version": "0.2.3",
+   "version": "0.3.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -894,7 +894,7 @@
    "verdict": "OK"
   },
   "@broberg/mail": {
-   "version": "0.21.0",
+   "version": "0.22.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1782,7 +1782,7 @@
    "verdict": "OK"
   },
   "@broberg/theme": {
-   "version": "0.13.3",
+   "version": "0.14.0",
    "status": "ok",
    "prod": {
     "critical": 0,
