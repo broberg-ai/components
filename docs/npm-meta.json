@@ -49,8 +49,8 @@
  },
  "@broberg/chat": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/chat",
-  "version": "0.6.3",
-  "publishedAt": "2026-08-28T15:57:13.323Z",
+  "version": "0.7.0",
+  "publishedAt": "2026-10-31T11:17:26.425Z",
   "provenance": "yes"
  },
  "@broberg/webpush": {
