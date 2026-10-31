@@ -164,6 +164,28 @@ finished one.
 or rejects produces an error frame the model can see and recover from, and the
 stream still reaches `done`.
 
+## One answer instead of a stream — `collect()` (0.7.0, F079.14)
+
+`chat.run()` already delivers nothing — it is a stream; `createChatHandler` is what turns it into HTTP. For a DRAFT that a human approves later, collect one run:
+
+```ts
+import { collect, ChatModelError } from "@broberg/chat";
+
+try {
+  const { text, done, toolResults, frames } = await collect(chat, { messages, caller, ctx });
+  if (done !== "complete") return keepAsIncomplete(done);   // "max-rounds" | "too-large" | "limited"
+  saveDraft(text, toolResults);                              // reading sources out of toolResults is YOURS
+} catch (e) {
+  if (e instanceof ChatModelError) return failed(e.frame.message);
+  throw e;
+}
+```
+
+- **A model error THROWS.** The engine emits `{ type: "error", scope: "model" }` and then ends with `done: "complete"`; a hand-rolled loop stores «[error] HTTP 500» as the answer and calls it finished. A `scope: "tool"` error does not throw — the model answered around it, and it is in `frames`.
+- **`done` is the reason, never a boolean.** Store an answer only on `"complete"`: a truncated draft is a half sentence that looks whole, and a person can approve it.
+- **It interprets nothing.** No source extraction, no confidence, no opinion — that boundary is yours.
+- **The spend cap settles only AFTER a round with tool calls.** An answer that needs no tool call cannot hit it, so a test of the cap needs a tool call in it (helpdesk measured this).
+
 ## "I cannot look that up" is not "no"
 
 The sharpest failure in the whole survey, and the reason the core owns a small

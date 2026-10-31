@@ -392,6 +392,64 @@ export interface Chat<Ctx = unknown, Caller = unknown> {
   readonly spendCapped: boolean;
 }
 
+/**
+ * F079.14 — one run, collected into a finished result. The RAW structure, not
+ * an interpretation: no source extraction, no knowledge-state, no opinion about
+ * whether the answer is good — that boundary is the consumer's (helpdesk's
+ * point, and it is right).
+ *
+ * Two decisions every hand-rolled collector got to make, made once here:
+ *
+ *  - An `error` frame with scope:"model" THROWS ({@link ChatModelError}). The
+ *    engine emits it and then ends with reason "complete", so a naive collector
+ *    stores "[error] HTTP 500" as the answer and reports it finished — a
+ *    success-shaped non-answer that would reach a person.
+ *  - `done` is the REASON, never a boolean. "complete" vs "max-rounds" /
+ *    "too-large" / "limited": a truncated draft is a half sentence that looks
+ *    whole, and a human can approve it. Store an answer only on "complete".
+ *
+ * A scope:"tool" error does not throw — the model saw it and answered around
+ * it; it is in `frames` for you to judge.
+ */
+export interface CollectedRun {
+  text: string;
+  frames: ChatFrame[];
+  done: Extract<ChatFrame, { type: "done" }>["reason"];
+  toolResults: Extract<ChatFrame, { type: "tool-result" }>[];
+}
+
+export class ChatModelError extends Error {
+  readonly frame: Extract<ChatFrame, { type: "error" }>;
+  readonly frames: ChatFrame[];
+  constructor(frame: Extract<ChatFrame, { type: "error" }>, frames: ChatFrame[]) {
+    super(`the model failed: ${frame.message}`);
+    this.name = "ChatModelError";
+    this.frame = frame;
+    this.frames = frames;
+  }
+}
+
+export async function collect<Ctx, Caller>(chat: Chat<Ctx, Caller>, input: RunInput<Ctx, Caller>): Promise<CollectedRun> {
+  const frames: ChatFrame[] = [];
+  let text = "";
+  let done: CollectedRun["done"] | undefined;
+  let modelError: Extract<ChatFrame, { type: "error" }> | undefined;
+  for await (const frame of chat.run(input)) {
+    frames.push(frame);
+    if (frame.type === "text") text += frame.text;
+    else if (frame.type === "error" && frame.scope === "model" && !modelError) modelError = frame;
+    else if (frame.type === "done") done = frame.reason;
+  }
+  if (modelError) throw new ChatModelError(modelError, frames);
+  if (done === undefined) throw new Error("collect: the run ended without a done frame — the stream was cut, not finished");
+  return {
+    text,
+    frames,
+    done,
+    toolResults: frames.filter((f): f is Extract<ChatFrame, { type: "tool-result" }> => f.type === "tool-result"),
+  };
+}
+
 export function createChat<Ctx = unknown, Caller = unknown>(
   opts: CreateChatOptions<Ctx, Caller>,
 ): Chat<Ctx, Caller> {
