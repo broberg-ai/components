@@ -289,8 +289,8 @@
  },
  "@broberg/sso": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/sso",
-  "version": "0.23.1",
-  "publishedAt": "2026-10-28T13:01:37.641Z",
+  "version": "0.24.0",
+  "publishedAt": "2026-10-31T15:40:18.480Z",
   "provenance": "yes"
  },
  "@broberg/seal": {
