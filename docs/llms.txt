@@ -135,7 +135,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 - **@webhouse/cms** v0.4.27 — @webhouse/cms/enrich. `npm i @webhouse/cms`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client` · https://www.npmjs.com/package/@broberg/cms-chat-client · udgivet 12.07.2026 kl. 14.14 (dansk tid) · Trusted Publisher ✓
 
-## Shipped, but NOT an npm package (4)
+## Shipped, but NOT an npm package (5)
 
 These are real and usable TODAY. There is no `npm i` — you call them or you copy
 them — so a grep for a package name will never find them.
@@ -146,10 +146,12 @@ them — so a grep for a package name will never find them.
   The fleet's shared long-term memory: one session saves its reasoning as Neurons and any other session finds it again with RAG
 - **voice-engine — speech, voices & who-spoke-when** (L3) · NOT AN NPM PACKAGE — you call it, there is nothing to install · owner: voice-engine
   Danish speech-to-text, who-spoke-when and speaker identification on audio that never leaves a machine we control
+- **Contract Manager — draft + sign customer contracts** (L3) · NOT AN NPM PACKAGE — you call it, there is nothing to install · owner: contract-manager
+  Owner-stated 31/10 2026 (#5478): SHIPPED, in production at https://contracts.broberg.ai
 - **Podcast engine (article to two-host audio)** (SDK) · NOT AN NPM PACKAGE — you call it, there is nothing to install · owner: cms
   A podcast engine any site drives over HTTP: article to two-host script to human approval to audio, the script doubling as the subtitles
 
-## Status not recorded (12)
+## Status not recorded (11)
 
 **This section is an admission, not a verdict.** Nobody has told us whether these
 are usable, so the honest answer is that we do not know — and at least four of
@@ -169,8 +171,6 @@ something the fleet already runs.
   The account dropdown in the top bar
 - **Chat / chatbot UI** (L3) · STATUS NOT RECORDED — we have not asked cms whether this is usable today, so this is NOT evidence either way · owner: cms — ASK THEM before building a second one, and before assuming it is unavailable
   A chat / chatbot UI
-- **Contract Manager — draft + sign customer contracts** (L3) · STATUS NOT RECORDED — we have not asked contract-manager whether this is usable today, so this is NOT evidence either way · owner: contract-manager — ASK THEM before building a second one, and before assuming it is unavailable
-  Draft a customer contract from a template for a human to send
 - **Hue Connect — Hue signal lights (local)** (L3) · STATUS NOT RECORDED — we have not asked hue-connect whether this is usable today, so this is NOT evidence either way · owner: hue-connect — ASK THEM before building a second one, and before assuming it is unavailable
   RENAMED 21/10 2026: this local Hue service was called Beacon and is now Hue Connect (repo broberg-ai/hue-connect, package @broberg/beacon-core; its…
 - **Podcast manager / maker** (L3) · STATUS NOT RECORDED — we have not asked cms whether this is usable today, so this is NOT evidence either way · owner: cms — ASK THEM before building a second one, and before assuming it is unavailable
