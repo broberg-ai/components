@@ -1,8 +1,8 @@
 {
- "scanned_at": "2026-10-30T20:43:03.235Z",
+ "scanned_at": "2026-10-31T10:49:00.063Z",
  "repos_scanned": 83,
  "repos_failed": 0,
- "manifests_read": 308,
+ "manifests_read": 309,
  "manifests_unreadable": 0,
  "edges": 441,
  "repos": {
@@ -989,7 +989,7 @@
   },
   "broberg-ai/cardmem": {
    "branch": "main",
-   "manifests": 12,
+   "manifests": 13,
    "unreadable": 0,
    "deps": {
     "@broberg/ai-sdk": [
