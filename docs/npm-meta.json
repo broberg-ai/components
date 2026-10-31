@@ -253,8 +253,8 @@
  },
  "@broberg/bodymap": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/bodymap",
-  "version": "0.13.3",
-  "publishedAt": "2026-10-27T17:22:06.519Z",
+  "version": "0.14.0",
+  "publishedAt": "2026-10-31T13:00:41.265Z",
   "provenance": "yes"
  },
  "@broberg/stripe": {
