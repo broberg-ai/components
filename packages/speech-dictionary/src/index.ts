@@ -13,6 +13,17 @@ export interface CorrectionEntry {
   right: string;
   note?: string | null;
   category?: string | null;
+  /**
+   * F044.2 — is `wrong` ALSO an ordinary Danish word? Then the entry does not
+   * fire inside a hyphenated compound: in «API-ruter» the text means the word
+   * (the plural of «rute»), not the mishearing of «router». A bare «ruter» in a
+   * sentence is still corrected.
+   *
+   * Absent = false = exactly the behaviour before 0.2.0. In this package's own
+   * data/corrections.json every entry ANSWERS the question explicitly (a test
+   * refuses one that does not), so a new mishearing cannot slip in unasked.
+   */
+  alsoDanishWord?: boolean;
 }
 
 export const TERMS: TermEntry[] = termsData as TermEntry[];
@@ -27,14 +38,17 @@ function escapeRegExp(s: string): string {
  * word characters, so it silently fails to bound Danish terms containing æ/ø/å
  * (e.g. "søver" never matches \bsøver\b). \p{L}/\p{N} cover any Unicode letter/digit.
  */
-function wholeWordPattern(term: string): RegExp {
+function wholeWordPattern(term: string, notInCompound = false): RegExp {
   const escaped = escapeRegExp(term);
-  return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "giu");
+  // F044.2 — the hyphen is a word boundary for every entry (unchanged), and
+  // additionally NOT a place to fire for an entry that is also a real word.
+  const edge = notInCompound ? "\\p{L}\\p{N}_-" : "\\p{L}\\p{N}_";
+  return new RegExp(`(?<![${edge}])${escaped}(?![${edge}])`, "giu");
 }
 
 function makeApplyCorrections(entries: CorrectionEntry[]) {
   const sorted = [...entries].sort((a, b) => b.wrong.length - a.wrong.length);
-  const patterns = sorted.map((e) => ({ pattern: wholeWordPattern(e.wrong), right: e.right }));
+  const patterns = sorted.map((e) => ({ pattern: wholeWordPattern(e.wrong, e.alsoDanishWord === true), right: e.right }));
   return function applyCorrections(text: string): string {
     let result = text;
     for (const { pattern, right } of patterns) {
@@ -71,6 +85,11 @@ export function corrections(): CorrectionEntry[] {
 
 export function toInitialPrompt(opts?: { groups?: TermGroup[]; maxTerms?: number; preamble?: string }): string {
   return makeToInitialPrompt(TERMS)(opts);
+}
+
+/** F044.2 — an applyCorrections over YOUR list only (no base data), e.g. to test a list before you ship it. */
+export function correctionsApplier(entries: CorrectionEntry[]): (text: string) => string {
+  return makeApplyCorrections(entries);
 }
 
 export function applyCorrections(text: string): string {

@@ -33,6 +33,25 @@ applyCorrections("jeg lavede en kommitte og fixede en bog i søveren");
 
 `applyCorrections` does **not** use JavaScript's default `\b` word-boundary — `\b` only treats `[A-Za-z0-9_]` as word characters, so `\bsøver\b` silently never matches "søver" in real Danish text (æ/ø/å fall outside `\b`'s definition of a word character). This package uses a Unicode-letter-aware boundary instead, so Danish terms correct properly. Longest-wrong-term-first ordering avoids one correction partially clobbering another (e.g. "komitte" and "kommitte" both resolve correctly to "committe").
 
+## Six mishearings are also real Danish words (0.2.0, F044.2)
+
+`ruter` → `router` is right in «min ruter er nede» and wrong in «API-ruter», which is the plural
+of *rute*. Six entries are like that — `ruter`, `mærke`, `passe`, `bogen`, `kloster`, `dansen` —
+and they carry `alsoDanishWord: true`: they **do not fire inside a hyphenated compound**, while a
+bare occurrence is still corrected. Every other entry behaves exactly as before.
+
+Every entry in `data/corrections.json` answers the question explicitly (`true`/`false`), and a
+test refuses one that does not — so a new mishearing cannot be added without someone asking
+«is this also a word?». In your own `extend()` entries the field is optional and absent means
+`false` (the old behaviour). `correctionsApplier(list)` applies a list of your own on its own.
+
+**What the decision rests on, and what it does not.** cms measured 628,013 characters of
+WRITTEN Danish (four sites, 15 collections): `API-ruter` twice, the other five zero. This package
+corrects TRANSCRIPT output, so that corpus says which compounds exist in Danish tech writing and
+nothing about what a transcriber emits — and zero in a software corpus is not zero in Danish
+(`varemærke-`, `regnskabs-bogen`, `kirke-kloster` would all have fired). The six are flagged
+because each is both readings at once, not because the corpus found them.
+
 ## Extending with your own vocabulary
 
 ```ts

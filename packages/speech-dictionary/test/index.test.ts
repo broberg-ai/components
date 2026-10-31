@@ -103,3 +103,54 @@ describe("extend", () => {
     expect(b.applyCorrections("aaa")).toBe("aaa");
   });
 });
+
+// ---------------------------------------------------------------------------
+// F044.2 — six mishearings are ALSO ordinary Danish words
+// ---------------------------------------------------------------------------
+import { readFileSync as readF } from "node:fs";
+import { applyCorrections as apply044, correctionsApplier, corrections as corr044, type CorrectionEntry as CE } from "../src/index";
+
+/** 0.1.3's applyCorrections, verbatim, as the reference for byte-for-byte compatibility. */
+function reference013(entries: CE[]) {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const sorted = [...entries].sort((a, b) => b.wrong.length - a.wrong.length);
+  const pats = sorted.map((e) => ({ p: new RegExp(`(?<![\\p{L}\\p{N}_])${esc(e.wrong)}(?![\\p{L}\\p{N}_])`, "giu"), r: e.right }));
+  return (t: string) => pats.reduce((acc, { p, r }) => acc.replace(p, r), t);
+}
+const OLD: CE[] = JSON.parse(readF(new URL("./fixtures/corrections.0.1.3.json", import.meta.url), "utf8"));
+const CORPUS = [
+  "Vi kører API-ruter og en ruter i kælderen.",
+  "git-kommitte og så kommitte igen, server-kloster, et kloster",
+  "Dansen på dashboard-dansen, bogen om buggen, regnskabs-bogen",
+  "Husk at passe på, og at passe JSON-passe-trinnet.",
+  "varemærke-registret, at mærke branchen, MÆRKE og Ruter",
+  "deploy til produktions-ruter- og ruter-tabel",
+];
+
+describe("F044.2 — an entry that is also a Danish word does not fire inside a hyphenated compound", () => {
+  it("AC0 the measured case, both directions: 'API-ruter' unchanged, a bare 'ruter' still corrected", () => {
+    expect(apply044("de 6 API-ruter")).toBe("de 6 API-ruter");
+    expect(apply044("min ruter er nede")).toBe("min router er nede");
+  });
+  it("AC0 a compound on either side of the word is left alone", () => {
+    expect(apply044("ruter-tabellen og kirke-kloster")).toBe("ruter-tabellen og kirke-kloster");
+  });
+  it("AC1 backward compatible by construction: the list WITHOUT the new field gives 0.1.3's output byte-for-byte", () => {
+    const stripped = corr044().map(({ alsoDanishWord: _x, ...e }) => e);
+    expect(stripped).toEqual(OLD); // the only change to the data is the new field
+    const now = correctionsApplier(stripped);
+    const before = reference013(OLD);
+    for (const line of CORPUS) expect([line, now(line)]).toEqual([line, before(line)]);
+  });
+  it("AC1 an entry from a consumer's extend() with no field behaves as before (fires in a compound)", () => {
+    expect(correctionsApplier([{ wrong: "ruter", right: "router" }])("API-ruter")).toBe("API-router");
+  });
+  it("AC2 EVERY entry answers the documented question — «is `wrong` also an ordinary Danish word?» — and exactly six say yes", () => {
+    const unanswered = corr044().filter((e) => typeof e.alsoDanishWord !== "boolean").map((e) => e.wrong);
+    expect(unanswered).toEqual([]);
+    expect(corr044().filter((e) => e.alsoDanishWord).map((e) => e.wrong).sort()).toEqual(["bogen", "dansen", "kloster", "mærke", "passe", "ruter"]);
+  });
+  it("AC3 a NON-flagged entry still fires inside a compound (the opt-out is per entry, not global)", () => {
+    expect(apply044("git-kommitte")).toBe("git-committe");
+  });
+});
