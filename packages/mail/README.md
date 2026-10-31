@@ -130,6 +130,31 @@ worker that died after the provider took the mail can safely send again.
 The key is read verbatim; the package never makes one up. Absent ⇒ the request
 is unchanged.
 
+## `onResult` (v0.22.0, F005.6) — the send receipt survives the request that made it
+
+```ts
+const mailer = createMailerFromEnv({
+  onResult: (e) => db.insert(mailLog).values(e), // { to, outcome, providerId?, reason?, tenant? }
+});
+await mailer.send({ to: member.email, subject, html, tenant: club.id });
+```
+
+Called **once per recipient**, for **every** outcome — `sent` (with the provider
+id), `skipped` (with WHY: `not-live`, `no-key`, `disabled`) and `failed` (with
+the provider's reason) — at the moment the outcome is known, **before** `send()`
+returns. `reason` is required on `skipped` and `failed` by the type.
+
+**The package persists nothing.** Write the entry to your own store. The reason
+this exists: xrt81 sent a batch in a loop inside a request that timed out
+midway; the mails that went had been sent, and nothing anywhere said which. A
+receipt written per recipient as it happens survives that; a result returned at
+the end of the loop does not.
+
+**A sink cannot make a send worse:** it is called without being awaited, and a
+sink that throws, rejects or never resolves neither fails nor delays the send.
+`tenant` is carried onto the receipt only — it is never sent to the provider.
+`send()`'s return value is unchanged.
+
 ## `mailer.mode` (v0.5.0) — assert at boot what the gate actually resolved to
 
 ```ts

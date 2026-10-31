@@ -50,6 +50,22 @@ for (const [name, file] of Object.entries(FILES)) {
 
 const MUTATIONS = [
   {
+    // F005.6 — the outcome that used to emit nothing: success.
+    name: "onResult is not called on a successful send",
+    file: "index",
+    from: "    const sink = config.onResult;\n    if (!sink) return;\n",
+    to: "    const sink = config.onResult;\n    if (!sink || (result.ok && !result.skipped)) return;\n",
+    expect: ["fires on SUCCESS — the outcome that used to emit nothing"],
+  },
+  {
+    // F005.6 AC#5 — a logging failure must never make the send worse.
+    name: "a throwing onResult sink fails the send",
+    file: "index",
+    from: "      try {\n        const p = sink(entry);",
+    to: "      {\n        const p = sink(entry);",
+    expect: ["a sink that THROWS does not fail the send"],
+  },
+  {
     // F005.12 — the green direction: a send-only key's 401 read as «nobody is suppressed».
     name: "a failed suppression lookup returns an empty list (everyone looks delivered)",
     file: "index",

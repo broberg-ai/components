@@ -58,6 +58,11 @@ export interface MailAttachment {
 
 export interface MailMessage {
   to: string | string[];
+  /**
+   * F005.6 — which tenant this mail is for, carried onto the `onResult` receipt
+   * only. Never sent to the provider.
+   */
+  tenant?: string;
   subject: string;
   html?: string;
   text?: string;
@@ -121,7 +126,31 @@ export interface MailResult {
   integrity?: IntegrityReport;
 }
 
+/**
+ * F005.6 — one receipt per RECIPIENT, for every outcome INCLUDING success.
+ *
+ * The send response lives as long as the request that made it. xrt81 lost a
+ * batch's outcomes when the surrounding request timed out mid-loop: the mails
+ * that went had been sent, and nothing anywhere said which. This is the hook a
+ * consumer writes to its OWN store. The package persists nothing itself.
+ *
+ * `reason` is REQUIRED on `skipped` and `failed` — enforced by the type. A skip
+ * that cannot say which skip it was asks for the wrong response: xrt81 has two
+ * that demand opposite ones (never-send-tenant vs not-allowlisted).
+ */
+export type MailOutcomeEntry =
+  | { to: string; outcome: "sent"; providerId?: string; tenant?: string }
+  | { to: string; outcome: "skipped"; reason: string; tenant?: string }
+  | { to: string; outcome: "failed"; reason: string; tenant?: string };
+
 export interface MailerConfig {
+  /**
+   * F005.6 — called once per recipient with the outcome, at the moment it is
+   * known and BEFORE send() returns. Fire-and-forget: a sink that throws or
+   * hangs never fails or delays the send (a logging failure must not make the
+   * send worse). Write the entry to your own store; see the README.
+   */
+  onResult?: (entry: MailOutcomeEntry) => void | Promise<void>;
   /** Resend API key. Absent ⇒ ship-dark: every send is a logged no-op ({ ok: true, skipped: true }). */
   apiKey?: string;
   /** Default sender — "Name <email>" or a bare address (composed with fromName). */
@@ -514,122 +543,151 @@ export function createMailer(config: MailerConfig = {}): Mailer {
     },
 
     async send(message: MailMessage): Promise<MailResult> {
-      // F005.16 — the integrity check looks at the FINISHED content and the real
-      // attachments together. A per-template check cannot see any of the three
-      // defects that reached a paying customer: two were the CALLER's doing and
-      // one was a script that skipped the function that attaches the logo.
-      //
-      // F005.18 — AND IT RUNS FIRST, BEFORE ANY GATE CAN RETURN. It used to sit
-      // below both skip gates, and the comment here claimed it "runs on every
-      // send". It did not: it ran on every send that got PAST two gates, so it
-      // never fired without an API key (dev, CI) or for a recipient off the
-      // allowlist (staging) — the three places a broken template is cheapest to
-      // find and free to fix. sanne had to set a key, `live` and a stubbed fetch
-      // in every test just to make it run at all, and a test without a key got
-      // `{ ok: true, skipped: true }` for a BROKEN mail, proving nothing.
-      //
-      // The report now travels on every result, skips included. ENFORCEMENT does
-      // not move: see below.
-      const integrityReport = checkMailIntegrity(message);
-
-      // Dev kill-switch / ship-dark: never crash a flow when mail is off.
-      if (config.disabled || !config.apiKey) {
-        const reason: MailSkipReason = config.disabled ? "disabled" : "no-key";
-        log(`send skipped (${config.disabled ? "disabled" : "no RESEND key"})`, {
-          to: message.to,
-          subject: message.subject,
-        });
-        // A SKIP IS NEVER REFUSED, not even under `enforcing`. Turning a dev
-        // no-op into `{ ok: false }` would land in every consumer at once and be
-        // a worse outage than the one this card fixes. Signal where it is cheap,
-        // enforcement where it matters.
-        return { ok: true, skipped: true, reason, integrity: integrityReport };
-      }
-      // Dev/staging allowlist gate — keep test mail off real users.
-      // `mailAllowed` returns true outright when `live`, so reaching here means
-      // live is false: the reason is never "this recipient", it is "not live".
-      if (!mailAllowed(message.to, { live, allowlist: config.allowlist })) {
-        log("send skipped (recipient not in allowlist; mailer not live)", { to: message.to });
-        return { ok: true, skipped: true, reason: "not-live", integrity: integrityReport };
-      }
-
-      // From here the mail IS being delivered, which is the only place a finding
-      // may block. The report is the point of report-only mode: a finding nobody
-      // can read before enforcement is turned on is a guard nobody can trust
-      // turning on.
-      if (integrityReport.findings.length > 0) {
-        const detail = describeIntegrity(integrityReport);
-        if (integrity === "enforcing") {
-          log("send REFUSED (integrity)", { to: message.to, subject: message.subject, detail });
-          return { ok: false, error: `integrity: ${detail}`, integrity: integrityReport };
-        }
-        log(`integrity: ${integrityReport.findings.length} finding(s) — NOT blocked (${integrity})`, {
-          to: message.to,
-          subject: message.subject,
-          detail,
-        });
-      }
-
-      const from = resolveFrom(config, message);
-      if (!from) return { ok: false, error: "no_from (set MailerConfig.from or message.from)", integrity: integrityReport };
-      if (!doFetch) return { ok: false, error: "no_fetch (no global fetch; pass MailerConfig.fetch)", integrity: integrityReport };
-
-      const payload: Record<string, unknown> = {
-        from,
-        to: message.to,
-        subject: message.subject,
-      };
-      // Stamp the per-project correlation code (cardmem MailID) onto every
-      // outbound body — templated and ad-hoc alike, since the sender is the one
-      // point all mail passes through. Read verbatim; never generated here.
-      const mailId = message.mailId ?? config.mailId;
-      const html = mailId && message.html != null ? appendRefHtml(message.html, mailId) : message.html;
-      const text = mailId && message.text != null ? appendRefText(message.text, mailId) : message.text;
-      if (html != null) payload.html = html;
-      if (text != null) payload.text = text;
-      if (message.replyTo != null) payload.reply_to = message.replyTo;
-      if (message.cc != null) payload.cc = message.cc;
-      if (message.bcc != null) payload.bcc = message.bcc;
-      if (message.headers) payload.headers = message.headers;
-      if (message.tags) payload.tags = message.tags;
-      if (message.attachments?.length) {
-        payload.attachments = message.attachments.map((a) => ({
-          filename: a.filename,
-          content: toBase64(a.content),
-          ...(a.contentType ? { content_type: a.contentType } : {}),
-          ...(a.contentId ? { content_id: a.contentId } : {}),
-        }));
-      }
-
-      try {
-        const res = await doFetch(RESEND_ENDPOINT, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${config.apiKey}`,
-            "content-type": "application/json",
-            ...(message.idempotencyKey ? { "Idempotency-Key": message.idempotencyKey } : {}),
-          },
-          body: JSON.stringify(payload),
-        });
-        const body = (await res.json().catch(() => ({}))) as {
-          id?: string;
-          message?: string;
-          name?: string;
-        };
-        if (!res.ok) {
-          const error = body.message ?? body.name ?? `resend_http_${res.status}`;
-          log(`send failed: ${error}`, { status: res.status });
-          return { ok: false, error, integrity: integrityReport };
-        }
-        // The report travels on a DELIVERED mail too, so a consumer reading
-        // `integrity` never has to ask whether its absence meant "clean" or
-        // "this path does not carry it".
-        return { ok: true, id: body.id, integrity: integrityReport };
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : "send_failed", integrity: integrityReport };
-      }
+      const result = await deliver(message);
+      emitOutcomes(message, result);
+      return result;
     },
   };
+
+  // F005.6 — every outcome becomes one receipt per recipient. Called without
+  // awaiting and inside a catch, so a throwing or hanging sink cannot touch the
+  // send.
+  function emitOutcomes(message: MailMessage, result: MailResult): void {
+    const sink = config.onResult;
+    if (!sink) return;
+    const tenant = message.tenant;
+    const base = tenant !== undefined ? { tenant } : {};
+    for (const to of Array.isArray(message.to) ? message.to : [message.to]) {
+      const entry: MailOutcomeEntry = result.skipped
+        ? { to, outcome: "skipped", reason: result.reason ?? "skipped", ...base }
+        : result.ok
+          ? { to, outcome: "sent", ...(result.id ? { providerId: result.id } : {}), ...base }
+          : { to, outcome: "failed", reason: result.error ?? "send_failed", ...base };
+      try {
+        const p = sink(entry);
+        if (p && typeof (p as Promise<void>).catch === "function") (p as Promise<void>).catch(() => {});
+      } catch {
+        // A logging failure must never make the send worse (F005.6 AC#5).
+      }
+    }
+  }
+
+  async function deliver(message: MailMessage): Promise<MailResult> {
+    // F005.16 — the integrity check looks at the FINISHED content and the real
+    // attachments together. A per-template check cannot see any of the three
+    // defects that reached a paying customer: two were the CALLER's doing and
+    // one was a script that skipped the function that attaches the logo.
+    //
+    // F005.18 — AND IT RUNS FIRST, BEFORE ANY GATE CAN RETURN. It used to sit
+    // below both skip gates, and the comment here claimed it "runs on every
+    // send". It did not: it ran on every send that got PAST two gates, so it
+    // never fired without an API key (dev, CI) or for a recipient off the
+    // allowlist (staging) — the three places a broken template is cheapest to
+    // find and free to fix. sanne had to set a key, `live` and a stubbed fetch
+    // in every test just to make it run at all, and a test without a key got
+    // `{ ok: true, skipped: true }` for a BROKEN mail, proving nothing.
+    //
+    // The report now travels on every result, skips included. ENFORCEMENT does
+    // not move: see below.
+    const integrityReport = checkMailIntegrity(message);
+
+    // Dev kill-switch / ship-dark: never crash a flow when mail is off.
+    if (config.disabled || !config.apiKey) {
+      const reason: MailSkipReason = config.disabled ? "disabled" : "no-key";
+      log(`send skipped (${config.disabled ? "disabled" : "no RESEND key"})`, {
+        to: message.to,
+        subject: message.subject,
+      });
+      // A SKIP IS NEVER REFUSED, not even under `enforcing`. Turning a dev
+      // no-op into `{ ok: false }` would land in every consumer at once and be
+      // a worse outage than the one this card fixes. Signal where it is cheap,
+      // enforcement where it matters.
+      return { ok: true, skipped: true, reason, integrity: integrityReport };
+    }
+    // Dev/staging allowlist gate — keep test mail off real users.
+    // `mailAllowed` returns true outright when `live`, so reaching here means
+    // live is false: the reason is never "this recipient", it is "not live".
+    if (!mailAllowed(message.to, { live, allowlist: config.allowlist })) {
+      log("send skipped (recipient not in allowlist; mailer not live)", { to: message.to });
+      return { ok: true, skipped: true, reason: "not-live", integrity: integrityReport };
+    }
+
+    // From here the mail IS being delivered, which is the only place a finding
+    // may block. The report is the point of report-only mode: a finding nobody
+    // can read before enforcement is turned on is a guard nobody can trust
+    // turning on.
+    if (integrityReport.findings.length > 0) {
+      const detail = describeIntegrity(integrityReport);
+      if (integrity === "enforcing") {
+        log("send REFUSED (integrity)", { to: message.to, subject: message.subject, detail });
+        return { ok: false, error: `integrity: ${detail}`, integrity: integrityReport };
+      }
+      log(`integrity: ${integrityReport.findings.length} finding(s) — NOT blocked (${integrity})`, {
+        to: message.to,
+        subject: message.subject,
+        detail,
+      });
+    }
+
+    const from = resolveFrom(config, message);
+    if (!from) return { ok: false, error: "no_from (set MailerConfig.from or message.from)", integrity: integrityReport };
+    if (!doFetch) return { ok: false, error: "no_fetch (no global fetch; pass MailerConfig.fetch)", integrity: integrityReport };
+
+    const payload: Record<string, unknown> = {
+      from,
+      to: message.to,
+      subject: message.subject,
+    };
+    // Stamp the per-project correlation code (cardmem MailID) onto every
+    // outbound body — templated and ad-hoc alike, since the sender is the one
+    // point all mail passes through. Read verbatim; never generated here.
+    const mailId = message.mailId ?? config.mailId;
+    const html = mailId && message.html != null ? appendRefHtml(message.html, mailId) : message.html;
+    const text = mailId && message.text != null ? appendRefText(message.text, mailId) : message.text;
+    if (html != null) payload.html = html;
+    if (text != null) payload.text = text;
+    if (message.replyTo != null) payload.reply_to = message.replyTo;
+    if (message.cc != null) payload.cc = message.cc;
+    if (message.bcc != null) payload.bcc = message.bcc;
+    if (message.headers) payload.headers = message.headers;
+    if (message.tags) payload.tags = message.tags;
+    if (message.attachments?.length) {
+      payload.attachments = message.attachments.map((a) => ({
+        filename: a.filename,
+        content: toBase64(a.content),
+        ...(a.contentType ? { content_type: a.contentType } : {}),
+        ...(a.contentId ? { content_id: a.contentId } : {}),
+      }));
+    }
+
+    try {
+      const res = await doFetch(RESEND_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "content-type": "application/json",
+          ...(message.idempotencyKey ? { "Idempotency-Key": message.idempotencyKey } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        id?: string;
+        message?: string;
+        name?: string;
+      };
+      if (!res.ok) {
+        const error = body.message ?? body.name ?? `resend_http_${res.status}`;
+        log(`send failed: ${error}`, { status: res.status });
+        return { ok: false, error, integrity: integrityReport };
+      }
+      // The report travels on a DELIVERED mail too, so a consumer reading
+      // `integrity` never has to ask whether its absence meant "clean" or
+      // "this path does not carry it".
+      return { ok: true, id: body.id, integrity: integrityReport };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "send_failed", integrity: integrityReport };
+    }
+  }
 }
 
 /**
