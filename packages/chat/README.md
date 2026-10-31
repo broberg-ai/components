@@ -378,7 +378,7 @@ honouring `maxChars` they have none at all.
 > that had not restarted since 4 July, so nothing ever noticed. Their words:
 > *our uptime does not carry the assumption that we always answer.*
 
-## Two boundaries worth knowing before you ship
+## Boundaries worth knowing before you ship
 
 **0. An assistant turn that called a tool carries the call.** `ChatMessage` has
 `toolCalls?: { id, name, args }[]`, set by the loop on the assistant turn that
@@ -394,8 +394,15 @@ decide whether it may*.
 **2. A tool RESULT is passed through verbatim, secrets and all.** Not an oversight:
 it is the consumer's data on their own surface, and quietly rewriting it would be
 a worse surprise than passing it on. If a tool can return a credential, either do
-not return it or wait for redaction (F079.6). A test pins this boundary so nobody
-can believe otherwise.
+not return it, or redact it yourself before returning — `redactSecrets` and
+`redactPersonalData` from `@broberg/secret-scan` (read their `notExamined`: names are
+found by nothing). A test pins this boundary so nobody can believe otherwise.
+
+**3. Retention is yours, permanently — this package will never own it.** `@broberg/chat`
+stores nothing, so it cannot delete anything: how long a conversation is kept, and
+when it is erased, is decided and enforced where the rows live — in your app. That is
+not "not yet"; a storage-free package cannot delete rows (components F079.6). If you
+keep transcripts, write your retention rule and its deletion job before you ship.
 
 What the adapter itself puts on the wire is guaranteed: no `ctx`, no permission
 string, no stack trace. Asserted by scanning the emitted bytes.

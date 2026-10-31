@@ -127,7 +127,9 @@ describe("api shape", () => {
     // v0.3.0 added `scanned`, which broke this exact assertion — worth keeping
     // as a whole-object compare rather than loosening it, because it is the one
     // thing in the suite that proves what a deep-equality consumer would feel.
-    expect(redactSecrets("")).toEqual({ redacted: "", findings: [], scanned: ["format"] });
+    // 0.15.0 (F079.6) added `notExamined` the same way — and a consumer comparing
+    // the whole object feels it the same way, so the release report says so.
+    expect(redactSecrets("")).toEqual({ redacted: "", findings: [], scanned: ["format"], notExamined: ["personal-data"] });
   });
   it("counts repeated secrets", () => {
     const k = "sk-ant-api03-" + "A".repeat(40);

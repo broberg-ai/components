@@ -98,7 +98,7 @@ describe('F035.21 — redact / has', () => {
 
   it('leaves clean text untouched', () => {
     const r = redactPersonalData('Mødet flyttes til torsdag kl. 10.');
-    expect(r).toEqual({ redacted: 'Mødet flyttes til torsdag kl. 10.', findings: [], scanned: ['cpr', 'phone', 'email'] });
+    expect(r).toEqual({ redacted: 'Mødet flyttes til torsdag kl. 10.', findings: [], scanned: ['cpr', 'phone', 'email'], notExamined: ['names', 'addresses', 'health-details'] });
     expect(hasPersonalData('Mødet flyttes til torsdag kl. 10.')).toBe(false);
     expect(hasPersonalData('tlf 20304050')).toBe(true);
   });

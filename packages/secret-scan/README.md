@@ -287,8 +287,16 @@ import { hasPersonalData, findPersonalData, redactPersonalData } from '@broberg/
 
 if (hasPersonalData(candidate)) refuse();
 findPersonalData('tlf 20304050') // → [{ kind: 'phone', start: 4, end: 12 }]
-redactPersonalData('Anne 010190-1234') // → { redacted: 'Anne [REDACTED:cpr]', findings: [{ kind: 'cpr', count: 1 }], scanned: ['cpr', 'phone', 'email'] }
+redactPersonalData('Anne 010190-1234') // → { redacted: 'Anne [REDACTED:cpr]', findings: [{ kind: 'cpr', count: 1 }], scanned: ['cpr', 'phone', 'email'], notExamined: ['names', 'addresses', 'health-details'] }
 ```
+
+**Both results say what they NEVER look at (0.15.0, F079.6).** `redactSecrets(...).notExamined`
+is always `['personal-data']`: it scans secrets only, and a message full of CPR numbers
+returns `findings: []` from it — correct, and indistinguishable from "clean" until this
+field existed. `redactPersonalData(...).notExamined` is `['names', 'addresses',
+'health-details']`: «Anne» stays in the example above, because a name cannot be told from
+a word by its shape. **Upgrading:** a consumer that compares the whole result with deep
+equality sees one new field.
 
 - **CPR**: `ddmmyy-xxxx` and `ddmmyyxxxx`, only on a real date. The century
   comes from the 7th digit, so `290200-4xxx` (2000) matches and `290200-1xxx`

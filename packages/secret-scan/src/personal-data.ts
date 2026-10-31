@@ -24,7 +24,17 @@ export interface PersonalDataResult {
   findings: { kind: PersonalDataKind; count: number }[];
   /** which kinds this call examined — so an empty `findings` says what was asked */
   scanned: readonly PersonalDataKind[];
+  /**
+   * components-F079.6 — what is personal data and is NOT looked for. Names
+   * above all: «Mette» and «Mandag» are one shape to a pattern, so a name can
+   * only be found by looking it up, never by guessing — and this package does
+   * not guess. Also addresses and free-text health details.
+   */
+  notExamined: readonly ['names', 'addresses', 'health-details'];
 }
+
+/** Personal data redactPersonalData never looks for. */
+export const PERSONAL_DATA_NOT_EXAMINED = ['names', 'addresses', 'health-details'] as const;
 
 const SCANNED: readonly PersonalDataKind[] = ['cpr', 'phone', 'email'];
 
@@ -96,7 +106,7 @@ export function redactPersonalData(text: string): PersonalDataResult {
     counts.set(m.kind, (counts.get(m.kind) ?? 0) + 1);
   }
   redacted += text.slice(at);
-  return { redacted, findings: [...counts].map(([kind, count]) => ({ kind, count })), scanned: SCANNED };
+  return { redacted, findings: [...counts].map(([kind, count]) => ({ kind, count })), scanned: SCANNED, notExamined: PERSONAL_DATA_NOT_EXAMINED };
 }
 
 export function hasPersonalData(text: string): boolean {

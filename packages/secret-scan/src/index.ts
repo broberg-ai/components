@@ -782,7 +782,23 @@ export interface RedactionResult {
    * be cheap to use that argument in one direction and not the other.
    */
   scanned: readonly SecretConfidence[];
+  /**
+   * components-F079.6 — what this call NEVER examines, said in the result itself.
+   *
+   * `redactSecrets` looks for secrets and credentials only. A Danish support
+   * message with a CPR number, an e-mail, a phone number and a name came back
+   * from it with `findings: []` and the text byte-identical — correct, and
+   * indistinguishable from "this message is clean" to anyone who reached this
+   * package by searching Discovery for `redaction` (it is the first hit).
+   *
+   * Always `['personal-data']`. For CPR, phone and e-mail use
+   * `redactPersonalData`; NAMES are not detected by anything in this package.
+   */
+  notExamined: readonly ['personal-data'];
 }
+
+/** What redactSecrets never looks at. Constant on purpose: it is a statement about the package, not about the input. */
+export const SECRETS_NOT_EXAMINED = ['personal-data'] as const;
 
 export interface RedactOptions {
   /**
@@ -1059,7 +1075,8 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
   const scanned: readonly SecretConfidence[] = opts?.announced
     ? ['format', 'announced']
     : ['format'];
-  if (!text) return { redacted: text, findings: [], scanned };
+  const notExamined = SECRETS_NOT_EXAMINED;
+  if (!text) return { redacted: text, findings: [], scanned, notExamined };
   let redacted = text;
   const findings: RedactionFinding[] = [];
   for (const p of patternsFor(opts)) {
@@ -1145,7 +1162,7 @@ export function redactSecrets(text: string, opts?: RedactOptions): RedactionResu
       findings.push({ label: ANNOUNCED_LABEL, count, confidence: 'announced' });
     }
   }
-  return { redacted, findings, scanned };
+  return { redacted, findings, scanned, notExamined };
 }
 
 /**
@@ -1272,5 +1289,5 @@ export function classify(value: string, opts?: RedactOptions): ClassifyResult | 
 }
 
 // F035.21 — personal data (CPR, phone, email); see src/personal-data.ts.
-export { findPersonalData, redactPersonalData, hasPersonalData } from './personal-data';
+export { findPersonalData, redactPersonalData, hasPersonalData, PERSONAL_DATA_NOT_EXAMINED } from './personal-data';
 export type { PersonalDataKind, PersonalDataMatch, PersonalDataResult } from './personal-data';

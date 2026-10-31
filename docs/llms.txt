@@ -63,7 +63,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 - **@broberg/nativepush** v0.1.1 — Push to NATIVE apps. `npm i @broberg/nativepush` · https://www.npmjs.com/package/@broberg/nativepush · udgivet 25.10.2026 kl. 00.44 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/phone** v0.1.1 — Outgoing phone calls via 46elks (personal data kept in the EU): call(to,{audioUrl,webhookBase,ackDigit}) plays an audio URL. `npm i @broberg/phone` · https://www.npmjs.com/package/@broberg/phone · udgivet 25.10.2026 kl. 00.43 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/mcp** v0.11.1 — The fleet's genuinely-reusable (NOT slim) MCP-server toolkit. `npm i @broberg/mcp` · https://www.npmjs.com/package/@broberg/mcp · udgivet 24.10.2026 kl. 15.02 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
-- **@broberg/secret-scan** v0.14.3 — Pure, dependency-free secret/credential redaction. `npm i @broberg/secret-scan` · https://www.npmjs.com/package/@broberg/secret-scan · udgivet 24.10.2026 kl. 20.09 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
+- **@broberg/secret-scan** v0.14.3 — PERSONOPLYSNINGER: redactSecrets ser IKKE efter persondata. `npm i @broberg/secret-scan` · https://www.npmjs.com/package/@broberg/secret-scan · udgivet 24.10.2026 kl. 20.09 (dansk tid) · Trusted Publisher ✓ · afhængigheder: OK
 - **@broberg/lens** v0.3.3 — Udgives fra github.com/broberg-ai/lens (lens F001.3). `npm i @broberg/lens` · https://www.npmjs.com/package/@broberg/lens · udgivet 28.10.2026 kl. 10.48 (dansk tid) · Trusted Publisher ✓
 
 ### L1 — Identity (who the user is)

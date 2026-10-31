@@ -274,6 +274,12 @@ const MUTATIONS = [
     from: "regex: /(?<![A-Za-z0-9_])[a-z][a-z0-9]{1,15}_[0-9a-f]{64}(?![A-Za-z0-9_])/g,",
     to: "regex: /(?!)/g,",
   },
+  // components-F079.6 — the result must say what it never examines.
+  {
+    name: 'notExamined dropped from the result (F079.6: "nothing found" = "never looked" again)',
+    from: '  return { redacted, findings, scanned, notExamined };',
+    to: '  return { redacted, findings, scanned, notExamined: [] };',
+  },
 ];
 
 function redSet() {
