@@ -83,6 +83,18 @@ describe("address lists, comments and malformed input", () => {
     }
   });
 
+  it("0.1.1 — text without an '@' is not an address: `No Address Here` → [] (buddy, 31/10)", () => {
+    expect(extractAddresses("No Address Here")).toEqual([]);
+    expect(extractAddresses("<no-at-sign>")).toEqual([]);
+    expect(extractAddresses("Undisclosed recipients:;")).toEqual([]);
+    // and a real address next to text-only parts still comes through
+    expect(extractAddresses("No Address Here, cb@webhouse.dk")).toEqual(["cb@webhouse.dk"]);
+  });
+
+  it("escaped quotes in a display name cannot smuggle the owner's address (the gap cardmem's own reader had)", () => {
+    expect(extractAddresses('"a\\" <cb@webhouse.dk>, \\"b" <attacker@evil.dk>')).toEqual(["attacker@evil.dk"]);
+  });
+
   it("an unterminated quote yields nothing rather than a guess", () => {
     // Fail-closed: the remainder is unparseable, so it matches nothing. The
     // alternative — guessing which half was the address — is how a display name

@@ -1,6 +1,6 @@
 {
   "name": "@broberg/mail-identity",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Is this inbound mail provably from who the From: field claims? Reads addresses and Authentication-Results the way the grammar does, not the way a regex does. Four pure functions, zero dependencies, no I/O. It owns WHAT AN ADDRESS IS and WHAT THE AUTH HEADER SAYS — never what a match MEANS.",
   "type": "module",
   "license": "MIT",

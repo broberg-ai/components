@@ -223,7 +223,10 @@ export function extractAddresses(field: string | null | undefined): string[] {
 
   const flush = (end: number): void => {
     const a = addressOfPart(field, masked, start, end);
-    if (a) out.push(a);
+    // 0.1.1 — a part with no '@' is not an address (buddy, 31/10: `No Address
+    // Here` came back as ['no address here']). Text is not promoted to an
+    // address because the field happened to contain no brackets.
+    if (a && a.includes("@")) out.push(a);
     start = end + 1;
   };
 
