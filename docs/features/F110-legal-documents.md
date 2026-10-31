@@ -9,12 +9,14 @@
 
 ## Open questions — answered by the owner before the texts are written
 
-1. **Retention of conversation data.** The supplied standard (GDPR-CONVERSATION-ANALYTICS.md)
-   says *at most 6 months for identifiable or pseudonymised conversations*, longer only for
-   genuinely anonymous aggregates. The owner asked for "6 months or more if OK". GDPR sets no
-   fixed number — the period must be justified in the LIA. Recommendation: **6 months** for
-   pseudonymised conversations, unlimited for anonymous aggregates. Longer needs a written reason
-   the LIA can carry.
+1. **Retention — purpose-bound, Meta's model (owner, 31 Oct: «JEG vil ikke være ringere stillet» than
+   Facebook).** Not one number for everything: data is kept **as long as its purpose needs it**, with
+   the criteria and examples written out (Meta's wording, measured below). Proposed: (a) data that
+   IS the product — Jam content, helpdesk cases, account — for the account's lifetime; (b) the
+   **analysis copy** of conversations, pseudonymised, **max 6 months** (Meta deletes search metadata
+   it does not need within six months too); (c) genuinely anonymous aggregates without limit;
+   (d) deletion on request within 90 days, backups within a further 90 (Meta's own figures).
+   The owner confirms or changes (a)–(d).
 2. **Where we are a PROCESSOR** (customer platforms: fd-sundhed, sanneandersen, customer sites),
    the conversations are the customer's. Our own product analysis on them is only lawful if the
    DPA says so and the customer has a basis for it. Recommendation: **excluded by default**,
@@ -51,6 +53,25 @@ facts is the drift this repo exists to prevent.
   CPR, phone and e-mail and states in its own result that NAMES, addresses and health details are
   NOT examined. So the honest promise is *pseudonymised*, not *anonymised* — and pseudonymised
   data is still personal data (retention, rights, LIA all apply).
+
+## Benchmark: Meta, read 31 Oct 2026 (the owner asked)
+
+Read in full from the printable privacy policy (effective 23 July 2026, 31,924 words) and the terms
+(5,916 words). What we can match — lawfully — and what Meta was fined for:
+
+| Meta does | Lawful for us? |
+|---|---|
+| Retention «as long as we need it … case by case», with listed criteria and concrete examples | **Yes** — adopted as the retention model (Q1) |
+| Account content kept for the account's lifetime; unneeded search metadata deleted within 6 months | **Yes** — same split: product data vs. analysis copy |
+| «Develop, research and test improvements» on legitimate interests, with a right to object | **Yes** — our conversation-analysis basis, with an LIA |
+| A legal-basis table per purpose (consent / contract / legitimate interest / legal obligation) | **Yes** — adopted as the structure of `privacy` |
+| Special-category data only with **explicit consent** | **Yes** — matches Q3 |
+| Deletion within 90 days, backups within a further 90 | **Yes** — Q1 (d) |
+| Behavioural ads on «contract» because the user accepted the terms | **No** — Irish DPC fined Meta EUR 390m for exactly that (Jan 2023); CJEU C-252/21 (4 Jul 2023) |
+| Personal data to the US without adequate safeguards | **No** — EUR 1.2bn fine (May 2023); we stay EU-first |
+
+So the owner is not worse placed than Meta on what is lawful: same breadth of purposes, same
+retention model, same legal-basis structure. What we deliberately do not copy is what Meta paid for.
 
 ## Design
 
