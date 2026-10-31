@@ -169,8 +169,8 @@
  },
  "@broberg/notifications": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/notifications",
-  "version": "0.5.0",
-  "publishedAt": "2026-10-28T11:13:16.107Z",
+  "version": "0.6.0",
+  "publishedAt": "2026-10-31T10:26:37.393Z",
   "provenance": "yes"
  },
  "@broberg/app-shell": {
