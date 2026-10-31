@@ -259,3 +259,6 @@ export function createPushSender(vapid: VapidConfig) {
 }
 
 export type PushSender = ReturnType<typeof createPushSender>;
+
+// F067.2 — a static, offline check for a second push handler in a built worker.
+export { findPushHandlers, type PushHandlerReport, type PushHandlerSite } from "./push-handlers";

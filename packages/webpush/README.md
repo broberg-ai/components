@@ -315,12 +315,21 @@ for tests and for anyone deliberately wiring things by hand.
 >
 > **"Your own" includes one you did not write.** A handler inherited from a PWA
 > template, or registered by another package, counts and is the harder case —
-> there is no error, only two banners. Before you adopt, grep everything that
-> ends up in your worker:
+> there is no error, only two banners. Check the BUILT worker — what actually
+> ships — in your own test, without a browser (v0.9.0, F067.2):
 >
-> ```bash
-> grep -rn "addEventListener('push'\|addEventListener(\"push\"" src public
+> ```ts
+> import { readFileSync } from "node:fs";
+> import { findPushHandlers } from "@broberg/webpush";
+>
+> const r = findPushHandlers(readFileSync("public/sw.js", "utf8"));
+> expect(r.count, JSON.stringify(r.sites)).toBe(1); // sites: line, column, offset, snippet
 > ```
+>
+> It counts `addEventListener("push", …)` in any quote style and `onpush =`, and
+> says where each is. It is a static read of the text: it patches nothing and
+> runs nothing, so it cannot touch delivery. It cannot see an event name built at
+> runtime. Our own `sw.global.js` registers exactly one.
 >
 > **On `skipWaiting: false`** (serwist/next-pwa default in several fleet repos):
 > a new worker *waits* rather than reloading someone mid-action, so the worker
