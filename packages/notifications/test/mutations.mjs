@@ -23,6 +23,20 @@ const REACT = join(HERE, 'src/react.tsx');
 const SRC_FOR_GUARD = 'src/index.ts';
 
 const MUTATIONS = [
+  // F074.6 AC#6 — collapsing the two lifetimes into one.
+  {
+    name: 'prune: an unseen row uses the SEEN clock (one lifetime for both)',
+    file: INDEX,
+    from: 'unseenBefore: now - p.unseenOlderThanMs,',
+    to: 'unseenBefore: now - p.seenOlderThanMs,',
+  },
+  // F074.6 AC#6 — the subscriber's own value accepted and ignored.
+  {
+    name: "prune: the subscriber's own retention is never read",
+    file: INDEX,
+    from: 'const own = (await retentionFor?.(subjectId)) ?? {};',
+    to: 'const own = {};',
+  },
   // F074.4 AC#13 — the six defects four consumers each shipped, one mutation apiece.
   {
     name: 'bell: the trigger holds its OWN count (xrt81: two bells, two numbers)',

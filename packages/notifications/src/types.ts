@@ -79,7 +79,46 @@ export interface NotificationStore<Row extends NotificationRow = NotificationRow
    *  misconfiguration the warning names by method. */
   remove?(subjectId: string, ids: readonly string[]): Promise<string[]>;
   removeAll?(subjectId: string): Promise<string[]>;
+
+  /** PRUNE — optional (F074.6). cardmem never prunes and need change nothing.
+   *
+   *  One call per BATCH of subjects. For each, delete SEEN rows created before
+   *  `seenBefore` and UNSEEN rows created before `unseenBefore` — two clocks,
+   *  because an unseen row still has an errand — but NEVER the subject's newest
+   *  `keepNewest` rows, whatever their age (a small tenant has a history
+   *  problem, not a volume problem). Return the ids actually removed, per
+   *  subject; the core settles only the subjects that lost a row. */
+  prune?(batch: readonly PruneCutoff[]): Promise<PruneRemoval[]>;
 }
+
+/** What the store is asked to apply to one subject. Epoch ms. */
+export interface PruneCutoff {
+  subjectId: string;
+  seenBefore: number;
+  unseenBefore: number;
+  keepNewest: number;
+}
+
+export interface PruneRemoval {
+  subjectId: string;
+  removedIds: string[];
+}
+
+/** TWO lifetimes and a count floor, all REQUIRED — no default ships (F074.6):
+ *  the numbers come from a consumer's own measurement, never from an upgrade. */
+export interface PrunePolicy {
+  /** A SEEN row older than this (ms since createdAt) may be pruned. */
+  seenOlderThanMs: number;
+  /** An UNSEEN row older than this may be pruned — a separate clock on purpose. */
+  unseenOlderThanMs: number;
+  /** Every subject keeps its newest N rows regardless of age. */
+  keepNewest: number;
+}
+
+export type PruneResult =
+  | { ran: true; pruned: { subjectId: string; removedIds: string[]; count: number }[]; untouched: string[] }
+  /** The store cannot prune at all — distinct from a prune that matched nothing. */
+  | { ran: false; reason: string };
 
 export interface NotificationsConfig<Row extends NotificationRow = NotificationRow> {
   store: NotificationStore<Row>;
@@ -97,6 +136,10 @@ export interface NotificationsConfig<Row extends NotificationRow = NotificationR
    *  disagreeing with nobody told — which is the defect this package exists to
    *  prevent, moved into the package itself. */
   onCountChangedError?: (err: unknown, subjectId: string, count: number) => void;
+  /** F074.6 — a subscriber's own retention, read for EVERY subject on EVERY
+   *  prune and laid over the call's policy. Offer a retention setting only if
+   *  this reads it: an accepted-and-ignored setting is worse than none. */
+  retentionFor?: (subjectId: string) => Partial<PrunePolicy> | undefined | Promise<Partial<PrunePolicy> | undefined>;
 }
 
 /** What a clearing call gives back.

@@ -3,6 +3,8 @@ import type {
   NotificationRow,
   NotificationStore,
   NotificationsConfig,
+  PrunePolicy,
+  PruneResult,
   RemoveResult,
 } from './types.js';
 
@@ -11,6 +13,10 @@ export type {
   NotificationRow,
   NotificationStore,
   NotificationsConfig,
+  PruneCutoff,
+  PrunePolicy,
+  PruneRemoval,
+  PruneResult,
   RemoveResult,
 } from './types.js';
 
@@ -30,6 +36,9 @@ export interface Notifications<Row extends NotificationRow = NotificationRow> {
    *  does not do what it says" — which is better and still a surface claiming
    *  something it cannot hold. */
   readonly canRemove: boolean;
+  /** F074.6 — sweep these subjects in batches; announce each one that lost a
+   *  row, with the store's recount. No default lifetime: the policy is required. */
+  prune(subjectIds: readonly string[], policy: PrunePolicy, options?: { batchSize?: number; now?: number }): Promise<PruneResult>;
 }
 
 /** Wire a store and a fan-out into the five operations.
@@ -47,7 +56,7 @@ declare const console: { error(...args: unknown[]): void; warn(...args: unknown[
 export function createNotifications<Row extends NotificationRow = NotificationRow>(
   config: NotificationsConfig<Row>,
 ): Notifications<Row> {
-  const { store, onCountChanged, onCountChangedError } = config;
+  const { store, onCountChanged, onCountChangedError, retentionFor } = config;
 
   /** Recount and announce. Never call `onCountChanged` from anywhere else: one
    *  place means a new operation cannot forget it, only fail to call this.
@@ -181,6 +190,40 @@ export function createNotifications<Row extends NotificationRow = NotificationRo
     },
 
     canRemove,
+
+    async prune(subjectIds, policy, options = {}) {
+      const run = store.prune;
+      if (!run) return { ran: false, reason: 'this store does not implement prune(), so nothing was pruned' };
+      const batchSize = Math.max(1, Math.floor(options.batchSize ?? 50));
+      const now = options.now ?? Date.now();
+      const pruned: { subjectId: string; removedIds: string[]; count: number }[] = [];
+      const untouched: string[] = [];
+      for (let i = 0; i < subjectIds.length; i += batchSize) {
+        const batch = subjectIds.slice(i, i + batchSize);
+        // The subscriber's own value is read HERE, every time — never cached,
+        // never accepted and ignored.
+        const cutoffs = await Promise.all(
+          batch.map(async (subjectId) => {
+            const own = (await retentionFor?.(subjectId)) ?? {};
+            const p = { ...policy, ...own };
+            return { subjectId, seenBefore: now - p.seenOlderThanMs, unseenBefore: now - p.unseenOlderThanMs, keepNewest: p.keepNewest };
+          }),
+        );
+        const removals = await run.call(store, cutoffs);
+        const removed = new Map(removals.filter((r) => r.removedIds.length > 0).map((r) => [r.subjectId, r.removedIds]));
+        // Announce the batch before the next one starts: the consumer's
+        // batchSize bounds the burst of fan-outs (a web push per device at xrt81).
+        for (const subjectId of batch) {
+          const removedIds = removed.get(subjectId);
+          if (!removedIds) {
+            untouched.push(subjectId);
+            continue;
+          }
+          pruned.push({ subjectId, removedIds, count: await settle(subjectId) });
+        }
+      }
+      return { ran: true, pruned, untouched };
+    },
   };
 }
 
@@ -250,6 +293,21 @@ export function createMemoryStore<Row extends NotificationRow = NotificationRow>
       const removed = rows.map((r) => r.id);
       rows.length = 0;
       return removed;
+    },
+    /** The reference prune (F074.6): two clocks — a SEEN row by `seenBefore`,
+     *  an UNSEEN row by `unseenBefore` — and the subject's newest `keepNewest`
+     *  rows are kept whatever their age. Ages are read from `createdAt`. */
+    async prune(batch) {
+      return batch.map(({ subjectId, seenBefore, unseenBefore, keepNewest }) => {
+        const rows = rowsFor(subjectId);
+        const keep = new Set(
+          [...rows].sort((a, b) => b.createdAt - a.createdAt).slice(0, Math.max(0, keepNewest)).map((r) => r.id),
+        );
+        const expired = (r: Row) => !keep.has(r.id) && r.createdAt < (r.seenAt === null ? unseenBefore : seenBefore);
+        const removedIds = rows.filter(expired).map((r) => r.id);
+        for (let i = rows.length - 1; i >= 0; i--) if (expired(rows[i]!)) rows.splice(i, 1);
+        return { subjectId, removedIds };
+      });
     },
   };
 }
