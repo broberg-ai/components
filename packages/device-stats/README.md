@@ -268,6 +268,29 @@ No browser exposes one. `platformAuthenticator` answers *does this DEVICE offer 
 
 Whether someone actually uses it **with you** is your own database's answer: did they register a passkey. Three questions that look like one — *can the device* · *has the user allowed* · *has the user set it up with us*.
 
+### Face ID, Touch ID, a fingerprint — only a NATIVE app can say (0.5.0, F078.5)
+
+`platformAuthenticator: "available"` is **also** what a device with only a passcode answers, and no web API will ever name Face ID. A native app can — partly:
+
+| | enrolled? | which biometric? |
+|---|---|---|
+| iOS — `LAContext` | yes | yes (`biometryType`) |
+| Android — `BiometricManager` | yes | **no public API** |
+| web | no | no |
+
+So the two are **separate facts, each with its source** — `native-ios` · `native-android` · `web-cannot-tell`:
+
+```ts
+import { biometricsFromIos, biometricsFromAndroid, biometricsUnknownOnWeb } from "@broberg/device-stats/permissions";
+
+biometricsFromIos({ canEvaluate: true, biometryType: "faceID" });
+// { enrolment: { enrolled: "yes", source: "native-ios" }, modality: { modality: "face", source: "native-ios" } }
+biometricsFromAndroid("BIOMETRIC_SUCCESS");
+// modality: { modality: "unknown", source: "native-android", reason: "Android has no public API …" }
+```
+
+Android's modality is `unknown` **by construction** — setting it to `face` does not compile. `hasSystemFeature(FEATURE_FACE)` says face *hardware* exists, not that a face is enrolled. Render it as «not knowable on Android», never as a blank or a zero. And no native report is `web-cannot-tell`, never `none`.
+
 ### `notifications: "granted"` does not mean a push will arrive
 
 On iOS the PWA must **also** be installed and hold a live subscription — and a subscription can be dead (`410 Gone`) while the permission still reads `granted`.

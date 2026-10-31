@@ -44,6 +44,14 @@ export interface PermissionFacts extends Record<PermissionName, PermissionState>
   /**
    * Does this DEVICE offer Face ID / Touch ID / Windows Hello.
    *
+   * F078.5 — READ THIS BEFORE YOU NAME IT «Face ID» ON A DASHBOARD. `available`
+   * is ALSO what a device with only a PASSCODE answers: the browser's only
+   * question (`isUserVerifyingPlatformAuthenticatorAvailable`) asks «can a
+   * built-in authenticator verify the user», and the spec deliberately hides
+   * HOW, because naming the modality would fingerprint the device. It does
+   * NOT mean biometrics are enrolled and it can never say Face ID. For that,
+   * a native app reports {@link BiometricFacts}.
+   *
    * Deliberately outside the permission map and with its own state union, so
    * that `platformAuthenticator: "granted"` cannot be written. Face ID is not a
    * permission and no browser exposes one — this says the hardware is there, NOT
@@ -151,4 +159,109 @@ export async function readPermissionFacts(globalLike: PermissionsGlobalLike): Pr
     readPlatformAuthenticator(globalLike),
   ]);
   return { notifications, geolocation, camera, microphone, platformAuthenticator };
+}
+
+
+// ---------------------------------------------------------------------------
+// F078.5 — biometrics, as only a NATIVE app can report them
+// ---------------------------------------------------------------------------
+
+/**
+ * WHO answered. Without it, «unknown» would mean both «the user has none» and
+ * «we could not ask», and nothing in the data would separate them.
+ */
+export type BiometricSource = "native-ios" | "native-android" | "web-cannot-tell";
+
+/**
+ * Is a biometric ENROLLED — answerable on iOS (`LAContext.canEvaluatePolicy`)
+ * AND on Android (`BiometricManager.canAuthenticate(BIOMETRIC_STRONG)`).
+ * `unknown` only from a source that cannot ask (the web).
+ */
+export interface BiometricEnrolment {
+  enrolled: "yes" | "no" | "no-hardware" | "unknown";
+  source: BiometricSource;
+}
+
+/** The one reason Android's modality is unknown — stated, never inferred. */
+export const ANDROID_MODALITY_REASON =
+  "Android has no public API for WHICH biometric is enrolled or will be used; PackageManager.hasSystemFeature reports hardware, not enrolment" as const;
+/** Why the web can never answer either question. */
+export const WEB_BIOMETRICS_REASON =
+  "no web API names a biometric or says one is enrolled; isUserVerifyingPlatformAuthenticatorAvailable is also true for a passcode" as const;
+
+/**
+ * WHICH biometric — answerable on iOS only (`LAContext.biometryType`).
+ *
+ * On Android it is `unknown` BY CONSTRUCTION: there is no public API for the
+ * modality of the ENROLLED biometric, and `hasSystemFeature(FEATURE_FACE)`
+ * reports that face HARDWARE exists — not that a face is enrolled or will be
+ * used. The Android branch of this union cannot carry «face» or «fingerprint»;
+ * a guess there would be a measurement on iOS and a guess on Android in the
+ * same field, agreeing with whoever reads it.
+ */
+export type BiometricModality =
+  | { modality: "face" | "fingerprint" | "iris" | "none"; source: "native-ios" }
+  | { modality: "unknown"; source: "native-android"; reason: typeof ANDROID_MODALITY_REASON }
+  | { modality: "unknown"; source: "web-cannot-tell"; reason: typeof WEB_BIOMETRICS_REASON };
+
+/** Enrolment and modality are SEPARATE facts, each carrying its own source. */
+export interface BiometricFacts {
+  enrolment: BiometricEnrolment;
+  modality: BiometricModality;
+}
+
+/** iOS: what the app read from LAContext. `biometryType` as LABiometryType names it. */
+export interface IosBiometryReading {
+  /** `canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` */
+  canEvaluate: boolean;
+  /** `LAError.biometryNotAvailable` — the device has no biometric hardware. */
+  noHardware?: boolean;
+  biometryType: "faceID" | "touchID" | "opticID" | "none";
+}
+
+export function biometricsFromIos(r: IosBiometryReading): BiometricFacts & { modality: Extract<BiometricModality, { source: "native-ios" }> } {
+  const modality = r.biometryType === "faceID" ? "face" : r.biometryType === "touchID" ? "fingerprint" : r.biometryType === "opticID" ? "iris" : "none";
+  return {
+    enrolment: { enrolled: r.canEvaluate ? "yes" : r.noHardware ? "no-hardware" : "no", source: "native-ios" },
+    modality: { modality, source: "native-ios" },
+  };
+}
+
+/** Android: `BiometricManager.canAuthenticate(BIOMETRIC_STRONG)` by its constant's name. */
+export type AndroidCanAuthenticate =
+  | "BIOMETRIC_SUCCESS"
+  | "BIOMETRIC_ERROR_NONE_ENROLLED"
+  | "BIOMETRIC_ERROR_NO_HARDWARE"
+  | "BIOMETRIC_ERROR_HW_UNAVAILABLE"
+  | "BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED"
+  | "BIOMETRIC_ERROR_UNSUPPORTED"
+  | "BIOMETRIC_STATUS_UNKNOWN";
+
+/**
+ * Android. The return type pins `modality` to the Android branch, so a caller
+ * cannot set «face» or «fingerprint» on an Android fact — that fails to compile.
+ */
+export function biometricsFromAndroid(
+  canAuthenticate: AndroidCanAuthenticate,
+): BiometricFacts & { modality: Extract<BiometricModality, { source: "native-android" }> } {
+  const enrolled: BiometricEnrolment["enrolled"] =
+    canAuthenticate === "BIOMETRIC_SUCCESS"
+      ? "yes"
+      : canAuthenticate === "BIOMETRIC_ERROR_NONE_ENROLLED"
+        ? "no"
+        : canAuthenticate === "BIOMETRIC_ERROR_NO_HARDWARE"
+          ? "no-hardware"
+          : "unknown";
+  return {
+    enrolment: { enrolled, source: "native-android" },
+    modality: { modality: "unknown", source: "native-android", reason: ANDROID_MODALITY_REASON },
+  };
+}
+
+/** No native report: what the WEB can say about biometrics — that it cannot tell. Never «none». */
+export function biometricsUnknownOnWeb(): BiometricFacts {
+  return {
+    enrolment: { enrolled: "unknown", source: "web-cannot-tell" },
+    modality: { modality: "unknown", source: "web-cannot-tell", reason: WEB_BIOMETRICS_REASON },
+  };
 }
