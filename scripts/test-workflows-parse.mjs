@@ -160,6 +160,12 @@ let discovery = 0;
   }
   const fleet = readFileSync(new URL("../.github/workflows/fleet-deps.yml", import.meta.url), "utf8");
   if (!/gh workflow run inventory-fresh\.yml/.test(fleet)) { console.log("  ✗ fleet-deps commits with GITHUB_TOKEN and never asks for the Discovery deploy"); discovery++; }
+  // F083.7 — measured 31/10: a roster bump landed mid-scan and `git pull --rebase`
+  // died on docs/llms.txt. Generated files conflict line for line; the scan must
+  // re-fetch main and REGENERATE, the way publish.yml's roster job does.
+  const fleetRun = fleet.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n");
+  if (/git (pull --rebase|rebase)/.test(fleetRun)) { console.log("  ✗ fleet-deps recovers from a moved main by REBASING generated docs (conflicts line for line)"); discovery++; }
+  if (!/for attempt in[\s\S]*git fetch[\s\S]*git checkout[^\n]*-B main origin\/main[\s\S]*build-inventory[\s\S]*git push origin main/.test(fleetRun)) { console.log("  ✗ fleet-deps does not re-fetch main and regenerate before each push attempt"); discovery++; }
   if (!discovery) console.log("Discovery refreshes daily, and every source file starts a deploy");
 }
 

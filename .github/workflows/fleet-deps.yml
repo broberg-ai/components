@@ -128,16 +128,31 @@ jobs:
             echo "only the timestamp moved — nothing to commit"; exit 0
           fi
           SUMMARY=$(node -p "const s=require('./data/fleet-deps.json'); s.repos_scanned + ' repos · ' + s.manifests_read + ' manifests · ' + s.edges + ' dependencies'")
-          git add data/fleet-deps.json docs/
           printf '%s\n\n%s\n\n%s\n' \
             "chore(fleet): refresh the dependency graph" \
             "$SUMMARY" \
             "Automated by .github/workflows/fleet-deps.yml (F083.3). The FLEET roster is derived from every repo's real package.json rather than from a hand-written list, so this commit is what keeps discovery.broberg.ai current." > /tmp/msg
-          git commit -F /tmp/msg
-          # F083.6: main moves while the scan runs (measured 22/10: a docs commit
-          # landed mid-run and the push was rejected). Replay ours on top.
-          git pull --rebase origin main
-          git push
+          # F083.6 / F083.7: main moves while the scan runs. A REBASE is not how
+          # this recovers — docs/ is GENERATED, and two regenerations conflict
+          # line for line (measured 31/10: the notifications 0.6.0 roster bump
+          # landed mid-scan and the rebase died on docs/llms.txt). Instead, the
+          # same move publish.yml's roster job makes: take the fresh main, put
+          # the new scan on it, and REGENERATE the docs from both. Retried,
+          # re-fetching each time.
+          cp data/fleet-deps.json /tmp/fleet-deps.json
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin main
+            git checkout --quiet -f -B main origin/main
+            cp /tmp/fleet-deps.json data/fleet-deps.json
+            node scripts/build-inventory.mjs
+            node scripts/build-onboarding.mjs
+            git add data/fleet-deps.json docs/
+            if git diff --cached --quiet; then echo "main already carries this scan — nothing to commit"; exit 0; fi
+            git commit -q -F /tmp/msg
+            if git push origin main; then break; fi
+            [ "$attempt" = "5" ] && { echo "::error::could not push the scan after 5 attempts"; exit 1; }
+            sleep $((attempt * 5))
+          done
           # F038.33 — the push above deploys nothing by itself (GITHUB_TOKEN), so
           # ask for the Discovery deploy explicitly.
           gh workflow run inventory-fresh.yml --ref main
