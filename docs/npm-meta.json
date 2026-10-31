@@ -163,8 +163,8 @@
  },
  "@broberg/speech-dictionary": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/speech-dictionary",
-  "version": "0.1.3",
-  "publishedAt": "2026-08-24T20:09:59.568Z",
+  "version": "0.2.0",
+  "publishedAt": "2026-10-31T19:59:58.811Z",
   "provenance": "yes"
  },
  "@broberg/sms": {
