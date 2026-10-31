@@ -1,8 +1,8 @@
 {
  "@broberg/theme": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/theme",
-  "version": "0.13.3",
-  "publishedAt": "2026-10-11T10:22:42.276Z",
+  "version": "0.14.0",
+  "publishedAt": "2026-10-31T01:14:37.973Z",
   "provenance": "yes"
  },
  "@broberg/config": {
