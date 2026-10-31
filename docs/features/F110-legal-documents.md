@@ -26,8 +26,7 @@
    explicit art. 9(2) basis exists.
 4. **Who reviews the texts** (lawyer / DPO), and is **Danish the governing language** when the
    English translation differs? Recommendation: yes, Danish prevails.
-5. **Hosted endpoint domain** for non-JS consumers (Swift apps, scripts): e.g. `legal.broberg.ai`
-   (DNS = the owner's yes).
+5. **Hosted endpoint domain** — ANSWERED 31 Oct: `legal.broberg.ai`. Danish prevails («we are a danish company»).
 
 ## Motivation
 
@@ -75,7 +74,7 @@ retention model, same legal-basis structure. What we deliberately do not copy is
 
 ## Design
 
-### Four documents (the owner's "3-4")
+### Five documents (the owner's "3-4", plus the support agreement added 31 Oct)
 
 | id | Danish title | what it is | accepted? |
 |---|---|---|---|
@@ -83,6 +82,7 @@ retention model, same legal-basis structure. What we deliberately do not copy is
 | `privacy` | Privatlivspolitik | information about processing (incl. the new section *Analyse af samtaler for at forbedre vores produkter*) | **NO** — informed, never "accepted" |
 | `trust` | Tillid og sikkerhed | where data lives, sub-processors, security controls | no |
 | `dpa` | Databehandleraftale (skabelon) | B2B, when we process for a customer | signed (Contract Manager) |
+| `support` | Supportaftale (skabelon) | B2B support terms — owner 31 Oct: «support aftale skal også være med i vores faste API» | signed (Contract Manager) |
 
 **The acceptance clause, done the legally sound way:** `terms` carries a fixed clause — *by
 creating an account or using the service you accept these terms* — **and** every product asks
@@ -146,6 +146,8 @@ the decision, the app owns the row.
 - **F110.4** English translation with structural parity and staleness detection.
 - **F110.5** Hosted JSON endpoint (owner's yes for the domain).
 - **F110.6** Acceptance: clickwrap guidance + `needsReaccept`.
+- **F110.9** Contract Manager's default DPA built on `dpa` — analysis is the default, the customer may object.
+- **F110.10** The support agreement as the fifth document; Contract Manager generates its support agreement and DPA from legal.broberg.ai (merge fields as placeholders, version + contentHash stored on every signed contract).
 - **F110.7** Rollout: broberg.ai and jams.party render from the package; their conflicting
   promises are changed and users notified BEFORE any conversation is stored for analysis.
 
