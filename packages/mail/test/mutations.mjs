@@ -61,8 +61,8 @@ const MUTATIONS = [
     // F005.6 AC#5 — a logging failure must never make the send worse.
     name: "a throwing onResult sink fails the send",
     file: "index",
-    from: "      try {\n        const p = sink(entry);",
-    to: "      {\n        const p = sink(entry);",
+    from: "      } catch {\n        // A logging failure must never make the send worse (F005.6 AC#5).\n      }",
+    to: "      } catch (e) {\n        throw e;\n      }",
     expect: ["a sink that THROWS does not fail the send"],
   },
   {
