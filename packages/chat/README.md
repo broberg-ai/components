@@ -378,6 +378,41 @@ honouring `maxChars` they have none at all.
 > that had not restarted since 4 July, so nothing ever noticed. Their words:
 > *our uptime does not carry the assumption that we always answer.*
 
+## Rules that can FAIL — `policy` and `residency` (0.8.0, F079.8)
+
+A rule written in a system prompt is a sentence the model may honour. These two are code the
+answer has to pass through.
+
+```ts
+createChat({
+  model,
+  // YOUR rule, in YOUR repo. Called for every text delta before it reaches the caller.
+  policy: ({ text, soFar, caller }) => namesACondition(soFar + text) ? { block: "named a condition" } : "allow",
+  // Where an answer may come FROM — decided on the route that actually answered.
+  residency: { allow: ["eu"] },
+});
+```
+
+- **The policy sees the stream**, not the finished answer: it can stop an answer mid-sentence.
+  `"allow"` · `"block"` · `{ block: note }` · `{ rewrite: text }`. **It fails closed:** a rule
+  that throws, rejects or returns anything else ends the run with `refused: policy_error`.
+- **The package ships no rule.** No clinical word list, no region table — a test reads the
+  source to prove it. «Never name a condition» belongs in the consumer's repo.
+- **Residency reads the route that ANSWERED.** Your ModelFn reports it: a
+  `{ type: "route", provider, model, region }` event when a route starts (and again when a
+  fallback takes over), and/or `region` on the `usage` event — pass through `@broberg/ai-sdk`'s
+  `usage.region`. This package never derives a region from a provider or model name.
+- **Text from a route nobody has vouched for is HELD.** With `residency` set and no `route`
+  event yet, a round's text is released only when `usage` attests an allowed region — so a
+  ModelFn that yields `route` up front keeps streaming; one that does not, delivers per round.
+- **A refusal is its own frame:** `{ type: "refused", reason }` then `done: "refused"` —
+  `policy` · `policy_error` · `residency` (with `region`/`provider`/`model`) ·
+  `residency_unattested`. **Unattested is not compliant:** a round whose region never arrives
+  is refused, not let through.
+- **What residency cannot do, said plainly:** it withholds the ANSWER. By the time a route
+  reports itself the prompt has already been sent there. Keeping a prompt in the EU means
+  never configuring a non-EU fallback — the caller's job, by the owner's decision (2026-08-27).
+
 ## Boundaries worth knowing before you ship
 
 **0. An assistant turn that called a tool carries the call.** `ChatMessage` has

@@ -160,7 +160,45 @@ export type ModelEvent =
    * question cost us is our number, not theirs; the consumer wrote this
    * `ModelFn` and already holds it.
    */
-  | ({ type: "usage" } & UsageReport);
+  | ({ type: "usage" } & UsageReport)
+  /**
+   * F079.8 — WHICH route is answering, yielded by the ModelFn when a route
+   * starts (and again when a fallback takes over). Optional: a ModelFn that
+   * never yields it still works — but a chat with `residency` declared then
+   * HOLDS each round's text until the round's `usage` attests a region, because
+   * text from a route nobody has vouched for must not reach the caller.
+   * `region` is what @broberg/ai-sdk reports (`usage.region`); this package
+   * never derives it from a provider or model name.
+   */
+  | { type: "route"; provider: string; model: string; region?: string };
+
+/**
+ * F079.8 — the consumer's rule over the outgoing stream. Called for EVERY text
+ * delta before it reaches the caller, with the text so far in this answer, so a
+ * rule can stop an answer mid-sentence. The package ships the place a rule
+ * runs, never a rule: fd-sundhed writes «must never name a condition» in their
+ * own repo.
+ *
+ *   "allow"            the delta goes out unchanged
+ *   "block"            nothing more goes out; the run ends with a `refused` frame
+ *   { block: note }    same, with a note for YOUR log (never shown as-is to a user)
+ *   { rewrite: text }  this delta goes out as `text` instead
+ *
+ * FAIL CLOSED: a rule that throws or rejects BLOCKS (reason "policy_error").
+ * A rule that errors must never become a rule that passes.
+ */
+export type PolicyVerdict = "allow" | "block" | { block: string } | { rewrite: string };
+export type OutgoingPolicy<Caller = unknown> = (out: {
+  /** The delta about to be sent. */
+  text: string;
+  /** Everything this answer has sent so far (this round), NOT including `text`. */
+  soFar: string;
+  round: number;
+  caller: Caller;
+}) => PolicyVerdict | Promise<PolicyVerdict>;
+
+/** Why a run was refused rather than answered. Its own frame — never `error`, never a silent stop. */
+export type RefusalReason = "policy" | "policy_error" | "residency" | "residency_unattested";
 
 /**
  * The one thing the core needs from an LLM.
@@ -309,7 +347,16 @@ export type ChatFrame =
    * merging them is what this epic's rule 6 forbids.
    */
   | { type: "limit"; reason: SpendRefusalReason; note: string }
-  | { type: "done"; reason: "complete" | "max-rounds" | "too-large" | "limited" };
+  /**
+   * F079.8 — a rule or the residency requirement stopped the answer. Distinct
+   * from `error` (something broke) and `limit` (out of budget): a caller that
+   * cannot tell "refused" from "finished" has the defect this frame exists for.
+   * `region`/`provider`/`model` are set on the residency reasons when known.
+   * `note` is for a developer's log, in English — write your own sentence for
+   * your user.
+   */
+  | { type: "refused"; reason: RefusalReason; note: string; region?: string; provider?: string; model?: string }
+  | { type: "done"; reason: "complete" | "max-rounds" | "too-large" | "limited" | "refused" };
 
 // ---------------------------------------------------------------------------
 // the prompt fragment the core owns
@@ -371,6 +418,26 @@ export interface CreateChatOptions<Ctx = unknown, Caller = unknown> {
    * have made it.
    */
   spend?: SpendCapConfig;
+  /**
+   * F079.8 — a rule over every outgoing text delta. See {@link OutgoingPolicy}.
+   */
+  policy?: OutgoingPolicy<Caller>;
+  /**
+   * F079.8 — the regions an answer may come FROM, e.g. `{ allow: ["eu"] }`.
+   * Decided on the route that ACTUALLY answered (`route`/`usage` events from
+   * your ModelFn, carrying @broberg/ai-sdk's `usage.region`), never on the
+   * configured tier or a model name — "a fallback is a route, and it is the
+   * route that decides residency".
+   *
+   * What it can and cannot do, said plainly: it withholds the ANSWER. By the
+   * time a route reports itself, the prompt has already been sent there. The
+   * only way to keep a prompt from leaving the EU is to never configure a
+   * non-EU route — the owner's rule, and the caller's job (2026-08-27).
+   *
+   * Unattested is not compliant: a round whose region never arrives is refused
+   * ("residency_unattested"), never let through.
+   */
+  residency?: { allow: string[] };
 }
 
 export interface RunInput<Ctx = unknown, Caller = unknown> {
@@ -469,6 +536,16 @@ export function createChat<Ctx = unknown, Caller = unknown>(
   // Refused at construction, not at 3am: a cap given "0", NaN, or a string
   // straight off an env var looks configured and enforces nothing.
   if (opts.spend !== undefined) assertSpendCapConfig(opts.spend);
+  if (opts.residency !== undefined) {
+    const a = opts.residency?.allow;
+    if (!Array.isArray(a) || a.length === 0 || a.some((r) => typeof r !== "string" || r.trim() === "")) {
+      // An empty list would refuse everything and look like a setting; a typo'd
+      // value would refuse everything quietly. Both are refused here instead.
+      throw new TypeError("createChat: `residency.allow` must be a non-empty list of region names, e.g. [\"eu\"]");
+    }
+  }
+  const residency = opts.residency ? new Set(opts.residency.allow) : null;
+  const policy = opts.policy;
   const spend = opts.spend;
   const name = opts.name ?? botName();
   const system = [corePrompt(name), opts.systemPrompt?.trim()].filter(Boolean).join("\n\n");
@@ -538,23 +615,123 @@ export function createChat<Ctx = unknown, Caller = unknown>(
         }
       }
 
+      // F079.8 — what this round is allowed to emit, and what it is holding.
+      let attested: string | null = null; // the region vouched for, when residency is declared
+      const held: string[] = [];
+      let sent = ""; // what the caller has actually received this round
+      let refusal: Extract<ChatFrame, { type: "refused" }> | null = null;
+      const refuse = (reason: RefusalReason, note: string, route?: { region?: string; provider?: string; model?: string }) => {
+        refusal ??= {
+          type: "refused",
+          reason,
+          note,
+          ...(route?.region !== undefined ? { region: route.region } : {}),
+          ...(route?.provider !== undefined ? { provider: route.provider } : {}),
+          ...(route?.model !== undefined ? { model: route.model } : {}),
+        };
+      };
+      /** One delta through the rule. Returns the text to send, or null when the run must stop. */
+      const throughPolicy = async (delta: string): Promise<string | null> => {
+        if (!policy) return delta;
+        let verdict: PolicyVerdict;
+        try {
+          verdict = await policy({ text: delta, soFar: sent, round, caller: input.caller });
+        } catch (err) {
+          refuse("policy_error", `the outgoing policy threw, so the answer was stopped: ${messageOf(err)}`);
+          return null;
+        }
+        if (verdict === "allow") return delta;
+        if (verdict === "block") {
+          refuse("policy", "the outgoing policy blocked the answer");
+          return null;
+        }
+        if (verdict && typeof verdict === "object" && "rewrite" in verdict && typeof verdict.rewrite === "string") return verdict.rewrite;
+        if (verdict && typeof verdict === "object" && "block" in verdict) {
+          refuse("policy", String(verdict.block));
+          return null;
+        }
+        // Anything else is not an answer, and an answer the rule did not give is not "allow".
+        refuse("policy_error", `the outgoing policy returned ${JSON.stringify(verdict)}, which is not a verdict`);
+        return null;
+      };
+      /** Attest a route. Returns false when it is outside the requirement (the round is refused). */
+      const attest = (route: { region?: string; provider?: string; model?: string }): boolean => {
+        if (!residency) return true;
+        if (route.region === undefined) {
+          refuse("residency_unattested", "a route reported no region, so it cannot be shown to meet the residency requirement", route);
+          return false;
+        }
+        if (!residency.has(route.region)) {
+          refuse("residency", `the answer came from region "${route.region}", outside the declared requirement`, route);
+          return false;
+        }
+        attested = route.region;
+        return true;
+      };
+
       try {
-        for await (const ev of opts.model({ system, messages: outgoing, tools: specs })) {
+        model: for await (const ev of opts.model({ system, messages: outgoing, tools: specs })) {
           if (ev.type === "text") {
             text += ev.text;
-            yield { type: "text", text: ev.text }; // streamed, not batched
+            if (residency && attested === null) {
+              held.push(ev.text); // nobody has vouched for this route yet
+              continue;
+            }
+            const out = await throughPolicy(ev.text);
+            if (out === null) break model;
+            sent += out;
+            yield { type: "text", text: out }; // streamed, not batched
           } else if (ev.type === "tool-call") {
             calls.push({ id: ev.id, name: ev.name, args: ev.args });
+          } else if (ev.type === "route") {
+            // A NEW route (a fallback taking over) is judged afresh; what it
+            // says before it is attested is held like any other.
+            attested = null;
+            if (!attest(ev)) break model;
+            while (held.length) {
+              const out = await throughPolicy(held.shift()!);
+              if (out === null) break model;
+              sent += out;
+              yield { type: "text", text: out };
+            }
           } else {
             // Explicit rather than `else`. This used to be an else-branch over a
             // two-member union, so adding `usage` to it would have pushed a cost
             // report onto the call list as a tool named `undefined`.
             tracker?.record(ev);
+            if (residency) {
+              // usage is stamped by the route that ACTUALLY ran. A region that
+              // disagrees with what was attested means a route changed silently.
+              if (attested !== null && ev.region !== undefined && ev.region !== attested) {
+                refuse("residency", `usage reports region "${ev.region}" after "${attested}" was attested — a route changed without saying so`, ev);
+                break model;
+              }
+              if (attested === null) {
+                if (!attest(ev)) break model;
+                while (held.length) {
+                  const out = await throughPolicy(held.shift()!);
+                  if (out === null) break model;
+                  sent += out;
+                  yield { type: "text", text: out };
+                }
+              }
+            }
           }
+        }
+        if (!refusal && residency && held.length) {
+          refuse("residency_unattested", "the round ended without any route reporting its region, so its text was withheld");
         }
       } catch (err) {
         yield { type: "error", scope: "model", message: messageOf(err) };
         yield { type: "done", reason: "complete" };
+        return;
+      }
+
+      if (refusal) {
+        // Nothing the model said after the refusal point goes anywhere — not to
+        // the caller, and not into the tool loop.
+        yield refusal;
+        yield { type: "done", reason: "refused" };
         return;
       }
 

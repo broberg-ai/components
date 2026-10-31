@@ -26,6 +26,12 @@ export interface UsageReport {
   costUsd?: number;
   inputTokens?: number;
   outputTokens?: number;
+  /**
+   * F079.8 — where the route that ran is hosted, exactly as @broberg/ai-sdk
+   * reports it (`usage.region`: "eu" | "us" | "cn" | "unknown"). Read by
+   * `createChat({ residency })`; never derived here from provider or model.
+   */
+  region?: string;
 }
 
 export type SpendRefusalReason = "spend_cap" | "unmeasurable_cost" | "untrusted_provider";
