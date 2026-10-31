@@ -314,16 +314,34 @@ different names.
   owned it would fit exactly one app.
 - **Push.** `sendSilent` / `syncBadge` belong to `@broberg/webpush`. Wire them in
   `onCountChanged`; this package has no runtime dependencies at all.
-- **A prune/TTL policy** — still absent, and `remove()` is not one. Deleting rows
-  on a user's instruction and deleting them on a schedule are different features;
-  the second needs numbers we do not have. fd-sundhed goes live **Tuesday 1
-  September at 07:00** with 16,838 users against xrt81's 15 — three orders of
-  magnitude apart. Their real figures start existing that morning and are usable
-  after a week of running, so a policy designed today would be designed on a guess
-  three days before the guess becomes unnecessary. Neither production consumer prunes today. xrt81
-  measured ~11,000 rows/year for a 15-person club and calls the absence a gap;
-  cardmem warned against designing a TTL from an assumption they have one. It
-  gets its own release, with real numbers.
+- **Default prune NUMBERS.** The prune itself ships in 0.6.0 (below); the
+  lifetimes do not. fd-sundhed (16,838 users) and xrt81 (29 members) are three
+  orders of magnitude apart, so X, Y and N are yours to set from your own data.
+
+## Prune (0.6.0, F074.6) — through the same choreography as every other mutation
+
+```ts
+const r = await notifications.prune(memberIds, {
+  seenOlderThanMs: 30 * DAY,     // a READ notification may go after X
+  unseenOlderThanMs: 90 * DAY,   // an UNREAD one after Y — it still has an errand
+  keepNewest: 20,                // every member keeps their newest N, whatever their age
+}, { batchSize: 100 });
+// { ran: true, pruned: [{ subjectId, removedIds, count }], untouched: [...] } | { ran: false, reason }
+```
+
+- **Two clocks, not one.** A single age cutoff deletes the unread message that
+  still had something to say — fd-sundhed's own job did exactly that.
+- **No defaults.** All three numbers are required; upgrading never starts a TTL.
+- **The store deletes, the core announces.** Implement `store.prune(batch)` —
+  your SQL — returning the removed ids per subject. Every subject that lost a row
+  gets `onCountChanged` with YOUR recount; a subject that lost nothing gets none.
+- **Batches** of `batchSize` subjects, each batch announced before the next, so a
+  fan-out that is a push per device does not burst.
+- **A member's own setting:** `retentionFor(subjectId)` in the config is read on
+  every prune and laid over the call's policy. Offer a retention field only if
+  you wire it — a setting that is accepted and ignored is worse than none.
+- **`ran: false`** means the store has no `prune()`; it is not «nothing matched»
+  (`ran: true` with an empty `pruned`). cardmem never prunes and changes nothing.
 
 ## Notes
 
