@@ -20,3 +20,5 @@ f736035f199338c2274e40963891846eb4d3ab7a:packages/secret-scan/test/secret-scan.t
 e5cc266a07bc32ac4b3b373ed6fe552b9e091393:packages/app-shell/test/upmetrics-contract.test.ts:generic-api-key:11
 # 21/10 2026: "a-secret-that-is-long-enough-for-hs256-…" — a fake LiveKit API secret in @broberg/voice tests (signs and verifies test tickets); read and judged a fixture.
 c9377fd9000cec3403e2c068bd4aaf4293b314fe:packages/voice/test/server.test.ts:generic-api-key:6
+# 31/10 2026: "rt-SECRET-rotated-0002" — a fake rotated refresh token in the @broberg/sso F084.163 silent-check tests (a fake BID returns it); read and judged a fixture.
+3a775d0b8fe90443f982bbbe5552dffa664915b1:packages/sso/test/sso.test.ts:generic-api-key:2128
