@@ -35,6 +35,12 @@
   "publishedAt": "2026-10-28T03:17:25.503Z",
   "provenance": "yes"
  },
+ "@broberg/mail-identity": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/mail-identity",
+  "version": "0.1.0",
+  "publishedAt": "2026-10-31T11:48:40.020Z",
+  "provenance": "no"
+ },
  "@broberg/media-transform": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/media-transform",
   "version": "0.2.0",
@@ -217,8 +223,8 @@
  },
  "@broberg/lens-measure": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-measure",
-  "version": "0.1.5",
-  "publishedAt": "2026-10-28T10:10:16.862Z",
+  "version": "0.1.6",
+  "publishedAt": "2026-10-31T11:35:39.355Z",
   "provenance": "yes"
  },
  "@broberg/lens-svg": {

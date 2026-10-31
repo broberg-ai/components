@@ -27,6 +27,7 @@ name: publish
 #   • pwa-v*          → packages/pwa          → @broberg/pwa
 #   • greppable-v*    → packages/greppable    → @broberg/greppable
 #   • seal-v*         → packages/seal         → @broberg/seal
+#   • mail-identity-v* → packages/mail-identity → @broberg/mail-identity
 #   • realtime-v*     → packages/realtime     → @broberg/realtime
 #   • voice-v*        → packages/voice        → @broberg/voice
 #   • mail-templates-v* → packages/mail-templates → @broberg/mail-templates
@@ -76,6 +77,7 @@ on:
       - "pwa-v*"
       - "greppable-v*"
       - "seal-v*"
+      - "mail-identity-v*"
       - "realtime-v*"
       - "voice-v*"
       - "mail-templates-v*"
@@ -470,6 +472,71 @@ jobs:
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/seal
+        run: npm publish --access public --provenance
+
+  publish-mail-identity:
+    needs: gate
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mail-identity-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
+    permissions:
+      contents: read
+      id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # resolves to >=22.14, required by OIDC publishing
+          registry-url: https://registry.npmjs.org
+
+      # OIDC trusted publishing needs npm CLI >= 11.5.1; node 22 still ships 10.x.
+      # Pinned (not @latest): npm 12.0.0 (2026-07) ships a broken global install whose
+      # provenance path can't resolve bundled `sigstore` → publish fails. 11.5.1 is good.
+      - name: Upgrade npm
+        run: npm install -g npm@11.5.1
+
+      - name: Install (workspace)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: packages/mail-identity
+        run: pnpm typecheck
+
+      - name: Build
+        working-directory: packages/mail-identity
+        run: pnpm build
+
+      - name: Test
+        working-directory: packages/mail-identity
+        run: pnpm test
+
+      - name: Guard — tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/mail-identity-v')
+        working-directory: packages/mail-identity
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#mail-identity-v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag mail-identity-v$TAG does not match packages/mail-identity version $PKG"
+            exit 1
+          fi
+
+      - name: Guard — version not already on npm
+        working-directory: packages/mail-identity
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if npm view "@broberg/mail-identity@$PKG" version >/dev/null 2>&1; then
+            echo "::error::@broberg/mail-identity@$PKG already published — bump the version first."
+            exit 1
+          fi
+          echo "Publishing @broberg/mail-identity@$PKG"
+
+      # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
+      - name: Publish (OIDC)
+        working-directory: packages/mail-identity
         run: npm publish --access public --provenance
 
   publish-realtime:
