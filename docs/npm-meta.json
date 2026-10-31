@@ -37,9 +37,9 @@
  },
  "@broberg/mail-identity": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail-identity",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-31T11:48:40.020Z",
-  "provenance": "no"
+  "version": "0.1.1",
+  "publishedAt": "2026-10-31T12:19:43.837Z",
+  "provenance": "yes"
  },
  "@broberg/media-transform": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/media-transform",
