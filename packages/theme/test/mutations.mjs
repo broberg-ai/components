@@ -120,12 +120,26 @@ const MUTATIONS = [
   },
   // ---- F001.16: preference vs theme, and the listener that must not be conditional ----
   {
-    name: "F001.16 the OS listener is attached ONLY while the preference is 'system'",
+    // Renamed 31/10: this moves the preference check OUT of the listener, so it is
+    // read once at attach time instead of on every change — AC#5's "the listener
+    // not re-reading the preference". The deafness case is the next entry.
+    name: "F001.16 the listener no longer RE-READS the preference on change (checked once, at attach)",
     file: CORE,
     from: `  const onChange = (): void => {
     if (preference !== "system") return; // re-read, never captured`,
     to: `  if (preference !== "system") return;
   const onChange = (): void => {`,
+  },
+  // THE DEAFNESS CASE (AC#5): the listener lives only while the preference IS
+  // 'system' — torn down on the way out and never rebuilt on the way back. Must
+  // redden "still follows after system -> light -> system".
+  {
+    name: "F001.16 the listener is torn down when leaving 'system' and never rebuilt",
+    file: CORE,
+    from: `  watchSystem();
+  const next = resolve(pref);`,
+    to: `  if (pref !== "system") stopWatchingSystem();
+  const next = resolve(pref);`,
   },
   {
     name: "F001.16 getPreference() returns the RESOLVED theme instead of the choice",
