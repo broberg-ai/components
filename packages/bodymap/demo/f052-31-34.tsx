@@ -10,7 +10,7 @@ function App() {
   const [report, setReport] = useState<PainReport>([]);
   return (
     <div style={{ fontFamily: "system-ui, sans-serif" }}>
-      <pre data-testid="demo-report" style={{ position: "fixed", left: 0, top: 0, zIndex: -1, margin: 0, fontSize: 10 }}>{JSON.stringify(report)}</pre>
+      <pre data-testid="demo-report" style={{ position: "fixed", left: 0, top: 0, zIndex: -1, margin: 0, fontSize: 10, maxWidth: "100vw", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{JSON.stringify(report)}</pre>
       <BodyMap3D
         models={{ male: "./body-male.glb", female: "./body-female.glb" }}
         value={report}

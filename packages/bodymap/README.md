@@ -274,6 +274,14 @@ this component's primary surface. A `position: fixed; inset: 0` overlay behaves
 identically on every platform, needs no user-gesture dance, and cannot leave you
 with a control that silently does nothing on the one device that matters most.
 
+**On a narrow screen the panel goes UNDER the body (0.14.0).** Side by side needs
+`FS_ROW_MIN` (838px) of content width. Below that, fullscreen stacks: the body
+shrinks to what the panel leaves (never under 160px) and the panel sits on screen
+beneath it. Before 0.14.0 the panel wrapped below a full-height canvas — on an
+iPhone every intensity button sat under the bottom edge, so a patient could mark
+a body part and not say how much it hurt. Wider than 838px, nothing changed.
+`stackInFullscreen(width)` is exported if you need the same decision.
+
 ### It ships with a `ResizeObserver`, and that is not incidental
 
 Before 0.6.0 the canvas measured the element **once at mount** and only re-measured

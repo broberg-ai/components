@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { BodyMap3D, seamBlend, seamWeight, ensureNormals, isTap, TAP_MAX_DISTANCE, INTENSITY_SIZE, TOUCH_MIN, shouldShowHint } from "../src/three.js";
+import { BodyMap3D, seamBlend, seamWeight, ensureNormals, isTap, TAP_MAX_DISTANCE, INTENSITY_SIZE, TOUCH_MIN, shouldShowHint, stackInFullscreen, FS_ROW_MIN } from "../src/three.js";
 import { readFileSync } from "node:fs";
 import { REGIONS, defaultPalette, defaultUi, STAGE_BG, type BodymapPalette } from "../src/index.js";
 
@@ -554,5 +554,27 @@ describe("F052.34 — circles of one size, and no control under the touch floor"
     expect(s).toContain('borderRadius: "50%"');
     expect(TOUCH_MIN).toBe(44);
     expect(INTENSITY_SIZE).toBeGreaterThanOrEqual(TOUCH_MIN);
+  });
+});
+
+// F052.35 — in fullscreen on a phone the panel wrapped beneath a full-height
+// canvas and sat below the screen: a patient could mark a body part and not say
+// how much it hurt. The geometry is proven in a real engine via Lens; what a
+// unit test can see is the decision and the layout it picks.
+describe("F052.35 fullscreen stacks the panel when the row is too narrow", () => {
+  it("the threshold is exactly where the side-by-side row would wrap", () => {
+    expect(FS_ROW_MIN).toBe(520 + 18 + 300);
+    expect(stackInFullscreen(369)).toBe(true); // iphone-15 content width
+    expect(stackInFullscreen(FS_ROW_MIN - 1)).toBe(true);
+    expect(stackInFullscreen(FS_ROW_MIN)).toBe(false);
+    expect(stackInFullscreen(1400)).toBe(false);
+  });
+
+  it("fullscreen on a narrow row picks the stacked layout; outside fullscreen nothing changes", () => {
+    const { rerender } = render(<BodyMap3D models={models} fullscreen />);
+    // happy-dom measures 0px, which is narrow
+    expect(screen.getByTestId("bodymap3d-root").querySelector('[data-layout="stacked"]')).toBeTruthy();
+    rerender(<BodyMap3D models={models} />);
+    expect(screen.getByTestId("bodymap3d-root").querySelector("[data-layout]")).toBeNull();
   });
 });

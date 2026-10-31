@@ -354,6 +354,21 @@ export const INTENSITY_SIZE = 46;
 export const TOUCH_MIN = 44;
 
 /**
+ * F052.35 — whether fullscreen must STACK the panel under the stage instead of
+ * beside it. The row lays the canvas (basis 520) and the panel (basis 300) side
+ * by side with an 18px gap and wraps when they do not fit — and in fullscreen
+ * the canvas is the full height, so a wrapped panel lands entirely below the
+ * screen. Measured on iphone-15 (369px of content): every intensity button and
+ * the close sat at top >= innerHeight, so a patient could mark a body part and
+ * not say how much it hurt. Stacking shrinks the stage instead, and the panel
+ * stays on screen. Pure so the threshold is asserted without a browser.
+ */
+export const FS_ROW_MIN = 520 + 18 + 300;
+export function stackInFullscreen(contentWidth: number): boolean {
+  return contentWidth < FS_ROW_MIN;
+}
+
+/**
  * F052.33 — should the help note be on screen at all?
  *
  * Extracted because the renderer's own answer is unreachable from a unit test:
@@ -449,6 +464,18 @@ export function BodyMap3D(props: BodyMap3DProps) {
     onFullscreenChange?.(v);
   };
   const apiRef = useRef<{ setSex: (s: BodyMap3DSex) => void; refresh: () => void } | null>(null);
+  // F052.35 — the row's own width decides stack vs. side-by-side in fullscreen.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [rowWidth, setRowWidth] = useState(0);
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!isFullscreen || !el) return;
+    setRowWidth(el.clientWidth);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => setRowWidth(el.clientWidth)) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [isFullscreen]);
+  const stacked = isFullscreen && stackInFullscreen(rowWidth);
 
   useEffect(() => {
     if (!webglAvailable()) { setUnsupported(true); return; }
@@ -877,7 +904,17 @@ export function BodyMap3D(props: BodyMap3DProps) {
           </button>
         </div>
       )}
-      <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", ...(isFullscreen ? { flex: "1 1 auto", minHeight: 0 } : null) }}>
+      <div
+        ref={rowRef}
+        data-layout={stacked ? "stacked" : undefined}
+        style={{
+          display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap",
+          ...(isFullscreen ? { flex: "1 1 auto", minHeight: 0 } : null),
+          // F052.35 — a column that never wraps: the stage takes what the panel
+          // leaves, so the panel is always inside the screen.
+          ...(stacked ? { flexDirection: "column" as const, flexWrap: "nowrap" as const, alignItems: "stretch", gap: 12 } : null),
+        }}
+      >
         {unsupported ? (
           <div data-testid="bodymap3d-unsupported" /* A message, not a stage: it takes the PANEL pair, whose contrast the
              suite already asserts (7.58:1). Following stageBg would make it
@@ -898,6 +935,9 @@ export function BodyMap3D(props: BodyMap3DProps) {
               height: isFullscreen ? "100%" : canvasH,
               minWidth: 320,
               minHeight: isFullscreen ? 0 : undefined,
+              // Stacked: the stage fills what is left above the panel, and
+              // keeps a floor so the body never disappears behind it.
+              ...(stacked ? { flex: "1 1 0", height: "auto", minWidth: 0, minHeight: 160 } : null),
               borderRadius: 16,
               overflow: "hidden",
               background: chrome.stageBg,
@@ -905,7 +945,7 @@ export function BodyMap3D(props: BodyMap3DProps) {
             }}
           />
         )}
-        <div style={{ flex: "1 1 300px", minWidth: 260 }}>
+        <div data-testid="bodymap3d-panel-col" style={{ flex: "1 1 300px", minWidth: 260, ...(stacked ? { flex: "0 1 auto", minWidth: 0, minHeight: 0, overflowY: "auto" as const } : null) }}>
           {region ? (
             <div style={{ border: `1px solid ${chrome.border}`, borderRadius: 14, padding: 16, background: chrome.panelBg }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
