@@ -61,9 +61,13 @@ export function table(pkg, control, next) {
   for (let i = 0; i < Math.max(a.length, b.length); i++) rows.push([i === 0 ? "probe out" : "", a[i] ?? "", b[i] ?? ""]);
   const w = [0, 1, 2].map((c) => Math.max(...rows.map((r) => r[c].length)));
   const line = (r) => r.map((cell, c) => cell.padEnd(w[c])).join("  │  ");
-  const same = control.out === next.out && control.exit === next.exit;
+  // A probe SHOULD print the version it measured (that is how a stale copy is
+  // caught) — but that line differs by construction, so it must not count as the
+  // control discriminating. Each column's own version is masked before comparing.
+  const mask = (r) => r.out.split(r.resolved).join("<version>");
+  const same = mask(control) === mask(next) && control.exit === next.exit;
   return [`${pkg}`, line(rows[0]), w.map((n) => "─".repeat(n)).join("──┼──"), ...rows.slice(1).map(line),
-    "", same ? "⚠ SAME OUTPUT in both columns — the control did not discriminate; this run proves nothing about the change."
+    "", same ? "⚠ SAME OUTPUT in both columns — the control did not discriminate. Right for a compatibility check (nothing should move); for a FIX it proves nothing about the change."
              : "✓ the columns differ — the control discriminated."].join("\n");
 }
 

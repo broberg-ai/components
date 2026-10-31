@@ -55,5 +55,11 @@ check("side by side: identical columns are FLAGGED as a control that did not dis
   if (!/control discriminated/.test(d) || !/OK .*REJECTS/.test(d)) throw new Error(d);
 });
 
+check("columns that differ ONLY by the measured version line are still flagged — the version is not a finding", () => {
+  const t = table("@broberg/x", { requested: "0.1.0", resolved: "0.1.0", exit: 0, out: "measured 0.1.0\nok, 6 methods" },
+    { requested: "0.2.0", resolved: "0.2.0", exit: 0, out: "measured 0.2.0\nok, 6 methods" });
+  if (!/SAME OUTPUT in both columns/.test(t)) throw new Error(t);
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nall green");
 process.exit(failures ? 1 : 0);
