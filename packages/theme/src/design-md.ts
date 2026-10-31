@@ -12,7 +12,7 @@
  * data-theme system (light/dark/warm/cool) is @broberg/theme's extension on top —
  * a generated baseline covers the `:root` theme; variants stay package-owned.
  */
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { wcagContrast, parse as parseColor } from "culori";
 
 export interface TypographyToken {
@@ -42,6 +42,15 @@ export interface ParsedDesignMd {
 }
 
 const FRONT_MATTER = /^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/;
+
+/**
+ * F001.15 — tokens → DESIGN.md, the half consumers had to hand-roll (cardmem's
+ * seeder built the YAML itself in buildSeed). The inverse of {@link parseDesignMd}:
+ * `parseDesignMd(serialiseDesignMd(tokens)).tokens` deep-equals `tokens`.
+ */
+export function serialiseDesignMd(tokens: DesignTokens, body = ""): string {
+  return `---\n${stringifyYaml(tokens)}---\n${body}`;
+}
 
 /** Split a DESIGN.md into its YAML token front matter and the markdown body. */
 export function parseDesignMd(content: string): ParsedDesignMd {
@@ -241,7 +250,7 @@ function assertColour(where: string, value: string): void {
  * css/neutral-preset.css, ZERO of the `data-theme` variants redefine a radius,
  * spacing or text token. Only colours vary per theme, and colours keep `var()`.
  */
-export function designMdToTailwindV4(content: string, options: GenerateV4Options = {}): string {
+export function designMdToTailwindV4(content: string | DesignTokens, options: GenerateV4Options = {}): string {
   return generateTailwindV4(content, options).css;
 }
 
@@ -251,8 +260,9 @@ export function designMdToTailwindV4(content: string, options: GenerateV4Options
  * `designMdToTailwindV4` keeps its string return for existing callers; this is
  * the entry that can answer "did you actually use my file?".
  */
-export function generateTailwindV4(content: string, options: GenerateV4Options = {}): GenerateV4Result {
-  const { tokens } = parseDesignMd(content);
+export function generateTailwindV4(content: string | DesignTokens, options: GenerateV4Options = {}): GenerateV4Result {
+  // F001.15 — ADDITIVE: tokens are taken as they are; a string is parsed exactly as before.
+  const tokens = typeof content === "string" ? parseDesignMd(content).tokens : content;
   const selector = options.selector ?? ":root";
   const root: string[] = [];
   const theme: string[] = [];
@@ -459,11 +469,12 @@ export interface ExtractedTokens {
   /**
    * The same {@link DesignTokens} shape `parseDesignMd` produces.
    *
-   * THIS DOES NOT MEAN YOU CAN PASS IT TO {@link generateTailwindV4}. That
-   * function takes the markdown STRING, so `generateTailwindV4(tokens)` throws
-   * `content.match is not a function`. To regenerate CSS you must serialise
-   * these tokens into a DESIGN.md first — and this package does not yet export
-   * a serialiser for that (F001.15).
+   * Since 0.14.0 (F001.15) you can do either of:
+   *   - `generateTailwindV4(tokens)` — it accepts DesignTokens directly;
+   *   - `serialiseDesignMd(tokens)` — to WRITE a DESIGN.md, which
+   *     `generateTailwindV4` and `parseDesignMd` read back unchanged.
+   * Before 0.14.0, `generateTailwindV4(tokens)` threw `content.match is not a
+   * function` and no serialiser was exported.
    *
    * An earlier version of this comment said the result "feeds straight back
    * into generateTailwindV4 without a translation step". It does not, and the

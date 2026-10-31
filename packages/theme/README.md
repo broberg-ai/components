@@ -400,10 +400,21 @@ judgement), so it reports what it could not read, and what it extracted under a
 name that would change if you regenerated. Lifted from the pure function cardmem
 wrote for it.
 
-> **It does NOT feed straight back into `generateTailwindV4`.** That function
-> takes the markdown string; `generateTailwindV4(tokens)` throws. A serialiser
-> is F001.15. An earlier version of this README's sibling comment claimed
-> otherwise, and cardmem caught it by measuring the tarball.
+**Since 0.14.0 (F001.15) the loop closes through published exports:**
+
+```ts
+import { designTokensFromCss, serialiseDesignMd, generateTailwindV4, parseDesignMd } from "@broberg/theme/design-md";
+
+const { tokens } = designTokensFromCss(css);
+generateTailwindV4(tokens);                 // tokens straight in (a markdown string still works as before)
+const md = serialiseDesignMd(tokens, body); // WRITE a DESIGN.md — no hand-rolled YAML
+parseDesignMd(md).tokens;                   // deep-equals `tokens`
+```
+
+> Before 0.14.0, `generateTailwindV4(tokens)` threw `content.match is not a
+> function` and no serialiser was exported. An earlier version of this README's
+> sibling comment claimed the round-trip worked, and cardmem caught it by
+> measuring the tarball.
 
 ### 0.5.0 — the generator now refuses what it cannot emit
 

@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { designTokensFromCss, generateTailwindV4 } from "../src/design-md.js";
+import { designTokensFromCss, generateTailwindV4, parseDesignMd, serialiseDesignMd } from "../src/design-md.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PRESET = readFileSync(join(here, "..", "css", "neutral-preset.css"), "utf8");
@@ -68,7 +68,7 @@ describe("the SUBSET round-trip — no call-site breaks", () => {
   // resolves, to the same value, in the regenerated output.
   it("every extracted token still resolves under its source name", () => {
     const { tokens, renamed } = designTokensFromCss(PRESET);
-    const design = `---\n${JSON.stringify(tokens)}\n---\n`;
+    const design = serialiseDesignMd(tokens); // F001.15 — the published serialiser, no hand-rolled YAML
     const { css } = generateTailwindV4(design, { tailwindImport: false });
     const regenerated = declaredProperties(css);
     const source = declaredProperties(PRESET);
@@ -183,5 +183,39 @@ describe("what it could not read is never silence", () => {
     const r = designTokensFromCss(":root{--mobile-nav-h:44px}");
     expect(r.tokens).toEqual({});
     expect(r.skipped[0]!.reason).toContain("not a radius");
+  });
+});
+
+// F001.15 — the round-trip the docs promised, through PUBLISHED exports only.
+describe("F001.15 — tokens → DESIGN.md → tokens, and tokens straight into the generator", () => {
+  it("parseDesignMd(serialiseDesignMd(tokens)) deep-equals the tokens — through OUR parser", () => {
+    const { tokens } = designTokensFromCss(PRESET);
+    expect(Object.keys(tokens.colors ?? {}).length).toBeGreaterThan(5); // a real token set, not an empty one
+    expect(parseDesignMd(serialiseDesignMd(tokens)).tokens).toStrictEqual(tokens);
+  });
+
+  it("a body survives the serialiser too", () => {
+    const md = serialiseDesignMd({ colors: { primary: "#112233" } }, "# Brand\n\nProse.\n");
+    expect(parseDesignMd(md)).toStrictEqual({ tokens: { colors: { primary: "#112233" } }, body: "# Brand\n\nProse.\n" });
+  });
+
+  it("the full loop: css → designTokensFromCss → serialiseDesignMd → generateTailwindV4 → css keeps every extracted colour", () => {
+    const { tokens } = designTokensFromCss(PRESET);
+    const { css } = generateTailwindV4(serialiseDesignMd(tokens), { tailwindImport: false });
+    const out = declaredProperties(css);
+    for (const [name, value] of Object.entries(tokens.colors ?? {})) expect(out.get(`--${name}`)).toBe(value);
+  });
+
+  it("generateTailwindV4 accepts DesignTokens directly — the call that used to throw `content.match is not a function`", () => {
+    const { tokens } = designTokensFromCss(PRESET);
+    expect(() => generateTailwindV4(tokens)).not.toThrow();
+  });
+
+  it("NEGATIVE CONTROL: a markdown string behaves exactly as before — same output as passing the tokens", () => {
+    const { tokens } = designTokensFromCss(PRESET);
+    const fromString = generateTailwindV4(serialiseDesignMd(tokens), { tailwindImport: false });
+    const fromTokens = generateTailwindV4(tokens, { tailwindImport: false });
+    expect(fromTokens).toStrictEqual(fromString);
+    expect(() => generateTailwindV4("no front matter")).toThrow(/missing YAML front matter/);
   });
 });

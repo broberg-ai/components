@@ -34,6 +34,13 @@ const PALETTES_CSS = join(HERE, "css/palettes.css");
 const fileOf = (m) => m.file ?? SRC;
 
 const MUTATIONS = [
+  // F001.15 — the serialiser writes a key the parser cannot read: the round-trip
+  // must go red, or "parseDesignMd(serialise(t)) equals t" is a sentence again.
+  {
+    name: "serialiser nests the tokens under a key the parser does not read",
+    from: "  return `---\\n${stringifyYaml(tokens)}---\\n${body}`;",
+    to: "  return `---\\n${stringifyYaml({ design: tokens })}---\\n${body}`;",
+  },
   // The classification order IS the design. Name-first drops a duration into the
   // palette of any repo whose conventions differ from ours.
   {

@@ -8,6 +8,11 @@ One entry per version, newest first. Each is marked:
 
 Coming from 0.3.1? Read every BREAKING and OUTPUT CHANGED entry between your version and the one you install. The README has the long form for 0.7.0 onwards.
 
+## 0.14.0 — the DESIGN.md round-trip you can actually perform (F001.15)
+
+ADDITIVE. New `serialiseDesignMd(tokens, body?)` on `./design-md` — the inverse of `parseDesignMd`. `generateTailwindV4` / `designMdToTailwindV4` now also accept `DesignTokens` directly; a markdown string gives exactly the same output as in 0.13.3.
+Do: nothing. If you hand-roll YAML to feed the generator (cardmem's `buildSeed`), you can drop it.
+
 ## 0.13.3 — this changelog (F001.26)
 
 ADDITIVE. `CHANGELOG.md` ships in the package. No code change.
