@@ -32,6 +32,17 @@ describe('F035.21 — CPR', () => {
   it('does not find a CPR inside a longer run of digits', () => {
     expect(kinds('konto 12010190123')).toEqual([]); // 2010190123 would be a valid CPR on its own
   });
+
+  // F079.6 — one test per boundary, so each mutation has its own red: a digit
+  // BEFORE a valid CPR (only the leading boundary stops it) …
+  it('not after a digit: konto 90101901234 holds the valid CPR 0101901234 one digit in', () => {
+    expect(kinds('konto 90101901234')).toEqual([]);
+  });
+  // … and a digit AFTER one (only the trailing boundary stops it).
+  it('not before a digit: konto 01019012345 holds the valid CPR 0101901234 at its start', () => {
+    expect(kinds('konto 01019012345')).toEqual([]);
+    expect(kinds('konto 0101901234')).toEqual([['cpr', '0101901234']]); // the control: alone, it IS one
+  });
 });
 
 describe('F035.21 — phone', () => {

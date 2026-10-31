@@ -32,7 +32,9 @@ import { writeMarker, clearMarker, assertRestored } from '../../../scripts/mutat
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(HERE, 'src/index.ts');
-const SRC_FOR_GUARD = 'src/index.ts';
+const SRC_FOR_GUARD = 'src';
+// A mutation may name another source file (F079.6: the personal-data patterns).
+const fileOf = (m) => (m.file ? join(HERE, m.file) : SRC);
 
 const MUTATIONS = [
   // The whole defect, restored: every candidate is plausible again.
@@ -280,6 +282,38 @@ const MUTATIONS = [
     from: '  return { redacted, findings, scanned, notExamined };',
     to: '  return { redacted, findings, scanned, notExamined: [] };',
   },
+  // components-F079.6 — the CPR pattern's boundaries ARE the guard. Without them
+  // a personnummer inside a longer digit run is half-redacted: remnants that
+  // still identify and LOOK redacted (helpdesk's measurement).
+  {
+    name: 'CPR: the leading boundary removed (a CPR is found inside a longer digit run)',
+    file: 'src/personal-data.ts',
+    from: 'const CPR = /(?<![\\d+])(\\d{2})',
+    to: 'const CPR = /(\\d{2})',
+  },
+  {
+    name: 'CPR: the trailing boundary removed',
+    file: 'src/personal-data.ts',
+    from: '(\\d)(\\d{3})(?![\\d])/g;',
+    to: '(\\d)(\\d{3})/g;',
+  },
+  // ...and the ORDER is NOT a guard: collection order does not matter because the
+  // spans are sorted before overlaps are resolved. helpdesk measured the same
+  // reordering GREEN in their redactor. A mutation that cannot fail is not
+  // evidence, so this one is expected to SURVIVE — and the harness fails if a
+  // test ever starts depending on the order.
+  {
+    name: 'phone patterns collected BEFORE CPR (order is not a guard — must SURVIVE)',
+    file: 'src/personal-data.ts',
+    from: `  const out: PersonalDataMatch[] = [];
+  for (const m of text.matchAll(CPR)) {`,
+    to: `  const out: PersonalDataMatch[] = [];
+  for (const re of [PHONE_DK, PHONE_E164]) {
+    for (const m of text.matchAll(re)) out.push({ kind: 'phone', start: m.index!, end: m.index! + m[0].length });
+  }
+  for (const m of text.matchAll(CPR)) {`,
+    survives: true,
+  },
 ];
 
 function redSet() {
@@ -333,24 +367,34 @@ let problems = 0;
 writeMarker({ harness: '@broberg/secret-scan test/mutations.mjs', file: SRC });
 try {
 for (const m of MUTATIONS) {
-  const original = readFileSync(SRC, 'utf8');
+  const FILE = fileOf(m);
+  if (FILE !== SRC) writeMarker({ harness: '@broberg/secret-scan test/mutations.mjs', file: FILE });
+  const original = readFileSync(FILE, 'utf8');
   if (!original.includes(m.from)) {
     console.error(`::error::mutation "${m.name}" did not match its target — the source moved.`);
     problems++;
     continue;
   }
-  writeFileSync(SRC, original.replace(m.from, m.to));
+  writeFileSync(FILE, original.replace(m.from, m.to));
   let red;
   try {
     red = redSet();
   } finally {
-    writeFileSync(SRC, original);
+    writeFileSync(FILE, original);
     // The guard. A restore that FAILED is otherwise indistinguishable from one
     // that was not needed — which is how buddy's harness lost a file on
     // 2026-08-14 with a green run to show for it. Does not return on mismatch.
-    assertRestored({ harness: '@broberg/secret-scan test/mutations.mjs', file: SRC, expected: original });
+    assertRestored({ harness: '@broberg/secret-scan test/mutations.mjs', file: FILE, expected: original });
   }
   const key = red.join('|');
+  if (m.survives) {
+    if (red.length === 0) console.log(`  survives  ${m.name}  (expected — not a guard)`);
+    else {
+      console.log(`  CAUGHT?   ${m.name}\n            expected to survive, but ${red.length} test(s) went red — a test now depends on it: ${red[0]}`);
+      problems++;
+    }
+    continue;
+  }
   if (red.length === 0) {
     console.log(`  UNCAUGHT  ${m.name}\n            nothing failed — this decision is undefended.`);
     problems++;
@@ -372,4 +416,4 @@ if (problems) {
   console.error(`::error::${problems} mutation(s) uncaught or indistinguishable.`);
   process.exit(1);
 }
-console.log(`✓ ${MUTATIONS.length} mutations, 0 uncaught, 0 identical red sets.`);
+console.log(`✓ ${MUTATIONS.length} mutations (${MUTATIONS.filter((m) => m.survives).length} expected to survive), 0 uncaught, 0 identical red sets.`);

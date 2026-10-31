@@ -24,3 +24,26 @@ describe('F079.6 — "nothing found" and "never looked" are no longer the same o
     expect(PERSONAL_DATA_NOT_EXAMINED).toEqual(r.notExamined);
   });
 });
+
+// F079.6 AC6 — the NEGATIVE control. Without it, a redactor that masked every
+// digit would satisfy every positive case above.
+describe('F079.6 — ordinary Danish prose with dates, amounts and places passes byte-identical', () => {
+  const PROSE = [
+    'Mødet er flyttet til torsdag d. 12. november 2026 kl. 14.30 i Aalborg.',
+    'Prisen er DKK 1.250,00 inkl. moms, og fakturaen forfalder 15/12-2026.',
+    'Vi mødes på Boulevarden 13, 9000 Aalborg — eller ring til receptionen i åbningstiden.',
+    'Behandlingen varer 45 minutter, og der er 3 ledige tider i uge 47.',
+  ].join('\n');
+  it('redactPersonalData: no findings, text byte-identical', () => {
+    const r = redactPersonalData(PROSE);
+    expect([r.redacted === PROSE, r.findings]).toEqual([true, []]);
+  });
+  it('redactSecrets: no findings, text byte-identical', () => {
+    const r = redactSecrets(PROSE);
+    expect([r.redacted === PROSE, r.findings]).toEqual([true, []]);
+  });
+  it('the control can fail: the same prose with one CPR added is NOT byte-identical', () => {
+    const dirty = PROSE + '\nCPR: 110583-1235';
+    expect(redactPersonalData(dirty).redacted).not.toBe(dirty);
+  });
+});
