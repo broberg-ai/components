@@ -20,11 +20,16 @@ const HARNESS = "scripts/test-bump-roster-version-mutations.mjs";
 
 const MUTATIONS = [
   {
-    name: "the row-brace bound is removed, so a ver-less row eats the next row's version",
-    from: `    const rowEnd = rest.indexOf("}", at);
-    const window = rest.slice(at, rowEnd === -1 ? rest.length : rowEnd);`,
-    to: `    const window = rest.slice(at);`,
+    name: "the row's closing brace no longer ends the search, so a ver-less row eats the next row's version",
+    from: `      if (depth === 0) return null; // the row closed without a ver of its own`,
+    to: `      if (depth === 0) { depth = -1; continue; }`,
     expectRed: ["does not consume the next row's"],
+  },
+  {
+    name: "nesting is not tracked — the 0.15.0 defect: a nested object before ver ends the row early",
+    from: `    if (c === "{" || c === "[") depth++;`,
+    to: `    if (c === "[") depth++;`,
+    expectRed: ["a nested object before ver"],
   },
   {
     name: "only the FIRST row of a package is bumped (the two-row roster defect)",
@@ -40,7 +45,7 @@ const MUTATIONS = [
   },
   {
     name: "an unchanged version still counts as a change, so the caller reports a bump that did not happen",
-    from: `    if (m[1] === version) alreadyCorrect++;
+    from: `    if (m.value === version) alreadyCorrect++;
     else rows++;`,
     to: `    rows++;`,
     expectRed: ["already correct"],
