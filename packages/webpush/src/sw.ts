@@ -49,6 +49,19 @@ export interface NotificationActionEvent {
  *  only the people who read changelogs, which is the people who did not need
  *  it. (cardmem's argument, and the same one that made assertBrowserAvailable
  *  default-on in lens-engine F065.) */
+/** F067.8 — why the fallback did not reach `navigate`. */
+export interface NavigateFailure {
+  reason: 'navigate_unsupported' | 'navigate_rejected' | 'open_window_failed';
+  navigate: string;
+  error?: unknown;
+}
+
+/** F067.8 — what every window client receives on a tap, before any fallback. */
+export interface NavigateMessage {
+  type: 'webpush:navigate';
+  navigate: string;
+}
+
 export interface PushHandlerOptions {
   /** Title when the payload carries none. `handlePush` keeps 'Notifikation' for
    *  compatibility; a fleet package should not hard-code ONE language, so this
@@ -94,6 +107,16 @@ export interface PushHandlerOptions {
    * (opens/focuses the app) — a tap never does nothing.
    */
   onAction?: (e: NotificationActionEvent) => void | Promise<void>;
+  /**
+   * F067.8 — called when the package's own fallback could NOT take the user to
+   * `navigate`: iOS has no WindowClient.navigate (`navigate_unsupported`), the
+   * call rejected (`navigate_rejected`), or there was no window and openWindow
+   * failed (`open_window_failed`). Before 0.7.0 all three were silent and
+   * looked exactly like a success. An app that listens for the
+   * `webpush:navigate` message has already been told — this says whether the
+   * fallback also worked.
+   */
+  onNavigateFailure?: (e: NavigateFailure) => void;
 }
 
 const DEFAULTS: Required<Pick<PushHandlerOptions, 'defaultTitle' | 'defaultNavigate' | 'badgeOnVisible'>> = {
@@ -196,7 +219,9 @@ export const handlePush: (event: PushEvent) => void = createPushHandler();
  * `onAction` and opens nothing; a tap on the notification itself (or a button
  * tap with no onAction) opens/focuses the app as before.
  */
-export function createNotificationClickHandler(options: Pick<PushHandlerOptions, 'onAction'> = {}): (event: NotificationEvent) => void {
+export function createNotificationClickHandler(
+  options: Pick<PushHandlerOptions, 'onAction' | 'onNavigateFailure'> = {},
+): (event: NotificationEvent) => void {
   return function click(event: NotificationEvent): void {
     if (event.action && options.onAction) {
       event.notification.close();
@@ -208,7 +233,7 @@ export function createNotificationClickHandler(options: Pick<PushHandlerOptions,
       );
       return;
     }
-    openFromNotification(event);
+    openFromNotification(event, options.onNavigateFailure);
   };
 }
 
@@ -217,7 +242,7 @@ export function handleNotificationClick(event: NotificationEvent): void {
   openFromNotification(event);
 }
 
-function openFromNotification(event: NotificationEvent): void {
+function openFromNotification(event: NotificationEvent, onFailure?: (e: NavigateFailure) => void): void {
   event.notification.close();
   // F067: fall back rather than leave a tap doing nothing. Before this, a
   // notification whose payload carried no `navigate` opened NOTHING when the
@@ -225,24 +250,61 @@ function openFromNotification(event: NotificationEvent): void {
   const navigate = (event.notification.data as { navigate?: string } | undefined)?.navigate ?? '/';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clientsApi = (self as any).clients as Clients;
+  const fail = (e: NavigateFailure): void => {
+    try {
+      onFailure?.(e);
+    } catch {
+      // a reporting hook must never break the tap
+    }
+  };
   event.waitUntil(
     (async () => {
       const all = await clientsApi.matchAll({ type: 'window', includeUncontrolled: true });
+      // F067.8 — THE POST THAT CARRIES THE PAYLOAD HAPPENS BEFORE ANYTHING THAT
+      // CAN FAIL. Every window is told, before any focus()/navigate() is awaited:
+      // a focus that rejects or never resolves, and the old `return` after the
+      // first client, used to leave the rest unrouted. `matchAll` order is not
+      // guaranteed anywhere, so "the first client" was never a stable choice.
+      // An app with a router listens and routes itself — the only path that
+      // works at all on iOS, where WindowClient.navigate does not exist.
+      const message: NavigateMessage = { type: 'webpush:navigate', navigate };
+      for (const c of all) {
+        try {
+          c.postMessage(message);
+        } catch {
+          // one dead client must not stop the others
+        }
+      }
+      // The fallback for a consumer that does NOT listen — unchanged in what it
+      // tries, but no longer silent when it cannot.
       for (const c of all) {
         const wc = c as WindowClient;
         if ('focus' in wc) {
-          await wc.focus();
-          if (navigate && 'navigate' in wc) {
-            try {
-              await wc.navigate(navigate);
-            } catch {
-              /* cross-origin or detached — ignore */
-            }
+          try {
+            await wc.focus();
+          } catch {
+            // focus refused (no user activation, detached) — still try to route
+          }
+          if (!navigate) return;
+          if (!('navigate' in wc) || typeof wc.navigate !== 'function') {
+            fail({ reason: 'navigate_unsupported', navigate });
+            return;
+          }
+          try {
+            await wc.navigate(navigate);
+          } catch (error) {
+            fail({ reason: 'navigate_rejected', navigate, error });
           }
           return;
         }
       }
-      if (navigate) await clientsApi.openWindow(navigate);
+      if (navigate) {
+        try {
+          await clientsApi.openWindow(navigate);
+        } catch (error) {
+          fail({ reason: 'open_window_failed', navigate, error });
+        }
+      }
     })(),
   );
 }

@@ -36,7 +36,7 @@ let currentClick: (event: NotificationEvent) => void = handleNotificationClick;
 
 function configure(options: PushHandlerOptions = {}): void {
   current = createPushHandler(options);
-  currentClick = options.onAction ? createNotificationClickHandler(options) : handleNotificationClick;
+  currentClick = options.onAction || options.onNavigateFailure ? createNotificationClickHandler(options) : handleNotificationClick;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

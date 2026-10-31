@@ -441,6 +441,39 @@ BrobergWebPush.configure({ onAction });       // replaces, never adds a listener
 behaviour, not a test on our hardware. The code paths are unit-tested; the first app
 to ship buttons (the WebHouse mail client) should confirm each row and correct it here.
 
+### A tap goes to the right screen — `webpush:navigate` (v0.7.0, F067.8)
+
+**iOS does not implement `WindowClient.navigate`.** Before 0.7.0 a tap on iOS opened
+the PWA on whatever screen it was on, and nothing anywhere said so: the call was
+simply skipped. Now every open window is sent the destination **first**, before
+anything that can fail or hang:
+
+```ts
+// in your app (not the service worker) — three lines
+navigator.serviceWorker?.addEventListener("message", (e) => {
+  if (e.data?.type === "webpush:navigate") router.navigate(e.data.navigate);
+});
+```
+
+That is the only path that works on iOS, and it is faster everywhere. A consumer
+that does not listen keeps exactly the old behaviour (`navigate()` where it
+exists, `openWindow()` when no window is open). Every window is told, not only
+the first — `matchAll` order is not guaranteed, and a `focus()` that rejects or
+never resolves no longer stops the rest.
+
+**The fallback is no longer silent.** Pass `onNavigateFailure` to know when it
+did not reach the destination:
+
+```ts
+BrobergWebPush.configure({
+  onNavigateFailure: ({ reason, navigate }) => report(reason, navigate),
+  // reason: "navigate_unsupported" (iOS) | "navigate_rejected" | "open_window_failed"
+});
+```
+
+Not observed on an iPhone by us — proven against a fake WindowClient. The device
+check is trail's.
+
 ## What you still own
 
 Subscriptions table, per-user notification prefs, notification history, dead-
