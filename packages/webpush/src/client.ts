@@ -112,6 +112,67 @@ export async function getSubscription(): Promise<PushSubscription | null> {
   return (await reg?.pushManager.getSubscription()) ?? null;
 }
 
+/**
+ * F067.9 — WHAT `getSubscription()`'s `null` could not say. It answers `null`
+ * both for «there is no subscription» and for «we did not manage to find out»
+ * (the worker was not ready within the deadline, or the lookup failed), and a
+ * Settings toggle drawn from it shows a subscribed user as OFF.
+ *
+ * A discriminated union rather than `| 'unknown'` on the old type (cardmem's
+ * shape, #27209): reading `.subscription`, `.endpoint` or assigning the result
+ * to `PushSubscription | null` does not compile — a consumer has to look at
+ * `state`. (`if (!result)` itself still compiles, because TypeScript has no rule
+ * against testing an object for truthiness; it is simply always false here.)
+ *
+ * `none` also covers a browser with no service-worker API: no subscription can
+ * exist there.
+ */
+export type SubscriptionState =
+  | { state: 'subscribed'; subscription: PushSubscription }
+  | { state: 'none' }
+  | { state: 'unknown'; reason: 'worker-not-ready' | 'lookup-failed' };
+
+export async function getSubscriptionState(
+  options: { timeoutMs?: number } = {},
+): Promise<SubscriptionState> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return { state: 'none' };
+  const sw = navigator.serviceWorker;
+  const timeoutMs = options.timeoutMs ?? REGISTRATION_TIMEOUT_MS;
+
+  const timedOut = Symbol('timeout');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let reg: ServiceWorkerRegistration | undefined;
+  try {
+    const winner = await Promise.race([
+      sw.ready,
+      new Promise<typeof timedOut>((resolve) => {
+        timer = setTimeout(() => resolve(timedOut), timeoutMs);
+      }),
+    ]);
+    if (winner !== timedOut) reg = winner;
+  } catch {
+    // `ready` rejecting: fall through to the direct lookup, as resolveRegistration does.
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+  if (!reg) {
+    try {
+      reg = await sw.getRegistration();
+    } catch {
+      return { state: 'unknown', reason: 'lookup-failed' };
+    }
+    // Not ready within the deadline AND no registration on a direct look: on a
+    // cold start that is a worker still starting — NOT proof there is none.
+    if (!reg) return { state: 'unknown', reason: 'worker-not-ready' };
+  }
+  try {
+    const subscription = await reg.pushManager.getSubscription();
+    return subscription ? { state: 'subscribed', subscription } : { state: 'none' };
+  } catch {
+    return { state: 'unknown', reason: 'lookup-failed' };
+  }
+}
+
 /** Unsubscribe locally; returns the endpoint to tell your server to forget. */
 export async function unsubscribeFromPush(): Promise<string | null> {
   const sub = await getSubscription();

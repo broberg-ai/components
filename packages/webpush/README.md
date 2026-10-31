@@ -247,6 +247,23 @@ syncBadge(await fetchUnseenCount());
 >
 > *(Raised by torrent-search-api, whose first listener did exactly this.)*
 
+### Is this user subscribed? — `getSubscriptionState()` (v0.8.0, F067.9)
+
+`getSubscription()` answers `null` both for «not subscribed» and for «could not find out» (the worker was not ready within the deadline on a cold start). A toggle drawn from it shows a subscribed user as OFF. Use the three-state answer instead:
+
+```ts
+import { getSubscriptionState } from "@broberg/webpush/client";
+
+const s = await getSubscriptionState();           // { timeoutMs?: number }
+switch (s.state) {
+  case "subscribed": showOn(s.subscription); break;
+  case "none":       showOff(); break;
+  case "unknown":    showCheckingAgain(s.reason); break; // "worker-not-ready" | "lookup-failed"
+}
+```
+
+It is a discriminated union, so reading `.subscription` or treating the result as `PushSubscription | null` does not compile without looking at `state`. `getSubscription()` is unchanged.
+
 ## Service worker
 
 If your `sw.js` goes through a bundler:
