@@ -37,6 +37,31 @@ describe("createRoomToken", () => {
     });
   });
 
+  it("F104.7 — sources lets the ticket send camera and screen (with its sound) beside the microphone", async () => {
+    const jwt = await createRoomToken({ ...creds, room: "jam:42", identity: "u1", sources: ["microphone", "camera", "screen_share", "screen_share_audio"] });
+    const { video } = await new TokenVerifier(creds.apiKey, creds.apiSecret).verify(jwt);
+    expect(video?.canPublish).toBe(true);
+    expect(video?.canPublishSources).toEqual(["microphone", "camera", "screen_share", "screen_share_audio"]);
+    expect(video?.canPublishData).toBe(false);
+  });
+
+  it("F104.7 — sources gives exactly what is asked: screen only means no microphone and no camera", async () => {
+    const jwt = await createRoomToken({ ...creds, room: "jam:42", identity: "u1", sources: ["screen_share", "screen_share"] });
+    const { video } = await new TokenVerifier(creds.apiKey, creds.apiSecret).verify(jwt);
+    expect(video?.canPublishSources).toEqual(["screen_share"]);
+  });
+
+  it("F104.7 — refuses empty or unknown sources", async () => {
+    const base = { ...creds, room: "jam:42", identity: "u1" };
+    await expect(createRoomToken({ ...base, sources: [] })).rejects.toMatchObject({ code: "invalid_sources" });
+    await expect(createRoomToken({ ...base, sources: ["camera", "data" as any] })).rejects.toMatchObject({ code: "invalid_sources", message: expect.stringContaining("data") });
+    await expect(createRoomToken({ ...base, sources: ["toString" as any] })).rejects.toMatchObject({ code: "invalid_sources" });
+  });
+
+  it("F104.7 — refuses sources on a listen-only ticket: a listener sends nothing", async () => {
+    await expect(createRoomToken({ ...creds, room: "jam:42", identity: "u1", canPublish: false, sources: ["camera"] })).rejects.toMatchObject({ code: "invalid_sources" });
+  });
+
   it("canPublish:false makes a listen-only ticket: join and hear, publish nothing", async () => {
     const jwt = await createRoomToken({ ...creds, room: "jam:42", identity: "reader", canPublish: false });
     const { video } = await new TokenVerifier(creds.apiKey, creds.apiSecret).verify(jwt);

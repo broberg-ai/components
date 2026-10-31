@@ -1,4 +1,4 @@
-// @broberg/call/server — the app's half of a voice call (F104.3).
+// @broberg/call/server — the app's half of a call (F104.3; video and screen share F104.7).
 //
 // The app never carries audio. It decides who may enter a room, signs a short
 // ticket for that one room, and hears from the media server (LiveKit) through a
@@ -15,6 +15,7 @@ export type VoiceErrorCode =
   | "invalid_room"
   | "invalid_identity"
   | "invalid_ttl"
+  | "invalid_sources"
   | "invalid_webhook";
 
 export class VoiceError extends Error {
@@ -47,7 +48,24 @@ export interface RoomTokenOptions extends Credentials {
    * Pair it with `joinVoice({ publish: false })` in the browser.
    */
   canPublish?: boolean;
+  /**
+   * F104.7 — what the person may send. Default `["microphone"]`, so an app that
+   * never asks for video still mints a sound-only ticket. Add `"camera"`,
+   * `"screen_share"` and/or `"screen_share_audio"` (the sound of a shared tab).
+   * Refused together with `canPublish: false` — a listener sends nothing.
+   */
+  sources?: CallSource[];
 }
+
+/** F104.7 — the kinds of media a ticket may allow a person to send. */
+export type CallSource = "microphone" | "camera" | "screen_share" | "screen_share_audio";
+
+const SOURCE_TO_LIVEKIT: Record<CallSource, TrackSource> = {
+  microphone: TrackSource.MICROPHONE,
+  camera: TrackSource.CAMERA,
+  screen_share: TrackSource.SCREEN_SHARE,
+  screen_share_audio: TrackSource.SCREEN_SHARE_AUDIO,
+};
 
 export const DEFAULT_TTL_SECONDS = 600;
 export const MAX_TTL_SECONDS = 3600;
@@ -61,7 +79,10 @@ function requireCredentials({ apiKey, apiSecret }: Partial<Credentials>): void {
   }
 }
 
-/** Sign a microphone-only ticket for one room. Check the person's access BEFORE calling this. */
+/**
+ * Sign a ticket for one room — microphone only unless `sources` says more.
+ * Check the person's access BEFORE calling this.
+ */
 export async function createRoomToken(opts: RoomTokenOptions): Promise<string> {
   requireCredentials(opts);
   if (!opts.room?.trim()) throw new VoiceError("invalid_room", "room is required");
@@ -71,17 +92,30 @@ export async function createRoomToken(opts: RoomTokenOptions): Promise<string> {
     throw new VoiceError("invalid_ttl", `ttl must be a whole number of seconds between 1 and ${MAX_TTL_SECONDS}`);
   }
 
-  const token = new AccessToken(opts.apiKey, opts.apiSecret, { identity: opts.identity, name: opts.name, ttl });
   const speak = opts.canPublish !== false;
+  const sources = resolveSources(opts.sources, speak);
+
+  const token = new AccessToken(opts.apiKey, opts.apiSecret, { identity: opts.identity, name: opts.name, ttl });
   token.addGrant({
     room: opts.room,
     roomJoin: true,
     canSubscribe: true,
     canPublish: speak,
-    ...(speak ? { canPublishSources: [TrackSource.MICROPHONE] } : {}),
+    ...(speak ? { canPublishSources: sources.map((src) => SOURCE_TO_LIVEKIT[src]) } : {}),
     canPublishData: false,
   });
   return token.toJwt();
+}
+
+function resolveSources(sources: CallSource[] | undefined, speak: boolean): CallSource[] {
+  if (sources === undefined) return ["microphone"];
+  if (!speak) throw new VoiceError("invalid_sources", "sources cannot be given with canPublish: false — a listener sends nothing");
+  if (!Array.isArray(sources) || sources.length === 0) {
+    throw new VoiceError("invalid_sources", "sources must name at least one of microphone, camera, screen_share, screen_share_audio");
+  }
+  const unknown = sources.filter((src) => !Object.hasOwn(SOURCE_TO_LIVEKIT, src));
+  if (unknown.length) throw new VoiceError("invalid_sources", `unknown source(s): ${unknown.join(", ")}`);
+  return [...new Set(sources)];
 }
 
 /**

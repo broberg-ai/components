@@ -12,13 +12,27 @@ vi.mock("livekit-client", async () => {
     ActiveSpeakersChanged: "activeSpeakersChanged",
     TrackSubscribed: "trackSubscribed",
     TrackUnsubscribed: "trackUnsubscribed",
+    TrackPublished: "trackPublished",
+    LocalTrackPublished: "localTrackPublished",
+    LocalTrackUnpublished: "localTrackUnpublished",
   };
-  const Track = { Kind: { Audio: "audio", Video: "video" } };
+  const Track = {
+    Kind: { Audio: "audio", Video: "video" },
+    Source: { Camera: "camera", Microphone: "microphone", ScreenShare: "screen_share", ScreenShareAudio: "screen_share_audio" },
+  };
   class Room {
     options: any;
     listeners = new Map<string, Set<(...a: any[]) => void>>();
     remoteParticipants = new Map<string, any>();
-    localParticipant = { identity: "me", name: "Me", micCalls: [] as any[], setMicrophoneEnabled: vi.fn(async function (this: any, on: boolean, opts?: any) { if (state.micError) throw state.micError; state.room.localParticipant.micCalls.push([on, opts]); }) };
+    localParticipant: any = {
+      identity: "me", name: "Me", micCalls: [] as any[],
+      isCameraEnabled: false, isScreenShareEnabled: false,
+      videoTrackPublications: new Map<string, any>(),
+      setMicrophoneEnabled: vi.fn(async function (this: any, on: boolean, opts?: any) { if (state.micError) throw state.micError; state.room.localParticipant.micCalls.push([on, opts]); }),
+      // Mirrors LiveKit: enabling publishes a local video track, disabling removes it.
+      setCameraEnabled: vi.fn(async (on: boolean) => localVideoToggle("camera", on)),
+      setScreenShareEnabled: vi.fn(async (on: boolean) => localVideoToggle("screen_share", on)),
+    };
     connect = vi.fn(async () => {});
     startAudio = vi.fn(async () => {});
     disconnect = vi.fn(async () => {});
@@ -29,13 +43,27 @@ vi.mock("livekit-client", async () => {
     emit(e: string, ...a: any[]) { this.listeners.get(e)?.forEach((fn) => fn(...a)); }
     listenerCount() { let n = 0; this.listeners.forEach((s) => (n += s.size)); return n; }
   }
+  function localVideoToggle(source: "camera" | "screen_share", on: boolean) {
+    const lp = state.room.localParticipant;
+    lp[source === "camera" ? "isCameraEnabled" : "isScreenShareEnabled"] = on;
+    const sid = `L-${source}`;
+    if (on) lp.videoTrackPublications.set(sid, { trackSid: sid, source, track: videoTrack(source, sid) });
+    else lp.videoTrackPublications.delete(sid);
+  }
   return { Room, RoomEvent, Track };
 });
 
-import { AUDIO_CAPTURE, joinVoice } from "../src/client";
+function videoTrack(source: string, sid: string) {
+  return { kind: "video", source, sid, attached: [] as any[], attach: vi.fn(function (this: any, el: any) { this.attached.push(el); return el; }), detach: vi.fn(function (this: any, el?: any) { this.attached = el ? this.attached.filter((x: any) => x !== el) : []; return []; }) };
+}
+
+import { AUDIO_CAPTURE, VIDEO_ROOM_OPTIONS, joinVoice } from "../src/client";
 
 function remote(identity: string, name = identity) {
-  return { identity, name, volume: undefined as number | undefined, setVolume(v: number) { this.volume = v; } };
+  return { identity, name, volume: undefined as number | undefined, trackPublications: new Map<string, any>(), setVolume(v: number) { this.volume = v; } };
+}
+function publication(kind: "audio" | "video", sid: string) {
+  return { kind, trackSid: sid, subscribed: true as boolean, setSubscribed(on: boolean) { this.subscribed = on; } };
 }
 function addRemote(identity: string) {
   const p = remote(identity);
@@ -161,6 +189,154 @@ describe("joinVoice", () => {
     room.emit("participantConnected", remote("z"));
     expect(speaking).not.toHaveBeenCalled();
     expect(people).not.toHaveBeenCalled();
+  });
+});
+
+describe("F104.7 — camera and screen share", () => {
+  it("joins with simulcast, adaptive stream and dynacast on, and keeps the audio capture settings", async () => {
+    await joinVoice({ url: "u", token: "t" });
+    expect(state.room.options).toEqual({
+      audioCaptureDefaults: AUDIO_CAPTURE,
+      adaptiveStream: true,
+      dynacast: true,
+      publishDefaults: { simulcast: true },
+    });
+    expect(VIDEO_ROOM_OPTIONS).toEqual({ adaptiveStream: true, dynacast: true, publishDefaults: { simulcast: true } });
+  });
+
+  it("an audio-only caller never turns on camera or screen", async () => {
+    await joinVoice({ url: "u", token: "t" });
+    expect(state.room.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
+    expect(state.room.localParticipant.setScreenShareEnabled).not.toHaveBeenCalled();
+  });
+
+  it("setCamera and setScreenShare turn each on and off, report localMedia, and show your own picture", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const media: any[] = [];
+    const vids: string[][] = [];
+    call.onLocalMedia((m) => media.push(m));
+    call.onVideos((v) => vids.push(v.map((x) => `${x.identity}${x.isLocal ? "*" : ""}:${x.source}`)));
+    await call.setCamera(true, { deviceId: "cam-2" });
+    expect(state.room.localParticipant.setCameraEnabled).toHaveBeenLastCalledWith(true, { deviceId: "cam-2" });
+    await call.setScreenShare(true, { audio: true });
+    expect(state.room.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(true, { audio: true });
+    expect(call.localMedia).toEqual({ camera: true, screenShare: true });
+    await call.setCamera(false);
+    await call.setScreenShare(false);
+    expect(state.room.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(false, undefined);
+    expect(media).toEqual([
+      { camera: false, screenShare: false },
+      { camera: true, screenShare: false },
+      { camera: true, screenShare: true },
+      { camera: false, screenShare: true },
+      { camera: false, screenShare: false },
+    ]);
+    expect(vids).toEqual([[], ["me*:camera"], ["me*:camera", "me*:screen_share"], ["me*:screen_share"], []]);
+  });
+
+  it("screen share without audio asks for no tab sound", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    await call.setScreenShare(true);
+    expect(state.room.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(true, { audio: false });
+  });
+
+  it("stopping the share with the BROWSER's own button is reported, without the app calling setScreenShare", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    await call.setScreenShare(true);
+    const media: any[] = [];
+    const vids: number[] = [];
+    call.onLocalMedia((m) => media.push(m));
+    call.onVideos((v) => vids.push(v.length));
+    // What LiveKit does when the browser ends the capture: the track is unpublished.
+    const lp = state.room.localParticipant;
+    lp.isScreenShareEnabled = false;
+    const pub = lp.videoTrackPublications.get("L-screen_share");
+    lp.videoTrackPublications.delete("L-screen_share");
+    state.room.emit("localTrackUnpublished", pub, lp);
+    expect(media.at(-1)).toEqual({ camera: false, screenShare: false });
+    expect(vids.at(-1)).toBe(0);
+    expect(call.localMedia.screenShare).toBe(false);
+  });
+
+  it("gives other people's camera and screen as pictures with who + source, and drops them when they go", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const seen: string[][] = [];
+    call.onVideos((v) => seen.push(v.map((x) => `${x.identity}:${x.source}:${x.isLocal}`)));
+    const p = addRemote("ida");
+    const cam = videoTrack("camera", "T1");
+    const scr = videoTrack("screen_share", "T2");
+    state.room.emit("trackSubscribed", cam, {}, p);
+    state.room.emit("trackSubscribed", scr, {}, p);
+    expect(seen.at(-1)).toEqual(["ida:camera:false", "ida:screen_share:false"]);
+    state.room.emit("trackUnsubscribed", scr, {}, p);
+    expect(seen.at(-1)).toEqual(["ida:camera:false"]);
+    expect(scr.detach).toHaveBeenCalled();
+    expect(appended).toEqual([]); // video is never dumped into the page — the app places it
+  });
+
+  it("attach puts the picture in the app's video element, playing inline; your own is muted", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    let list: any[] = [];
+    call.onVideos((v) => (list = v));
+    const p = addRemote("ida");
+    const cam = videoTrack("camera", "T1");
+    state.room.emit("trackSubscribed", cam, {}, p);
+    const el: any = {};
+    list[0].attach(el);
+    expect(cam.attached).toEqual([el]);
+    expect(el).toMatchObject({ autoplay: true, playsInline: true });
+    expect(el.muted).toBeUndefined();
+    list[0].detach(el);
+    expect(cam.attached).toEqual([]);
+    await call.setCamera(true);
+    const mine: any = {};
+    list.find((v) => v.isLocal).attach(mine);
+    expect(mine.muted).toBe(true);
+  });
+
+  it("audio-only stops receiving video but keeps sound, and brings video back", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const p = addRemote("ida");
+    const v1 = publication("video", "V1");
+    const a1 = publication("audio", "A1");
+    p.trackPublications.set("V1", v1).set("A1", a1);
+    call.setAudioOnly(true);
+    expect(call.audioOnly).toBe(true);
+    expect([v1.subscribed, a1.subscribed]).toEqual([false, true]);
+    call.setAudioOnly(false);
+    expect([v1.subscribed, a1.subscribed]).toEqual([true, true]);
+  });
+
+  it("audio-only also holds back video from people who publish later", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const p = addRemote("ida");
+    call.setAudioOnly(true);
+    const v2 = publication("video", "V2");
+    state.room.emit("trackPublished", v2, p);
+    expect(v2.subscribed).toBe(false);
+    call.setAudioOnly(false);
+    const v3 = publication("video", "V3");
+    state.room.emit("trackPublished", v3, p);
+    expect(v3.subscribed).toBe(true);
+  });
+
+  it("after leave, no picture or media callback fires and remote pictures are detached", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const p = addRemote("ida");
+    const cam = videoTrack("camera", "T1");
+    state.room.emit("trackSubscribed", cam, {}, p);
+    const vids = vi.fn();
+    const media = vi.fn();
+    call.onVideos(vids);
+    call.onLocalMedia(media);
+    vids.mockClear();
+    media.mockClear();
+    await call.leave();
+    expect(cam.detach).toHaveBeenCalled();
+    state.room.emit("trackSubscribed", videoTrack("camera", "T9"), {}, p);
+    state.room.emit("localTrackUnpublished", {}, state.room.localParticipant);
+    expect(vids).not.toHaveBeenCalled();
+    expect(media).not.toHaveBeenCalled();
   });
 });
 

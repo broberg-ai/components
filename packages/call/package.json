@@ -1,7 +1,7 @@
 {
   "name": "@broberg/call",
-  "version": "0.1.0",
-  "description": "Calls (audio today; video + screen share next) for 2–10 people on a self-hosted LiveKit SFU: the app's server mints a short-lived, room-bound, microphone-only ticket and verifies LiveKit's signed webhooks; the browser joins with noise suppression, echo cancellation and auto gain, and gets mute, output mute, device choice, per-person volume, who-is-speaking and the participant list.",
+  "version": "0.2.0",
+  "description": "Calls for 2–10 people on a self-hosted LiveKit SFU in the EU — audio, camera and screen share: the app's server mints a short-lived, room-bound ticket that allows exactly the sources it names (microphone only by default) and verifies LiveKit's signed webhooks; the browser joins with noise suppression, echo cancellation and auto gain, and gets mute, devices, per-person volume, who-is-speaking, the participant list, camera and screen share on/off (incl. the browser's own stop button), every video picture to attach, and an audio-only mode — with simulcast, adaptive stream and dynacast.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
