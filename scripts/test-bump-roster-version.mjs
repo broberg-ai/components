@@ -42,6 +42,15 @@ const row = (pkg, ver, extra = "") => `{f:"F1",nm:"x",pkg:"${pkg}"${ver ? `,ver:
   check("...and reports found:0 so the caller can fail loudly", r.found, 0);
 }
 
+// 3b — a row with a NESTED object before its ver (secret-scan's sec:[{v:…}]),
+// the shape that made 0.15.0's bump report «no roster row» (31 Oct 2026)
+{
+  const src = `[{f:"F035",pkg:"@broberg/secret-scan",sec:[{v:"0.7.0",why:"a \\"password\\" } field"}],s:"shipped",ver:"0.14.3",desc:"x ver:\\"9\\" }"},{f:"F036",pkg:"@broberg/next",ver:"1.0.0"}]`;
+  const r = bumpVersions(src, "@broberg/secret-scan", "0.15.0");
+  check("a nested object before ver: the row's OWN ver is bumped", [r.found, r.source.includes('ver:"0.15.0"'), r.source.includes('v:"0.7.0"')], [1, true, true]);
+  check("...and the next row is untouched", r.source.includes('pkg:"@broberg/next",ver:"1.0.0"'), true);
+}
+
 // 4 — a NEIGHBOURING package is untouched
 {
   const src = `[${row("@broberg/theme", "0.6.0")},${row("@broberg/pwa", "0.3.0")}]`;

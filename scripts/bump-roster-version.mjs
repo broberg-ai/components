@@ -29,7 +29,39 @@ import { dirname, join } from "node:path";
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROSTER = join(HERE, "inventory-data.mjs");
 
-/** Every `ver:"…"` that belongs to the FIRST row after each `pkg:"<name>"`. */
+/**
+ * Where the row that `pkg` sits in ends, and where ITS OWN top-level `ver:"…"` is.
+ *
+ * Walks the object literal from `pkg` onward: strings are skipped (a desc may
+ * contain anything), `{`/`[` nest, and the row ends at the brace that closes
+ * depth 0. A `ver:` is only the row's own when it sits at depth 0.
+ *
+ * The first version bounded the row by the NEXT `}` — true until a row carried a
+ * nested object before its ver (`sec:[{v:"0.7.0", …}]`). @broberg/secret-scan
+ * 0.15.0 (31 Oct 2026) was published and the roster then reported «no roster row»,
+ * which kept Discovery's freshness check red for an evening.
+ */
+function ownVer(source, from) {
+  let depth = 0;
+  for (let i = from; i < source.length; i++) {
+    const c = source[i];
+    if (c === '"' || c === "'" || c === "`") {
+      for (i++; i < source.length && source[i] !== c; i++) if (source[i] === "\\") i++;
+      continue;
+    }
+    if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") {
+      if (depth === 0) return null; // the row closed without a ver of its own
+      depth--;
+    } else if (depth === 0 && source.startsWith('ver:"', i) && /[,{\s]/.test(source[i - 1] ?? " ")) {
+      const end = source.indexOf('"', i + 5);
+      return { index: i, length: end + 1 - i, value: source.slice(i + 5, end) };
+    }
+  }
+  return null;
+}
+
+/** Every `ver:"…"` that belongs to the row of each `pkg:"<name>"`. */
 export function bumpVersions(source, pkg, version) {
   const marker = `pkg:"${pkg}"`;
   let out = "";
@@ -40,22 +72,18 @@ export function bumpVersions(source, pkg, version) {
   for (;;) {
     const at = rest.indexOf(marker);
     if (at === -1) break;
-    // A roster row is one object literal; `ver` always follows `pkg` inside it,
-    // and the next `}` closes the row. Bounding the search by that brace is what
-    // stops a bump leaking into the NEXT package's row when this one has no ver.
-    const rowEnd = rest.indexOf("}", at);
-    const window = rest.slice(at, rowEnd === -1 ? rest.length : rowEnd);
-    const m = /ver:"([^"]*)"/.exec(window);
+    // Bounded by the row itself, so a row with no ver can never lend the bump
+    // to the NEXT package's row.
+    const m = ownVer(rest, at + marker.length);
     if (!m) {
       out += rest.slice(0, at + marker.length);
       rest = rest.slice(at + marker.length);
       continue;
     }
-    const verAt = at + m.index;
-    if (m[1] === version) alreadyCorrect++;
+    if (m.value === version) alreadyCorrect++;
     else rows++;
-    out += rest.slice(0, verAt) + `ver:"${version}"`;
-    rest = rest.slice(verAt + m[0].length);
+    out += rest.slice(0, m.index) + `ver:"${version}"`;
+    rest = rest.slice(m.index + m.length);
   }
   out += rest;
   return { source: out, rows, alreadyCorrect, found: rows + alreadyCorrect };
