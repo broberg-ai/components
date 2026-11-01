@@ -372,7 +372,8 @@ jobs:
           # when the app says how many machines it has (expected_machines), WE
           # count them — three reads, union by id — remove any surplus, and hand
           # the deploy the exact ids: --only-machines <ids> --update-only. flyctl
-          # then updates image AND fly.toml config on those, and creates none.
+          # then brings image AND fly.toml config to exactly those, and adds no
+          # machines beyond them (it may swap one for a fresh one in its place).
           echo "only_machines=" >> "$GITHUB_OUTPUT"
           if [ "${EXPECTED_MACHINES:-0}" -le 0 ]; then
             echo "expected_machines not set — flyctl deploy decides, as before."
@@ -430,7 +431,11 @@ jobs:
             READ_MACHINES
           fi
           IDS=$(printf '%s\n' "$ROWS" | cut -f1 | paste -sd, -)
-          echo "Deploying to exactly these $COUNT machine(s), creating none: $IDS"
+          # Measured on Discovery 1/11 2026 (run 41311649343): with --only-machines
+          # flyctl still REPLACES a machine ("Creating machine for <id>": a fresh one
+          # in its place, the old one removed) — it can swap, but not add. If the
+          # removal of the old one fails, Machine-verify after the deploy catches it.
+          echo "Deploying to exactly these $COUNT machine(s) — flyctl may swap one for a fresh one, but adds none: $IDS"
           echo "only_machines=$IDS" >> "$GITHUB_OUTPUT"
 
       - name: Deploy (flyctl --remote-only)
