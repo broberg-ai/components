@@ -93,7 +93,9 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
   const room = new Room({ audioCaptureDefaults: { ...AUDIO_CAPTURE }, ...VIDEO_ROOM_OPTIONS, publishDefaults: { ...VIDEO_ROOM_OPTIONS.publishDefaults } });
   const localMediaCbs = new Set<(m: LocalMedia) => void>();
   const videoCbs = new Set<(v: CallVideo[]) => void>();
-  const remoteVideos = new Map<RemoteTrack, CallVideo>();
+  // F104.10 — kept WITH its publication: a muted camera stays subscribed, so
+  // only the publication can say whether there is a picture right now.
+  const remoteVideos = new Map<RemoteTrack, { video: CallVideo; pub: RemoteTrackPublication }>();
   let audioOnly = false;
   const speakingCbs = new Set<(ids: string[]) => void>();
   const participantCbs = new Set<(ps: VoiceParticipant[]) => void>();
@@ -129,7 +131,8 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
       const v = localVideo(pub, room.localParticipant);
       if (v) local.push(v);
     }
-    return [...local, ...remoteVideos.values()];
+    const remote = [...remoteVideos.values()].filter(({ pub }) => !pub.isMuted).map(({ video }) => video);
+    return [...local, ...remote];
   };
   const emitVideos = () => {
     if (left) return;
@@ -150,11 +153,11 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
       const ids = speakers.map((s) => s.identity);
       speakingCbs.forEach((cb) => cb(ids));
     }],
-    [RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: unknown, p: RemoteParticipant) => {
+    [RoomEvent.TrackSubscribed, (track: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
       if (track.kind === Track.Kind.Video) {
         const source = toVideoSource(track.source);
         if (!source) return;
-        remoteVideos.set(track, videoOf(`${p.identity}:${track.sid ?? source}`, p, false, source, track));
+        remoteVideos.set(track, { video: videoOf(`${p.identity}:${track.sid ?? source}`, p, false, source, track), pub });
         emitVideos();
         return;
       }
@@ -179,6 +182,10 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
     // passes through setScreenShare.
     [RoomEvent.LocalTrackPublished, onLocalChange],
     [RoomEvent.LocalTrackUnpublished, onLocalChange],
+    // F104.10 — LiveKit turns a camera off by MUTING it, for you and for
+    // everyone else, so a mute is a picture going away (and unmute coming back).
+    [RoomEvent.TrackMuted, onLocalChange],
+    [RoomEvent.TrackUnmuted, onLocalChange],
   ];
   for (const [event, fn] of handlers) room.on(event, fn);
 
@@ -268,7 +275,7 @@ function toVideoSource(source: Track.Source): CallVideo["source"] | undefined {
 
 function localVideo(pub: LocalTrackPublication, p: Participant): CallVideo | undefined {
   const source = toVideoSource(pub.source);
-  if (!pub.track || !source) return undefined;
+  if (!pub.track || !source || pub.isMuted) return undefined;
   return videoOf(`${p.identity}:${pub.trackSid}`, p, true, source, pub.track);
 }
 

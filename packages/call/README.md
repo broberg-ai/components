@@ -59,7 +59,7 @@ await call.setScreenShare(true);                     // the browser asks which s
 await call.setCamera(true, { deviceId });            // deviceId optional
 call.localMedia;                                     // { camera, screenShare } — what you send now
 call.onLocalMedia((m) => setButtons(m));             // at once + on every change, INCLUDING the browser's own «stop sharing» button
-call.onVideos((videos) => renderTiles(videos));      // [{ id, identity, name, isLocal, source: "camera"|"screen_share", attach(el), detach(el) }]
+call.onVideos((videos) => renderTiles(videos));      // [{ id, identity, name, isLocal, source: "camera"|"screen_share", attach(el), detach(el) }] — a turned-off (muted) camera is NOT in the list (0.2.1)
 videos[0].attach(videoEl);                           // sets autoplay + playsinline; your own picture is muted
 call.setAudioOnly(true);                             // weak connection: stop receiving others' video, keep sound
 ```

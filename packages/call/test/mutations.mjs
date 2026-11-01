@@ -199,8 +199,8 @@ const MUTATIONS = [
   {
     name: "other people's video is dropped instead of reported",
     file: CLIENT,
-    find: "        remoteVideos.set(track, videoOf(",
-    replace: "        void (track, videoOf(",
+    find: "        remoteVideos.set(track, { video: videoOf(",
+    replace: "        void (track, { video: videoOf(",
     expect: ["gives other people's camera and screen as pictures"],
   },
   {
@@ -237,6 +237,35 @@ const MUTATIONS = [
     find: "      remoteVideos.forEach((_v, track) => track.detach());\n",
     replace: "",
     expect: ["after leave, no picture or media callback fires"],
+  },
+  // F104.10 — a turned-off camera is not a picture.
+  {
+    name: "your own muted camera is still reported as a picture",
+    file: CLIENT,
+    find: "  if (!pub.track || !source || pub.isMuted) return undefined;",
+    replace: "  if (!pub.track || !source) return undefined;",
+    expect: ["your own camera leaves onVideos when turned off"],
+  },
+  {
+    name: "someone else's muted camera is still reported as a picture",
+    file: CLIENT,
+    find: ".filter(({ pub }) => !pub.isMuted)",
+    replace: ".filter(() => true)",
+    expect: ["someone else's camera leaves onVideos when they mute it", "joins with their camera already muted"],
+  },
+  {
+    name: "a mute does not announce anything",
+    file: CLIENT,
+    find: "    [RoomEvent.TrackMuted, onLocalChange],\n",
+    replace: "",
+    expect: ["someone else's camera leaves onVideos when they mute it", "a mute anywhere also re-announces"],
+  },
+  {
+    name: "an unmute does not bring the picture back",
+    file: CLIENT,
+    find: "    [RoomEvent.TrackUnmuted, onLocalChange],\n",
+    replace: "",
+    expect: ["comes back when they unmute"],
   },
   {
     name: "a refused microphone leaves the room connected",

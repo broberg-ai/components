@@ -15,6 +15,8 @@ vi.mock("livekit-client", async () => {
     TrackPublished: "trackPublished",
     LocalTrackPublished: "localTrackPublished",
     LocalTrackUnpublished: "localTrackUnpublished",
+    TrackMuted: "trackMuted",
+    TrackUnmuted: "trackUnmuted",
   };
   const Track = {
     Kind: { Audio: "audio", Video: "video" },
@@ -47,7 +49,13 @@ vi.mock("livekit-client", async () => {
     const lp = state.room.localParticipant;
     lp[source === "camera" ? "isCameraEnabled" : "isScreenShareEnabled"] = on;
     const sid = `L-${source}`;
-    if (on) lp.videoTrackPublications.set(sid, { trackSid: sid, source, track: videoTrack(source, sid) });
+    // Like LiveKit: turning the CAMERA off MUTES its publication (it stays in
+    // videoTrackPublications with its track); a screen share is unpublished.
+    const existing = lp.videoTrackPublications.get(sid);
+    if (on) {
+      if (existing) existing.isMuted = false;
+      else lp.videoTrackPublications.set(sid, { trackSid: sid, source, isMuted: false, track: videoTrack(source, sid) });
+    } else if (source === "camera" && existing) existing.isMuted = true;
     else lp.videoTrackPublications.delete(sid);
   }
   return { Room, RoomEvent, Track };
@@ -63,7 +71,7 @@ function remote(identity: string, name = identity) {
   return { identity, name, volume: undefined as number | undefined, trackPublications: new Map<string, any>(), setVolume(v: number) { this.volume = v; } };
 }
 function publication(kind: "audio" | "video", sid: string) {
-  return { kind, trackSid: sid, subscribed: true as boolean, setSubscribed(on: boolean) { this.subscribed = on; } };
+  return { kind, trackSid: sid, isMuted: false, subscribed: true as boolean, setSubscribed(on: boolean) { this.subscribed = on; } };
 }
 function addRemote(identity: string) {
   const p = remote(identity);
@@ -337,6 +345,57 @@ describe("F104.7 — camera and screen share", () => {
     state.room.emit("localTrackUnpublished", {}, state.room.localParticipant);
     expect(vids).not.toHaveBeenCalled();
     expect(media).not.toHaveBeenCalled();
+  });
+});
+
+describe("F104.10 — a turned-off camera is not a picture", () => {
+  it("your own camera leaves onVideos when turned off (LiveKit mutes it) and returns when turned on", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const seen: string[][] = [];
+    call.onVideos((v) => seen.push(v.map((x) => `${x.identity}:${x.source}`)));
+    await call.setCamera(true);
+    await call.setCamera(false);
+    expect(state.room.localParticipant.videoTrackPublications.get("L-camera").isMuted).toBe(true); // the stand-in mutes, as LiveKit does
+    expect(seen.at(-1)).toEqual([]);
+    expect(call.localMedia.camera).toBe(false);
+    await call.setCamera(true);
+    expect(seen.at(-1)).toEqual(["me:camera"]);
+  });
+
+  it("someone else's camera leaves onVideos when they mute it and comes back when they unmute", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const seen: string[][] = [];
+    call.onVideos((v) => seen.push(v.map((x) => `${x.identity}:${x.source}`)));
+    const p = addRemote("ida");
+    const pub = publication("video", "T1");
+    state.room.emit("trackSubscribed", videoTrack("camera", "T1"), pub, p);
+    expect(seen.at(-1)).toEqual(["ida:camera"]);
+    pub.isMuted = true;
+    state.room.emit("trackMuted", pub, p);
+    expect(seen.at(-1)).toEqual([]);
+    pub.isMuted = false;
+    state.room.emit("trackUnmuted", pub, p);
+    expect(seen.at(-1)).toEqual(["ida:camera"]);
+  });
+
+  it("someone who joins with their camera already muted shows no picture", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    let list: unknown[] = ["x"];
+    call.onVideos((v) => (list = v));
+    const p = addRemote("bo");
+    const pub = publication("video", "T5");
+    pub.isMuted = true;
+    state.room.emit("trackSubscribed", videoTrack("camera", "T5"), pub, p);
+    expect(list).toEqual([]);
+  });
+
+  it("a mute anywhere also re-announces your own media state", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const media = vi.fn();
+    call.onLocalMedia(media);
+    media.mockClear();
+    state.room.emit("trackMuted", {}, state.room.localParticipant);
+    expect(media).toHaveBeenCalledTimes(1);
   });
 });
 
