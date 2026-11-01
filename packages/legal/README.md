@@ -127,11 +127,11 @@ daily check and one more reason never to call it on a page view.
   the «UDKAST» marker (`renderHtml` does it for you).
 - Link all of them in your footer. **Never link users to legal.broberg.ai**; it redirects to broberg.ai.
 
-### 6. Acceptance and consent: always BID Samtykke Center
+### 6. Acceptance and consent: always «Samtykke» in BID
 
-**Every app with login stores BOTH terms acceptances AND GDPR consents in BID Samtykke
-Center, and nowhere else** (owner's rule, 1/11 2026; components F110.6). Withdrawing a consent
-also goes through BID Samtykke Center. Never keep your own table for either.
+**Every app with login stores BOTH terms acceptances AND GDPR consents in BID («Samtykke» /
+«Consent» on the BID account), and nowhere else** (owner's rule, 1/11 2026; components F110.6). Withdrawing a consent
+also goes through BID. Never keep your own table for either.
 
 - **Terms** are accepted at sign-up with an **unticked** «Jeg accepterer vilkårene» checkbox. Your
   app SERVER records it in BID with the user's access token:
