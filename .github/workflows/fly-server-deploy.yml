@@ -205,6 +205,19 @@ on:
         required: false
         type: number
         default: 20
+      flyctl_version:
+        description: >-
+          F033.21 — the flyctl version this deploy uses. PINNED on purpose:
+          `@master`/latest let a new flyctl change how the whole fleet deploys
+          without anyone choosing it. 0.5.1 is what the fleet already ran when
+          this was pinned (1/11 2026), so pinning changed nothing that day. The
+          left-behind machines at BID were NOT shown to be a flyctl version bug:
+          Fly's machine list was measured flaky on 0.4.123 and 0.5.1 alike — the
+          Machine-verify step below is what protects you. Upgrade by changing
+          this default in ONE commit.
+        required: false
+        type: string
+        default: "0.5.1"
     secrets:
       FLY_API_TOKEN:
         description: Fly deploy token. Absent = deploy skipped (ship-dark).
@@ -252,6 +265,8 @@ jobs:
       - name: Setup flyctl
         if: steps.guard.outputs.skip == 'false'
         uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: ${{ inputs.flyctl_version }}
 
       - name: Required-secrets presence check
         if: steps.guard.outputs.skip == 'false' && inputs.required_secrets != ''
@@ -351,6 +366,63 @@ jobs:
           # EXTRA_DEPLOY_ARGS is deliberately unquoted so multiple arguments split
           # into separate words rather than arriving as one blob.
           flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
+
+      - name: Machine-verify (every deployed machine is on ONE release)
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          APP: ${{ inputs.app }}
+          CONFIG: ${{ inputs.config }}
+        run: |
+          # F033.21 — a green /health proves ONE machine answers, not that every
+          # machine was updated. We compare the RELEASE each machine is on — the
+          # vNNN Fly's own dashboard shows — not only the image: measured at BID
+          # 1/11 2026, five machines shared ONE image digest while sitting on
+          # v523, v524 and v525 (a release also carries config, env and secrets),
+          # so an image-only check would have passed the very case it is for. Measured at BID 1/11 2026: flyctl 0.5.1 created
+          # new machines and left the old ones, the next deploy updated one of
+          # five, and three versions served at once behind a green job. So we ask
+          # Fly which image each machine the deploy manages actually runs.
+          APP_ARG=""; [ -n "$APP" ] && APP_ARG="--app $APP"
+          CFG_ARG=""; [ -z "$APP" ] && CFG_ARG="--config $CONFIG"
+          # ONE READ IS NOT ENOUGH. Measured 1/11 2026 on BOTH flyctl 0.4.123 and
+          # 0.5.1: `machine list --json` intermittently returns an INCOMPLETE list
+          # with exit 0 (broberg-id: 5 5 1 5 5 1). A check on one read could miss
+          # exactly the machine left behind. So read three times and take the
+          # union by machine id.
+          LISTING="["
+          for attempt in 1 2 3; do
+            # TWO STATES, NOT ONE: "could not look" is never reported as "all fine".
+            if ! ONE="$(flyctl machine list $APP_ARG $CFG_ARG --json 2>&1)"; then
+              echo "$ONE"
+              echo "::error::Could not LIST the app's machines (flyctl's own error is above). This did NOT verify the deploy — it means the check could not look."
+              exit 1
+            fi
+            [ "$attempt" -gt 1 ] && LISTING="$LISTING,"
+            LISTING="$LISTING$ONE"
+            [ "$attempt" -lt 3 ] && sleep 2
+          done
+          LISTING="$LISTING]"
+          # Only machines the deploy manages carry fly_process_group; one started
+          # with `fly machine run` (a cron, a one-off) may rightly run another image.
+          if ! ROWS="$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | .[] | select(.config.metadata.fly_process_group != null) | [.id, .state, ("v" + (.config.metadata.fly_release_version // "?")), (.config.image // "unknown"), .region] | @tsv' 2>&1)"; then
+            echo "$ROWS"
+            echo "::error::Could not READ flyctl's machine list as JSON. This did NOT verify the deploy."
+            exit 1
+          fi
+          COUNT=$(printf '%s\n' "$ROWS" | grep -c . || true)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::Fly lists no machines managed by a deploy (none carry fly_process_group). This did NOT verify the deploy."
+            exit 1
+          fi
+          RELEASES=$(printf '%s\n' "$ROWS" | cut -f3 | sort -u | grep -c .)
+          if [ "$RELEASES" -ne 1 ]; then
+            echo "::error::$COUNT machines are on $RELEASES DIFFERENT releases ($(printf '%s\n' "$ROWS" | cut -f3 | sort -u | tr '\n' ' '| sed 's/ $//')) — the deploy did not update every machine (old ones were left behind). /health can still say 200, because one machine answering is enough for that."
+            printf '%s\n' "$ROWS" | awk -F'\t' '{ printf "  %s  %-5s %-9s %-6s %s\n", $1, $5, $2, $3, $4 }'
+            echo "Remove a left-behind machine only after checking it: flyctl machine destroy <id> --app <app>"
+            exit 1
+          fi
+          echo "✓ All $COUNT deploy-managed machines are on one release, $(printf '%s\n' "$ROWS" | head -n1 | cut -f3): $(printf '%s\n' "$ROWS" | cut -f5 | sort | uniq -c | awk '{printf "%s%s×%s", (NR>1?", ":""), $2, $1}')"
 
       - name: Health-verify (prove the NEW version serves 200)
         if: steps.guard.outputs.skip == 'false' && inputs.health_url != ''

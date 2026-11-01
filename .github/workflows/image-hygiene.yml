@@ -75,7 +75,11 @@ jobs:
             scripts/image-hygiene-base.mjs
             scripts/image-hygiene-superseded.mjs
           sparse-checkout-cone-mode: false
+      # F033.21 — pinned; must equal fly-server-deploy.yml's flyctl_version default
+      # (scripts/test-fly-deploy-workflow.mjs checks they agree).
       - uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: "0.5.1"
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
 

@@ -30,8 +30,9 @@ const STEPS = Object.fromEntries(
 const GUARD = "Single-writer guard (a volume + two machines is silent data loss)";
 const DEPLOY = "Deploy (flyctl --remote-only)";
 const HEALTH = "Health-verify (prove the NEW version serves 200)";
+const MACHINES = "Machine-verify (every deployed machine is on ONE release)";
 
-for (const name of [GUARD, DEPLOY, HEALTH]) {
+for (const name of [GUARD, DEPLOY, HEALTH, MACHINES]) {
   if (!STEPS[name]) {
     console.error(`✗ the workflow has no step named "${name}" — it was renamed or removed, and these tests are no longer testing what ships.`);
     process.exit(1);
@@ -248,6 +249,97 @@ const curlServing = (body) =>
     stubs: { curl: curlServing('{"commit":"0000fff"}') },
   });
   check("without health_commit_path any 200 still passes (unchanged)", anyOk.status === 0, anyOk.out.trim());
+}
+
+// ---------------------------------------------------------------------------
+// F033.21 — flyctl is pinned, and every deployed machine runs ONE image
+// ---------------------------------------------------------------------------
+
+console.log("flyctl pinned (F033.21)");
+{
+  const inputs = doc.on?.workflow_call?.inputs ?? {};
+  const pinned = inputs.flyctl_version?.default;
+  check("`flyctl_version` input exists with a concrete default", typeof pinned === "string" && /^\d+\.\d+\.\d+$/.test(pinned), `default is ${pinned}`);
+  const setup = (doc.jobs?.deploy?.steps ?? []).find((st) => String(st.uses ?? "").includes("setup-flyctl"));
+  check("setup-flyctl is given the pinned version (not latest)", setup?.with?.version === "${{ inputs.flyctl_version }}", JSON.stringify(setup?.with));
+  const hygiene = parse(readFileSync(new URL("../.github/workflows/image-hygiene.yml", import.meta.url), "utf8"));
+  const hySetups = Object.values(hygiene.jobs ?? {}).flatMap((j) => j.steps ?? []).filter((st) => String(st.uses ?? "").includes("setup-flyctl"));
+  check("image-hygiene.yml sets flyctl up at least once", hySetups.length > 0);
+  for (const st of hySetups) {
+    check("image-hygiene.yml pins the SAME flyctl version as the deploy workflow", String(st.with?.version) === pinned, `hygiene ${st.with?.version} vs deploy ${pinned}`);
+  }
+}
+
+console.log("machine-verify (F033.21)");
+{
+  // `rel` is the release Fly's dashboard shows as vNNN; `digest` the image.
+  const machine = (id, state, rel, pg = "app", digest = "sha256:same000", region = "arn") => ({
+    id, state, region,
+    image_ref: { digest },
+    config: { image: `registry.fly.io/app:deployment-${rel}`, metadata: pg ? { fly_process_group: pg, fly_release_version: rel } : {} },
+  });
+  const listing = (rows) => ({ flyctl: `#!/bin/sh\ncat <<'JSON'\n${JSON.stringify(rows)}\nJSON\n` });
+  const env = { APP: "bid", CONFIG: "fly.toml" };
+
+  const same = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7"), machine("m2", "stopped", "7")]) });
+  check("all managed machines on one image → green", same.status === 0, same.out.trim());
+  check("…and says how many it checked, the release and where they run", same.out.includes("All 2 deploy-managed machines are on one release, v7: arn×2"), same.out.trim());
+
+  // The BID case EXACTLY as Fly's dashboard showed it 1/11 2026: five machines,
+  // ONE image digest, three releases (v525 in ams, v524 ×2, v523 ×2).
+  const bid = runStep(MACHINES, {
+    env,
+    stubs: listing([
+      machine("7845612c97d098", "started", "525", "app", "sha256:530081be2237", "ams"),
+      machine("815311f9755238", "started", "524", "app", "sha256:530081be2237"),
+      machine("8901edf6d32148", "started", "524", "app", "sha256:530081be2237"),
+      machine("d8d140df931568", "started", "523", "app", "sha256:530081be2237"),
+      machine("e825eddf5494d8", "started", "523", "app", "sha256:530081be2237"),
+    ]),
+  });
+  check("BID's measured state (same image, three releases) → RED", bid.status !== 0, bid.out.trim());
+  check("…naming the releases as the dashboard does", bid.out.includes("3 DIFFERENT releases (v523 v524 v525)"), bid.out.trim());
+  check("…and every machine id with its region, so it can be acted on", ["7845612c97d098", "e825eddf5494d8", "d8d140df931568"].every((id) => bid.out.includes(id)) && bid.out.includes("ams"), bid.out.trim());
+
+  // Fly's list is flaky (measured): a left-behind machine missing from ONE read must still be caught.
+  const flaky = runStep(MACHINES, {
+    env,
+    stubs: {
+      flyctl: `#!/bin/sh
+n=$(cat "$PWD/n" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$PWD/n"
+if [ "$n" = 2 ]; then
+cat <<'JSON'
+${JSON.stringify([machine("m1", "started", "8"), machine("old1", "started", "7")])}
+JSON
+else
+cat <<'JSON'
+${JSON.stringify([machine("m1", "started", "8")])}
+JSON
+fi
+`,
+    },
+  });
+  check("a machine missing from one flaky read is still found (union of 3 reads) → RED", flaky.status !== 0 && flaky.out.includes("old1"), flaky.out.trim());
+  const dup = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7")]) });
+  check("the same machine seen in all 3 reads is counted ONCE", dup.out.includes("All 1 deploy-managed"), dup.out.trim());
+
+  const oneOff = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7"), machine("cron1", "started", "3", null)]) });
+  check("a machine with no fly_process_group (fly machine run) is not counted", oneOff.status === 0, oneOff.out.trim());
+
+  const cannot = runStep(MACHINES, { env, stubs: { flyctl: "#!/bin/sh\necho 'Error: token expired' >&2\nexit 1\n" } });
+  check("flyctl cannot list → RED", cannot.status !== 0);
+  check("…saying it could NOT look, never «ok»", cannot.out.includes("did NOT verify") && cannot.out.includes("token expired") && !cannot.out.includes("✓"), cannot.out.trim());
+
+  const none = runStep(MACHINES, { env, stubs: listing([]) });
+  check("no managed machines at all → RED (nothing was verified)", none.status !== 0 && none.out.includes("did NOT verify"), none.out.trim());
+
+  const garbage = runStep(MACHINES, { env, stubs: { flyctl: "#!/bin/sh\necho 'not json'\n" } });
+  check("unreadable listing → RED, not «ok»", garbage.status !== 0 && garbage.out.includes("did NOT verify"), garbage.out.trim());
+
+  const rec = runStep(MACHINES, { env: { APP: "", CONFIG: "fly.toml" } });
+  check("without an app name it asks flyctl by --config", rec.flyctlArgs.includes("machine list --config fly.toml --json"), rec.flyctlArgs);
+  const recApp = runStep(MACHINES, { env });
+  check("with an app name it asks for that app", recApp.flyctlArgs.includes("machine list --app bid --json"), recApp.flyctlArgs);
 }
 
 // ---------------------------------------------------------------------------
