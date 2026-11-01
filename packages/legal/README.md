@@ -149,6 +149,8 @@ acceptance, so "which text did they accept?" has an exact answer.
 - **Placeholders** (`{customer.name}` and the rest) are a fixed list; an unknown one is refused.
 - Zero dependencies (a built-in SHA-256, proven against FIPS vectors and node:crypto).
 
+**0.3.1 (F110.16):** terms (da) «Dit indhold» no longer promises «pseudonymiseret analyse» for every product. Whether a product analyses is said only in the privacy policy, per product (facts.conversationAnalysis). The terms text and its hash changed (still a draft). Found by jam.
+
 **0.3.0 (F110.15):** `createLegalCache` (ported from jam's F001.79), `verifyTemplate`, `LEGAL_API_URL`;
 README §4 trap fixed. Additive; the texts are unchanged.
 

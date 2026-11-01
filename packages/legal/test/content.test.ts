@@ -66,6 +66,14 @@ describe("the bundled drafts", () => {
     expect(t).toContain("ikke afkrydset på forhånd");
   });
 
+  it("F110.16 — terms promise no analysis; whether a product analyses is said ONLY in privacy, per product", () => {
+    const terms = allText(getDocument({ doc: "terms", locale: "da", facts: OTHER }));
+    expect(terms).not.toMatch(/analyse/i);
+    expect(terms).toContain("som beskrevet i privatlivspolitikken");
+    const privacy = allText(getDocument({ doc: "privacy", locale: "da", facts: OTHER }));
+    expect(privacy).toContain("Andet produkt er ikke omfattet af afsnittet om analyse af samtaler.");
+  });
+
   it("privacy is information, never something accepted — and states the owner's fixed points", () => {
     const t = allText(getDocument({ doc: "privacy", locale: "da", facts: EXAMPLE_FACTS }));
     expect(t).not.toMatch(/accepterer privatlivspolitikken/i);

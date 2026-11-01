@@ -1,6 +1,6 @@
 {
   "name": "@broberg/legal",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "One set of legal documents for every broberg.ai product — terms, privacy, trust, DPA, support agreement — as structured, versioned, content-hashed data in Danish (master) and English. Sites style and re-flow; they never edit. Zero dependencies.",
   "type": "module",
   "license": "MIT",

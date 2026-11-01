@@ -36,7 +36,7 @@ export const TERMS_DA: DocumentSource = {
       id: "indhold",
       heading: "Dit indhold",
       blocks: [
-        { id: "indhold.p1", type: "p", text: "Du ejer det indhold, du lægger i tjenesten. Vi bruger det til at levere tjenesten til dig og dem, du deler med, og som beskrevet i privatlivspolitikken, herunder pseudonymiseret analyse for at forbedre vores produkter." },
+        { id: "indhold.p1", type: "p", text: "Du ejer det indhold, du lægger i tjenesten. Vi bruger det til at levere tjenesten til dig og dem, du deler med, og som beskrevet i privatlivspolitikken." },
       ],
     },
     {
