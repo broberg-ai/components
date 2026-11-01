@@ -4,6 +4,10 @@ primary_region = "arn"
 [build]
   dockerfile = "Dockerfile"
 
+# F110.14 — legal.broberg.ai is an API; everything else sends people here.
+[env]
+  REDIRECT_URL = "https://broberg.ai"
+
 [http_service]
   internal_port = 8080
   force_https = true

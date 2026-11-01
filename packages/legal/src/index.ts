@@ -1,18 +1,58 @@
 /**
  * @broberg/legal — components F110. One set of legal documents for every product.
  *
- * Content is data (sections → blocks with stable ids), Danish is the master, product
- * facts come from a registry, and every resolved document carries a version and a
- * contentHash. Sites style and re-flow; there is deliberately no parameter that adds
- * or replaces text.
+ * Content is data (sections → blocks with stable ids), Danish is the master, and
+ * every resolved document carries a version and a contentHash. F110.14: components
+ * serves the TEMPLATES (legal.broberg.ai is an API); each product fills in its OWN
+ * facts — hosting, data categories, sub-processors, conversation analysis — through
+ * fixed templates. Sites style and re-flow; there is deliberately no parameter that
+ * adds or replaces text.
  */
-export { createLibrary, canonicalJson, sourceHash, placeholdersIn } from "./core.js";
+import { createLibrary, sourceHash, templateHash } from "./core.js";
+import { SOURCES } from "./content/index.js";
+import { MASTER_LOCALE, type DocId, type DocumentSource, type LegalDocument, type Locale, type ProductFacts } from "./types.js";
+
+export { createLibrary, canonicalJson, sourceHash, templateHash, placeholdersIn } from "./core.js";
 export { renderHtml } from "./render.js";
 export { sha256Hex } from "./sha256.js";
 export * from "./types.js";
-export { library, SOURCES } from "./content/index.js";
-export { PRODUCTS } from "./content/products.js";
+export { SOURCES } from "./content/index.js";
+export { EXAMPLE_FACTS } from "./content/example.js";
 
-import { library } from "./content/index.js";
-/** The fleet's documents: getDocument({ doc, locale, product }). */
-export const getDocument = library.getDocument;
+/** A template as the API serves it: the authored document with its facts slots, plus its hash. */
+export interface LegalTemplate extends DocumentSource {
+  /** A translation made from an older master — show the Danish one or a notice. */
+  stale: boolean;
+  /** sha256 of the canonical template: the ETag, and what a site compares to see if it is new. */
+  hash: string;
+}
+
+function pick(doc: DocId, locale: Locale): { src: DocumentSource; stale: boolean } {
+  const master = SOURCES.find((s) => s.doc === doc && s.locale === MASTER_LOCALE);
+  if (!master) throw new Error(`no document "${doc}"`);
+  const src = SOURCES.find((s) => s.doc === doc && s.locale === locale) ?? master;
+  const stale = src.locale !== MASTER_LOCALE && src.translationOf?.sourceHash !== sourceHash(master);
+  return { src, stale };
+}
+
+/** The template for one document — what GET /v1/{doc}.{locale}.json returns. A missing translation falls back to Danish. */
+export function getTemplate(opts: { doc: DocId; locale: Locale }): LegalTemplate {
+  const { src, stale } = pick(opts.doc, opts.locale);
+  return { ...src, stale, hash: templateHash(src) };
+}
+
+/** Every template's version and hash — GET /v1/documents. Cheap «is there anything new?». */
+export function listDocuments(): { doc: DocId; locale: Locale; version: string; effectiveFrom: string; draft: boolean; hash: string }[] {
+  return SOURCES.map((s) => ({ doc: s.doc, locale: s.locale, version: s.version, effectiveFrom: s.effectiveFrom, draft: s.draft, hash: templateHash(s) }));
+}
+
+/** A finished document for YOUR product: the bundled template + your own facts. */
+export function getDocument(opts: { doc: DocId; locale: Locale; facts: ProductFacts }): LegalDocument {
+  return createLibrary(SOURCES, [opts.facts]).getDocument({ doc: opts.doc, locale: opts.locale, product: opts.facts.id });
+}
+
+/** A finished document from a template you fetched from the API + your own facts. */
+export function resolveTemplate(template: DocumentSource, facts: ProductFacts): LegalDocument {
+  const { doc, locale, title, version, effectiveFrom, material, draft, translationOf, sections } = template;
+  return createLibrary([{ doc, locale, title, version, effectiveFrom, material, draft, translationOf, sections }], [facts]).getDocument({ doc, locale, product: facts.id });
+}

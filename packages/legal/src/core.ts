@@ -21,6 +21,11 @@ export function canonicalJson(value: unknown): string {
   return `{${Object.keys(obj).filter((k) => obj[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(",")}}`;
 }
 
+/** F110.14 — the hash of a whole template as the API serves it (its ETag). */
+export function templateHash(src: DocumentSource): string {
+  return sha256Hex(canonicalJson(src));
+}
+
 /** The hash a translation records: the master's AUTHORED content, product-independent. */
 export function sourceHash(src: DocumentSource): string {
   return sha256Hex(canonicalJson({ doc: src.doc, version: src.version, sections: src.sections }));
