@@ -15,12 +15,7 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          - { app: broberg-discovery, config: apps/discovery/fly.toml, ha: false } # F033.22 — owner: one machine
+          - { app: broberg-discovery, config: apps/discovery/fly.toml }
     uses: broberg-ai/components/.github/workflows/image-hygiene.yml@v1.0.10
-    with:
-      app: ${{ matrix.app }}
-      config: ${{ matrix.config }}
-      reason: ${{ inputs.reason }}
-      ha: ${{ matrix.ha }} # boolean input — unquoted so it stays a boolean
-      engine-ref: v1.0.10
+    with: { app: "${{ matrix.app }}", config: "${{ matrix.config }}", reason: "${{ inputs.reason }}", engine-ref: v1.0.10 }
     secrets: inherit
