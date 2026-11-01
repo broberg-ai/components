@@ -323,6 +323,20 @@ fi
   const dup = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7")]) });
   check("the same machine seen in all 3 reads is counted ONCE", dup.out.includes("All 1 deploy-managed"), dup.out.trim());
 
+  // F033.22 — the count.
+  const twenty = Array.from({ length: 20 }, (_, i) => machine(`d${String(i).padStart(2, "0")}`, i === 0 ? "started" : "stopped", "691"));
+  const many = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "2" }, stubs: listing(twenty) });
+  check("Discovery's 20 machines on ONE release with expected_machines 2 → RED", many.status !== 0 && many.out.includes("holds 20 deploy-managed machines; this app expects 2"), many.out.trim());
+  check("…listing every machine", many.out.includes("d19") && many.out.includes("d00"), many.out.trim());
+  const few = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "3" }, stubs: listing([machine("m1", "started", "7"), machine("m2", "started", "7")]) });
+  check("fewer machines than expected → RED", few.status !== 0 && few.out.includes("holds 2") && few.out.includes("expects 3"), few.out.trim());
+  const exact = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "2" }, stubs: listing([machine("m1", "started", "7"), machine("m2", "stopped", "7")]) });
+  check("exactly as expected → green, and says so", exact.status === 0 && exact.out.includes("2 machines, as expected (2)"), exact.out.trim());
+  const unset = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "0" }, stubs: listing(twenty) });
+  check("expected_machines unset (0) → count reported, not a failure (no change for existing consumers)", unset.status === 0 && unset.out.includes("20 deploy-managed machines. Set expected_machines"), unset.out.trim());
+  const inputs2 = doc.on?.workflow_call?.inputs ?? {};
+  check("`expected_machines` defaults to 0", inputs2.expected_machines?.default === 0 && inputs2.expected_machines?.type === "number", JSON.stringify(inputs2.expected_machines));
+
   const oneOff = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7"), machine("cron1", "started", "3", null)]) });
   check("a machine with no fly_process_group (fly machine run) is not counted", oneOff.status === 0, oneOff.out.trim());
 
