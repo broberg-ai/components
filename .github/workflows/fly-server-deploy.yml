@@ -466,10 +466,34 @@ jobs:
           # version shipped. 7 chars, matching `git rev-parse --short HEAD`, so a CI deploy
           # and a local ship of the same commit produce ONE id, not two rows for one release.
           SHA="${GITHUB_SHA:0:7}"
-          set -x
-          # EXTRA_DEPLOY_ARGS is deliberately unquoted so multiple arguments split
-          # into separate words rather than arriving as one blob.
-          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG $ONLY_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
+          if [ -z "$ONLY_ARG" ]; then
+            set -x
+            # EXTRA_DEPLOY_ARGS is deliberately unquoted so multiple arguments split
+            # into separate words rather than arriving as one blob.
+            flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
+            exit $?
+          fi
+          # F033.23 — measured on jam 1/11 2026 (run 41312647489): handed the ids
+          # with --only-machines, flyctl could still not SEE them in Fly's flaky
+          # list, planned «create 2 "app" machines», and --update-only stopped the
+          # creation — so nothing was updated and the release reached no machine.
+          # That plan line is the tell: flyctl did not see our machines. Wait and
+          # try again (the list recovers within seconds), up to three attempts.
+          for attempt in 1 2 3; do
+            LOG="$(mktemp)"
+            set -x
+            flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG $ONLY_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS 2>&1 | tee "$LOG"
+            RC=${PIPESTATUS[0]}
+            { set +x; } 2>/dev/null
+            [ "$RC" -ne 0 ] && exit "$RC"
+            if ! grep -Eq 'create [0-9]+ "[^"]+" machine' "$LOG"; then
+              exit 0
+            fi
+            echo "::warning::Attempt $attempt: flyctl could not see the machines it was given (it planned to create them instead) — nothing was updated. Retrying."
+            [ "$attempt" -lt 3 ] && sleep 15
+          done
+          echo "::error::Three deploy attempts and flyctl never saw the machines it was given ($ONLY_MACHINES) — Fly's machine list kept coming back without them, so the new release reached none. Nothing was created. Run the deploy again; if it persists, Fly's API is the problem."
+          exit 1
 
       - name: Machine-verify (every deployed machine is on THIS release)
         if: steps.guard.outputs.skip == 'false'

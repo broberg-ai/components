@@ -432,6 +432,20 @@ esac
 
   const dOnly = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "disc", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "false", ONLY_MACHINES: "a,b" } });
   check("deploy with counted ids → --only-machines a,b --update-only", dOnly.flyctlArgs.includes("--only-machines a,b --update-only"), dOnly.flyctlArgs);
+  // jam 1/11 (run 41312647489): flyctl did not see the given ids, planned to CREATE, --update-only blocked it.
+  const blindThenOk = { flyctl: `#!/bin/bash
+echo "$*" >> "$PWD/deploys"
+n=$(wc -l < "$PWD/deploys")
+if [ "$n" -lt 2 ]; then printf 'This deployment will:\n * create 2 "app" machines\n'; else printf 'Updating existing machines in app with rolling strategy\n'; fi
+` };
+  const dRetry = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "jam", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "true", ONLY_MACHINES: "a,b" }, stubs: { ...blindThenOk, sleep: "#!/bin/sh\nexit 0\n" } });
+  check("flyctl blind to the given ids (plans to create) → retried, then GREEN when it sees them", dRetry.status === 0 && dRetry.out.includes("Attempt 1: flyctl could not see") && !dRetry.out.includes("Attempt 2"), dRetry.out.trim());
+  const alwaysBlind = { flyctl: `#!/bin/bash\nprintf 'This deployment will:\\n * create 2 "app" machines\\n'\n` };
+  const dBlind = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "jam", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "true", ONLY_MACHINES: "a,b" }, stubs: { ...alwaysBlind, sleep: "#!/bin/sh\nexit 0\n" } });
+  check("blind three times → RED, saying the release reached no machine", dBlind.status !== 0 && dBlind.out.includes("Three deploy attempts") && dBlind.out.includes("Attempt 3"), dBlind.out.trim());
+  const failing = { flyctl: `#!/bin/bash\necho "Error: build failed"\nexit 3\n` };
+  const dFail = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "jam", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "true", ONLY_MACHINES: "a,b" }, stubs: failing });
+  check("a failing flyctl deploy keeps its own exit code (not retried, not hidden by tee)", dFail.status === 3, String(dFail.status));
   const dNone = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "disc", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "true", ONLY_MACHINES: "" } });
   check("deploy without ids → no --only-machines (unchanged)", !dNone.flyctlArgs.includes("--only-machines") && !dNone.flyctlArgs.includes("--update-only"), dNone.flyctlArgs);
 
