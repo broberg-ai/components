@@ -35,6 +35,7 @@ on:
       context: { type: string, required: false, default: ".", description: "Build context" }
       reason: { type: string, required: false, default: "manual", description: "nightly | manual" }
       engine-ref: { type: string, required: false, default: "v1", description: "Ref of broberg-ai/components the decision script is read from" }
+      ha: { type: boolean, required: false, default: true, description: "F033.22 — false deploys ONE machine (--ha=false). Must match how the app's normal deploy runs, or the two paths fight over the machine count." }
     secrets:
       FLY_API_TOKEN: { required: true }
 
@@ -158,7 +159,8 @@ jobs:
         # F105.8 — fail CLOSED: deploy only on an explicit no, never on a missing answer.
         if: steps.decide.outputs.deploy == 'true' && steps.superseded.outputs.skip == 'false'
         run: |
-          flyctl deploy -a "$APP" -c "${{ inputs.config }}" --image "$IMAGE" --remote-only
+          HA_ARG=""; [ "${{ inputs.ha }}" = "false" ] && HA_ARG="--ha=false"
+          flyctl deploy -a "$APP" -c "${{ inputs.config }}" --image "$IMAGE" --remote-only $HA_ARG
           echo "release=$(flyctl releases -a "$APP" --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);console.log((r[0]&&(r[0].Version??r[0].version))??"")})')" >> "$GITHUB_OUTPUT"
 
       - name: Report (cardmem contract)

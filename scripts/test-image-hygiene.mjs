@@ -74,6 +74,13 @@ check("build-only first, then deploy THAT image (no second build)", () => {
   if ((wf.match(/flyctl deploy/g) ?? []).length !== 2) throw new Error("exactly two flyctl deploy calls (build-only + --image)");
 });
 
+check("F033.22 — ha:false reaches the --image deploy (one machine), default true changes nothing; flyctl pinned", () => {
+  if (!/ha: \{ type: boolean, required: false, default: true/.test(wf)) throw new Error("input ha (boolean, default true) missing");
+  if (!/HA_ARG=""; \[ "\$\{\{ inputs\.ha \}\}" = "false" \] && HA_ARG="--ha=false"/.test(wf)) throw new Error("ha:false is not turned into --ha=false");
+  if (!/--image "\$IMAGE" --remote-only \$HA_ARG/.test(wf)) throw new Error("the --image deploy does not pass $HA_ARG");
+  if (!/setup-flyctl@master\n\s+with:\n\s+version: "\d+\.\d+\.\d+"/.test(wf)) throw new Error("flyctl is not pinned to a version");
+});
+
 check("the scanned image is pinned by digest, the pull waits for the registry, and a failed build is not hidden by tee", () => {
   if (!/@sha256:\[0-9a-f\]\{64\}/.test(wf)) throw new Error("no digest extraction from the build log");
   if (!/IMAGE=registry\.fly\.io\/\$APP@\$DIGEST/.test(wf)) throw new Error("IMAGE is not pinned by digest");

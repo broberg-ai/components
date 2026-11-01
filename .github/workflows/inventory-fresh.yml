@@ -285,10 +285,12 @@ jobs:
       config: apps/discovery/fly.toml
       dockerfile: apps/discovery/Dockerfile
       health_url: https://discovery.broberg.ai/health # F038.22: everything else is behind login
-      # F033.22 — one started + one auto-stopped standby. It had grown to 20 by
-      # 1/11 2026. Not 1: image-hygiene.yml deploys this app too, with Fly's
-      # default of two, and the two paths must agree or every deploy goes red.
-      expected_machines: 2
+      # F033.22 — ONE machine, owner 1/11 2026: «Discovery kører p.t. 3 aktive
+      # maskiner for et HTML website. Det er bare ikke ok, det skal ned på 1.»
+      # It had grown to 20. hygiene.yml deploys it too and passes ha: false as
+      # well — the two paths must agree or every deploy goes red.
+      ha: false
+      expected_machines: 1
     secrets:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
