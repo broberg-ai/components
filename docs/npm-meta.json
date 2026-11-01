@@ -217,8 +217,8 @@
  },
  "@broberg/auth-relay": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/auth-relay",
-  "version": "0.5.1",
-  "publishedAt": "2026-10-31T21:16:33.536Z",
+  "version": "0.5.2",
+  "publishedAt": "2026-11-01T11:12:31.180Z",
   "provenance": "yes"
  },
  "@broberg/lens-daemon": {
