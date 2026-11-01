@@ -1,6 +1,6 @@
 # @broberg/legal
 
-**Status: 0.2.0. Every document is a DRAFT (`draft: true`, rendered as «UDKAST») until the owner's lawyer has reviewed it (F110.3).**
+**Status: 0.3.0. Every document is a DRAFT (`draft: true`, rendered as «UDKAST») until the owner's lawyer has reviewed it (F110.3).**
 
 One set of legal documents for every broberg.ai product: `terms`, `privacy`, `trust`, `dpa` and
 `support`. The text is the same everywhere. Danish is the master and prevails; English sits beside it.
@@ -47,6 +47,10 @@ export const FACTS: ProductFacts = {
   turns your facts into tables and sentences through fixed templates.
 - The facts change when your product changes (a new vendor, a new region). Update the file in the
   same change.
+- **Prove your facts with a test (recommended; jam does this):** for every vendor in `subprocessors`,
+  require evidence in your code, such as an import (`/mistral/i`), an env key (`R2_ACCESS_KEY_ID`) or
+  `primary_region` in fly.toml. Then the facts cannot promise a vendor you do not use, and adding a new
+  integration fails the test until the facts file says so too.
 
 ### 2. Get the texts: the npm package (recommended for JS/TS)
 
@@ -62,6 +66,19 @@ renderHtml(doc);   // semantic HTML with data-legal-id on every section and bloc
 The texts ship **inside** the package, so your site needs no network for them and cannot lose them
 when legal.broberg.ai is down. New texts reach you as a new package version; components sends a
 release report saying whether the wording changed.
+
+**Want new texts without redeploying? (recommended for a running server; ported from jam)**
+
+```ts
+import { createLegalCache } from "@broberg/legal";
+const legal = createLegalCache({ facts: FACTS });     // once, at start
+const doc = legal.get("privacy", "da");                // on every page view: never waits, never fails
+```
+
+`get` answers at once from the latest good template, starting with the one bundled in the package.
+At most once a day per document it checks the API in the background (`If-None-Match`). It swaps in
+a newer template only if that template verifies AND resolves with your facts. Any failure keeps
+the old one. The cache lives in memory, so a restart starts again from the bundled texts.
 
 ### 3. Or get them over HTTP (any stack)
 
@@ -85,9 +102,11 @@ Your terms page must never go down because legal.broberg.ai is down or being upd
    fetched). Your pages render from the snapshot. They never call the API on a page view.
 2. **Check for a new edition at most once a day:** `GET /v1/documents` and compare each `hash` with
    your snapshot's. Same hash means there is nothing to do.
-3. **Only when a hash changed:** fetch that template, check it (it parses, `hash` matches the list,
-   `sections` is not empty), then replace the snapshot file in one step (write to a temp file, then
-   rename).
+3. **Only when a hash changed:** fetch that template and check it: in JS/TS with `verifyTemplate(t)`,
+   and its `hash` must equal the one in the list. Then replace the snapshot file in one step (write to
+   a temp file, then rename). **Trap:** the hash covers the template WITHOUT the response's own
+   `stale` and `hash` fields. Recomputing it over the whole response never matches. Without the
+   package: drop those two fields, then take sha256 of the canonical JSON (keys sorted, no spaces).
 4. **If anything fails** (timeout, 5xx, a check fails), keep the old snapshot, log it, and try again
    tomorrow. Never empty a page because a fetch failed.
 5. Every answer carries an `ETag` and `cache-control: public, max-age=86400`. A request with
@@ -101,7 +120,9 @@ daily check and one more reason never to call it on a page view.
 - One page per document on your own domain, for example `/vilkaar`, `/privatliv`, `/tillid`.
   `dpa` and `support` belong in customer contracts (Contract Manager fills `{customer.name}` and the
   other placeholders); a public site shows `terms`, `privacy` and `trust`.
-- Style and re-flow freely. **Never edit the text.**
+- Style and re-flow freely. **Never edit the text.** Drawing the blocks (`p`, `note`, `list`,
+  `table`) yourself in your own design instead of using `renderHtml` is fully fine, as long as the
+  text is verbatim. `renderHtml` is a convenience, not a requirement.
 - Show the version and the «gælder fra» date (`version`, `effectiveFrom`). While `draft` is true, show
   the «UDKAST» marker (`renderHtml` does it for you).
 - Link all of them in your footer. **Never link users to legal.broberg.ai**; it redirects to broberg.ai.
@@ -121,9 +142,15 @@ acceptance, so "which text did they accept?" has an exact answer.
 - `resolveTemplate(template, facts)`: a finished document from a template you fetched. It gives the
   same `contentHash` as `getDocument` with the same facts.
 - `renderHtml(document)`: semantic HTML. `EXAMPLE_FACTS`: a filled-in example.
+- `createLegalCache({ facts, fetch?, refreshMs?, baseUrl?, onKeepOld? })` → `{ get(doc, locale), settled(doc, locale) }`.
+- `verifyTemplate(t)`: true when a fetched template has sections and its hash matches its authored
+  content. `LEGAL_API_URL`: the API's address, in one place.
 - **contentHash** = sha256 of the canonical JSON of the finished document; **hash** = the same for a template.
 - **Placeholders** (`{customer.name}` and the rest) are a fixed list; an unknown one is refused.
 - Zero dependencies (a built-in SHA-256, proven against FIPS vectors and node:crypto).
+
+**0.3.0 (F110.15):** `createLegalCache` (ported from jam's F001.79), `verifyTemplate`, `LEGAL_API_URL`;
+README §4 trap fixed. Additive; the texts are unchanged.
 
 **0.2.0 (F110.14), breaking:** the fleet product registry and `library` are gone, and
 `getDocument` takes `facts` instead of `product`. The per-product HTTP routes and the human pages are

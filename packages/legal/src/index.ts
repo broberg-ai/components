@@ -18,6 +18,7 @@ export { sha256Hex } from "./sha256.js";
 export * from "./types.js";
 export { SOURCES } from "./content/index.js";
 export { EXAMPLE_FACTS } from "./content/example.js";
+export { createLegalCache, LEGAL_API_URL, DEFAULT_REFRESH_MS, type LegalCacheOptions } from "./cache.js";
 
 /** A template as the API serves it: the authored document with its facts slots, plus its hash. */
 export interface LegalTemplate extends DocumentSource {
@@ -39,6 +40,18 @@ function pick(doc: DocId, locale: Locale): { src: DocumentSource; stale: boolean
 export function getTemplate(opts: { doc: DocId; locale: Locale }): LegalTemplate {
   const { src, stale } = pick(opts.doc, opts.locale);
   return { ...src, stale, hash: templateHash(src) };
+}
+
+/**
+ * F110.15 — does a template fetched from the API verify? The hash covers the AUTHORED
+ * template only, WITHOUT the API's own fields (`stale`, `hash`) — recomputing it over
+ * the whole response never matches (measured by jam on 0.2.0). Also requires sections.
+ */
+export function verifyTemplate(t: unknown): t is LegalTemplate {
+  if (!t || typeof t !== "object") return false;
+  const { hash, stale: _stale, ...authored } = t as LegalTemplate;
+  if (typeof hash !== "string" || !Array.isArray(authored.sections) || authored.sections.length === 0) return false;
+  return templateHash(authored as DocumentSource) === hash;
 }
 
 /** Every template's version and hash — GET /v1/documents. Cheap «is there anything new?». */
