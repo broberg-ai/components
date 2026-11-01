@@ -437,6 +437,10 @@ jobs:
           # removal of the old one fails, Machine-verify after the deploy catches it.
           echo "Deploying to exactly these $COUNT machine(s) — flyctl may swap one for a fresh one, but adds none: $IDS"
           echo "only_machines=$IDS" >> "$GITHUB_OUTPUT"
+          # Visible proof for consumers who can only read the run summary.
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            echo "**Machine-plan:** deploying to exactly $COUNT machine(s): \`$IDS\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Deploy (flyctl --remote-only)
         if: steps.guard.outputs.skip == 'false'
@@ -582,7 +586,12 @@ jobs:
             exit 1
           fi
           [ "${EXPECTED_MACHINES:-0}" -gt 0 ] && echo "✓ $COUNT machines, as expected ($EXPECTED_MACHINES)." || echo "::notice::$COUNT deploy-managed machines. Set expected_machines to make a different number a red deploy."
-          echo "✓ All $COUNT deploy-managed machines are on the new release, $LATEST: $(printf '%s\n' "$ROWS" | cut -f5 | sort | uniq -c | awk '{printf "%s%s×%s", (NR>1?", ":""), $2, $1}')"
+          WHERE=$(printf '%s\n' "$ROWS" | cut -f5 | sort | uniq -c | awk '{printf "%s%s×%s", (NR>1?", ":""), $2, $1}')
+          echo "✓ All $COUNT deploy-managed machines are on the new release, $LATEST: $WHERE"
+          # Visible proof for consumers who can only read the run summary (upmetrics #5706).
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            echo "**Machine-verify:** ✓ $COUNT machine(s) on $LATEST ($WHERE)$([ "${EXPECTED_MACHINES:-0}" -gt 0 ] && echo ", expected $EXPECTED_MACHINES")" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Health-verify (prove the NEW version serves 200)
         if: steps.guard.outputs.skip == 'false' && inputs.health_url != ''

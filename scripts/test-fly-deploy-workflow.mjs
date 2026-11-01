@@ -307,6 +307,15 @@ esac
   };
 
   const same = run([machine("m1", "started", "7"), machine("m2", "stopped", "7")], { latest: 7 });
+  {
+    const sumDir = mkdtempSync(join(tmpdir(), "sum-"));
+    const sum = join(sumDir, "summary.md");
+    writeFileSync(sum, "");
+    const f = fakeFly([machine("m1", "started", "7")], { latest: 7 });
+    const r = runStep(MACHINES, { env: { APP: "up", CONFIG: "fly.toml", EXPECTED_MACHINES: "1", GITHUB_STEP_SUMMARY: sum }, files: f.files, stubs: f.stubs });
+    const written = readFileSync(sum, "utf8");
+    check("Machine-verify writes its proof to the job summary (count, release, expected)", r.status === 0 && written.includes("Machine-verify:** ✓ 1 machine(s) on v7 (arn×1), expected 1"), written);
+  }
   check("every machine on THIS deploy's release → green", same.status === 0, same.out.trim());
   check("…saying how many, which release and where", same.out.includes("All 2 deploy-managed machines are on the new release, v7: arn×2"), same.out.trim());
 
@@ -398,6 +407,12 @@ esac
   check("no machines yet → normal first deploy (no ids)", pNew.status === 0 && pNew.only === "" && pNew.out.includes("first deploy"), pNew.out.trim());
   const pFew = planRun([mc("a", "started", "2026-11-01T10:00:00Z")], {}, { EXPECTED_MACHINES: "2" });
   check("fewer than expected → normal deploy may add them (no ids)", pFew.status === 0 && pFew.only === "", pFew.out.trim());
+  {
+    const sum = join(mkdtempSync(join(tmpdir(), "sum-")), "summary.md");
+    writeFileSync(sum, "");
+    planRun([mc("a", "started", "2026-11-01T10:00:00Z")], {}, { EXPECTED_MACHINES: "1", GITHUB_STEP_SUMMARY: sum });
+    check("Machine-plan writes the ids it deploys to into the job summary", readFileSync(sum, "utf8").includes("deploying to exactly 1 machine(s): `a`"), readFileSync(sum, "utf8"));
+  }
   const pExact = planRun([mc("a", "started", "2026-11-01T10:00:00Z"), mc("b", "stopped", "2026-11-01T09:00:00Z")], {}, { EXPECTED_MACHINES: "2" });
   check("exactly as expected → deploy to exactly those ids", pExact.status === 0 && pExact.only.split(",").sort().join(",") === "a,b", pExact.only);
   const pTrim = planRun([
