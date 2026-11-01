@@ -30,7 +30,7 @@ const STEPS = Object.fromEntries(
 const GUARD = "Single-writer guard (a volume + two machines is silent data loss)";
 const DEPLOY = "Deploy (flyctl --remote-only)";
 const HEALTH = "Health-verify (prove the NEW version serves 200)";
-const MACHINES = "Machine-verify (every deployed machine is on ONE release)";
+const MACHINES = "Machine-verify (every deployed machine is on THIS release)";
 
 for (const name of [GUARD, DEPLOY, HEALTH, MACHINES]) {
   if (!STEPS[name]) {
@@ -270,7 +270,7 @@ console.log("flyctl pinned (F033.21)");
   }
 }
 
-console.log("machine-verify (F033.21)");
+console.log("machine-verify (F033.21 + F033.22)");
 {
   // `rel` is the release Fly's dashboard shows as vNNN; `digest` the image.
   const machine = (id, state, rel, pg = "app", digest = "sha256:same000", region = "arn") => ({
@@ -278,136 +278,106 @@ console.log("machine-verify (F033.21)");
     image_ref: { digest },
     config: { image: `registry.fly.io/app:deployment-${rel}`, metadata: pg ? { fly_process_group: pg, fly_release_version: rel } : {} },
   });
-  const listing = (rows) => ({ flyctl: `#!/bin/sh\ncat <<'JSON'\n${JSON.stringify(rows)}\nJSON\n` });
-  const env = { APP: "bid", CONFIG: "fly.toml" };
-
-  const same = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7"), machine("m2", "stopped", "7")]) });
-  check("all managed machines on one image → green", same.status === 0, same.out.trim());
-  check("…and says how many it checked, the release and where they run", same.out.includes("All 2 deploy-managed machines are on one release, v7: arn×2"), same.out.trim());
-
-  // The BID case EXACTLY as Fly's dashboard showed it 1/11 2026: five machines,
-  // ONE image digest, three releases (v525 in ams, v524 ×2, v523 ×2).
-  const bid = runStep(MACHINES, {
-    env,
-    stubs: listing([
-      machine("7845612c97d098", "started", "525", "app", "sha256:530081be2237", "ams"),
-      machine("815311f9755238", "started", "524", "app", "sha256:530081be2237"),
-      machine("8901edf6d32148", "started", "524", "app", "sha256:530081be2237"),
-      machine("d8d140df931568", "started", "523", "app", "sha256:530081be2237"),
-      machine("e825eddf5494d8", "started", "523", "app", "sha256:530081be2237"),
-    ]),
-  });
-  check("BID's measured state (same image, three releases) → RED", bid.status !== 0, bid.out.trim());
-  check("…naming the releases as the dashboard does", bid.out.includes("3 DIFFERENT releases (v523 v524 v525)"), bid.out.trim());
-  check("…and every machine id with its region, so it can be acted on", ["7845612c97d098", "e825eddf5494d8", "d8d140df931568"].every((id) => bid.out.includes(id)) && bid.out.includes("ams"), bid.out.trim());
-
-  // Fly's list is flaky (measured): a left-behind machine missing from ONE read must still be caught.
-  const flaky = runStep(MACHINES, {
-    env,
+  // A stateful fake Fly: machines live in state.json; `machine destroy` and
+  // `scale count` change it; `hide` drops ids from the Nth list read (Fly's list
+  // is measured flaky); `scaleKeeps` decides WHICH machines scale count keeps —
+  // like Fly, it does not care about releases.
+  const fakeFly = (machines, { latest, hide = {}, fail = [], scaleKeeps = "first" } = {}) => ({
+    files: { "state.json": JSON.stringify(machines) },
     stubs: {
-      flyctl: `#!/bin/sh
-n=$(cat "$PWD/n" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$PWD/n"
-if [ "$n" = 2 ]; then
-cat <<'JSON'
-${JSON.stringify([machine("m1", "started", "8"), machine("old1", "started", "7")])}
-JSON
-else
-cat <<'JSON'
-${JSON.stringify([machine("m1", "started", "8")])}
-JSON
-fi
+      flyctl: `#!/bin/bash
+echo "$*" >> "$PWD/calls.log"
+S="$PWD/state.json"
+case " ${fail.join(" ")} " in *" $1 "*|*" $1-$2 "*) echo "Error: simulated $1 failure" >&2; exit 1;; esac
+case "$1 $2" in
+  "releases --json"|"releases --app"|"releases --config") echo '[{"Version": ${latest}}]';;
+  "machine list")
+    n=$(cat "$PWD/reads" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$PWD/reads"
+    case "$n" in ${Object.entries(hide).map(([k, ids]) => `${k}) jq -c --argjson h '${JSON.stringify(ids)}' '[.[] | select(.id as $i | $h | index($i) | not)]' "$S";;`).join(" ")} *) cat "$S";; esac;;
+  "machine destroy") jq -c --arg id "$3" '[.[] | select(.id != $id)]' "$S" > "$S.n" && mv "$S.n" "$S";;
+  "scale count") jq -c --argjson n "$3" '${scaleKeeps === "first" ? ".[0:$n]" : ".[-$n:]"}' "$S" > "$S.n" && mv "$S.n" "$S";;
+esac
 `,
     },
   });
-  check("a machine missing from one flaky read is still found (union of 3 reads) → RED", flaky.status !== 0 && flaky.out.includes("old1"), flaky.out.trim());
-  const dup = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7")]) });
-  check("the same machine seen in all 3 reads is counted ONCE", dup.out.includes("All 1 deploy-managed"), dup.out.trim());
+  const run = (machines, opts = {}, env = {}) => {
+    const f = fakeFly(machines, opts);
+    return runStep(MACHINES, { env: { APP: "bid", CONFIG: "fly.toml", EXPECTED_MACHINES: "0", ...env }, files: f.files, stubs: f.stubs });
+  };
 
-  // F033.22 — the count.
+  const same = run([machine("m1", "started", "7"), machine("m2", "stopped", "7")], { latest: 7 });
+  check("every machine on THIS deploy's release → green", same.status === 0, same.out.trim());
+  check("…saying how many, which release and where", same.out.includes("All 2 deploy-managed machines are on the new release, v7: arn×2"), same.out.trim());
+
+  // BID EXACTLY as Fly's dashboard showed it 1/11 2026: one image, three releases.
+  const bid = run([
+    machine("7845612c97d098", "started", "525", "app", "sha256:530081be2237", "ams"),
+    machine("815311f9755238", "started", "524", "app", "sha256:530081be2237"),
+    machine("8901edf6d32148", "started", "524", "app", "sha256:530081be2237"),
+    machine("d8d140df931568", "started", "523", "app", "sha256:530081be2237"),
+    machine("e825eddf5494d8", "started", "523", "app", "sha256:530081be2237"),
+  ], { latest: 525 });
+  check("BID's measured state (same image, three releases) → RED", bid.status !== 0, bid.out.trim());
+  check("…naming the releases as the dashboard does", bid.out.includes("3 DIFFERENT releases (v523 v524 v525)"), bid.out.trim());
+  check("…and every machine id with its region", ["7845612c97d098", "e825eddf5494d8", "d8d140df931568"].every((id) => bid.out.includes(id)) && bid.out.includes("ams"), bid.out.trim());
+
+  // Discovery EXACTLY as measured 1/11 2026: the deploy made v695 on a NEW
+  // machine beside the v694 one, and scale count kept the OLD one.
+  const disc = run([machine("e784ee609c31d8", "started", "694"), machine("newv695", "started", "695")], { latest: 695, scaleKeeps: "first" }, { EXPECTED_MACHINES: "1" });
+  check("Discovery's case: the OLD-release machine is removed, the new one kept → GREEN on v695", disc.status === 0 && disc.out.includes("removed e784ee609c31d8 (older release)") && disc.out.includes("on the new release, v695"), disc.out.trim());
+
+  const stale = run([machine("m1", "started", "694")], { latest: 695 }, { EXPECTED_MACHINES: "1" });
+  check("one machine, one release — but not the NEW one → RED", stale.status !== 0 && stale.out.includes("Every machine is on v694, but the newest release is v695"), stale.out.trim());
+
+  const surplus = run([machine("a1", "started", "9"), machine("a2", "started", "9"), machine("a3", "stopped", "9")], { latest: 9 }, { EXPECTED_MACHINES: "1" });
+  check("surplus on the new release (3 → 1) is trimmed with scale count → GREEN", surplus.status === 0 && surplus.out.includes("Trimming 3 → 1") && surplus.out.includes("After trimming: 1"), surplus.out.trim());
+
   const twenty = Array.from({ length: 20 }, (_, i) => machine(`d${String(i).padStart(2, "0")}`, i === 0 ? "started" : "stopped", "691"));
-  const many = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "2" }, stubs: listing(twenty) });
-  // The default stub answers every call with the same 20, so the trim "succeeds"
-  // and the re-read still shows 20: the result must be checked, not assumed.
-  check("Discovery's 20 machines with expected_machines 2 → a trim is attempted, and when Fly still holds 20 → RED", many.status !== 0 && many.out.includes("Trimming 20 → 2") && many.out.includes("holds 20 deploy-managed machines; this app expects 2"), many.out.trim());
-  check("…listing every machine", many.out.includes("d19") && many.out.includes("d00"), many.out.trim());
-  // Owner 1/11: the deploy trims surplus itself — one region + one group only.
-  const trimmer = (before, after, scaleExit = 0) => ({
-    flyctl: `#!/bin/sh
-printf '%s\\n' "$*" >> "$PWD/calls.log"
-case "$1 $2" in
-  "scale count") [ -f "$PWD/scaled" ] || touch "$PWD/scaled"; exit ${scaleExit} ;;
-esac
-if [ -f "$PWD/scaled" ]; then
-cat <<'JSON'
-${JSON.stringify(after)}
-JSON
-else
-cat <<'JSON'
-${JSON.stringify(before)}
-JSON
-fi
-`,
-  });
-  const trimmed = runStep(MACHINES, {
-    env: { ...env, EXPECTED_MACHINES: "1" },
-    stubs: trimmer([machine("a1", "started", "694"), machine("a2", "started", "694"), machine("a3", "stopped", "694")], [machine("a1", "started", "694")]),
-  });
-  check("single-region surplus (3 → 1) is trimmed with scale count and ends GREEN", trimmed.status === 0 && trimmed.out.includes("Trimming 3 → 1") && trimmed.out.includes("After trimming: 1"), trimmed.out.trim());
+  const disc20 = run(twenty, { latest: 691 }, { EXPECTED_MACHINES: "2" });
+  check("Discovery's 20 machines with expected_machines 2 → trimmed to 2, GREEN", disc20.status === 0 && disc20.out.includes("Trimming 20 → 2") && disc20.out.includes("After trimming: 2"), disc20.out.trim());
 
-  const scaleArgs = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "1" }, stubs: { flyctl: `#!/bin/sh
-printf '%s\\n' "$*" >> "$PWD/args"
-case "$1 $2" in "scale count") echo "$*" > "$PWD/scale"; exit 0;; esac
-if [ -f "$PWD/scale" ]; then echo '${JSON.stringify([machine("a1", "started", "694")])}'; else echo '${JSON.stringify([machine("a1", "started", "694"), machine("a2", "stopped", "694")])}'; fi
-` } });
-  check("…asking for the expected count, in that one region and process group, without a prompt", scaleArgs.out.includes("Trimming 2 → 1 machines (region arn, group app)") && scaleArgs.status === 0, scaleArgs.out.trim());
+  const multi = run([
+    machine("b1", "started", "525", "app", "sha256:x", "ams"),
+    machine("b2", "started", "525"), machine("b3", "started", "525"), machine("b4", "started", "525"), machine("b5", "started", "525"),
+  ], { latest: 525 }, { EXPECTED_MACHINES: "3" });
+  check("surplus across TWO regions (BID: arn + ams) is NOT trimmed — RED for a human", multi.status !== 0 && !multi.out.includes("Trimming") && multi.out.includes("holds 5"), multi.out.trim());
 
-  const multi = runStep(MACHINES, {
-    env: { ...env, EXPECTED_MACHINES: "3" },
-    stubs: trimmer([
-      machine("b1", "started", "525", "app", "sha256:x", "ams"),
-      machine("b2", "started", "525"), machine("b3", "started", "525"), machine("b4", "started", "525"), machine("b5", "started", "525"),
-    ], []),
-  });
-  check("surplus across TWO regions (BID: arn + ams) is NOT trimmed — RED for a human", multi.status !== 0 && !multi.out.includes("Trimming") && multi.out.includes("holds 5") && multi.out.includes("one region"), multi.out.trim());
+  const noneNew = run([machine("o1", "started", "4"), machine("o2", "started", "4")], { latest: 5 }, { EXPECTED_MACHINES: "1" });
+  check("no machine on the new release → nothing is removed, RED", noneNew.status !== 0 && !noneNew.out.includes("removed") && !noneNew.out.includes("Trimming"), noneNew.out.trim());
 
-  const scaleFails = runStep(MACHINES, {
-    env: { ...env, EXPECTED_MACHINES: "1" },
-    stubs: trimmer([machine("c1", "started", "7"), machine("c2", "started", "7")], [machine("c1", "started", "7")], 1),
-  });
-  check("a failing trim → RED, saying it could not trim", scaleFails.status !== 0 && scaleFails.out.includes("Could not trim"), scaleFails.out.trim());
+  const scaleFails = run([machine("c1", "started", "7"), machine("c2", "started", "7")], { latest: 7, fail: ["scale"] }, { EXPECTED_MACHINES: "1" });
+  check("a failing scale count → RED, saying it could not trim", scaleFails.status !== 0 && scaleFails.out.includes("Could not trim"), scaleFails.out.trim());
 
-  const stillMany = runStep(MACHINES, {
-    env: { ...env, EXPECTED_MACHINES: "1" },
-    stubs: trimmer([machine("d1", "started", "7"), machine("d2", "started", "7")], [machine("d1", "started", "7"), machine("d2", "started", "7")]),
-  });
-  check("trim reported success but Fly still holds too many → RED (re-read, not trusted)", stillMany.status !== 0 && stillMany.out.includes("After trimming: 2") && stillMany.out.includes("holds 2"), stillMany.out.trim());
+  const destroyFails = run([machine("c1", "started", "7"), machine("old", "started", "6")], { latest: 7, fail: ["machine-destroy"] }, { EXPECTED_MACHINES: "1" });
+  check("a failing removal of an old machine → RED, naming it", destroyFails.status !== 0 && destroyFails.out.includes("Could not remove old"), destroyFails.out.trim());
 
-  const few = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "3" }, stubs: listing([machine("m1", "started", "7"), machine("m2", "started", "7")]) });
+  const few = run([machine("m1", "started", "7"), machine("m2", "started", "7")], { latest: 7 }, { EXPECTED_MACHINES: "3" });
   check("fewer machines than expected → RED", few.status !== 0 && few.out.includes("holds 2") && few.out.includes("expects 3"), few.out.trim());
-  const exact = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "2" }, stubs: listing([machine("m1", "started", "7"), machine("m2", "stopped", "7")]) });
-  check("exactly as expected → green, and says so", exact.status === 0 && exact.out.includes("2 machines, as expected (2)"), exact.out.trim());
-  const unset = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "0" }, stubs: listing(twenty) });
-  check("expected_machines unset (0) → count reported, not a failure (no change for existing consumers)", unset.status === 0 && unset.out.includes("20 deploy-managed machines. Set expected_machines"), unset.out.trim());
+
+  const unset = run(twenty, { latest: 691 });
+  check("expected_machines unset → count reported, not a failure, nothing removed", unset.status === 0 && unset.out.includes("20 deploy-managed machines. Set expected_machines") && !unset.out.includes("Trimming"), unset.out.trim());
   const inputs2 = doc.on?.workflow_call?.inputs ?? {};
   check("`expected_machines` defaults to 0", inputs2.expected_machines?.default === 0 && inputs2.expected_machines?.type === "number", JSON.stringify(inputs2.expected_machines));
 
-  const oneOff = runStep(MACHINES, { env, stubs: listing([machine("m1", "started", "7"), machine("cron1", "started", "3", null)]) });
+  const flaky = run([machine("m1", "started", "8"), machine("old1", "started", "7")], { latest: 8, hide: { 1: ["old1"], 3: ["old1"] } });
+  check("a machine missing from two of three flaky reads is still found → RED", flaky.status !== 0 && flaky.out.includes("old1"), flaky.out.trim());
+  const once = run([machine("m1", "started", "7")], { latest: 7 });
+  check("the same machine seen in all 3 reads is counted ONCE", once.out.includes("All 1 deploy-managed"), once.out.trim());
+
+  const oneOff = run([machine("m1", "started", "7"), machine("cron1", "started", "3", null)], { latest: 7 });
   check("a machine with no fly_process_group (fly machine run) is not counted", oneOff.status === 0, oneOff.out.trim());
 
-  const cannot = runStep(MACHINES, { env, stubs: { flyctl: "#!/bin/sh\necho 'Error: token expired' >&2\nexit 1\n" } });
-  check("flyctl cannot list → RED", cannot.status !== 0);
-  check("…saying it could NOT look, never «ok»", cannot.out.includes("did NOT verify") && cannot.out.includes("token expired") && !cannot.out.includes("✓"), cannot.out.trim());
+  const cannot = run([machine("m1", "started", "7")], { latest: 7, fail: ["machine"] });
+  check("flyctl cannot list → RED, saying it could NOT look", cannot.status !== 0 && cannot.out.includes("did NOT verify") && !cannot.out.includes("✓"), cannot.out.trim());
+  const noRel = run([machine("m1", "started", "7")], { latest: 7, fail: ["releases"] });
+  check("flyctl cannot read releases → RED, saying it could NOT look", noRel.status !== 0 && noRel.out.includes("newest release") && noRel.out.includes("did NOT verify"), noRel.out.trim());
+  const none = run([], { latest: 7 });
+  check("no managed machines at all → RED", none.status !== 0 && none.out.includes("did NOT verify"), none.out.trim());
 
-  const none = runStep(MACHINES, { env, stubs: listing([]) });
-  check("no managed machines at all → RED (nothing was verified)", none.status !== 0 && none.out.includes("did NOT verify"), none.out.trim());
-
-  const garbage = runStep(MACHINES, { env, stubs: { flyctl: "#!/bin/sh\necho 'not json'\n" } });
-  check("unreadable listing → RED, not «ok»", garbage.status !== 0 && garbage.out.includes("did NOT verify"), garbage.out.trim());
-
-  const rec = runStep(MACHINES, { env: { APP: "", CONFIG: "fly.toml" } });
-  check("without an app name it asks flyctl by --config", rec.flyctlArgs.includes("machine list --config fly.toml --json"), rec.flyctlArgs);
-  const recApp = runStep(MACHINES, { env });
-  check("with an app name it asks for that app", recApp.flyctlArgs.includes("machine list --app bid --json"), recApp.flyctlArgs);
+  const byConfig = runStep(MACHINES, { env: { APP: "", CONFIG: "fly.toml" } });
+  check("without an app name it asks flyctl by --config", byConfig.flyctlArgs.includes("--config fly.toml"), byConfig.flyctlArgs);
+  const byApp = runStep(MACHINES, { env: { APP: "bid", CONFIG: "fly.toml" } });
+  check("with an app name it asks for that app", byApp.flyctlArgs.includes("--app bid"), byApp.flyctlArgs);
 }
 
 // ---------------------------------------------------------------------------

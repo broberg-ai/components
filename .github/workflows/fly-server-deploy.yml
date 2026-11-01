@@ -381,7 +381,7 @@ jobs:
           # into separate words rather than arriving as one blob.
           flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
 
-      - name: Machine-verify (every deployed machine is on ONE release)
+      - name: Machine-verify (every deployed machine is on THIS release)
         if: steps.guard.outputs.skip == 'false'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -394,92 +394,109 @@ jobs:
           # vNNN Fly's own dashboard shows — not only the image: measured at BID
           # 1/11 2026, five machines shared ONE image digest while sitting on
           # v523, v524 and v525 (a release also carries config, env and secrets),
-          # so an image-only check would have passed the very case it is for. Measured at BID 1/11 2026: flyctl 0.5.1 created
-          # new machines and left the old ones, the next deploy updated one of
-          # five, and three versions served at once behind a green job. So we ask
-          # Fly which image each machine the deploy manages actually runs.
+          # so an image-only check would have passed the very case it is for.
+          #
+          # And the release must be the one THIS deploy made, not merely one
+          # shared release: measured on Discovery 1/11 2026, a deploy created v695
+          # on a NEW machine beside the v694 one; trimming kept the old machine, so
+          # "one machine, one release" was true — and stale.
           APP_ARG=""; [ -n "$APP" ] && APP_ARG="--app $APP"
           CFG_ARG=""; [ -z "$APP" ] && CFG_ARG="--config $CONFIG"
-          # ONE READ IS NOT ENOUGH. Measured 1/11 2026 on BOTH flyctl 0.4.123 and
-          # 0.5.1: `machine list --json` intermittently returns an INCOMPLETE list
-          # with exit 0 (broberg-id: 5 5 1 5 5 1). A check on one read could miss
-          # exactly the machine left behind. So read three times and take the
-          # union by machine id.
-          LISTING="["
-          for attempt in 1 2 3; do
-            # TWO STATES, NOT ONE: "could not look" is never reported as "all fine".
-            if ! ONE="$(flyctl machine list $APP_ARG $CFG_ARG --json 2>&1)"; then
-              echo "$ONE"
-              echo "::error::Could not LIST the app's machines (flyctl's own error is above). This did NOT verify the deploy — it means the check could not look."
-              exit 1
-            fi
-            [ "$attempt" -gt 1 ] && LISTING="$LISTING,"
-            LISTING="$LISTING$ONE"
-            [ "$attempt" -lt 3 ] && sleep 2
-          done
-          LISTING="$LISTING]"
-          # Only machines the deploy manages carry fly_process_group; one started
-          # with `fly machine run` (a cron, a one-off) may rightly run another image.
-          if ! ROWS="$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | .[] | select(.config.metadata.fly_process_group != null) | [.id, .state, ("v" + (.config.metadata.fly_release_version // "?")), (.config.image // "unknown"), .region] | @tsv' 2>&1)"; then
-            echo "$ROWS"
-            echo "::error::Could not READ flyctl's machine list as JSON. This did NOT verify the deploy."
+
+          # TWO STATES, NOT ONE: "could not look" is never reported as "all fine".
+          if ! RELS="$(flyctl releases $APP_ARG $CFG_ARG --json 2>&1)" || ! LATEST="$(printf '%s' "$RELS" | jq -er '.[0].Version' 2>/dev/null)"; then
+            echo "$RELS" | head -n 20
+            echo "::error::Could not read the app's newest release. This did NOT verify the deploy — it means the check could not look."
             exit 1
           fi
-          COUNT=$(printf '%s\n' "$ROWS" | grep -c . || true)
+          LATEST="v$LATEST"
+
+          # ONE READ IS NOT ENOUGH. Measured 1/11 2026 on BOTH flyctl 0.4.123 and
+          # 0.5.1: `machine list --json` intermittently returns an INCOMPLETE list
+          # with exit 0 (broberg-id: 5 5 1 5 5 1). So read three times and take
+          # the union by machine id. Only machines carrying fly_process_group are
+          # the deploy's; one started with `fly machine run` may run anything.
+          READ_MACHINES() {
+            LISTING="["
+            for attempt in 1 2 3; do
+              if ! ONE="$(flyctl machine list $APP_ARG $CFG_ARG --json 2>&1)"; then
+                echo "$ONE"
+                echo "::error::Could not LIST the app's machines (flyctl's own error is above). This did NOT verify the deploy — it means the check could not look."
+                exit 1
+              fi
+              [ "$attempt" -gt 1 ] && LISTING="$LISTING,"
+              LISTING="$LISTING$ONE"
+              [ "$attempt" -lt 3 ] && sleep 2
+            done
+            LISTING="$LISTING]"
+            if ! ROWS="$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | .[] | select(.config.metadata.fly_process_group != null) | [.id, .state, ("v" + (.config.metadata.fly_release_version // "?")), (.config.image // "unknown"), .region, .config.metadata.fly_process_group] | @tsv' 2>&1)"; then
+              echo "$ROWS"
+              echo "::error::Could not READ flyctl's machine list as JSON. This did NOT verify the deploy."
+              exit 1
+            fi
+            COUNT=$(printf '%s\n' "$ROWS" | grep -c . || true)
+          }
+          LIST_MACHINES() { printf '%s\n' "$ROWS" | awk -F'\t' '{ printf "  %s  %-5s %-9s %-6s %s\n", $1, $5, $2, $3, $4 }'; }
+
+          READ_MACHINES
           if [ "$COUNT" -eq 0 ]; then
             echo "::error::Fly lists no machines managed by a deploy (none carry fly_process_group). This did NOT verify the deploy."
             exit 1
           fi
-          LIST_MACHINES() { printf '%s\n' "$ROWS" | awk -F'\t' '{ printf "  %s  %-5s %-9s %-6s %s\n", $1, $5, $2, $3, $4 }'; }
-          # F033.22 — the COUNT, separately from the release: discovery sat on
-          # 20 machines of ONE release, which the release check passes.
+
+          # F033.22 — owner 1/11 2026: «JA» to the deploy removing surplus machines
+          # itself, when expected_machines is set and Fly holds MORE. Only when
+          # every machine is in ONE region and ONE process group: across regions
+          # `scale count` may move machines between them (BID: arn + ams), so that
+          # case stays red for a human. ORDER MATTERS: machines on an OLDER release
+          # go first, by id — never a machine on the release this deploy made.
           if [ "${EXPECTED_MACHINES:-0}" -gt 0 ] && [ "$COUNT" -gt "$EXPECTED_MACHINES" ]; then
             REGIONS=$(printf '%s\n' "$ROWS" | cut -f5 | sort -u)
-            GROUPS_N=$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | [.[] | .config.metadata.fly_process_group // empty] | unique | length')
-            if [ "$(printf '%s\n' "$REGIONS" | grep -c .)" -eq 1 ] && [ "$GROUPS_N" -eq 1 ]; then
-              # Owner 1/11 2026: «JA» to the deploy removing surplus machines
-              # itself. Only when every machine is in ONE region and ONE process
-              # group: across regions, `scale count` may move machines between
-              # them (BID: arn + ams), so that case stays red for a human.
-              # `scale count` sees machines the list hides (jam measured 14 where
-              # the list and the dashboard showed 6), so it does the trimming.
-              GROUP=$(printf '%s' "$LISTING" | jq -r 'add | [.[] | .config.metadata.fly_process_group // empty] | first')
-              echo "Trimming $COUNT → $EXPECTED_MACHINES machines (region $REGIONS, group $GROUP):"
+            PGROUP=$(printf '%s\n' "$ROWS" | cut -f6 | sort -u)
+            ON_LATEST=$(printf '%s\n' "$ROWS" | awk -F'\t' -v r="$LATEST" '$3==r' | grep -c . || true)
+            if [ "$(printf '%s\n' "$REGIONS" | grep -c .)" -eq 1 ] && [ "$(printf '%s\n' "$PGROUP" | grep -c .)" -eq 1 ] && [ "$ON_LATEST" -gt 0 ]; then
+              echo "Trimming $COUNT → $EXPECTED_MACHINES machines (region $REGIONS, group $PGROUP, keeping $LATEST):"
               LIST_MACHINES
-              if ! flyctl scale count "$EXPECTED_MACHINES" $APP_ARG $CFG_ARG --region "$REGIONS" --process-group "$GROUP" --yes; then
-                echo "::error::Could not trim the surplus machines (flyctl's own error is above). Fly still holds $COUNT; this app expects $EXPECTED_MACHINES."
-                exit 1
-              fi
-              LISTING="["
-              for attempt in 1 2 3; do
-                if ! ONE="$(flyctl machine list $APP_ARG $CFG_ARG --json 2>&1)"; then
-                  echo "$ONE"; echo "::error::Trimmed, but could not LIST the machines afterwards — the result is NOT verified."; exit 1
+              for OLD in $(printf '%s\n' "$ROWS" | awk -F'\t' -v r="$LATEST" '$3!=r {print $1}'); do
+                if ! flyctl machine destroy "$OLD" $APP_ARG $CFG_ARG --force; then
+                  echo "::error::Could not remove $OLD (on an older release than $LATEST); flyctl's own error is above."
+                  exit 1
                 fi
-                [ "$attempt" -gt 1 ] && LISTING="$LISTING,"
-                LISTING="$LISTING$ONE"
-                [ "$attempt" -lt 3 ] && sleep 2
+                echo "  removed $OLD (older release)"
               done
-              LISTING="$LISTING]"
-              ROWS="$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | .[] | select(.config.metadata.fly_process_group != null) | [.id, .state, ("v" + (.config.metadata.fly_release_version // "?")), (.config.image // "unknown"), .region] | @tsv')"
-              COUNT=$(printf '%s\n' "$ROWS" | grep -c . || true)
+              READ_MACHINES
+              if [ "$COUNT" -gt "$EXPECTED_MACHINES" ]; then
+                if ! flyctl scale count "$EXPECTED_MACHINES" $APP_ARG $CFG_ARG --region "$REGIONS" --process-group "$PGROUP" --yes; then
+                  echo "::error::Could not trim the surplus machines (flyctl's own error is above). Fly still holds $COUNT; this app expects $EXPECTED_MACHINES."
+                  exit 1
+                fi
+                READ_MACHINES
+              fi
               echo "After trimming: $COUNT machine(s)."
             fi
           fi
+
           if [ "${EXPECTED_MACHINES:-0}" -gt 0 ] && [ "$COUNT" -ne "$EXPECTED_MACHINES" ]; then
             echo "::error::Fly holds $COUNT deploy-managed machines; this app expects $EXPECTED_MACHINES (input expected_machines). Every machine counts toward the org's limit, and a started one is billed."
             LIST_MACHINES
-            echo "Surplus is trimmed automatically only when every machine is in one region and one process group. Otherwise remove one after checking it: flyctl machine destroy <id> --app <app> — or raise expected_machines if the app really needs $COUNT."
+            echo "Surplus is trimmed automatically only when every machine is in one region and one process group, and at least one is on the new release. Otherwise remove one after checking it: flyctl machine destroy <id> --app <app> — or raise expected_machines if the app really needs $COUNT."
             exit 1
           fi
           RELEASES=$(printf '%s\n' "$ROWS" | cut -f3 | sort -u | grep -c .)
           if [ "$RELEASES" -ne 1 ]; then
-            echo "::error::$COUNT machines are on $RELEASES DIFFERENT releases ($(printf '%s\n' "$ROWS" | cut -f3 | sort -u | tr '\n' ' '| sed 's/ $//')) — the deploy did not update every machine (old ones were left behind). /health can still say 200, because one machine answering is enough for that."
+            echo "::error::$COUNT machines are on $RELEASES DIFFERENT releases ($(printf '%s\n' "$ROWS" | cut -f3 | sort -u | tr '\n' ' ' | sed 's/ $//')) — the deploy did not update every machine (old ones were left behind). /health can still say 200, because one machine answering is enough for that."
             LIST_MACHINES
             echo "Remove a left-behind machine only after checking it: flyctl machine destroy <id> --app <app>"
             exit 1
           fi
+          ON=$(printf '%s\n' "$ROWS" | head -n1 | cut -f3)
+          if [ "$ON" != "$LATEST" ]; then
+            echo "::error::Every machine is on $ON, but the newest release is $LATEST — the new release did not reach a single machine."
+            LIST_MACHINES
+            exit 1
+          fi
           [ "${EXPECTED_MACHINES:-0}" -gt 0 ] && echo "✓ $COUNT machines, as expected ($EXPECTED_MACHINES)." || echo "::notice::$COUNT deploy-managed machines. Set expected_machines to make a different number a red deploy."
-          echo "✓ All $COUNT deploy-managed machines are on one release, $(printf '%s\n' "$ROWS" | head -n1 | cut -f3): $(printf '%s\n' "$ROWS" | cut -f5 | sort | uniq -c | awk '{printf "%s%s×%s", (NR>1?", ":""), $2, $1}')"
+          echo "✓ All $COUNT deploy-managed machines are on the new release, $LATEST: $(printf '%s\n' "$ROWS" | cut -f5 | sort | uniq -c | awk '{printf "%s%s×%s", (NR>1?", ":""), $2, $1}')"
 
       - name: Health-verify (prove the NEW version serves 200)
         if: steps.guard.outputs.skip == 'false' && inputs.health_url != ''
