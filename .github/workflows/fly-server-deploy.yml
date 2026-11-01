@@ -356,6 +356,83 @@ jobs:
             echo "✓ No [mounts] in $CONFIG — no single-writer constraint."
           fi
 
+      - name: Machine-plan (count before deploy, so flyctl creates nothing)
+        id: plan
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          APP: ${{ inputs.app }}
+          CONFIG: ${{ inputs.config }}
+          EXPECTED_MACHINES: ${{ inputs.expected_machines }}
+        run: |
+          # F033.23 — owner 1/11 2026: «jeg vil IKKE have vi failer og laver nye
+          # maskiner hvert eneste forsøg». Measured: Fly's machine list often comes
+          # back INCOMPLETE (broberg-jam showed 6 of 14), and `flyctl deploy` then
+          # creates machines instead of updating the ones it could not see. So
+          # when the app says how many machines it has (expected_machines), WE
+          # count them — three reads, union by id — remove any surplus, and hand
+          # the deploy the exact ids: --only-machines <ids> --update-only. flyctl
+          # then updates image AND fly.toml config on those, and creates none.
+          echo "only_machines=" >> "$GITHUB_OUTPUT"
+          if [ "${EXPECTED_MACHINES:-0}" -le 0 ]; then
+            echo "expected_machines not set — flyctl deploy decides, as before."
+            exit 0
+          fi
+          APP_ARG=""; [ -n "$APP" ] && APP_ARG="--app $APP"
+          CFG_ARG=""; [ -z "$APP" ] && CFG_ARG="--config $CONFIG"
+          READ_MACHINES() {
+            LISTING="["
+            for attempt in 1 2 3; do
+              # TWO STATES: "could not look" never becomes "nothing there".
+              if ! ONE="$(flyctl machine list $APP_ARG $CFG_ARG --json 2>&1)"; then
+                echo "$ONE"
+                echo "::error::Could not LIST the app's machines before deploying (flyctl's own error is above). Not deploying blind — a deploy that cannot see the machines is the one that creates new ones."
+                exit 1
+              fi
+              [ "$attempt" -gt 1 ] && LISTING="$LISTING,"
+              LISTING="$LISTING$ONE"
+              [ "$attempt" -lt 3 ] && sleep 2
+            done
+            LISTING="$LISTING]"
+            # id, state, created_at, region, process group, number of volumes
+            if ! ROWS="$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | .[] | select(.config.metadata.fly_process_group != null) | [.id, .state, .created_at, .region, .config.metadata.fly_process_group, (.config.mounts // [] | length)] | @tsv' 2>&1)"; then
+              echo "$ROWS"; echo "::error::Could not READ flyctl's machine list as JSON before deploying."; exit 1
+            fi
+            COUNT=$(printf '%s\n' "$ROWS" | grep -c . || true)
+          }
+          READ_MACHINES
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No machines yet — a normal first deploy creates them."
+            exit 0
+          fi
+          if [ "$COUNT" -lt "$EXPECTED_MACHINES" ]; then
+            echo "::notice::Fly holds $COUNT machine(s), the app expects $EXPECTED_MACHINES — a normal deploy may add the missing ones; Machine-verify checks the result."
+            exit 0
+          fi
+          if [ "$COUNT" -gt "$EXPECTED_MACHINES" ]; then
+            REGIONS=$(printf '%s\n' "$ROWS" | cut -f4 | sort -u | grep -c .)
+            PGROUPS=$(printf '%s\n' "$ROWS" | cut -f5 | sort -u | grep -c .)
+            VOLS=$(printf '%s\n' "$ROWS" | awk -F'\t' '{s+=$6} END{print s+0}')
+            if [ "$REGIONS" -ne 1 ] || [ "$PGROUPS" -ne 1 ] || [ "$VOLS" -ne 0 ]; then
+              echo "::error::Fly holds $COUNT machines; this app expects $EXPECTED_MACHINES. They span $REGIONS region(s) / $PGROUPS process group(s) / $VOLS volume(s), so they are NOT removed automatically (a volume holds data; regions may be deliberate). Remove the surplus by hand, then deploy:"
+              printf '%s\n' "$ROWS" | awk -F'\t' '{ printf "  %s  %-5s %-9s created %s  volumes:%s\n", $1, $4, $2, $3, $6 }'
+              exit 1
+            fi
+            # Stopped machines go first, then the oldest; started+newest are kept.
+            SURPLUS=$(printf '%s\n' "$ROWS" | awk -F'\t' '{ print ($2=="started"?1:0) "\t" $3 "\t" $1 }' | sort -k1,1n -k2,2 | head -n $((COUNT - EXPECTED_MACHINES)) | cut -f3)
+            for ID in $SURPLUS; do
+              if ! flyctl machine destroy "$ID" $APP_ARG $CFG_ARG --force; then
+                echo "::error::Could not remove surplus machine $ID before deploying (flyctl's own error is above)."
+                exit 1
+              fi
+              echo "  removed surplus $ID"
+            done
+            READ_MACHINES
+          fi
+          IDS=$(printf '%s\n' "$ROWS" | cut -f1 | paste -sd, -)
+          echo "Deploying to exactly these $COUNT machine(s), creating none: $IDS"
+          echo "only_machines=$IDS" >> "$GITHUB_OUTPUT"
+
       - name: Deploy (flyctl --remote-only)
         if: steps.guard.outputs.skip == 'false'
         env:
@@ -365,8 +442,12 @@ jobs:
           DOCKERFILE: ${{ inputs.dockerfile }}
           HA: ${{ inputs.ha }}
           EXTRA_DEPLOY_ARGS: ${{ inputs.extra_deploy_args }}
+          ONLY_MACHINES: ${{ steps.plan.outputs.only_machines }}
         run: |
           APP_ARG=""; [ -n "$APP" ] && APP_ARG="--app $APP"
+          # F033.23 — when Machine-plan counted the machines, deploy to exactly
+          # those and create none. Empty = flyctl decides, as before.
+          ONLY_ARG=""; [ -n "$ONLY_MACHINES" ] && ONLY_ARG="--only-machines $ONLY_MACHINES --update-only"
           DF_ARG=""; [ -n "$DOCKERFILE" ] && DF_ARG="--dockerfile $DOCKERFILE"
           # F033.10 — only ha:false adds a flag. The default composes the exact
           # same command as before this input existed, so no existing consumer
@@ -379,7 +460,7 @@ jobs:
           set -x
           # EXTRA_DEPLOY_ARGS is deliberately unquoted so multiple arguments split
           # into separate words rather than arriving as one blob.
-          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
+          flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG $ONLY_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
 
       - name: Machine-verify (every deployed machine is on THIS release)
         if: steps.guard.outputs.skip == 'false'

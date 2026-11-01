@@ -31,8 +31,9 @@ const GUARD = "Single-writer guard (a volume + two machines is silent data loss)
 const DEPLOY = "Deploy (flyctl --remote-only)";
 const HEALTH = "Health-verify (prove the NEW version serves 200)";
 const MACHINES = "Machine-verify (every deployed machine is on THIS release)";
+const PLAN = "Machine-plan (count before deploy, so flyctl creates nothing)";
 
-for (const name of [GUARD, DEPLOY, HEALTH, MACHINES]) {
+for (const name of [GUARD, DEPLOY, HEALTH, MACHINES, PLAN]) {
   if (!STEPS[name]) {
     console.error(`✗ the workflow has no step named "${name}" — it was renamed or removed, and these tests are no longer testing what ships.`);
     process.exit(1);
@@ -373,6 +374,51 @@ esac
   check("flyctl cannot read releases → RED, saying it could NOT look", noRel.status !== 0 && noRel.out.includes("newest release") && noRel.out.includes("did NOT verify"), noRel.out.trim());
   const none = run([], { latest: 7 });
   check("no managed machines at all → RED", none.status !== 0 && none.out.includes("did NOT verify"), none.out.trim());
+
+  // ---- F033.23 — Machine-plan: count BEFORE deploy, so flyctl creates nothing.
+  const planRun = (machines, opts = {}, env = {}) => {
+    const out = join(mkdtempSync(join(tmpdir(), "plan-out-")), "gh_output");
+    writeFileSync(out, "");
+    const f = fakeFly(machines, { latest: 1, ...opts });
+    const r = runStep(PLAN, { env: { APP: "disc", CONFIG: "fly.toml", EXPECTED_MACHINES: "0", GITHUB_OUTPUT: out, ...env }, files: f.files, stubs: f.stubs });
+    const lines = readFileSync(out, "utf8").trim().split("\n");
+    r.only = (lines.filter((l) => l.startsWith("only_machines=")).pop() ?? "").slice("only_machines=".length);
+    return r;
+  };
+  const mc = (id, state, created, region = "arn", vols = 0) => {
+    const m = machine(id, state, "1", "app", "sha256:x", region);
+    m.created_at = created;
+    if (vols) m.config.mounts = [{ name: "data" }];
+    return m;
+  };
+  console.log("machine-plan (F033.23)");
+  const p0 = planRun([mc("a", "started", "2026-11-01T10:00:00Z")]);
+  check("expected_machines unset → no plan, flyctl decides as before", p0.status === 0 && p0.only === "", p0.out.trim());
+  const pNew = planRun([], {}, { EXPECTED_MACHINES: "1" });
+  check("no machines yet → normal first deploy (no ids)", pNew.status === 0 && pNew.only === "" && pNew.out.includes("first deploy"), pNew.out.trim());
+  const pFew = planRun([mc("a", "started", "2026-11-01T10:00:00Z")], {}, { EXPECTED_MACHINES: "2" });
+  check("fewer than expected → normal deploy may add them (no ids)", pFew.status === 0 && pFew.only === "", pFew.out.trim());
+  const pExact = planRun([mc("a", "started", "2026-11-01T10:00:00Z"), mc("b", "stopped", "2026-11-01T09:00:00Z")], {}, { EXPECTED_MACHINES: "2" });
+  check("exactly as expected → deploy to exactly those ids", pExact.status === 0 && pExact.only.split(",").sort().join(",") === "a,b", pExact.only);
+  const pTrim = planRun([
+    mc("new-started", "started", "2026-11-01T11:00:00Z"),
+    mc("old-started", "started", "2026-10-01T11:00:00Z"),
+    mc("stopped1", "stopped", "2026-11-01T12:00:00Z"),
+  ], {}, { EXPECTED_MACHINES: "1" });
+  check("surplus (3 → 1): stopped first, then oldest; keeps the newest started", pTrim.status === 0 && pTrim.only === "new-started" && pTrim.out.includes("removed surplus stopped1") && pTrim.out.includes("removed surplus old-started"), `${pTrim.only} | ${pTrim.out.trim()}`);
+  const pFlaky = planRun([mc("a", "started", "2026-11-01T10:00:00Z"), mc("hidden", "stopped", "2026-10-01T10:00:00Z")], { hide: { 1: ["hidden"], 2: ["hidden"] } }, { EXPECTED_MACHINES: "1" });
+  check("a machine the list hides on two of three reads is still found and removed", pFlaky.status === 0 && pFlaky.only === "a" && pFlaky.out.includes("removed surplus hidden"), `${pFlaky.only} | ${pFlaky.out.trim()}`);
+  const pRegions = planRun([mc("a", "started", "2026-11-01T10:00:00Z"), mc("b", "started", "2026-11-01T10:00:00Z", "ams"), mc("c", "started", "2026-11-01T10:00:00Z")], {}, { EXPECTED_MACHINES: "2" });
+  check("surplus across regions → RED, nothing removed", pRegions.status !== 0 && !pRegions.out.includes("removed surplus") && pRegions.out.includes("NOT removed automatically"), pRegions.out.trim());
+  const pVol = planRun([mc("a", "started", "2026-11-01T10:00:00Z", "arn", 1), mc("b", "stopped", "2026-10-01T10:00:00Z", "arn", 1)], {}, { EXPECTED_MACHINES: "1" });
+  check("surplus with volumes (data) → RED, nothing removed", pVol.status !== 0 && !pVol.out.includes("removed surplus") && pVol.out.includes("volume"), pVol.out.trim());
+  const pBlind = planRun([mc("a", "started", "2026-11-01T10:00:00Z")], { fail: ["machine"] }, { EXPECTED_MACHINES: "1" });
+  check("cannot list before deploying → RED, not deploying blind", pBlind.status !== 0 && pBlind.out.includes("Not deploying blind"), pBlind.out.trim());
+
+  const dOnly = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "disc", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "false", ONLY_MACHINES: "a,b" } });
+  check("deploy with counted ids → --only-machines a,b --update-only", dOnly.flyctlArgs.includes("--only-machines a,b --update-only"), dOnly.flyctlArgs);
+  const dNone = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "disc", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "true", ONLY_MACHINES: "" } });
+  check("deploy without ids → no --only-machines (unchanged)", !dNone.flyctlArgs.includes("--only-machines") && !dNone.flyctlArgs.includes("--update-only"), dNone.flyctlArgs);
 
   const byConfig = runStep(MACHINES, { env: { APP: "", CONFIG: "fly.toml" } });
   check("without an app name it asks flyctl by --config", byConfig.flyctlArgs.includes("--config fly.toml"), byConfig.flyctlArgs);
