@@ -326,8 +326,62 @@ fi
   // F033.22 — the count.
   const twenty = Array.from({ length: 20 }, (_, i) => machine(`d${String(i).padStart(2, "0")}`, i === 0 ? "started" : "stopped", "691"));
   const many = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "2" }, stubs: listing(twenty) });
-  check("Discovery's 20 machines on ONE release with expected_machines 2 → RED", many.status !== 0 && many.out.includes("holds 20 deploy-managed machines; this app expects 2"), many.out.trim());
+  // The default stub answers every call with the same 20, so the trim "succeeds"
+  // and the re-read still shows 20: the result must be checked, not assumed.
+  check("Discovery's 20 machines with expected_machines 2 → a trim is attempted, and when Fly still holds 20 → RED", many.status !== 0 && many.out.includes("Trimming 20 → 2") && many.out.includes("holds 20 deploy-managed machines; this app expects 2"), many.out.trim());
   check("…listing every machine", many.out.includes("d19") && many.out.includes("d00"), many.out.trim());
+  // Owner 1/11: the deploy trims surplus itself — one region + one group only.
+  const trimmer = (before, after, scaleExit = 0) => ({
+    flyctl: `#!/bin/sh
+printf '%s\\n' "$*" >> "$PWD/calls.log"
+case "$1 $2" in
+  "scale count") [ -f "$PWD/scaled" ] || touch "$PWD/scaled"; exit ${scaleExit} ;;
+esac
+if [ -f "$PWD/scaled" ]; then
+cat <<'JSON'
+${JSON.stringify(after)}
+JSON
+else
+cat <<'JSON'
+${JSON.stringify(before)}
+JSON
+fi
+`,
+  });
+  const trimmed = runStep(MACHINES, {
+    env: { ...env, EXPECTED_MACHINES: "1" },
+    stubs: trimmer([machine("a1", "started", "694"), machine("a2", "started", "694"), machine("a3", "stopped", "694")], [machine("a1", "started", "694")]),
+  });
+  check("single-region surplus (3 → 1) is trimmed with scale count and ends GREEN", trimmed.status === 0 && trimmed.out.includes("Trimming 3 → 1") && trimmed.out.includes("After trimming: 1"), trimmed.out.trim());
+
+  const scaleArgs = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "1" }, stubs: { flyctl: `#!/bin/sh
+printf '%s\\n' "$*" >> "$PWD/args"
+case "$1 $2" in "scale count") echo "$*" > "$PWD/scale"; exit 0;; esac
+if [ -f "$PWD/scale" ]; then echo '${JSON.stringify([machine("a1", "started", "694")])}'; else echo '${JSON.stringify([machine("a1", "started", "694"), machine("a2", "stopped", "694")])}'; fi
+` } });
+  check("…asking for the expected count, in that one region and process group, without a prompt", scaleArgs.out.includes("Trimming 2 → 1 machines (region arn, group app)") && scaleArgs.status === 0, scaleArgs.out.trim());
+
+  const multi = runStep(MACHINES, {
+    env: { ...env, EXPECTED_MACHINES: "3" },
+    stubs: trimmer([
+      machine("b1", "started", "525", "app", "sha256:x", "ams"),
+      machine("b2", "started", "525"), machine("b3", "started", "525"), machine("b4", "started", "525"), machine("b5", "started", "525"),
+    ], []),
+  });
+  check("surplus across TWO regions (BID: arn + ams) is NOT trimmed — RED for a human", multi.status !== 0 && !multi.out.includes("Trimming") && multi.out.includes("holds 5") && multi.out.includes("one region"), multi.out.trim());
+
+  const scaleFails = runStep(MACHINES, {
+    env: { ...env, EXPECTED_MACHINES: "1" },
+    stubs: trimmer([machine("c1", "started", "7"), machine("c2", "started", "7")], [machine("c1", "started", "7")], 1),
+  });
+  check("a failing trim → RED, saying it could not trim", scaleFails.status !== 0 && scaleFails.out.includes("Could not trim"), scaleFails.out.trim());
+
+  const stillMany = runStep(MACHINES, {
+    env: { ...env, EXPECTED_MACHINES: "1" },
+    stubs: trimmer([machine("d1", "started", "7"), machine("d2", "started", "7")], [machine("d1", "started", "7"), machine("d2", "started", "7")]),
+  });
+  check("trim reported success but Fly still holds too many → RED (re-read, not trusted)", stillMany.status !== 0 && stillMany.out.includes("After trimming: 2") && stillMany.out.includes("holds 2"), stillMany.out.trim());
+
   const few = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "3" }, stubs: listing([machine("m1", "started", "7"), machine("m2", "started", "7")]) });
   check("fewer machines than expected → RED", few.status !== 0 && few.out.includes("holds 2") && few.out.includes("expects 3"), few.out.trim());
   const exact = runStep(MACHINES, { env: { ...env, EXPECTED_MACHINES: "2" }, stubs: listing([machine("m1", "started", "7"), machine("m2", "stopped", "7")]) });

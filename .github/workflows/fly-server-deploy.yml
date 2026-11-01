@@ -221,8 +221,10 @@ on:
       expected_machines:
         description: >-
           F033.22 — how many machines this app is SUPPOSED to have (every state,
-          started and stopped, of the machines a deploy manages). When set, the
-          deploy goes red if Fly holds a different number. 0 (default) = count and
+          started and stopped, of the machines a deploy manages). When set and
+          Fly holds MORE, the surplus is removed with `flyctl scale count` (owner
+          1/11 2026) — but only when every machine is in one region and one
+          process group; otherwise, or when Fly holds fewer, the deploy goes red. 0 (default) = count and
           report only, so no existing consumer changes. Measured 1/11 2026:
           broberg-discovery had quietly grown to 20 (19 stopped, one release),
           which the one-release check cannot see — and the whole Fly org has a
@@ -431,10 +433,42 @@ jobs:
           LIST_MACHINES() { printf '%s\n' "$ROWS" | awk -F'\t' '{ printf "  %s  %-5s %-9s %-6s %s\n", $1, $5, $2, $3, $4 }'; }
           # F033.22 — the COUNT, separately from the release: discovery sat on
           # 20 machines of ONE release, which the release check passes.
+          if [ "${EXPECTED_MACHINES:-0}" -gt 0 ] && [ "$COUNT" -gt "$EXPECTED_MACHINES" ]; then
+            REGIONS=$(printf '%s\n' "$ROWS" | cut -f5 | sort -u)
+            GROUPS_N=$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | [.[] | .config.metadata.fly_process_group // empty] | unique | length')
+            if [ "$(printf '%s\n' "$REGIONS" | grep -c .)" -eq 1 ] && [ "$GROUPS_N" -eq 1 ]; then
+              # Owner 1/11 2026: «JA» to the deploy removing surplus machines
+              # itself. Only when every machine is in ONE region and ONE process
+              # group: across regions, `scale count` may move machines between
+              # them (BID: arn + ams), so that case stays red for a human.
+              # `scale count` sees machines the list hides (jam measured 14 where
+              # the list and the dashboard showed 6), so it does the trimming.
+              GROUP=$(printf '%s' "$LISTING" | jq -r 'add | [.[] | .config.metadata.fly_process_group // empty] | first')
+              echo "Trimming $COUNT → $EXPECTED_MACHINES machines (region $REGIONS, group $GROUP):"
+              LIST_MACHINES
+              if ! flyctl scale count "$EXPECTED_MACHINES" $APP_ARG $CFG_ARG --region "$REGIONS" --process-group "$GROUP" --yes; then
+                echo "::error::Could not trim the surplus machines (flyctl's own error is above). Fly still holds $COUNT; this app expects $EXPECTED_MACHINES."
+                exit 1
+              fi
+              LISTING="["
+              for attempt in 1 2 3; do
+                if ! ONE="$(flyctl machine list $APP_ARG $CFG_ARG --json 2>&1)"; then
+                  echo "$ONE"; echo "::error::Trimmed, but could not LIST the machines afterwards — the result is NOT verified."; exit 1
+                fi
+                [ "$attempt" -gt 1 ] && LISTING="$LISTING,"
+                LISTING="$LISTING$ONE"
+                [ "$attempt" -lt 3 ] && sleep 2
+              done
+              LISTING="$LISTING]"
+              ROWS="$(printf '%s' "$LISTING" | jq -r 'add | unique_by(.id) | .[] | select(.config.metadata.fly_process_group != null) | [.id, .state, ("v" + (.config.metadata.fly_release_version // "?")), (.config.image // "unknown"), .region] | @tsv')"
+              COUNT=$(printf '%s\n' "$ROWS" | grep -c . || true)
+              echo "After trimming: $COUNT machine(s)."
+            fi
+          fi
           if [ "${EXPECTED_MACHINES:-0}" -gt 0 ] && [ "$COUNT" -ne "$EXPECTED_MACHINES" ]; then
             echo "::error::Fly holds $COUNT deploy-managed machines; this app expects $EXPECTED_MACHINES (input expected_machines). Every machine counts toward the org's limit, and a started one is billed."
             LIST_MACHINES
-            echo "Remove a surplus machine only after checking it: flyctl machine destroy <id> --app <app>. If the app really needs $COUNT, raise expected_machines instead."
+            echo "Surplus is trimmed automatically only when every machine is in one region and one process group. Otherwise remove one after checking it: flyctl machine destroy <id> --app <app> — or raise expected_machines if the app really needs $COUNT."
             exit 1
           fi
           RELEASES=$(printf '%s\n' "$ROWS" | cut -f3 | sort -u | grep -c .)
