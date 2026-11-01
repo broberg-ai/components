@@ -1,0 +1,29 @@
+# F033.24 — broberg-voice-turn is deployed ONLY through the fleet's shared
+# fly-server-deploy.yml: counted machines, one machine, verified. No code tests
+# here (the image is upstream's plus a config template); the workflow's own
+# Machine-plan / Machine-verify are the gate. A deploy interrupts calls, so it
+# runs only when this app's own files change, or by hand.
+name: voice-turn-deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/voice-turn/**"
+      - ".github/workflows/voice-turn-deploy.yml"
+  workflow_dispatch:
+concurrency:
+  group: deploy-broberg-voice-turn
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  deploy:
+    uses: ./.github/workflows/fly-server-deploy.yml
+    with:
+      app: broberg-voice-turn
+      working_directory: apps/voice-turn
+      config: fly.toml
+      ha: false # one media node with its own dedicated IPv4 — never a second
+      expected_machines: 1
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

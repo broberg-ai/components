@@ -1,0 +1,44 @@
+# F033.24 — legal.broberg.ai (broberg-legal) is deployed ONLY through the
+# fleet's shared fly-server-deploy.yml: counted machines, one machine, verified.
+# A hand `flyctl deploy` on 1/11 2026 left two machines behind — this is why.
+name: legal-deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/legal/**"
+      - "packages/legal/src/**"
+      - ".github/workflows/legal-deploy.yml"
+  workflow_dispatch:
+concurrency:
+  group: deploy-broberg-legal
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - name: The texts and the API's routes pass their tests
+        working-directory: packages/legal
+        run: npx tsc --noEmit && npx vitest run
+  deploy:
+    needs: test
+    uses: ./.github/workflows/fly-server-deploy.yml
+    with:
+      app: broberg-legal
+      working_directory: "."
+      config: apps/legal/fly.toml
+      dockerfile: apps/legal/Dockerfile
+      ha: false
+      expected_machines: 1
+      health_url: https://legal.broberg.ai/health
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
