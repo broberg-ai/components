@@ -127,11 +127,30 @@ daily check and one more reason never to call it on a page view.
   the «UDKAST» marker (`renderHtml` does it for you).
 - Link all of them in your footer. **Never link users to legal.broberg.ai**; it redirects to broberg.ai.
 
-### 6. Acceptance
+### 6. Acceptance and consent: always BID Samtykke Center
 
-Terms are accepted at sign-up with an **unticked** «Jeg accepterer vilkårene» checkbox; the privacy
-policy is linked and shown, never "accepted". Store `{ doc, version, contentHash }` with the
-acceptance, so "which text did they accept?" has an exact answer.
+**Every app with login stores BOTH terms acceptances AND GDPR consents in BID Samtykke
+Center, and nowhere else** (owner's rule, 1/11 2026; components F110.6). Withdrawing a consent
+also goes through BID Samtykke Center. Never keep your own table for either.
+
+- **Terms** are accepted at sign-up with an **unticked** «Jeg accepterer vilkårene» checkbox. Your
+  app SERVER records it in BID with the user's access token:
+  `POST /api/app/terms-acceptance { doc: "terms", version, contentHash: "sha256:<hex>" }`. It reads
+  the latest with `GET /api/app/terms-acceptance?doc=terms`. Ask again only when the current terms
+  are `material: true` and newer than the user's latest acceptance.
+- **The privacy policy is never accepted.** It is linked and shown.
+- **GDPR consent** (for example the physio apps' part-4 analysis) is its own thing: voluntary, never
+  a condition of use, and as easy to withdraw as to give. Record it with
+  `POST /api/app/consents { purpose, granted: true|false, version, contentHash }`. Before you use
+  the data, read the current state with `GET /api/app/consents?purpose=…`. The user can withdraw in
+  the app AND on their BID account; a withdrawal made in BID shows up on your next GET. Purposes
+  come from a fixed list in BID; ask bid to add yours.
+- The app derives the product from your login client, so you can only touch your own users and your
+  own product.
+- **Status 1/11 2026:** BID is building these routes. Until they are live, do not store acceptances
+  or consents anywhere else; wait (jam is waiting too). This package will get helpers
+  (`needsReaccept`, `recordAcceptance`/`getAcceptance`, `recordConsent`/`getConsent`) the day they
+  are live.
 
 ---
 
