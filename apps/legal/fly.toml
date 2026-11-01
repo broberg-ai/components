@@ -9,7 +9,10 @@ primary_region = "arn"
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 1
+  # F110.13 — cold: no machine runs while nobody asks; the first request starts
+  # one. Owner 1/11 2026: «Jeg GIDER ikke spilde penge på unødvendig luksus».
+  # Deploy with --ha=false: ONE machine.
+  min_machines_running = 0
 
   [[http_service.checks]]
     method = "GET"

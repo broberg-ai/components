@@ -6,6 +6,14 @@ One set of legal documents for every broberg.ai product — `terms`, `privacy`, 
 `support` — the same text everywhere, Danish as the master (Danish prevails), English beside it.
 Sites **style and re-flow**; they never edit. Served as npm and at `legal.broberg.ai` (F110.5).
 
+**Using the HTTP service? Cache it (F110.13).** The texts change only when legal.broberg.ai is
+redeployed, and the service runs cold (no machine while nobody asks — the first call after a quiet
+spell takes a second or two). Every answer carries `cache-control: public, max-age=86400,
+stale-while-revalidate=604800` and an `ETag` (= `contentHash`). Keep your copy, and when it is a day
+old ask again with `If-None-Match: <etag>` — an unchanged text answers an empty `304`. The **npm
+package does not call the service at all**: the texts ship inside it, so a site built with it needs
+no network for them.
+
 ```ts
 import { createLibrary, renderHtml } from "@broberg/legal";
 const doc = library.getDocument({ doc: "privacy", locale: "da", product: "jam" });
