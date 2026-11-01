@@ -147,6 +147,9 @@ also goes through BID. Never keep your own table for either.
   come from a fixed list in BID; ask bid to add yours.
 - The app derives the product from your login client, so you can only touch your own users and your
   own product.
+- **Register your document pages with bid** (for example `terms → https://jams.party/vilkaar`) when
+  you start recording acceptances. BID's «Samtykke» page links «Læs vilkårene» to that address; an
+  app never sends a URL itself.
 - **Status 1/11 2026:** BID is building these routes. Until they are live, do not store acceptances
   or consents anywhere else; wait (jam is waiting too). This package will get helpers
   (`needsReaccept`, `recordAcceptance`/`getAcceptance`, `recordConsent`/`getConsent`) the day they
