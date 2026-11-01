@@ -26,4 +26,4 @@ jobs:
       ha: false # one media node with its own dedicated IPv4 — never a second
       expected_machines: 1
     secrets:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_VOICE_TURN }} # app-scoped deploy token (F033.24)
