@@ -15,5 +15,11 @@ fi
 : "${LIVEKIT_TURN_SECRET:?LIVEKIT_TURN_SECRET (shared with broberg-voice-turn) must be set as a Fly secret}"
 sed -e "s/__FGS_IP__/$FGS_IP/g" -e "s/__PUBLIC_IP__/$VOICE_PUBLIC_IP/g" -e "s/__TURN_SECRET__/$LIVEKIT_TURN_SECRET/g" \
   /etc/livekit.template.yaml > /tmp/livekit.yaml
+# F104.9.1 — Redis lets LiveKit Egress (call recording) reach this server. Ship
+# dark: without REDIS_PASSWORD the server runs exactly as before, single node.
+if [ -n "${REDIS_PASSWORD:-}" ]; then
+  printf 'redis:\n  address: %s\n  password: %s\n' "${REDIS_ADDRESS:-broberg-voice-redis.internal:6379}" "$REDIS_PASSWORD" >> /tmp/livekit.yaml
+  echo "entrypoint: Redis ${REDIS_ADDRESS:-broberg-voice-redis.internal:6379}"
+fi
 echo "entrypoint: UDP bound to fly-global-services $FGS_IP, advertising $VOICE_PUBLIC_IP"
 exec /livekit-server --config /tmp/livekit.yaml
