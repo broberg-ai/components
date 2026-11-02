@@ -1,0 +1,12 @@
+# F104.9.2 — the recording machine for voice.broberg.ai. Owner's GO 2/11 2026:
+# «A, 365 dage, ja opret det hele». It runs ONLY while a call is recorded:
+# broberg-voice-control starts it on demand and stops it when no recording runs
+# (F104.9.3), so its price is per recorded hour, not per month. Private network
+# only — no [[services]]; LiveKit hands it work through broberg-voice-redis, and
+# control reads its health on broberg-voice-egress.internal:8080.
+app = "broberg-voice-egress"
+primary_region = "arn"
+
+[[vm]]
+  size = "performance-4x"
+  memory = "8gb"
