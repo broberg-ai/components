@@ -1,6 +1,6 @@
 # @broberg/legal
 
-**Status: 0.4.0. Every document is a DRAFT (`draft: true`, rendered as «UDKAST») until the owner's lawyer has reviewed it (F110.3).**
+**Status: 0.5.0. All five documents are v1.0, approved by the owner's lawyer (2/11 2026): `draft: false`, version and «gælder fra» 2026-11-02.**
 
 One set of legal documents for every broberg.ai product: `terms`, `privacy`, `trust`, `dpa` and
 `support`. The text is the same everywhere. Danish is the master and prevails; English sits beside it.
@@ -185,6 +185,8 @@ also goes through BID. Never keep your own table for either.
 - **contentHash** = sha256 of the canonical JSON of the finished document; **hash** = the same for a template.
 - **Placeholders** (`{customer.name}` and the rest) are a fixed list; an unknown one is refused.
 - Zero dependencies (a built-in SHA-256, proven against FIPS vectors and node:crypto).
+
+**0.5.0 (F110.3):** v1.0 — the owner's lawyer has reviewed and approved all five documents. `draft` is now `false` everywhere (no «UDKAST» marker), and `version`/`effectiveFrom` move to `2026-11-02`. The wording is unchanged. **Terms are `material`, so `needsReaccept` answers `true` for anyone who accepted the draft (2026-11-01):** they are asked once to accept the approved v1.0, which is the point. The version stays an ISO date on purpose — it is compared as a string, and «1.0» would sort before «2026-11-01» and silently skip that re-acceptance.
 
 **0.4.0 (F110.6):** BID calls: `recordAcceptance`/`getAcceptance`, `recordConsent`/`getConsent`, `needsReaccept`, `BidConsentError`, `BID_URL`. Additive.
 

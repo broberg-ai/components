@@ -4,10 +4,10 @@ export const TERMS_DA: DocumentSource = {
   doc: "terms",
   locale: "da",
   title: "Vilkår for brug",
-  version: "2026-11-01",
-  effectiveFrom: "2026-11-01",
+  version: "2026-11-02",
+  effectiveFrom: "2026-11-02",
   material: true,
-  draft: true,
+  draft: false,
   sections: [
     {
       id: "hvem",

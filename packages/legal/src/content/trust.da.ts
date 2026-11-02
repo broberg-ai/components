@@ -4,10 +4,10 @@ export const TRUST_DA: DocumentSource = {
   doc: "trust",
   locale: "da",
   title: "Tillid og sikkerhed",
-  version: "2026-11-01",
-  effectiveFrom: "2026-11-01",
+  version: "2026-11-02",
+  effectiveFrom: "2026-11-02",
   material: false,
-  draft: true,
+  draft: false,
   sections: [
     {
       id: "kort",

@@ -4,10 +4,10 @@ export const PRIVACY_DA: DocumentSource = {
   doc: "privacy",
   locale: "da",
   title: "Privatlivspolitik",
-  version: "2026-11-01",
-  effectiveFrom: "2026-11-01",
+  version: "2026-11-02",
+  effectiveFrom: "2026-11-02",
   material: false,
-  draft: true,
+  draft: false,
   sections: [
     {
       id: "dataansvarlig",

@@ -2,7 +2,7 @@
 // resolves for every product, the owner's fixed points are in the text, and no
 // product fact is typed into prose.
 import { describe, expect, it } from "vitest";
-import { DOC_IDS, EXAMPLE_FACTS, SOURCES, getDocument, getTemplate, listDocuments, resolveTemplate, templateHash } from "../src/index";
+import { DOC_IDS, EXAMPLE_FACTS, SOURCES, getDocument, getTemplate, listDocuments, renderHtml, resolveTemplate, templateHash } from "../src/index";
 import type { ProductFacts } from "../src/index";
 
 // Two products' OWN facts, as a consumer would pass them (F110.14 — no fleet registry here).
@@ -50,13 +50,20 @@ describe("F110.14 — templates from the API, facts from the product", () => {
   });
 });
 
-describe("the bundled drafts", () => {
-  it("every document resolves for every product in Danish, and is marked draft", () => {
+describe("the bundled documents (v1.0, approved by the owner's lawyer 2/11 2026)", () => {
+  it("every document resolves for every product in Danish, is NOT a draft, and is version 2026-11-02", () => {
     for (const doc of DOC_IDS) {
       for (const p of FACTS) {
         const d = getDocument({ doc, locale: "da", facts: p });
-        expect([doc, p.id, d.draft, d.sections.length > 0]).toEqual([doc, p.id, true, true]);
+        expect([doc, p.id, d.draft, d.version, d.effectiveFrom, d.sections.length > 0]).toEqual([doc, p.id, false, "2026-11-02", "2026-11-02", true]);
       }
+    }
+  });
+
+  it("no rendered document carries the UDKAST marker any more (owner 2/11 2026: «Dette skal slettes»)", () => {
+    for (const doc of DOC_IDS) {
+      const html = renderHtml(getDocument({ doc, locale: "da", facts: EXAMPLE_FACTS }));
+      expect([doc, html.includes("UDKAST"), html.includes("legal-draft")]).toEqual([doc, false, false]);
     }
   });
 
