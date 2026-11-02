@@ -768,3 +768,110 @@ export function validateBimiSvg(svg: string): BimiSvgProblem[] {
   }
   return problems;
 }
+
+// ── F005.14 — correct DNS records are not permission to send ────────────────
+//
+// verifySendingDomain asks DNS «are the records there?». Resend decides whether it will SEND
+// from the domain, and a domain can have every record right and still sit at `pending` —
+// necessary, not sufficient. Filed by helpdesk (#26860): multi-tenant, one sending domain per
+// customer, so onboarding is finished when Resend says `verified`, not when the records exist.
+//
+// TWO TRAPS, both named in the plan:
+//   1. A lookup we could not make is NOT a Resend status. Never `not_started` («the customer has
+//      not added records» — when the truth is «we never asked»). It is `ok:false, could_not_ask`.
+//   2. Resend's status list is THEIRS and can grow. A status we do not know is carried verbatim
+//      and decides `maySend: "unknown"` — never the permissive branch (the F070 default trap).
+
+/** Resend's domain statuses as of 2026-11. Only `verified` permits sending. */
+export const RESEND_DOMAIN_STATUSES = ['not_started', 'pending', 'verified', 'failure', 'temporary_failure'] as const;
+
+/** «May I send from this domain?» — three answers, and `unknown` never means yes. */
+export type MaySend = 'yes' | 'no' | 'unknown';
+
+export type ResendDomainVerdict =
+  | { ok: true; domain: string; registered: true; status: string; knownStatus: boolean; maySend: MaySend }
+  | { ok: true; domain: string; registered: false; maySend: 'no' }
+  | { ok: false; domain: string; reason: 'could_not_ask'; detail: string; maySend: 'unknown' };
+
+/** The decision lives here, once — no consumer writes its own switch over provider statuses. */
+export function maySendFromStatus(status: string): MaySend {
+  switch (status) {
+    case 'verified':
+      return 'yes';
+    case 'not_started':
+    case 'pending':
+    case 'failure':
+    case 'temporary_failure':
+      return 'no';
+    default:
+      // A status Resend added after this release. Not permission — and not a refusal we can
+      // explain either. The permissive outcome must never be the default branch.
+      return 'unknown';
+  }
+}
+
+/** Resend's verdict on one sending domain. Never throws; no key → could_not_ask. */
+export async function checkResendDomain(
+  rawFrom: string,
+  config: { apiKey?: string; fetch?: typeof fetch } = {},
+): Promise<ResendDomainVerdict> {
+  let domain: string;
+  try {
+    domain = senderDomain(rawFrom);
+  } catch (e) {
+    return { ok: false, domain: String(rawFrom ?? ''), reason: 'could_not_ask', detail: (e as Error).message, maySend: 'unknown' };
+  }
+  const fail = (detail: string): ResendDomainVerdict => ({ ok: false, domain, reason: 'could_not_ask', detail, maySend: 'unknown' });
+  const doFetch = config.fetch ?? (typeof fetch === 'function' ? fetch : undefined);
+  if (!config.apiKey) return fail('no API key, so Resend was never asked');
+  if (!doFetch) return fail('no fetch available (pass config.fetch)');
+
+  let res: Response;
+  try {
+    res = await doFetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${config.apiKey}` } });
+  } catch (e) {
+    return fail(`could not reach Resend: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (res.status === 401 || res.status === 403) return fail('this API key may not read domains (a send-only key) — this is NOT «the domain is unverified»');
+  if (!res.ok) return fail(`Resend answered ${res.status}`);
+  let body: { data?: { name?: unknown; status?: unknown }[] };
+  try { body = (await res.json()) as typeof body; } catch { return fail("Resend's answer was not JSON"); }
+  if (!Array.isArray(body.data)) return fail("Resend's answer had no data list");
+
+  const hit = body.data.find((d) => typeof d.name === 'string' && d.name.toLowerCase() === domain);
+  if (!hit) return { ok: true, domain, registered: false, maySend: 'no' };
+  const status = typeof hit.status === 'string' ? hit.status : '';
+  return {
+    ok: true,
+    domain,
+    registered: true,
+    status,
+    knownStatus: (RESEND_DOMAIN_STATUSES as readonly string[]).includes(status),
+    maySend: maySendFromStatus(status),
+  };
+}
+
+export interface SendingPermission {
+  domain: string;
+  /** DNS: what the customer must create — kept separately readable. */
+  dns: DomainReadiness;
+  /** Resend: whether it will send. */
+  resend: ResendDomainVerdict;
+  /** The one answer to act on. Only Resend's `verified` is `yes`; DNS alone never is. */
+  maySend: MaySend;
+}
+
+/**
+ * Both halves in one call, kept apart: DNS says what to fix, Resend says whether sending may
+ * start. «DNS all ok + Resend pending» stays visible instead of being collapsed into a boolean.
+ */
+export async function checkSendingPermission(
+  rawFrom: string,
+  options: VerifyDomainOptions & { apiKey?: string; fetch?: typeof fetch } = {},
+): Promise<SendingPermission> {
+  const [dns, resend] = await Promise.all([
+    verifySendingDomain(rawFrom, options),
+    checkResendDomain(rawFrom, { apiKey: options.apiKey, fetch: options.fetch }),
+  ]);
+  return { domain: dns.domain, dns, resend, maySend: resend.maySend };
+}

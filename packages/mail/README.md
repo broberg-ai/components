@@ -13,6 +13,14 @@ to send transactional mail across every `@broberg/*` app.
 - **Delivery only.** HTML templates stay per-app (they diverge per brand). This
   package is the chokepoint every repo used to duplicate.
 
+**Everything is not on the root entry.** Four subpaths (F005.14 — this list was missing, and a consumer concluded the features did not exist):
+
+| import | what |
+|---|---|
+| `@broberg/mail/verify` | `verifySendingDomain` (are the DNS records there?) · `checkSendingPermission` / `checkResendDomain` (does Resend say the domain may SEND? — DNS ok is not enough) · `checkBrandReadiness` (BIMI) |
+| `@broberg/mail/webhook` | verify + parse Resend's delivery webhooks |
+| `@broberg/mail/hono` · `@broberg/mail/next` | the webhook as a ready route |
+
 ```bash
 pnpm add @broberg/mail
 ```
@@ -313,6 +321,26 @@ classic defects that reach a real inbox:
 
 **If you run `integrity: "enforcing"`,** a mail carrying one of these is now refused where 0.22 sent it.
 That is the point — each is a broken mail — but read the report in report-only mode first.
+
+## `checkSendingPermission()` (0.25.0, F005.14) — may I send from this domain?
+
+Correct DNS records are **necessary, not sufficient**: a domain can have SPF, DKIM and MX right and still sit at
+`pending` in Resend, which then refuses to send. For multi-tenant onboarding, the domain is ready when Resend
+says `verified`.
+
+```ts
+import { checkSendingPermission } from "@broberg/mail/verify";
+
+const p = await checkSendingPermission("support.kunde.dk", { apiKey: process.env.RESEND_API_KEY });
+p.maySend;   // "yes" only when Resend says verified · "no" · "unknown" (could not ask, or a status Resend added later)
+p.dns;       // what the customer must create (missing records, with the fix)
+p.resend;    // { ok:true, registered, status, knownStatus } | { ok:false, reason:"could_not_ask" }
+```
+
+- **A lookup we could not make is never a Resend status** — no key, a send-only key, a network error → `ok:false`,
+  `maySend:"unknown"`; never `not_started` («the customer has not added records» when we never asked).
+- **A status Resend adds later is kept verbatim and is `unknown`, never permission.** The decision lives in
+  `maySendFromStatus`, once — do not write your own switch over Resend's statuses.
 
 ## `deliveryStatus()` (0.24.0, F005.23) — did my mail to this person arrive?
 

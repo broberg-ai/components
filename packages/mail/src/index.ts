@@ -8,6 +8,12 @@
  *    real users (the fleet admins stay reachable for dev),
  *  - a typed { ok, id?, error?, skipped? } return that NEVER throws.
  *
+ * SUBPATHS — the capabilities that do not live on this root entry (F005.14: they were invisible here):
+ *  - @broberg/mail/verify   verifySendingDomain (DNS records), checkSendingPermission /
+ *                           checkResendDomain (does Resend say the domain may SEND?), and the BIMI logo readiness report
+ *  - @broberg/mail/webhook  verify + parse Resend's delivery webhooks (delivered/bounced/complained …)
+ *  - @broberg/mail/hono, @broberg/mail/next   the webhook as a ready route for Hono / Next.js
+ *
  * It owns DELIVERY only. HTML templates stay per-app (they diverge per brand;
  * see F023). Lift the four-line `lazy init → allow-guard → send → {ok,error}`
  * chokepoint every repo currently duplicates into this one place.

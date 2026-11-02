@@ -510,6 +510,30 @@ const MUTATIONS = [
     to: "    if (!body.has_more",
     expect: ["paging STOPS once since is passed"],
   },
+  {
+    // F005.14
+    name: "an unknown Resend status is permission",
+    file: "verify",
+    from: "    default:\n      // A status Resend added after this release.",
+    to: "    default:\n      return 'yes';\n      // A status Resend added after this release.",
+    expect: ["a status we invent"],
+  },
+  {
+    // F005.14
+    name: "could-not-ask is reported as not_started",
+    file: "verify",
+    from: "  if (!config.apiKey) return fail('no API key, so Resend was never asked');\n",
+    to: "  if (!config.apiKey) return { ok: true, domain, registered: true, status: 'not_started', knownStatus: true, maySend: 'no' };\n",
+    expect: ["could-not-ask is ok:false"],
+  },
+  {
+    // F005.14
+    name: "DNS ok decides permission",
+    file: "verify",
+    from: "  return { domain: dns.domain, dns, resend, maySend: resend.maySend };",
+    to: "  return { domain: dns.domain, dns, resend, maySend: dns.ok ? 'yes' : resend.maySend };",
+    expect: ["DNS all ok + Resend pending"],
+  },
 ];
 
 
