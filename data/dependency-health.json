@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-02T08:11:59.486Z",
+ "checked_at": "2026-11-02T15:50:09.635Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -191,7 +191,7 @@
    "verdict": "OK"
   },
   "@broberg/call": {
-   "version": "0.2.1",
+   "version": "0.3.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -820,7 +820,7 @@
    "verdict": "OK"
   },
   "@broberg/legal": {
-   "version": "0.3.1",
+   "version": "0.7.0",
    "status": "ok",
    "prod": {
     "critical": 0,
