@@ -12,6 +12,12 @@ rtc:
   ips:
     includes:
       - __FGS_IP__/32
+      # F104.9.2 — the machine's Fly private (6PN) address as an extra ICE
+      # candidate: the recording machine (broberg-voice-egress) reaches media
+      # over the private network, because Fly does not carry UDP between two of
+      # its own machines via the public address. Outside clients cannot route
+      # fdaa::, ignore that pair, and keep using the public IP.
+      - fdaa::/16
   turn_servers:
     - host: broberg-voice-turn.fly.dev
       port: 443
