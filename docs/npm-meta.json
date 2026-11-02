@@ -223,14 +223,14 @@
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.75",
-  "publishedAt": "2026-10-31T11:55:11.715Z",
+  "version": "0.1.76",
+  "publishedAt": "2026-11-02T11:01:29.261Z",
   "provenance": "yes"
  },
  "@broberg/lens-measure": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-measure",
-  "version": "0.1.6",
-  "publishedAt": "2026-10-31T11:35:39.355Z",
+  "version": "0.1.7",
+  "publishedAt": "2026-11-02T10:56:52.681Z",
   "provenance": "yes"
  },
  "@broberg/lens-svg": {
