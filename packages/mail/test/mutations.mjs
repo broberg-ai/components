@@ -31,6 +31,7 @@ const FILES = {
   integrity: join(PKG, "src", "integrity.ts"),
   webhook: join(PKG, "src", "webhook.ts"),
   webhookAdmin: join(PKG, "src", "webhook-admin.ts"),
+  delivery: join(PKG, "src", "delivery.ts"),
 };
 
 // A mutant left on disk by a killed run is indistinguishable from real source.
@@ -476,6 +477,38 @@ const MUTATIONS = [
     from: "      if (SAFE_IMG.test(src)) continue;\n",
     to: "      continue;\n",
     expect: ["an image with no domain to load from"],
+  },
+  {
+    // F005.23
+    name: "another project's mail is returned (no recipient filter)",
+    file: "delivery",
+    from: "      if (!rcpts.some((r) => addr(r) === to)) continue;\n",
+    to: "",
+    expect: ["returns exactly the mails to that recipient"],
+  },
+  {
+    // F005.23
+    name: "a send-only key reads as an empty list",
+    file: "delivery",
+    from: "      return { ok: false, reason: \"read_not_permitted\"",
+    to: "      return { ok: true, mails: [], truncated: false }; return { ok: false, reason: \"read_not_permitted\"",
+    expect: ["a send-only key (401 or 403) is read_not_permitted"],
+  },
+  {
+    // F005.23
+    name: "only the first page is read",
+    file: "delivery",
+    from: "    after = last.id;\n",
+    to: "    return { ok: true, mails, truncated: false };\n",
+    expect: ["across two pages"],
+  },
+  {
+    // F005.23
+    name: "paging continues past since",
+    file: "delivery",
+    from: "    if (passedSince || !body.has_more",
+    to: "    if (!body.has_more",
+    expect: ["paging STOPS once since is passed"],
   },
 ];
 

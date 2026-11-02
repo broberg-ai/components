@@ -314,6 +314,27 @@ classic defects that reach a real inbox:
 **If you run `integrity: "enforcing"`,** a mail carrying one of these is now refused where 0.22 sent it.
 That is the point — each is a broken mail — but read the report in report-only mode first.
 
+## `deliveryStatus()` (0.24.0, F005.23) — did my mail to this person arrive?
+
+The pull half of the delivery question (the webhook is the push half). For a support case like
+«the login code never came»:
+
+```ts
+import { deliveryStatus } from "@broberg/mail";
+
+const r = await deliveryStatus({ to: "mette@example.dk", from: "login@fdaalborg.dk", since: new Date(Date.now() - 864e5) },
+                               { apiKey: process.env.RESEND_API_KEY });
+if (r.ok) r.mails;   // [{ id, createdAt, lastEvent: "delivered" | "bounced" | …, to, from, subject }], newest first
+else r.reason;       // "read_not_permitted" (a send-only key) | "could_not_ask" (no key, network, provider error)
+```
+
+- **`to` is required, and only mails to that recipient come back.** The fleet's Resend key can list
+  every project's mail; this function never hands that list over unfiltered.
+- **A send-only key is `read_not_permitted`, never an empty list** — an empty list would read as
+  «we sent this person nothing».
+- Pages are followed until `since` is passed or the list ends (at most 20 pages; beyond that
+  `truncated: true`).
+
 ## `verifySendingDomain()` (v0.6.0) — is the domain you send FROM able to deliver?
 
 A **different question** from `mailer.mode`, and the difference is the whole reason this exists.

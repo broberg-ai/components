@@ -23,6 +23,9 @@ import type { IntegrityReport } from "./integrity.js";
  * this is for the caller who wants the finding earlier than the send.
  */
 export { checkMailIntegrity, describeIntegrity } from "./integrity.js";
+// F005.23 — read delivery status of mails already sent (the pull half of F005.7).
+export { deliveryStatus, DELIVERY_MAX_PAGES } from "./delivery.js";
+export type { DeliveryQuery, DeliveryRecord, DeliveryLookup } from "./delivery.js";
 export type {
   IntegrityCheck,
   IntegrityFinding,
