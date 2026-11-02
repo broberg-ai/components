@@ -37,6 +37,7 @@ const { state, exitCode } = await fly.waitForExit("my-app", jobId);
 const { entries, nextToken } = await fly.getMachineLogs("my-app", m.id);        // since 0.6.0
 await fly.getMachineLogs("my-app", m.id, { nextToken });                         // only newer lines — poll this to tail
 await fly.listVolumes("my-app");                // destroyed ones included — filter on state
+await fly.listIps("my-app");                    // 0.9.0 — [{ ip, shared, region, serviceName, createdAt }]; a failure throws, never []
 await fly.promQuery("personal", 'sum(fly_instance_memory_mem_available{app="my-app"})');
 ```
 

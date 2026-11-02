@@ -38,6 +38,7 @@ export type {
   FlyGuest,
   FlyExit,
   FlyVolume,
+  FlyIp,
   FlyPromResult,
   FlyLogEntry,
   FlyLogPage,

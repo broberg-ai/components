@@ -104,6 +104,16 @@ export interface FlyVolume {
   [key: string]: unknown;
 }
 
+/** One IP address assigned to an app (F033.25). */
+export interface FlyIp {
+  ip: string;
+  /** A shared IPv4 (Fly's anycast pool) rather than one dedicated to this app. */
+  shared: boolean;
+  region: string;
+  serviceName: string;
+  createdAt: string;
+}
+
 /** The `data` of a Prometheus instant query. */
 export interface FlyPromResult {
   resultType: "vector" | "matrix" | "scalar" | "string" | string;
@@ -293,6 +303,26 @@ export class FlyClient {
   /** Every volume Fly lists for the app, destroyed ones included — filter on `state` yourself. */
   async listVolumes(app: string): Promise<FlyVolume[]> {
     return (await this.rest<FlyVolume[]>("GET", `/apps/${encodeURIComponent(app)}/volumes`)) ?? [];
+  }
+
+  // ── IPs ──
+
+  /**
+   * F033.25 — every IP assigned to the app. A read-only token is enough (measured by buddy 2/11).
+   * A failed request THROWS with its status, and a reply without an `ips` list throws too:
+   * an empty array must only ever mean «this app has no IPs», never «we could not ask».
+   */
+  async listIps(app: string): Promise<FlyIp[]> {
+    const path = `/apps/${encodeURIComponent(app)}/ip_assignments`;
+    const body = await this.rest<{ ips?: { ip: string; shared?: boolean; region?: string; service_name?: string; created_at?: string }[] }>("GET", path);
+    if (!body || !Array.isArray(body.ips)) throw new FlyApiError(200, "GET", path, "no ips array in the ip_assignments response");
+    return body.ips.map((i) => ({
+      ip: i.ip,
+      shared: i.shared === true,
+      region: i.region ?? "",
+      serviceName: i.service_name ?? "",
+      createdAt: i.created_at ?? "",
+    }));
   }
 
   // ── Metrics ──

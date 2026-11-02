@@ -330,6 +330,32 @@ describe("F033.14 — volumes and Prometheus", () => {
     expect(calls.length).toBe(1);
   });
 
+  it("F033.25 listIps GETs ip_assignments with Bearer and maps every field", async () => {
+    const { fly, calls } = client([{ status: 200, body: { ips: [
+      { ip: "66.241.124.10", shared: true, region: "global", service_name: "app", created_at: "2026-10-01T10:00:00Z" },
+      { ip: "2a09:8280:1::a:1", shared: false, region: "arn", service_name: "app", created_at: "2026-10-01T10:00:01Z" },
+    ] } }]);
+    expect(await fly.listIps("broberg voice")).toEqual([
+      { ip: "66.241.124.10", shared: true, region: "global", serviceName: "app", createdAt: "2026-10-01T10:00:00Z" },
+      { ip: "2a09:8280:1::a:1", shared: false, region: "arn", serviceName: "app", createdAt: "2026-10-01T10:00:01Z" },
+    ]);
+    expect(calls[0].url).toBe("https://api.machines.dev/v1/apps/broberg%20voice/ip_assignments");
+    expect(calls[0].method).toBe("GET");
+    expect(calls[0].auth).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("F033.25 listIps: a failed status throws WITH the status — never an empty array", async () => {
+    const { fly } = client([{ status: 404, body: { error: "app not found" } }]);
+    const err = await fly.listIps("nope").catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.status).toBe(404);
+  });
+
+  it("F033.25 listIps: a reply without an ips list throws; an empty list is a real «no IPs»", async () => {
+    expect(await client([{ status: 200, body: { foo: 1 } }]).fly.listIps("a").catch((e) => e)).toBeInstanceOf(FlyApiError);
+    expect(await client([{ status: 200, body: { ips: [] } }]).fly.listIps("a")).toEqual([]);
+  });
+
   const promOk = { status: 200, body: { status: "success", data: { resultType: "vector", result: [{ value: [1, "2"] }] } } };
 
   it("promQuery sends FlyV1 auth — Fly's Prometheus 401s on Bearer", async () => {
