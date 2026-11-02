@@ -198,17 +198,18 @@ The model was not confused. It was blind and sounded certain, and a missing
 capability became a false statement about a business. `corePrompt()` makes the
 honest answer reachable; everything else in the prompt is yours.
 
-## The bot is called Aidan
+## The bot's name is yours (0.9.0, F079.15.1)
 
-One value, one place. Override it for a whole site with a single environment
-variable:
+The package carries no persona. Give your assistant its name with `createChat({ name })` or one
+environment variable for a whole site:
 
 ```
 CHAT_BOT_NAME=Eir
 ```
 
-A test asserts the literal appears in exactly one source file — a name repeated
-across files is a name that drifts the first time one copy is edited.
+Without either it is the neutral «Assistant» (0.8.x and earlier said «Aidan» — set a name if you
+relied on that). Your `systemPrompt` always comes AFTER `corePrompt()` and cannot replace it: the
+honesty floor stays. A test scans the package's source for trail's persona markers and fails on any.
 
 ## Mounting it — Stack A and Stack B
 

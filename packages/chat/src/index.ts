@@ -19,8 +19,11 @@
  * has no compiler.
  */
 
-/** The bot's name, in ONE place. Override per site with CHAT_BOT_NAME. */
-export const DEFAULT_BOT_NAME = "Aidan";
+/**
+ * The NEUTRAL fallback name (F079.15.1). The package carries no persona — the name, like every
+ * other word the assistant says about itself, is the consumer's. Set `name` or CHAT_BOT_NAME.
+ */
+export const DEFAULT_BOT_NAME = "Assistant";
 
 /**
  * The name this assistant answers to.
@@ -392,7 +395,7 @@ export interface CreateChatOptions<Ctx = unknown, Caller = unknown> {
   can?: Can<Caller>;
   /** The consumer's own prompt. `corePrompt()` is prepended. */
   systemPrompt?: string;
-  /** Bot name override; defaults to CHAT_BOT_NAME or "Aidan". */
+  /** The assistant's name — yours to give. Falls back to CHAT_BOT_NAME, then the neutral "Assistant". */
   name?: string;
   /** Safety stop on tool→model→tool cycles. Default 6. */
   maxRounds?: number;

@@ -1,6 +1,6 @@
 {
   "name": "@broberg/chat",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "The fleet's AI-chat core: a conversation loop with a tool registry where a tool without a declared permission is DENIED, streaming typed frames, and the model injected rather than imported — so it carries no dependency it can silently outgrow.",
   "type": "module",
   "license": "MIT",
@@ -117,7 +117,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsup && node verify-exports.mjs",
-    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json && node ../../scripts/mutations-if-changed.mjs test/mutations.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
