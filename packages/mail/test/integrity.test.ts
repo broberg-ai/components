@@ -101,7 +101,7 @@ describe("BOTH DIRECTIONS — the links that must pass, by name", () => {
     });
     expect(r.findings).toEqual([]);
     expect(r.skipped).toEqual([]);
-    expect(r.checked.slice().sort()).toEqual(["attachments", "links", "placeholders"]);
+    expect(r.checked.slice().sort()).toEqual(["attachments", "images", "links", "object-value", "placeholders", "single-brace", "template-literal", "undefined-value"]);
   });
 });
 
@@ -137,7 +137,7 @@ describe("'nothing wrong' and 'could not check' are different answers", () => {
     const r = checkMailIntegrity({ subject: "hej", text: "ren tekst" });
     expect(r.findings).toEqual([]);
     expect(r.checked).not.toContain("links");
-    expect(r.skipped.map((s) => s.check).sort()).toEqual(["attachments", "links"]);
+    expect(r.skipped.map((s) => s.check).sort()).toEqual(["attachments", "images", "links"]);
   });
 
   it("html with no markup at all is a caller who passed plain text — also NOT PERFORMED", () => {
@@ -217,5 +217,47 @@ describe("enforcement is a MAILER-level decision, read back like `mode`", () => 
     });
     expect(r.ok).toBe(true);
     expect(r.id).toBe("m1");
+  });
+});
+
+// F005.22 — appkit #2498: five classic defects 0.16–0.22 let through. Each has its own check name.
+describe("F005.22 — values that were never filled in, and images a mail cannot load", () => {
+  it("${x}: a template literal that was never evaluated — subject, html and text", () => {
+    const f = found({ subject: "Ordre ${orderId}", html: "<p>Hej ${user.name}</p>", text: "Hej ${user.name}" }, "template-literal");
+    expect(f.map((x) => [x.where, x.value])).toEqual([["subject", "${orderId}"], ["html", "${user.name}"], ["text", "${user.name}"]]);
+  });
+  it("{x}: a single-brace placeholder that was never filled — html and text", () => {
+    const f = found({ subject: "x", html: "<p>Hej {navn}</p>", text: "Hej {navn}" }, "single-brace");
+    expect(f.map((x) => [x.where, x.value])).toEqual([["html", "{navn}"], ["text", "{navn}"]]);
+  });
+  it("«undefined» where a value belongs — between tags, in an attribute, and in text", () => {
+    const f = found({ subject: "Velkommen undefined", html: '<p>Hej <b>undefined</b></p><a href="https://x.dk" title="undefined">x</a>', text: "Hej undefined,\nPris: undefined" }, "undefined-value");
+    expect(f.map((x) => x.where)).toEqual(["subject", "html", "html", "text", "text"]);
+  });
+  it("«[object Object]» anywhere", () => {
+    const f = found({ subject: "[object Object]", html: "<p>Din ordre: [object Object]</p>", text: "[object Object]" }, "object-value");
+    expect(f.map((x) => x.where)).toEqual(["subject", "html", "text"]);
+  });
+  it('<img src="/relativ">: an image with no domain to load from', () => {
+    const f = found({ subject: "x", html: '<img src="/img/logo.png"><img alt="a" src=\'billede.jpg\'>' }, "images");
+    expect(f.map((x) => x.value)).toEqual(["/img/logo.png", "billede.jpg"]);
+  });
+
+  // NEGATIVE CONTROLS — over-rejection is the failure that gets a guard switched off.
+  it("the word «undefined» in a sentence about programming is not a finding", () => {
+    const r = checkMailIntegrity({ subject: "Om JavaScript", html: "<p>Funktionen returnerer undefined hvis listen er tom.</p>", text: "Funktionen returnerer undefined hvis listen er tom." });
+    expect(r.findings).toEqual([]);
+  });
+  it("CSS {}-blocks in <style> are not placeholders", () => {
+    const r = checkMailIntegrity({ subject: "x", html: "<style>p{margin:0} .a{color:red} @media (max-width:600px){.b{display:block}}</style><p>Hej</p>" });
+    expect(r.findings).toEqual([]);
+  });
+  it("an <img> with an absolute https src (and cid:/data:) is not a finding", () => {
+    const r = checkMailIntegrity({ subject: "x", html: '<img src="https://broberg.ai/logo.png"><img src="data:image/png;base64,AAA">' });
+    expect(r.findings).toEqual([]);
+  });
+  it("{{x}} stays a placeholders finding and is not double-counted as single-brace", () => {
+    const r = checkMailIntegrity({ subject: "{{subject}}", html: "<p>x</p>" });
+    expect(r.findings.map((f) => f.check)).toEqual(["placeholders"]);
   });
 });

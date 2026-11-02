@@ -24,7 +24,16 @@
 import type { MailAttachment, MailMessage } from "./index.js";
 
 /** Which check produced a finding. */
-export type IntegrityCheck = "links" | "placeholders" | "attachments";
+export type IntegrityCheck =
+  | "links"
+  | "placeholders"
+  | "attachments"
+  // F005.22 (appkit #2498) — five classic defects 0.16–0.22 let through, each with its own name.
+  | "template-literal"
+  | "single-brace"
+  | "undefined-value"
+  | "object-value"
+  | "images";
 
 export interface IntegrityFinding {
   check: IntegrityCheck;
@@ -86,6 +95,23 @@ const HREF = /href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
  * and unclosed cases — and runs in 0 ms on all of the above.
  */
 const PLACEHOLDER = /\{\{[^}]*\}\}/g;
+
+// ── F005.22 — deliberately NARROW: a guard that rejects ordinary mail gets switched off ──
+/** `${name}` — a template literal that was never evaluated (a quote mark in the wrong place). */
+const TEMPLATE_LITERAL = /\$\{[A-Za-z_$][\w$.]*\}/g;
+/** `{name}` — one brace each side, an identifier inside, not part of `{{…}}` or `${…}`. CSS never matches: it has a `:` inside. */
+const SINGLE_BRACE = /(?<![{$])\{[A-Za-z_][\w.]*\}(?!\})/g;
+/** `undefined` as a WHOLE value: between tags, as an attribute value. */
+const UNDEFINED_HTML = />\s*undefined\s*<|=\s*"undefined"|=\s*'undefined'/g;
+/** …or in plain text where a value goes: «Hej undefined,» / «Pris: undefined» / alone on a line. A sentence ABOUT undefined continues with a word and is left alone. */
+const UNDEFINED_TEXT = /(?<![\w-])undefined(?=\s*(?:[,.!?;:)]|$))/gm;
+const OBJECT_OBJECT = /\[object Object\]/g;
+/** `<img … src="…">` — the src a mail client cannot fetch. */
+const IMG_SRC = /<img\b[^>]*?\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+const SAFE_IMG = /^(?:https?:|cid:|data:|\/\/)/i;
+
+/** Text outside `<style>` / `<script>` — CSS and code are not content and are not judged as such. */
+const withoutStyle = (html: string) => html.replace(/<(style|script)\b[\s\S]*?<\/\1>/gi, "");
 
 /** `src="cid:sa-logo"` and every other form a content-id reference takes. */
 const CID_REF = /\bcid:([A-Za-z0-9._@+-]+)/gi;
@@ -158,6 +184,46 @@ export function checkMailIntegrity(
           consequence: "the recipient receives the placeholder itself — the caller never supplied the key",
         });
       }
+    }
+  }
+
+  // ── F005.22: values that were never filled in ─────────────────────────────
+  if (subject || html || text) {
+    const rules: { check: IntegrityCheck; re: RegExp; consequence: string; html?: RegExp }[] = [
+      { check: "template-literal", re: TEMPLATE_LITERAL, consequence: "the recipient receives the code itself — a template literal was never evaluated" },
+      { check: "single-brace", re: SINGLE_BRACE, consequence: "the recipient receives the placeholder itself — the value was never filled in" },
+      { check: "undefined-value", re: UNDEFINED_TEXT, html: UNDEFINED_HTML, consequence: "the recipient reads «undefined» where a value belongs — it was missing when the mail was built" },
+      { check: "object-value", re: OBJECT_OBJECT, consequence: "the recipient reads «[object Object]» — an object was put where text belongs" },
+    ];
+    for (const r of rules) {
+      checked.push(r.check);
+      for (const [where, body] of [
+        ["subject", subject],
+        ["html", html ? withoutStyle(html) : ""],
+        ["text", text],
+      ] as const) {
+        if (!body) continue;
+        for (const m of body.matchAll(where === "html" && r.html ? r.html : r.re)) {
+          findings.push({ check: r.check, where, value: m[0].trim(), consequence: r.consequence });
+        }
+      }
+    }
+  }
+
+  // ── F005.22: images a mail client cannot fetch ────────────────────────────
+  if (!html) {
+    skipped.push({ check: "images", reason: "no html body — there are no images to read" });
+  } else {
+    checked.push("images");
+    for (const m of html.matchAll(IMG_SRC)) {
+      const src = (m[1] ?? m[2] ?? m[3] ?? "").trim();
+      if (SAFE_IMG.test(src)) continue;
+      findings.push({
+        check: "images",
+        where: "html",
+        value: src || "(empty src)",
+        consequence: "a relative image has no domain to load from in a mail — the recipient sees a broken image",
+      });
     }
   }
 

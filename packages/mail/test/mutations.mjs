@@ -437,7 +437,48 @@ const MUTATIONS = [
     to: "",
     expect: ["a DNS failure is \"unknown\", never \"missing\""],
   },
+  {
+    // F005.22 — removing a rule must turn its test red.
+    name: "the template-literal rule is gone",
+    file: "integrity",
+    from: "      { check: \"template-literal\", re: TEMPLATE_LITERAL, consequence: \"the recipient receives the code itself \u2014 a template literal was never evaluated\" },\n",
+    to: "",
+    expect: ["${x}: a template literal that was never evaluated"],
+  },
+  {
+    // F005.22 — removing a rule must turn its test red.
+    name: "the single-brace rule is gone",
+    file: "integrity",
+    from: "      { check: \"single-brace\", re: SINGLE_BRACE, consequence: \"the recipient receives the placeholder itself \u2014 the value was never filled in\" },\n",
+    to: "",
+    expect: ["{x}: a single-brace placeholder"],
+  },
+  {
+    // F005.22 — removing a rule must turn its test red.
+    name: "the undefined-value rule is gone",
+    file: "integrity",
+    from: "      { check: \"undefined-value\", re: UNDEFINED_TEXT, html: UNDEFINED_HTML, consequence: \"the recipient reads \u00abundefined\u00bb where a value belongs \u2014 it was missing when the mail was built\" },\n",
+    to: "",
+    expect: ["\u00abundefined\u00bb where a value belongs"],
+  },
+  {
+    // F005.22 — removing a rule must turn its test red.
+    name: "the object-value rule is gone",
+    file: "integrity",
+    from: "      { check: \"object-value\", re: OBJECT_OBJECT, consequence: \"the recipient reads \u00ab[object Object]\u00bb \u2014 an object was put where text belongs\" },\n",
+    to: "",
+    expect: ["\u00ab[object Object]\u00bb anywhere"],
+  },
+  {
+    // F005.22 — a relative image passes as if it could load.
+    name: "relative images are let through",
+    file: "integrity",
+    from: "      if (SAFE_IMG.test(src)) continue;\n",
+    to: "      continue;\n",
+    expect: ["an image with no domain to load from"],
+  },
 ];
+
 
 const backup = mkdtempSync(join(tmpdir(), "mailmut-"));
 const originals = {};

@@ -300,6 +300,20 @@ r.checked;    // which checks actually ran
 r.skipped;    // which did NOT, and why  ← an empty `findings` here is not a pass
 ```
 
+**0.23.0 (F005.22) adds five checks, each with its own name** — found by appkit (#2498) as
+classic defects that reach a real inbox:
+
+| `check` | catches | never flags |
+|---|---|---|
+| `template-literal` | `${user.name}` — a template literal never evaluated | — |
+| `single-brace` | `{navn}` — a placeholder never filled | CSS in `<style>`, `{{x}}` (that is `placeholders`) |
+| `undefined-value` | «Hej undefined,», `<b>undefined</b>`, `title="undefined"` | a sentence ABOUT undefined («returnerer undefined hvis …») |
+| `object-value` | `[object Object]` | — |
+| `images` | `<img src="/logo.png">` — no domain to load from | `https:`, `cid:`, `data:`, `//` |
+
+**If you run `integrity: "enforcing"`,** a mail carrying one of these is now refused where 0.22 sent it.
+That is the point — each is a broken mail — but read the report in report-only mode first.
+
 ## `verifySendingDomain()` (v0.6.0) — is the domain you send FROM able to deliver?
 
 A **different question** from `mailer.mode`, and the difference is the whole reason this exists.
