@@ -14,7 +14,8 @@ const REPO = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().tr
 const PKG = join(REPO, "packages", "legal");
 const CORE = join(PKG, "src", "core.ts");
 const TERMS_EN = join(PKG, "src", "content", "terms.en.ts");
-const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8") };
+const PSEUDO = join(PKG, "src", "pseudonymise.ts");
+const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8"), [PSEUDO]: readFileSync(PSEUDO, "utf8") };
 
 const MUTATIONS = [
   {
@@ -44,6 +45,41 @@ const MUTATIONS = [
     find: '        { id: "accept.p3", type: "p", text: "Our privacy policy is not part of what you accept. It explains how we process your information, and on which legal basis." },\n',
     replace: "",
     expect: ["every translation mirrors its master block for block"],
+  },
+  {
+    name: "pseudonyms ignore the key (a plain hash — guessable)",
+    file: PSEUDO,
+    find: 'importKey("raw", enc.encode(key),',
+    replace: 'importKey("raw", enc.encode("fixed-not-the-secret-key-000000000"),',
+    expect: ["same value + same key → same pseudonym; a different key → a different one"],
+  },
+  {
+    name: "health sentences reach the analysis copy",
+    file: PSEUDO,
+    find: '(HEALTH.test(s) ? (replaced.health++, "[HELBRED FJERNET]") : s)',
+    replace: "s",
+    expect: ["a health sentence is removed; the rest stays"],
+  },
+  {
+    name: "a first name on its own is not linked to the person seen in full",
+    file: PSEUDO,
+    find: "    for (const p of parts) if (p.length >= 3 && !people.has(p.toLowerCase())) people.set(p.toLowerCase(), n);\n",
+    replace: "",
+    expect: ["a known name is replaced consistently", "recall on the Danish corpus"],
+  },
+  {
+    name: "unknown names are passed as clean",
+    file: PSEUDO,
+    find: '    if (!opts.findNames) notExamined.unshift("names-not-known");\n',
+    replace: "",
+    expect: ["names it was not told about are NOT silently passed"],
+  },
+  {
+    name: "retention above 6 months is accepted",
+    file: PSEUDO,
+    find: "months > MAX_RETENTION_MONTHS)",
+    replace: "months > 120)",
+    expect: ["keepUntil is at most 6 months after collection"],
   },
 ];
 

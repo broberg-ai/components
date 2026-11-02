@@ -203,3 +203,28 @@ README §4 trap fixed. Additive; the texts are unchanged.
 gone too: legal.broberg.ai is an API.
 
 Plan: `docs/features/F110-legal-documents.md`, `docs/features/F110.14-legal-is-an-api.md`.
+
+## Pseudonymisation — `@broberg/legal/pseudonymise` (0.7.0, F110.8)
+
+Run every conversation through this BEFORE it enters a 6-month analysis copy. Techniques and
+standards: `docs/legal/pseudonymisation-standards.md`. Pseudonymised data is still personal data.
+
+```ts
+import { createConversation, toAnalysisRecord, deleteExpired } from "@broberg/legal/pseudonymise";
+
+const key = process.env.ANALYSIS_PSEUDONYM_KEY!;          // one domain, vault-held, never next to the copy
+const convo = createConversation({ key, knownNames: [sender.name, ...parties] /*, findNames */ });
+const rec = await toAnalysisRecord({ id, subjectId: user.id, text, collectedAt: new Date() }, convo, key);
+// rec.subject = keyed pseudonym · rec.text = names → [PERSON-n], CPR → [CPR], e-mail/phone/IP → keyed markers,
+// health sentences → [HELBRED FJERNET] · rec.keepUntil ≤ 6 months · rec.notExamined = what was NOT checked
+await deleteExpired(store, new Date());                     // your store: listExpired(now) + delete(ids)
+```
+
+- **Same person, same pseudonym** under one key; another key → unrelated pseudonyms (rotation unlinks).
+- **Names:** the ones you pass in `knownNames` are replaced consistently through one conversation
+  (full name, first name alone, genitive «Mettes»). Names you did not pass are NOT found unless you
+  give `findNames` (e.g. an EU model through `@broberg/ai-sdk`) — and until then `notExamined`
+  carries `"names-not-known"`. Measured: 16/16 on the Danish known-name corpus in the tests.
+- **Health (art. 9):** sentences matching a Danish health vocabulary are removed unless
+  `health: "consented"` (explicit consent). It is a keyword step: `"health-beyond-keywords"` says so.
+- Addresses and indirect identifiers are not examined (`notExamined`).

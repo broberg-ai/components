@@ -57,3 +57,13 @@ sletjob fjerner det der er udløbet. Sletning på anmodning inden 90 dage, fra b
 - At fri tekst bliver anonym. Den bliver pseudonymiseret, og en målt fangstrate for navne på dansk
   tekst offentliggøres sammen med koden (F110.8, AC3).
 - At pseudonymiserede data er uden for GDPR. Det er de ikke for os.
+
+## Målt (2/11 2026, F110.8, `@broberg/legal/pseudonymise` 0.7.0)
+
+- **Kendte navne** (afsender, sagens parter) på en dansk testkorpus på 16 sætninger — fuldt navn,
+  fornavn alene, efternavn alene, ejefald («Mettes»), små bogstaver, «Efternavn, Fornavn»,
+  bindestregsnavne, æ/ø/å: **16/16 fundet**. Korpusset står i `packages/legal/test/pseudonymise.test.ts`.
+- **Ukendte navne:** findes IKKE uden et `findNames`-trin (sprogmodel i EU). Resultatet siger det selv
+  (`notExamined: "names-not-known"`). Fangstraten for modeltrinnet er ikke målt endnu.
+- **Helbred:** et dansk ordforråd fjerner hele sætningen. Hvad ordforrådet ikke kender, står i
+  `notExamined: "health-beyond-keywords"`.
