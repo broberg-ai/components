@@ -190,3 +190,21 @@ describe("parityProblems — what it refuses", () => {
     expect(parityProblems([t])).toEqual(["terms.en: no da master"]);
   });
 });
+
+describe("F110.10 — the support agreement", () => {
+  it("lists its merge fields as typed placeholders — the same in Danish and English", () => {
+    const want = ["contract.startDate", "contract.title", "customer.address", "customer.cvr", "customer.name", "provider.address", "provider.cvr", "provider.name"];
+    for (const locale of ["da", "en"] as const) {
+      expect([locale, getDocument({ doc: "support", locale, facts: EXAMPLE_FACTS }).placeholders]).toEqual([locale, want]);
+    }
+  });
+  it("a support text with a merge field that is not a known placeholder is refused", () => {
+    const s = SOURCES.find((x) => x.doc === "support" && x.locale === "da")!;
+    const bad = { ...s, sections: [{ id: "x", heading: "X", blocks: [{ id: "x.p1", type: "p" as const, text: "Pris: {pris.beloeb}" }] }] };
+    expect(() => createLibrary([bad], [EXAMPLE_FACTS]).getDocument({ doc: "support", locale: "da", product: EXAMPLE_FACTS.id })).toThrow(/unknown placeholder/);
+  });
+  it("prices and dates are never typed into the prose — they live in the price appendix and the merge fields", () => {
+    const s = SOURCES.find((x) => x.doc === "support" && x.locale === "da")!;
+    expect(prose(s).join("\n")).not.toMatch(/\bDKK\b|kr\.|\b20\d\d-\d\d-\d\d\b/);
+  });
+});
