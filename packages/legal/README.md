@@ -91,8 +91,11 @@ Fill the slots with your facts: in JS/TS, `resolveTemplate(template, FACTS)` fro
 another language, render each `facts` block like this: `hosting` is a table (What | Where);
 `dataCategories` is a list; `subprocessors` is a table (Vendor | Used for | Where | Transfer);
 `conversationAnalysis` is one sentence saying whether your product is covered by the section on
-conversation analysis. A missing English translation falls back to Danish; `stale: true` means the
-English text is older than the Danish one, so show the Danish one or a notice.
+conversation analysis. Since 0.6.0 all five documents exist in English (`locale: "en"`), block for
+block the same as the Danish — same ids, same order — so a link or a diff addresses the same paragraph
+in both languages. `stale: true` means the English text is older than the Danish one, so show the
+Danish one or a notice. The Danish version prevails if the two differ (stated in the documents
+themselves). `parityProblems(sources)` is the check that keeps every translation in step.
 
 ### 4. Cache: keep your own copy, and only fetch a new edition when there is one (HTTP route)
 

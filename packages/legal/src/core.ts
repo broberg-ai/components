@@ -85,6 +85,42 @@ function resolveBlock(b: Block, locale: Locale, product: ProductFacts): Resolved
   return [b];
 }
 
+/** One line per block: id, type and shape — what a translation must mirror exactly, in order. */
+function shape(src: DocumentSource): string[] {
+  return src.sections.flatMap((sec) => [
+    `section ${sec.id}`,
+    ...sec.blocks.map((b) =>
+      b.type === "facts" ? `${b.id} facts:${b.fact}`
+      : b.type === "list" ? `${b.id} list:${b.items.length} items`
+      : b.type === "table" ? `${b.id} table:${b.head.length}x${b.rows.length}`
+      : `${b.id} ${b.type}`,
+    ),
+  ]);
+}
+
+/**
+ * F110.4 — every translation must have exactly its master's sections and blocks:
+ * same ids, same order, same block types, same list/table size. Returns one line per
+ * translation that does not (empty = all in parity). A missing, extra or reordered
+ * paragraph is a different document, not a translation of this one.
+ */
+export function parityProblems(sources: DocumentSource[]): string[] {
+  const problems: string[] = [];
+  for (const t of sources) {
+    if (t.locale === MASTER_LOCALE) continue;
+    const m = sources.find((s) => s.doc === t.doc && s.locale === MASTER_LOCALE);
+    if (!m) { problems.push(`${t.doc}.${t.locale}: no ${MASTER_LOCALE} master`); continue; }
+    const want = shape(m), got = shape(t);
+    for (let i = 0; i < Math.max(want.length, got.length); i++) {
+      if (want[i] !== got[i]) {
+        problems.push(`${t.doc}.${t.locale}: at position ${i} the master has «${want[i] ?? "(end)"}», the translation «${got[i] ?? "(end)"}»`);
+        break;
+      }
+    }
+  }
+  return problems;
+}
+
 /**
  * The library a getDocument reads from: every authored document and every product.
  * Built once; the bundled content and tests construct their own.

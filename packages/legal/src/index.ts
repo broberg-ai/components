@@ -12,7 +12,7 @@ import { createLibrary, sourceHash, templateHash } from "./core.js";
 import { SOURCES } from "./content/index.js";
 import { MASTER_LOCALE, type DocId, type DocumentSource, type LegalDocument, type Locale, type ProductFacts } from "./types.js";
 
-export { createLibrary, canonicalJson, sourceHash, templateHash, placeholdersIn } from "./core.js";
+export { createLibrary, canonicalJson, sourceHash, templateHash, placeholdersIn, parityProblems } from "./core.js";
 export { renderHtml } from "./render.js";
 export { sha256Hex } from "./sha256.js";
 export * from "./types.js";

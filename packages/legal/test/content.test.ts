@@ -2,7 +2,7 @@
 // resolves for every product, the owner's fixed points are in the text, and no
 // product fact is typed into prose.
 import { describe, expect, it } from "vitest";
-import { DOC_IDS, EXAMPLE_FACTS, SOURCES, getDocument, getTemplate, listDocuments, renderHtml, resolveTemplate, templateHash } from "../src/index";
+import { DOC_IDS, EXAMPLE_FACTS, SOURCES, createLibrary, getDocument, getTemplate, listDocuments, parityProblems, renderHtml, resolveTemplate, sourceHash, templateHash } from "../src/index";
 import type { ProductFacts } from "../src/index";
 
 // Two products' OWN facts, as a consumer would pass them (F110.14 — no fleet registry here).
@@ -29,12 +29,12 @@ describe("F110.14 — templates from the API, facts from the product", () => {
     expect(t.hash).toBe(templateHash(SOURCES.find((s) => s.doc === "privacy")!));
     expect(t.stale).toBe(false);
   });
-  it("a missing translation falls back to the Danish master", () => {
-    expect(getTemplate({ doc: "terms", locale: "en" }).locale).toBe("da");
+  it("every document has its English translation (F110.4)", () => {
+    for (const doc of DOC_IDS) expect([doc, getTemplate({ doc, locale: "en" }).locale]).toEqual([doc, "en"]);
   });
   it("listDocuments names every template with version and hash", () => {
     const l = listDocuments();
-    expect(l.map((x) => x.doc).sort()).toEqual([...DOC_IDS].sort());
+    expect(l.map((x) => `${x.doc}.${x.locale}`).sort()).toEqual(DOC_IDS.flatMap((d) => [`${d}.da`, `${d}.en`]).sort());
     expect(l.every((x) => /^[0-9a-f]{64}$/.test(x.hash))).toBe(true);
   });
   it("resolveTemplate(fetched template, own facts) gives the SAME document as getDocument with the same facts", () => {
@@ -112,5 +112,81 @@ describe("the bundled documents (v1.0, approved by the owner's lawyer 2/11 2026)
     for (const doc of ["terms", "privacy", "trust"] as const) {
       expect([doc, getDocument({ doc, locale: "da", facts: EXAMPLE_FACTS }).placeholders]).toEqual([doc, []]);
     }
+  });
+});
+
+describe("F110.4 — the English translation", () => {
+  const en = SOURCES.filter((s) => s.locale === "en");
+  const daOf = (doc: string) => SOURCES.find((s) => s.doc === doc && s.locale === "da")!;
+
+  it("all five documents are translated, and every translation mirrors its master block for block", () => {
+    expect(en.map((s) => s.doc).sort()).toEqual([...DOC_IDS].sort());
+    expect(parityProblems(SOURCES)).toEqual([]);
+  });
+
+  it("every bundled translation is of the CURRENT master — change the Danish and this goes red until the English follows", () => {
+    for (const t of en) {
+      expect([t.doc, t.translationOf]).toEqual([t.doc, { version: daOf(t.doc).version, sourceHash: sourceHash(daOf(t.doc)) }]);
+      for (const p of FACTS) expect([t.doc, p.id, getDocument({ doc: t.doc, locale: "en", facts: p }).stale]).toEqual([t.doc, p.id, false]);
+    }
+  });
+
+  it("when the Danish master moves on, getDocument reports the English as stale — never as current", () => {
+    const t = en.find((s) => s.doc === "terms")!;
+    const m = daOf("terms");
+    const moved = { ...m, sections: m.sections.map((s) => (s.id === "ai" ? { ...s, blocks: [{ id: "ai.p1", type: "p" as const, text: "Ny tekst." }] } : s)) };
+    const lib = (master: typeof m) => createLibrary([master, t], [EXAMPLE_FACTS]).getDocument({ doc: "terms", locale: "en", product: EXAMPLE_FACTS.id });
+    expect(lib(m).stale).toBe(false);
+    expect([lib(moved).stale, lib(moved).locale]).toEqual([true, "en"]);
+  });
+
+  it("each translation carries the same version, dates, material flag and merge fields as its master", () => {
+    for (const t of en) {
+      const m = daOf(t.doc);
+      expect([t.doc, t.version, t.effectiveFrom, t.material, t.draft]).toEqual([t.doc, m.version, m.effectiveFrom, m.material, m.draft]);
+      expect([t.doc, getDocument({ doc: t.doc, locale: "en", facts: EXAMPLE_FACTS }).placeholders]).toEqual([t.doc, getDocument({ doc: t.doc, locale: "da", facts: EXAMPLE_FACTS }).placeholders]);
+    }
+  });
+
+  it("terms, privacy, DPA and support state that the Danish version prevails — in both languages", () => {
+    for (const doc of ["terms", "privacy", "dpa", "support"] as const) {
+      expect([doc, allText(getDocument({ doc, locale: "da", facts: EXAMPLE_FACTS })).includes("gælder den danske") || allText(getDocument({ doc, locale: "da", facts: EXAMPLE_FACTS })).includes("danske udgave gælder")]).toEqual([doc, true]);
+      expect([doc, allText(getDocument({ doc, locale: "en", facts: EXAMPLE_FACTS })).includes("Danish version prevails")]).toEqual([doc, true]);
+    }
+  });
+
+  it("no vendor name and no Danish leftovers are typed into the English prose", () => {
+    for (const t of en) {
+      const text = prose(t).join("\n");
+      expect([t.doc, /\b(og|ikke|eller|vores|skal)\b/.test(text)]).toEqual([t.doc, false]);
+    }
+  });
+});
+
+describe("parityProblems — what it refuses", () => {
+  const m = SOURCES.find((s) => s.doc === "terms" && s.locale === "da")!;
+  const t = SOURCES.find((s) => s.doc === "terms" && s.locale === "en")!;
+  const withSections = (sections: typeof t.sections) => ({ ...t, sections });
+
+  it("a missing paragraph", () => {
+    const sec = t.sections.map((s) => (s.id === "accept" ? { ...s, blocks: s.blocks.slice(0, 2) } : s));
+    expect(parityProblems([m, withSections(sec)])[0]).toContain("accept.p3");
+  });
+  it("an extra paragraph", () => {
+    const sec = t.sections.map((s) => (s.id === "ai" ? { ...s, blocks: [...s.blocks, { id: "ai.p2", type: "p" as const, text: "Extra." }] } : s));
+    expect(parityProblems([m, withSections(sec)])[0]).toContain("ai.p2");
+  });
+  it("a reordered section", () => {
+    const sec = [t.sections[1]!, t.sections[0]!, ...t.sections.slice(2)];
+    expect(parityProblems([m, withSections(sec)])).toHaveLength(1);
+  });
+  it("a list item dropped", () => {
+    const p = SOURCES.find((s) => s.doc === "privacy" && s.locale === "en")!;
+    const pm = SOURCES.find((s) => s.doc === "privacy" && s.locale === "da")!;
+    const sec = p.sections.map((s) => ({ ...s, blocks: s.blocks.map((b) => (b.type === "list" ? { ...b, items: b.items.slice(1) } : b)) }));
+    expect(parityProblems([pm, { ...p, sections: sec }])[0]).toContain("analyse.list");
+  });
+  it("a translation with no master", () => {
+    expect(parityProblems([t])).toEqual(["terms.en: no da master"]);
   });
 });

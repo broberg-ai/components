@@ -25,7 +25,7 @@ it("serves the TEMPLATE (facts slots open) with ETag, a day of cache and 304", a
 
 it("/v1/documents lists every template with version and hash", async () => {
   const body = await get("/v1/documents").json();
-  expect(body.documents.map((d: any) => d.doc).sort()).toEqual([...DOC_IDS].sort());
+  expect(body.documents.map((d: any) => `${d.doc}.${d.locale}`).sort()).toEqual(DOC_IDS.flatMap((d) => [`${d}.da`, `${d}.en`]).sort());
 });
 
 it("has NO per-product routes any more — components keeps no product versions", () => {
