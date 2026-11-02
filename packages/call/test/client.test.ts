@@ -17,6 +17,7 @@ vi.mock("livekit-client", async () => {
     LocalTrackUnpublished: "localTrackUnpublished",
     TrackMuted: "trackMuted",
     TrackUnmuted: "trackUnmuted",
+    RecordingStatusChanged: "recordingStatusChanged",
   };
   const Track = {
     Kind: { Audio: "audio", Video: "video" },
@@ -35,6 +36,7 @@ vi.mock("livekit-client", async () => {
       setCameraEnabled: vi.fn(async (on: boolean) => localVideoToggle("camera", on)),
       setScreenShareEnabled: vi.fn(async (on: boolean) => localVideoToggle("screen_share", on)),
     };
+    isRecording = false;
     connect = vi.fn(async () => {});
     startAudio = vi.fn(async () => {});
     disconnect = vi.fn(async () => {});
@@ -396,6 +398,40 @@ describe("F104.10 — a turned-off camera is not a picture", () => {
     media.mockClear();
     state.room.emit("trackMuted", {}, state.room.localParticipant);
     expect(media).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("recording (F104.9.5)", () => {
+  it("tells every participant when the media server starts and stops a recording", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const seen: boolean[] = [];
+    call.onRecording((on) => seen.push(on));
+    expect(seen).toEqual([false]);
+    expect(call.recording).toBe(false);
+    state.room.isRecording = true;
+    state.room.emit("recordingStatusChanged", true);
+    expect(call.recording).toBe(true);
+    state.room.isRecording = false;
+    state.room.emit("recordingStatusChanged", false);
+    expect(seen).toEqual([false, true, false]);
+  });
+
+  it("someone who joins a room already being recorded is told at once", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    state.room.isRecording = true;
+    const cb = vi.fn();
+    call.onRecording(cb);
+    expect(cb).toHaveBeenCalledWith(true);
+  });
+
+  it("says nothing more after leave", async () => {
+    const call = await joinVoice({ url: "u", token: "t" });
+    const cb = vi.fn();
+    call.onRecording(cb);
+    await call.leave();
+    cb.mockClear();
+    state.room.emit("recordingStatusChanged", true);
+    expect(cb).not.toHaveBeenCalled();
   });
 });
 

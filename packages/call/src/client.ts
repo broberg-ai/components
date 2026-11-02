@@ -81,6 +81,13 @@ export interface VoiceCall {
   /** F104.7 — `true` stops receiving other people's video (weak connection); sound is untouched. `false` brings it back. */
   setAudioOnly(on: boolean): void;
   readonly audioOnly: boolean;
+  /**
+   * F104.9.5 — `true` while the room is being recorded. It comes from the media
+   * server, so EVERY participant sees it — not only the one whose app started it.
+   */
+  readonly recording: boolean;
+  /** Called at once and whenever a recording of the room starts or stops. Returns an unsubscribe. */
+  onRecording(cb: (recording: boolean) => void): () => void;
   leave(): Promise<void>;
 }
 
@@ -99,6 +106,7 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
   let audioOnly = false;
   const speakingCbs = new Set<(ids: string[]) => void>();
   const participantCbs = new Set<(ps: VoiceParticipant[]) => void>();
+  const recordingCbs = new Set<(on: boolean) => void>();
   const volumes = new Map<string, number>();
   const audioEls = new Map<RemoteTrack, HTMLMediaElement[]>();
   let outputMuted = false;
@@ -148,6 +156,11 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
   const handlers: [RoomEvent, (...args: any[]) => void][] = [
     [RoomEvent.ParticipantConnected, (p: RemoteParticipant) => { applyVolume(p); emitParticipants(); }],
     [RoomEvent.ParticipantDisconnected, () => emitParticipants()],
+    // F104.9.5 — LiveKit marks the room as recorded while an egress runs on it.
+    [RoomEvent.RecordingStatusChanged, (on: boolean) => {
+      if (left) return;
+      recordingCbs.forEach((cb) => cb(on));
+    }],
     [RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
       if (left) return;
       const ids = speakers.map((s) => s.identity);
@@ -247,6 +260,12 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
       return () => videoCbs.delete(cb);
     },
     get audioOnly() { return audioOnly; },
+    get recording() { return room.isRecording; },
+    onRecording(cb) {
+      recordingCbs.add(cb);
+      if (!left) cb(room.isRecording);
+      return () => recordingCbs.delete(cb);
+    },
     setAudioOnly(on) {
       audioOnly = on;
       room.remoteParticipants.forEach((p) => p.trackPublications.forEach(applyAudioOnly));
@@ -258,6 +277,7 @@ export async function joinVoice({ url, token, publish = true }: JoinOptions): Pr
       participantCbs.clear();
       localMediaCbs.clear();
       videoCbs.clear();
+      recordingCbs.clear();
       remoteVideos.forEach((_v, track) => track.detach());
       remoteVideos.clear();
       audioEls.forEach((_els, track) => track.detach().forEach((el) => el.remove()));

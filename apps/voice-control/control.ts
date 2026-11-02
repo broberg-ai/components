@@ -27,18 +27,19 @@ export function verifyAppToken(token: string | null, keys: Map<string, string>, 
   if (!token) return { ok: false, reason: "missing_token" };
   const parts = token.split(".");
   if (parts.length !== 3) return { ok: false, reason: "malformed_token" };
+  const [h64, p64, sig64] = parts as [string, string, string];
   let head: any, body: any;
   try {
-    head = JSON.parse(Buffer.from(parts[0], "base64url").toString());
-    body = JSON.parse(Buffer.from(parts[1], "base64url").toString());
+    head = JSON.parse(Buffer.from(h64, "base64url").toString());
+    body = JSON.parse(Buffer.from(p64, "base64url").toString());
   } catch {
     return { ok: false, reason: "malformed_token" };
   }
   if (head?.alg !== "HS256") return { ok: false, reason: "bad_alg" };
   const secret = typeof body?.iss === "string" ? keys.get(body.iss) : undefined;
   if (!secret) return { ok: false, reason: "unknown_key" };
-  const want = createHmac("sha256", secret).update(`${parts[0]}.${parts[1]}`).digest();
-  const got = Buffer.from(parts[2], "base64url");
+  const want = createHmac("sha256", secret).update(`${h64}.${p64}`).digest();
+  const got = Buffer.from(sig64, "base64url");
   if (got.length !== want.length || !timingSafeEqual(got, want)) return { ok: false, reason: "bad_signature" };
   if (typeof body.exp !== "number" || body.exp < nowSec) return { ok: false, reason: "expired" };
   if (typeof body.nbf === "number" && body.nbf > nowSec + 5) return { ok: false, reason: "not_yet_valid" };

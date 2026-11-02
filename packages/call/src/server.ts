@@ -16,7 +16,9 @@ export type VoiceErrorCode =
   | "invalid_identity"
   | "invalid_ttl"
   | "invalid_sources"
-  | "invalid_webhook";
+  | "invalid_webhook"
+  | "invalid_control_url"
+  | "recording_failed";
 
 export class VoiceError extends Error {
   constructor(
@@ -134,4 +136,80 @@ export async function verifyWebhook(
   } catch (e) {
     throw new VoiceError("invalid_webhook", `webhook rejected: ${(e as Error).message}`);
   }
+}
+
+// ---- F104.9.5 — recording ----------------------------------------------------
+//
+// The recording itself runs beside LiveKit (broberg-voice-control starts a
+// recording machine only while something is being recorded). The app asks for
+// it with a 5-minute ticket signed by ITS OWN LiveKit key, bound to ONE room —
+// so an app can only ever start, stop or read recordings of rooms it names.
+// Webhooks `egress_started` / `egress_ended` arrive through `verifyWebhook`
+// like every other event; `event.egressInfo` carries the file.
+
+export interface RecordingOptions extends Credentials {
+  /** The recording service, e.g. `https://broberg-voice-control.fly.dev`. */
+  controlUrl: string;
+}
+
+export interface RecordingFile {
+  name: string;
+  size: number;
+  durationSec: number;
+}
+
+export interface Recording {
+  recordingId: string;
+  egressId?: string;
+  room: string;
+  /**
+   * `recording` while it runs; `stopped` after stopRecording; `complete` if the
+   * room emptied by itself; `failed` (with `error`) if it could not be made.
+   */
+  state: "recording" | "stopped" | "complete" | "failed";
+  attempts?: number;
+  error?: string;
+  /** Absent until the file is written — after a stop, poll getRecording until it is there. */
+  files?: RecordingFile[];
+}
+
+async function recordingTicket(room: string, credentials: Credentials): Promise<string> {
+  requireCredentials(credentials);
+  if (!room?.trim()) throw new VoiceError("invalid_room", "room is required");
+  const token = new AccessToken(credentials.apiKey, credentials.apiSecret, { ttl: 300 });
+  token.addGrant({ room, roomRecord: true });
+  return token.toJwt();
+}
+
+async function control(path: string, room: string, opts: RecordingOptions, init: { method: string; body?: string }): Promise<Recording> {
+  if (!/^https?:\/\//.test(opts.controlUrl ?? "")) throw new VoiceError("invalid_control_url", "controlUrl must be an http(s) URL");
+  const res = await fetch(opts.controlUrl.replace(/\/+$/, "") + path, {
+    ...init,
+    headers: { authorization: `Bearer ${await recordingTicket(room, opts)}`, "content-type": "application/json" },
+    signal: AbortSignal.timeout(90_000), // a cold recording machine takes ~20 s to start
+  });
+  const text = await res.text();
+  let body: any;
+  try { body = text ? JSON.parse(text) : {}; } catch { body = { error: text.slice(0, 200) }; }
+  if (!res.ok) throw new VoiceError("recording_failed", `recording service answered ${res.status}: ${body?.error ?? "unknown"}`);
+  return body as Recording;
+}
+
+/**
+ * Start recording the whole room (everyone, one video, grid layout).
+ * Ask for every participant's consent BEFORE calling this — it records all of them.
+ * On a cold recording machine the picture joins after ~20 s.
+ */
+export function startRecording(room: string, opts: RecordingOptions): Promise<Recording> {
+  return control("/v1/recordings", room, opts, { method: "POST", body: JSON.stringify({ room }) });
+}
+
+/** Stop a recording. `room` must be the room it was started for. */
+export function stopRecording(recordingId: string, room: string, opts: RecordingOptions): Promise<Recording> {
+  return control(`/v1/recordings/${encodeURIComponent(recordingId)}/stop`, room, opts, { method: "POST" });
+}
+
+/** Read where a recording stands — after a stop, poll until `files` is there (or `state` is `failed`). */
+export function getRecording(recordingId: string, room: string, opts: RecordingOptions): Promise<Recording> {
+  return control(`/v1/recordings/${encodeURIComponent(recordingId)}`, room, opts, { method: "GET" });
 }

@@ -274,6 +274,34 @@ const MUTATIONS = [
     replace: "    throw e;",
     expect: ["rejects, disconnects and leaves no listener"],
   },
+  {
+    name: "a recording starting is not passed on to the participants",
+    file: CLIENT,
+    find: "      recordingCbs.forEach((cb) => cb(on));",
+    replace: "",
+    expect: ["tells every participant when the media server starts and stops a recording"],
+  },
+  {
+    name: "the recording ticket is not bound to one room",
+    file: SERVER,
+    find: "token.addGrant({ room, roomRecord: true });",
+    replace: "token.addGrant({ roomRecord: true });",
+    expect: ["start: POSTs the room with a ticket", "stop and get address the recording"],
+  },
+  {
+    name: "the recording ticket lives an hour",
+    file: SERVER,
+    find: "new AccessToken(credentials.apiKey, credentials.apiSecret, { ttl: 300 })",
+    replace: "new AccessToken(credentials.apiKey, credentials.apiSecret, { ttl: 3600 })",
+    expect: ["the ticket runs out after 5 minutes"],
+  },
+  {
+    name: "a refusal from the recording service is read as a recording",
+    file: SERVER,
+    find: "  if (!res.ok) throw new VoiceError(\"recording_failed\"",
+    replace: "  if (false) throw new VoiceError(\"recording_failed\"",
+    expect: ["a refusal from the service is an error"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "vcmut-"));

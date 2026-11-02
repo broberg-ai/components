@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccessToken, TokenVerifier } from "livekit-server-sdk";
-import { createRoomToken, verifyWebhook, VoiceError } from "../src/server";
+import { createRoomToken, getRecording, startRecording, stopRecording, verifyWebhook, VoiceError } from "../src/server";
+// The recording service's OWN verifier — so the test proves the ticket we sign is one it accepts.
+import { parseKeys, verifyAppToken } from "../../../apps/voice-control/control";
 
 const creds = { apiKey: "APIkey123", apiSecret: "a-secret-that-is-long-enough-for-hs256-0123456789" };
 
@@ -125,5 +127,75 @@ describe("verifyWebhook", () => {
     expect(await codeOf(verifyWebhook(body, await signedHeader(body, "another-secret-of-adequate-length-000000000"), creds))).toBe("invalid_webhook");
     expect(await codeOf(verifyWebhook(body, undefined, creds))).toBe("invalid_webhook");
     expect(await codeOf(verifyWebhook(body, header, { ...creds, apiSecret: "" }))).toBe("missing_credentials");
+  });
+});
+
+describe("egress webhooks (F104.9.5)", () => {
+  it("egress_ended comes through verifyWebhook with the file", async () => {
+    const body = JSON.stringify({ event: "egress_ended", egressInfo: { egressId: "EG_1", roomName: "jam:42", status: "EGRESS_COMPLETE", fileResults: [{ filename: "jam/42.mp4", size: "1234" }] } });
+    const ev = await verifyWebhook(body, await signedHeader(body), creds);
+    expect(ev.event).toBe("egress_ended");
+    expect(ev.egressInfo?.egressId).toBe("EG_1");
+    expect(ev.egressInfo?.fileResults[0]?.filename).toBe("jam/42.mp4");
+  });
+});
+
+describe("startRecording / stopRecording / getRecording (F104.9.5)", () => {
+  const opts = { ...creds, controlUrl: "https://control.test/" };
+  const keys = parseKeys(`${creds.apiKey}: ${creds.apiSecret}`);
+  const calls: { url: string; method: string; auth: string; body?: string }[] = [];
+  function serve(status: number, answer: unknown) {
+    calls.length = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: any) => {
+      calls.push({ url, method: init.method, auth: init.headers.authorization.replace(/^Bearer /, ""), body: init.body });
+      return new Response(JSON.stringify(answer), { status });
+    }));
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("start: POSTs the room with a ticket the recording service accepts — for that room only", async () => {
+    serve(200, { recordingId: "rec_1", room: "jam:42", state: "recording" });
+    const rec = await startRecording("jam:42", opts);
+    expect(rec).toEqual({ recordingId: "rec_1", room: "jam:42", state: "recording" });
+    expect(calls[0]!.url).toBe("https://control.test/v1/recordings");
+    expect(calls[0]!.method).toBe("POST");
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ room: "jam:42" });
+    expect(verifyAppToken(calls[0]!.auth, keys)).toEqual({ ok: true, key: creds.apiKey, room: "jam:42" });
+    expect(verifyAppToken(calls[0]!.auth, parseKeys(`${creds.apiKey}: another-secret-of-adequate-length-000000000`)).ok).toBe(false);
+  });
+
+  it("the ticket runs out after 5 minutes", async () => {
+    serve(200, { recordingId: "rec_1", room: "jam:42", state: "recording" });
+    await startRecording("jam:42", opts);
+    const now = Math.floor(Date.now() / 1000);
+    expect(verifyAppToken(calls[0]!.auth, keys, now + 290).ok).toBe(true);
+    expect(verifyAppToken(calls[0]!.auth, keys, now + 310)).toEqual({ ok: false, reason: "expired" });
+  });
+
+  it("stop and get address the recording, bound to its room", async () => {
+    serve(200, { recordingId: "rec_1", room: "jam:42", state: "stopped" });
+    expect((await stopRecording("rec_1", "jam:42", opts)).state).toBe("stopped");
+    expect(calls[0]).toMatchObject({ url: "https://control.test/v1/recordings/rec_1/stop", method: "POST" });
+    serve(200, { recordingId: "rec_1", room: "jam:42", state: "stopped", files: [{ name: "f.mp4", size: 9, durationSec: 3 }] });
+    expect((await getRecording("rec_1", "jam:42", opts)).files).toEqual([{ name: "f.mp4", size: 9, durationSec: 3 }]);
+    expect(calls[0]).toMatchObject({ url: "https://control.test/v1/recordings/rec_1", method: "GET" });
+    expect(verifyAppToken(calls[0]!.auth, keys)).toMatchObject({ ok: true, room: "jam:42" });
+  });
+
+  it("a refusal from the service is an error, never a recording", async () => {
+    serve(403, { error: "room_not_in_token" });
+    const e = await startRecording("jam:42", opts).catch((x) => x);
+    expect(e).toBeInstanceOf(VoiceError);
+    expect(e.code).toBe("recording_failed");
+    expect(e.message).toContain("403");
+    expect(e.message).toContain("room_not_in_token");
+  });
+
+  it("refuses missing credentials, room or service address before calling anything", async () => {
+    serve(200, {});
+    expect(await codeOf(startRecording("jam:42", { ...opts, apiSecret: "" }))).toBe("missing_credentials");
+    expect(await codeOf(startRecording(" ", opts))).toBe("invalid_room");
+    expect(await codeOf(startRecording("jam:42", { ...opts, controlUrl: "control.test" }))).toBe("invalid_control_url");
+    expect(calls).toHaveLength(0);
   });
 });

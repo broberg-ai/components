@@ -1,12 +1,12 @@
 # @broberg/call
 
-Voice calls for 2–10 people, like a Slack huddle: the app decides who may enter a room, the audio goes through a self-hosted LiveKit media server (SFU) in the EU, and the browser gets mute, output mute, device choice, per-person volume, who-is-speaking and the participant list. Camera and screen share since 0.2.0 (opt-in per ticket). Epic F104.
+Voice calls for 2–10 people, like a Slack huddle: the app decides who may enter a room, the audio goes through a self-hosted LiveKit media server (SFU) in the EU, and the browser gets mute, output mute, device choice, per-person volume, who-is-speaking and the participant list. Camera and screen share since 0.2.0 (opt-in per ticket). Recording of the whole call to EU storage since 0.3.0. Epic F104.
 
 ```bash
 npm i @broberg/call
 ```
 
-> **Renamed from `@broberg/voice` (F104.6).** `@broberg/call` 0.1.0 is `@broberg/voice` 0.2.0 under a new name — same API, same server. Moving over means changing the import path only: `@broberg/voice/server` → `@broberg/call/server`, `@broberg/voice/client` → `@broberg/call/client`. Camera and screen share arrived in 0.2.0 (F104.7); recording is planned (F104.9).
+> **Renamed from `@broberg/voice` (F104.6).** `@broberg/call` 0.1.0 is `@broberg/voice` 0.2.0 under a new name — same API, same server. Moving over means changing the import path only: `@broberg/voice/server` → `@broberg/call/server`, `@broberg/voice/client` → `@broberg/call/client`. Camera and screen share arrived in 0.2.0 (F104.7); recording arrived in 0.3.0 (F104.9).
 >
 > **Server:** the shared LiveKit media server `broberg-voice` (Fly `arn`, voice.broberg.ai, F104.2) with TURN over TLS on 443 in `broberg-voice-turn` (F104.5); both owned by components.
 
@@ -62,6 +62,10 @@ call.onLocalMedia((m) => setButtons(m));             // at once + on every chang
 call.onVideos((videos) => renderTiles(videos));      // [{ id, identity, name, isLocal, source: "camera"|"screen_share", attach(el), detach(el) }] — a turned-off (muted) camera is NOT in the list (0.2.1)
 videos[0].attach(videoEl);                           // sets autoplay + playsinline; your own picture is muted
 call.setAudioOnly(true);                             // weak connection: stop receiving others' video, keep sound
+
+// 0.3.0 — is the room being recorded? Comes from the media server, so EVERYONE sees it
+call.recording;                                      // true / false
+call.onRecording((on) => showRecordingBadge(on));    // at once + on start/stop — show «Optager nu» while true
 ```
 
 - The microphone opens with **noise suppression, echo cancellation and auto gain** on.
@@ -70,3 +74,25 @@ call.setAudioOnly(true);                             // weak connection: stop re
 - Reconnection after a network drop (ICE restart, resume) is LiveKit's own.
 - **2–10 people with video:** the room runs with simulcast (each camera is sent in several sizes), adaptive stream (you only receive the size your tile shows) and dynacast (sizes nobody watches are paused) — `VIDEO_ROOM_OPTIONS`. Video is never added to the page by the package; the app places each picture with `attach`.
 - The package draws no UI. If you build one, give every control a `data-testid`.
+
+## Recording — 0.3.0 (F104.9)
+
+The whole call — everyone, one video, grid layout — is recorded to EU storage (R2, EU jurisdiction) and deleted after 365 days. A recording machine runs only while something is being recorded, so recording costs nothing while nobody records.
+
+```ts
+import { startRecording, stopRecording, getRecording } from "@broberg/call/server";
+
+const opts = { apiKey, apiSecret, controlUrl: process.env.CALL_RECORDING_URL! }; // the recording service, from YOUR config
+const rec = await startRecording("jam:42", opts);       // { recordingId, room, state: "recording", … }
+await stopRecording(rec.recordingId, "jam:42", opts);    // state: "stopped"
+const done = await getRecording(rec.recordingId, "jam:42", opts); // poll until done.files is there (or state "failed")
+done.files;                                              // [{ name, size, durationSec }] — name is the key in the bucket
+```
+
+- **Consent first.** It records every participant. Get each person's consent (BID purpose `call-recording`) BEFORE calling `startRecording`.
+- **Cold start:** when the recording machine is asleep, the picture joins after ~20 s; when it is warm, after under 2 s. Tell people recording is starting, not that it has.
+- The request carries a 5-minute ticket signed with YOUR app's LiveKit key and bound to ONE room — an app can only start, stop or read recordings of the room it names.
+- A refusal from the service is `VoiceError` `recording_failed` (status + reason in the message), never a recording. A `controlUrl` that is not http(s) is `invalid_control_url`.
+- States: `recording` · `stopped` (after `stopRecording`) · `complete` (the room emptied by itself) · `failed` (with `error`). After a stop, `files` is absent until the file is written.
+- Webhooks: `egress_started` and `egress_ended` arrive through `verifyWebhook` like every other event; `event.egressInfo.fileResults` names the file.
+- In the browser, `call.recording` / `call.onRecording` tell EVERY participant that the room is being recorded — show it.
