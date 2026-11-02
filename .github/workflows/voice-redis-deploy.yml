@@ -1,0 +1,29 @@
+# F104.9.1 — broberg-voice-redis is deployed ONLY through the fleet's shared
+# fly-server-deploy.yml: counted machines, one machine, verified. No code tests
+# here (the image is upstream's plus a config template); the workflow's own
+# Machine-plan / Machine-verify are the gate. A restart briefly blocks new joins, so it
+# runs only when this app's own files change, or by hand.
+name: voice-redis-deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/voice-redis/**"
+      - ".github/workflows/voice-redis-deploy.yml"
+  workflow_dispatch:
+concurrency:
+  group: deploy-broberg-voice-redis
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  deploy:
+    uses: ./.github/workflows/fly-server-deploy.yml
+    with:
+      app: broberg-voice-redis
+      working_directory: apps/voice-redis
+      config: fly.toml
+      ha: false # one Redis node — a second would split the state
+      expected_machines: 1
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_VOICE_REDIS }} # app-scoped deploy token (F033.24)

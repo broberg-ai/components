@@ -1,0 +1,12 @@
+# F104.9.1 — Redis for LiveKit + LiveKit Egress (call recording). Owner's GO 2/11
+# 2026: «A, 365 dage, ja opret det hele». Private network ONLY: no [[services]],
+# so nothing on the internet can reach it; LiveKit and Egress dial
+# broberg-voice-redis.internal:6379 over Fly's private network. One small machine,
+# always on (LiveKit needs it for every join once connected). Nothing is
+# persisted: it holds live room/egress state only, which rebuilds itself.
+app = "broberg-voice-redis"
+primary_region = "arn"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
