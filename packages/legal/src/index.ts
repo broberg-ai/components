@@ -19,6 +19,10 @@ export * from "./types.js";
 export { SOURCES } from "./content/index.js";
 export { EXAMPLE_FACTS } from "./content/example.js";
 export { createLegalCache, LEGAL_API_URL, DEFAULT_REFRESH_MS, type LegalCacheOptions } from "./cache.js";
+export {
+  BID_URL, BidConsentError, getAcceptance, getConsent, needsReaccept, recordAcceptance, recordConsent, toBidHash,
+  type AcceptanceRecord, type AcceptedDoc, type BidCallOptions, type ConsentRecord,
+} from "./bid.js";
 
 /** A template as the API serves it: the authored document with its facts slots, plus its hash. */
 export interface LegalTemplate extends DocumentSource {

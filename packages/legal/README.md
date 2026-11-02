@@ -1,6 +1,6 @@
 # @broberg/legal
 
-**Status: 0.3.0. Every document is a DRAFT (`draft: true`, rendered as «UDKAST») until the owner's lawyer has reviewed it (F110.3).**
+**Status: 0.4.0. Every document is a DRAFT (`draft: true`, rendered as «UDKAST») until the owner's lawyer has reviewed it (F110.3).**
 
 One set of legal documents for every broberg.ai product: `terms`, `privacy`, `trust`, `dpa` and
 `support`. The text is the same everywhere. Danish is the master and prevails; English sits beside it.
@@ -150,10 +150,25 @@ also goes through BID. Never keep your own table for either.
 - **Register your document pages with bid** (for example `terms → https://jams.party/vilkaar`) when
   you start recording acceptances. BID's «Samtykke» page links «Læs vilkårene» to that address; an
   app never sends a URL itself.
-- **Status 1/11 2026:** BID is building these routes. Until they are live, do not store acceptances
-  or consents anywhere else; wait (jam is waiting too). This package will get helpers
-  (`needsReaccept`, `recordAcceptance`/`getAcceptance`, `recordConsent`/`getConsent`) the day they
-  are live.
+- **The routes are live (BID 2/11 2026), and this package has the calls** (server-side, with the
+  user's access token):
+
+  ```ts
+  import { getAcceptance, needsReaccept, recordAcceptance, recordConsent, getConsent, getTemplate } from "@broberg/legal";
+  const terms = getTemplate({ doc: "terms", locale: "da" });
+  const latest = await getAcceptance({ accessToken }, "terms");
+  if (needsReaccept(latest, terms)) { /* show the unticked checkbox; on accept: */
+    await recordAcceptance({ accessToken }, { doc: "terms", version: terms.version, contentHash: terms.hash });
+  }
+  const consent = await getConsent({ accessToken }, "health-text-analysis");   // read BEFORE using the data
+  await recordConsent({ accessToken }, { purpose: "health-text-analysis", granted: false, version, contentHash }); // withdraw
+  ```
+
+  Each record call returns the row BID stored, and throws `BidConsentError` if that row does not
+  match what you sent. Errors carry `status` and `code` (`invalid_token`, `invalid_doc`, …). BID's
+  «Samtykke» page shows only the version the user accepted; whether they must accept again is your
+  app's question, answered by `needsReaccept`. Rows stay (with only the user id) if the account is
+  deleted (owner 2/11 2026).
 
 ---
 
@@ -170,6 +185,8 @@ also goes through BID. Never keep your own table for either.
 - **contentHash** = sha256 of the canonical JSON of the finished document; **hash** = the same for a template.
 - **Placeholders** (`{customer.name}` and the rest) are a fixed list; an unknown one is refused.
 - Zero dependencies (a built-in SHA-256, proven against FIPS vectors and node:crypto).
+
+**0.4.0 (F110.6):** BID calls: `recordAcceptance`/`getAcceptance`, `recordConsent`/`getConsent`, `needsReaccept`, `BidConsentError`, `BID_URL`. Additive.
 
 **0.3.1 (F110.16):** terms (da) «Dit indhold» no longer promises «pseudonymiseret analyse» for every product. Whether a product analyses is said only in the privacy policy, per product (facts.conversationAnalysis). The terms text and its hash changed (still a draft). Found by jam.
 
