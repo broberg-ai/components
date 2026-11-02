@@ -17,6 +17,7 @@ export default defineConfig([
       guard: "src/guard.ts",
       public: "src/public.ts",
       testing: "src/testing.ts",
+      time: "src/time.ts",
     },
     format: ["esm", "cjs"],
     dts: true,

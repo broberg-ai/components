@@ -53,6 +53,16 @@
         "default": "./dist/hono.cjs"
       }
     },
+    "./time": {
+      "import": {
+        "types": "./dist/time.d.ts",
+        "default": "./dist/time.js"
+      },
+      "require": {
+        "types": "./dist/time.d.cts",
+        "default": "./dist/time.cjs"
+      }
+    },
     "./client": {
       "import": {
         "types": "./dist/client.d.ts",

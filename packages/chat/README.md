@@ -211,6 +211,19 @@ Without either it is the neutral «Assistant» (0.8.x and earlier said «Aidan»
 relied on that). Your `systemPrompt` always comes AFTER `corePrompt()` and cannot replace it: the
 honesty floor stays. A test scans the package's source for trail's persona markers and fails on any.
 
+## Dates — `@broberg/chat/time` (0.9.0, F079.15.6)
+
+```ts
+import { nowLine, periodText } from "@broberg/chat/time";
+systemPrompt = `${yourPrompt}\n\n${nowLine("da")}`;   // «NU: mandag den 5. oktober 2026 kl. 13.15 (dansk tid, Europe/Copenhagen) …»
+periodText("2026-10-05 00:00", "2026-10-06 00:00");      // «mandag den 5. oktober 2026» — an end at midnight is exclusive
+```
+
+The model never gets a server's UTC clock: the zone (default Europe/Copenhagen) is named on the
+line. `periodText` turns a search engine's time window into the whole days it covers — Trail's
+«i dag» ends at the NEXT midnight, and without this the model answered «6. oktober» for the 5th
+(measured on broberg.ai 5/10 2026). Safe across daylight-saving switches.
+
 ## Mounting it — Stack A and Stack B
 
 ```ts

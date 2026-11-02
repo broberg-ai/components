@@ -12,7 +12,8 @@ import { writeMarker, clearMarker, assertRestored } from "../../../scripts/mutat
 const REPO = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().trim();
 const PKG = join(REPO, "packages", "chat");
 const CORE = join(PKG, "src", "index.ts");
-const originals = { [CORE]: readFileSync(CORE, "utf8") };
+const TIME = join(PKG, "src", "time.ts");
+const originals = { [CORE]: readFileSync(CORE, "utf8"), [TIME]: readFileSync(TIME, "utf8") };
 
 const MUTATIONS = [
   {
@@ -35,6 +36,20 @@ const MUTATIONS = [
     find: "const system = [corePrompt(name), opts.systemPrompt?.trim()].filter(Boolean).join(\"\\n\\n\");",
     replace: "const system = opts.systemPrompt?.trim() || corePrompt(name);",
     expect: ["the model is told corePrompt, then the consumer's prompt"],
+  },
+  {
+    name: "a window ending at midnight includes the next day (the 5/10 «6. oktober» bug)",
+    file: TIME,
+    find: 'if ((b[4] ?? "00") === "00" && (b[5] ?? "00") === "00") {',
+    replace: "if (false) {",
+    expect: ["is ONE day", "the last day included", "a 25-hour day", "a 23-hour day"],
+  },
+  {
+    name: "the clock is read in the server's zone, not the reader's",
+    file: TIME,
+    find: "const opts: Intl.DateTimeFormatOptions = { timeZone,",
+    replace: "const opts: Intl.DateTimeFormatOptions = { timeZone: \"UTC\",",
+    expect: ["winter time: 23:30Z", "summer time: 22:30Z"],
   },
 ];
 
