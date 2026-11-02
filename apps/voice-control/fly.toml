@@ -1,0 +1,27 @@
+# F104.9.3 — starts the recording machine (broberg-voice-egress) on demand and
+# stops it again. Owner's GO 2/11 2026: «A, 365 dage, ja opret det hele».
+# Always on (one small machine): it follows running recordings, retries one
+# that never started, and stops the recording machine when nothing records —
+# a control that slept would leave the expensive machine running.
+app = "broberg-voice-control"
+primary_region = "arn"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

@@ -1,0 +1,38 @@
+# F104.9.3 — broberg-voice-control is deployed ONLY through the fleet's shared
+# fly-server-deploy.yml, after its own tests are green.
+name: voice-control-deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/voice-control/**"
+      - ".github/workflows/voice-control-deploy.yml"
+  workflow_dispatch:
+concurrency:
+  group: deploy-broberg-voice-control
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Auth, retry and idle-stop decisions pass their tests
+        working-directory: apps/voice-control
+        run: bun test
+  deploy:
+    needs: test
+    uses: ./.github/workflows/fly-server-deploy.yml
+    with:
+      app: broberg-voice-control
+      working_directory: "."
+      config: apps/voice-control/fly.toml
+      dockerfile: apps/voice-control/Dockerfile
+      ha: false # one controller; its state of running recordings lives in it
+      expected_machines: 1
+      health_url: https://broberg-voice-control.fly.dev/health
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_VOICE_CONTROL }} # app-scoped deploy token (F033.24)
