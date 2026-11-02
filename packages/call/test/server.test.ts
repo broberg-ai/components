@@ -182,6 +182,12 @@ describe("startRecording / stopRecording / getRecording (F104.9.5)", () => {
     expect(verifyAppToken(calls[0]!.auth, keys)).toMatchObject({ ok: true, room: "jam:42" });
   });
 
+  it("plain http is allowed only to this machine — the ticket never crosses a network unencrypted", async () => {
+    serve(200, { recordingId: "rec_1", room: "jam:42", state: "recording" });
+    await startRecording("jam:42", { ...opts, controlUrl: "http://localhost:8080" });
+    expect(calls[0]!.url).toBe("http://localhost:8080/v1/recordings");
+  });
+
   it("a refusal from the service is an error, never a recording", async () => {
     serve(403, { error: "room_not_in_token" });
     const e = await startRecording("jam:42", opts).catch((x) => x);
@@ -196,6 +202,7 @@ describe("startRecording / stopRecording / getRecording (F104.9.5)", () => {
     expect(await codeOf(startRecording("jam:42", { ...opts, apiSecret: "" }))).toBe("missing_credentials");
     expect(await codeOf(startRecording(" ", opts))).toBe("invalid_room");
     expect(await codeOf(startRecording("jam:42", { ...opts, controlUrl: "control.test" }))).toBe("invalid_control_url");
+    expect(await codeOf(startRecording("jam:42", { ...opts, controlUrl: "http://control.test" }))).toBe("invalid_control_url");
     expect(calls).toHaveLength(0);
   });
 });

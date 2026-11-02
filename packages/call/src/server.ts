@@ -182,7 +182,11 @@ async function recordingTicket(room: string, credentials: Credentials): Promise<
 }
 
 async function control(path: string, room: string, opts: RecordingOptions, init: { method: string; body?: string }): Promise<Recording> {
-  if (!/^https?:\/\//.test(opts.controlUrl ?? "")) throw new VoiceError("invalid_control_url", "controlUrl must be an http(s) URL");
+  // The request carries a recording ticket: plain http only to this machine, never across a network.
+  let u: URL;
+  try { u = new URL(opts.controlUrl); } catch { throw new VoiceError("invalid_control_url", "controlUrl must be an https URL"); }
+  const local = u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]";
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) throw new VoiceError("invalid_control_url", "controlUrl must be https (http only for localhost)");
   const res = await fetch(opts.controlUrl.replace(/\/+$/, "") + path, {
     ...init,
     headers: { authorization: `Bearer ${await recordingTicket(room, opts)}`, "content-type": "application/json" },

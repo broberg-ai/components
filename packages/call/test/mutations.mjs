@@ -302,6 +302,13 @@ const MUTATIONS = [
     replace: "  if (false) throw new VoiceError(\"recording_failed\"",
     expect: ["a refusal from the service is an error"],
   },
+  {
+    name: "the recording ticket may travel over plain http",
+    file: SERVER,
+    find: 'if (u.protocol !== "https:" && !(u.protocol === "http:" && local))',
+    replace: 'if (false)',
+    expect: ["refuses missing credentials, room or service address"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "vcmut-"));

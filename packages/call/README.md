@@ -92,7 +92,7 @@ done.files;                                              // [{ name, size, durat
 - **Consent first.** It records every participant. Get each person's consent (BID purpose `call-recording`) BEFORE calling `startRecording`.
 - **Cold start:** when the recording machine is asleep, the picture joins after ~20 s; when it is warm, after under 2 s. Tell people recording is starting, not that it has.
 - The request carries a 5-minute ticket signed with YOUR app's LiveKit key and bound to ONE room — an app can only start, stop or read recordings of the room it names.
-- A refusal from the service is `VoiceError` `recording_failed` (status + reason in the message), never a recording. A `controlUrl` that is not http(s) is `invalid_control_url`.
+- A refusal from the service is `VoiceError` `recording_failed` (status + reason in the message), never a recording. A `controlUrl` that is not https (plain http is allowed only for localhost) is `invalid_control_url` — the request carries a recording ticket.
 - States: `recording` · `stopped` (after `stopRecording`) · `complete` (the room emptied by itself) · `failed` (with `error`). After a stop, `files` is absent until the file is written.
 - Webhooks: `egress_started` and `egress_ended` arrive through `verifyWebhook` like every other event; `event.egressInfo.fileResults` names the file.
 - In the browser, `call.recording` / `call.onRecording` tell EVERY participant that the room is being recorded — show it.
