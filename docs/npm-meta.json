@@ -43,8 +43,8 @@
  },
  "@broberg/legal": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/legal",
-  "version": "0.3.1",
-  "publishedAt": "2026-11-01T19:09:28.397Z",
+  "version": "0.4.0",
+  "publishedAt": "2026-11-02T09:42:21.951Z",
   "provenance": "yes"
  },
  "@broberg/media-transform": {
