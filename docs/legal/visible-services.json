@@ -1,0 +1,1265 @@
+[
+  {
+    "service": "ai-tech-radar.fly.dev",
+    "project": null,
+    "ownerSession": null,
+    "url": "https://ai-tech-radar.fly.dev/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; Fly app status \"suspended\" but answered (autostart)",
+    "flyApps": [
+      "ai-tech-radar"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "api.webhouse.net",
+    "project": null,
+    "ownerSession": null,
+    "url": "https://api.webhouse.net/login",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links",
+    "flyApps": [
+      "webhouse-whapi"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "app.buzzalert.me",
+    "project": "buzzalert",
+    "ownerSession": "buzzalert",
+    "url": "https://app.buzzalert.me/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; Fly app status \"suspended\" but answered (autostart); project \"buzzalert\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [
+      "buzzalert-admin"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "app.trailmem.com",
+    "project": "trail",
+    "ownerSession": "trail",
+    "url": "https://app.trailmem.com/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; root redirects to BID login; only the public routes were probed (BID's own legal pages not counted here); site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser",
+    "flyApps": [
+      "trail-admin"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "auto-scaling-container-app.fly.dev",
+    "project": null,
+    "ownerSession": null,
+    "url": "https://auto-scaling-container-app.fly.dev/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; Fly app status \"suspended\" but answered (autostart)",
+    "flyApps": [
+      "auto-scaling-container-app"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "beacon.broberg.ai",
+    "project": "beacon",
+    "ownerSession": "beacon",
+    "url": "https://beacon.broberg.ai/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links",
+    "flyApps": [
+      "broberg-beacon"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "broberg-autodoc.fly.dev",
+    "project": "autodoc",
+    "ownerSession": "autodoc",
+    "url": "https://broberg-autodoc.fly.dev/login",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; Fly app status \"suspended\" but answered (autostart); project \"autodoc\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [
+      "broberg-autodoc"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "broberg-call-demo.fly.dev",
+    "project": "components",
+    "ownerSession": "components",
+    "url": "https://broberg-call-demo.fly.dev/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; Fly app status \"suspended\" but answered (autostart); project \"components\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [
+      "broberg-call-demo"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "broberg.ai",
+    "project": "broberg-ai",
+    "ownerSession": "broberg-ai",
+    "url": "https://broberg.ai/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": "https://broberg.ai/terms",
+      "privacy": "https://broberg.ai/privatliv",
+      "trust": "https://broberg.ai/trust",
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "aliases: broberg.dk, christianbroberg.com, www.broberg.ai, www.broberg.dk, www.christianbroberg.com",
+    "flyApps": [
+      "broberg-ai"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://broberg.ai/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://broberg.ai/terms",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://broberg.ai/trust",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://broberg.dk/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://broberg.dk/terms",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://broberg.dk/trust",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://christianbroberg.com/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://christianbroberg.com/terms",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://christianbroberg.com/trust",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.broberg.ai/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.broberg.ai/terms",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.broberg.ai/trust",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.broberg.dk/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.broberg.dk/terms",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.broberg.dk/trust",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.christianbroberg.com/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.christianbroberg.com/terms",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.christianbroberg.com/trust",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "contracts.broberg.ai",
+    "project": "contract-manager",
+    "ownerSession": "contract-manager",
+    "url": "https://contracts.broberg.ai/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; root redirects to BID login; only the public routes were probed (BID's own legal pages not counted here); site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; aliases: contracts.webhouse.net",
+    "flyApps": [
+      "webhouse-contract-manager"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "cronjobs.webhouse.net",
+    "project": "cronjobs",
+    "ownerSession": "cronjobs",
+    "url": "https://cronjobs.webhouse.net/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; root redirects to BID login; only the public routes were probed (BID's own legal pages not counted here); site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser",
+    "flyApps": [
+      "webhouse-cronjobs"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "demo.broberg.ai",
+    "project": "appkit",
+    "ownerSession": "appkit",
+    "url": "https://demo.broberg.ai/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; Fly app status \"suspended\" but answered (autostart); project \"appkit\" inferred by name, not linked to the Fly app in cardmem; aliases: appkit.broberg.ai",
+    "flyApps": [
+      "appkit-demo"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "docs.webhouse.app",
+    "project": "cms",
+    "ownerSession": "cms",
+    "url": "https://docs.webhouse.app/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; project \"cms\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [
+      "cms-docs"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "echo.broberg.ai",
+    "project": "echo",
+    "ownerSession": "echo",
+    "url": "https://echo.broberg.ai/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; project \"echo\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [
+      "echo-broberg"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "field.broberg.ai",
+    "project": "field",
+    "ownerSession": "field",
+    "url": "https://field.broberg.ai/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links",
+    "flyApps": [
+      "broberg-field"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "fysio.work",
+    "project": "fysio-work",
+    "ownerSession": "fysio-work",
+    "url": "https://fysio.work/",
+    "sources": [
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://fysio.work/privatliv",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "Fly app status \"suspended\" but answered (autostart); project \"fysio-work\" inferred by name, not linked to the Fly app in cardmem; aliases: www.fysio.work",
+    "flyApps": [
+      "fysio-work-landing"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://fysio.work/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "helpdesk.broberg.ai",
+    "project": "helpdesk",
+    "ownerSession": "helpdesk",
+    "url": "https://helpdesk.broberg.ai/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://broberg.ai/privatliv",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "links to another site's legal page: https://broberg.ai/privatliv",
+    "flyApps": [
+      "broberg-helpdesk-console"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://broberg.ai/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": false
+      }
+    ]
+  },
+  {
+    "service": "id.broberg.ai",
+    "project": "broberg-id",
+    "ownerSession": "broberg-id",
+    "url": "https://id.broberg.ai/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://id.broberg.ai/privacy",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "",
+    "flyApps": [
+      "broberg-id"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://id.broberg.ai/privacy",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://id.broberg.ai/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "jams.party",
+    "project": "jam",
+    "ownerSession": "jam",
+    "url": "https://jams.party/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": "https://jams.party/vilkaar",
+      "privacy": "https://jams.party/privatliv",
+      "trust": "https://jams.party/sikkerhed",
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": "partial",
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "pages carry data-legal-id/data-legal-hash but NOT data-legal-doc: @broberg/legal content in the site's own wrapper; also: https://jams.party/cookies; aliases: jam.broberg.ai, www.jams.party",
+    "flyApps": [
+      "broberg-jam"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://jams.party/cookies",
+        "status": 200,
+        "kind": "cookies",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://jams.party/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": true,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://jams.party/sikkerhed",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": false,
+        "dataLegalHash": true,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://jams.party/vilkaar",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": false,
+        "dataLegalHash": true,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "mailworker.broberg.ai",
+    "project": "mailworker",
+    "ownerSession": "mailworker",
+    "url": "https://mailworker.broberg.ai/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://mailworker.broberg.ai/privacy",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "Fly app status \"suspended\" but answered (autostart)",
+    "flyApps": [
+      "mailworker-api"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://mailworker.broberg.ai/privacy",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "moovyy.com",
+    "project": "moovyy",
+    "ownerSession": "moovyy",
+    "url": "https://moovyy.com/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; aliases: moovyy.broberg.dk, www.moovyy.com",
+    "flyApps": [
+      "moovyy"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "onboarding.aabn.io",
+    "project": "onboarding-aabn",
+    "ownerSession": "onboarding-aabn",
+    "url": "https://onboarding.aabn.io/",
+    "sources": [
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; project \"onboarding-aabn\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [],
+    "routeEvidence": []
+  },
+  {
+    "service": "pitch-vault.com",
+    "project": "pitch",
+    "ownerSession": "pitch",
+    "url": "https://pitch-vault.com/",
+    "sources": [
+      "cardmem",
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://pitch-vault.com/privacy",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "aliases: pitch.broberg.ai, pitch.broberg.dk, www.pitch-vault.com",
+    "flyApps": [
+      "pitch-vault"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://pitch-vault.com/privacy",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "sales.broberg.ai",
+    "project": "sales",
+    "ownerSession": "sales",
+    "url": "https://sales.broberg.ai/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; Fly app status \"suspended\" but answered (autostart); project \"sales\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [
+      "broberg-sales"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "sanneandersen.dk",
+    "project": "sanneandersen",
+    "ownerSession": "sanneandersen",
+    "url": "https://sanneandersen.dk/da",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://sanneandersen.dk/da/privatliv",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; aliases: sa.broberg.dk, services.sanneandersen.dk, www.sanneandersen.dk; fly apps: sanneandersen-services, sanneandersen-site",
+    "flyApps": [
+      "sanneandersen-services",
+      "sanneandersen-site"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://sa.broberg.dk/da/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://sanneandersen.dk/da/privatliv",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "footer-link",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "scout.broberg.ai",
+    "project": "scout",
+    "ownerSession": "scout",
+    "url": "https://scout.broberg.ai/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; root redirects to BID login; only the public routes were probed (BID's own legal pages not counted here); site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser",
+    "flyApps": [
+      "scout-gateway"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "sport.fdaalborg.dk",
+    "project": "fysiodk-aalborg-sport",
+    "ownerSession": "fysiodk-aalborg-sport",
+    "url": "https://sport.fdaalborg.dk/login",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://sport.fdaalborg.dk/privacy",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "Fly app status \"suspended\" but answered (autostart); aliases: fdsport.dk, fdsport.net, www.fdsport.dk, www.fdsport.net; fly apps: fd-redirect, fd-sport",
+    "flyApps": [
+      "fd-redirect",
+      "fd-sport"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://sport.fdaalborg.dk/privacy",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "sundhed.fdaalborg.dk",
+    "project": "fd-sundhed",
+    "ownerSession": "fd-sundhed",
+    "url": "https://sundhed.fdaalborg.dk/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://sundhed.fdaalborg.dk/privacy",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "Fly app status \"suspended\" but answered (autostart); aliases: fdsundhed.dk, www.fdsundhed.dk; fly apps: fd-redirect, fd-sundhed",
+    "flyApps": [
+      "fd-redirect",
+      "fd-sundhed"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://sundhed.fdaalborg.dk/privacy",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "upmetrics.org",
+    "project": "upmetrics",
+    "ownerSession": "upmetrics",
+    "url": "https://upmetrics.org/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; aliases: www.upmetrics.org",
+    "flyApps": [
+      "upmetrics"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "vnlekerv2.fly.dev",
+    "project": "vn-leker",
+    "ownerSession": "vn-leker",
+    "url": "https://vnlekerv2.fly.dev/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links",
+    "flyApps": [
+      "vnlekerv2"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "webhouse.app",
+    "project": "cms",
+    "ownerSession": "cms",
+    "url": "https://webhouse.app/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; Fly app status \"suspended\" but answered (autostart); aliases: cms.broberg.ai, cms.fysio.work, www.webhouse.app; fly apps: webhouse-app, webhouse-cms",
+    "flyApps": [
+      "webhouse-app",
+      "webhouse-cms"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "whop.webhouse.net",
+    "project": "whop",
+    "ownerSession": "whop",
+    "url": "https://whop.webhouse.net/login",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; aliases: sites.webhouse.net",
+    "flyApps": [
+      "webhouse-whop"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "widget.trailmem.com",
+    "project": "trail",
+    "ownerSession": "trail",
+    "url": "https://widget.trailmem.com/",
+    "sources": [
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; Fly app status \"suspended\" but answered (autostart); project \"trail\" inferred by name, not linked to the Fly app in cardmem",
+    "flyApps": [
+      "trail-widget"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "www.cardmem.com",
+    "project": "cardmem",
+    "ownerSession": "cardmem",
+    "url": "https://www.cardmem.com/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; aliases: cardmem.com, services.cardmem.com, srv.cardmem.com",
+    "flyApps": [
+      "cardmem"
+    ],
+    "routeEvidence": []
+  },
+  {
+    "service": "www.trailmem.com",
+    "project": "trail",
+    "ownerSession": "trail",
+    "url": "https://www.trailmem.com/",
+    "sources": [
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": "https://www.trailmem.com/terms/",
+      "privacy": "https://www.trailmem.com/privacy/",
+      "trust": "https://www.trailmem.com/trust/",
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": true,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "project \"trail\" inferred by name, not linked to the Fly app in cardmem; aliases: trailmem.com",
+    "flyApps": [],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://www.trailmem.com/privacy/",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": true,
+        "dataLegalHash": true,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.trailmem.com/terms/",
+        "status": 200,
+        "kind": "terms",
+        "dataLegalDoc": true,
+        "dataLegalHash": true,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.trailmem.com/trust/",
+        "status": 200,
+        "kind": "trust",
+        "dataLegalDoc": true,
+        "dataLegalHash": true,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "www.webhouse.dk",
+    "project": null,
+    "ownerSession": null,
+    "url": "https://www.webhouse.dk/",
+    "sources": [
+      "discovery",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": "https://www.webhouse.dk/privacy",
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "aliases: webhouse.dk, wh-site.webhouse.net",
+    "flyApps": [
+      "webhouse-dk"
+    ],
+    "routeEvidence": [
+      {
+        "finalUrl": "https://wh-site.webhouse.net/privacy",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      },
+      {
+        "finalUrl": "https://www.webhouse.dk/privacy",
+        "status": 200,
+        "kind": "privacy",
+        "dataLegalDoc": false,
+        "dataLegalHash": false,
+        "foundVia": "route-probe",
+        "sameSite": true
+      }
+    ]
+  },
+  {
+    "service": "xrt81.com",
+    "project": "xrt81-com",
+    "ownerSession": "xrt81-com",
+    "url": "https://xrt81.com/",
+    "sources": [
+      "cardmem",
+      "fly",
+      "dns"
+    ],
+    "legalRoutes": {
+      "terms": null,
+      "privacy": null,
+      "trust": null,
+      "dpa": null,
+      "support": null
+    },
+    "rendersFromLegal": false,
+    "measuredAt": "2026-11-02T16:12:25Z",
+    "notes": "no legal page found on probed routes or homepage links; site answers 200 for ANY path (SPA catch-all): legal pages rendered only client-side cannot be seen by curl -- unverified without a browser; aliases: www.xrt81.com",
+    "flyApps": [
+      "xrt81"
+    ],
+    "routeEvidence": []
+  }
+]

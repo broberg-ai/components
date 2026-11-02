@@ -63,6 +63,13 @@ doc.title; doc.version; doc.effectiveFrom; doc.draft; doc.contentHash;
 renderHtml(doc);   // semantic HTML with data-legal-id on every section and block; style it yourself
 ```
 
+**What every legal page MUST carry (checked daily, F110.11):** the element that holds the document
+has `data-legal-doc="<terms|privacy|trust|dpa|support>"` AND `data-legal-version="<version>"`, and
+every paragraph keeps its `data-legal-id` with the text verbatim. `renderHtml` does all three; if you
+render the blocks yourself, keep them. Style and layout are yours. `scripts/check-legal-pages.mjs`
+fetches your pages and goes red — naming you — on a missing page, a missing marker, an old version
+or an edited paragraph.
+
 The texts ship **inside** the package, so your site needs no network for them and cannot lose them
 when legal.broberg.ai is down. New texts reach you as a new package version; components sends a
 release report saying whether the wording changed.
