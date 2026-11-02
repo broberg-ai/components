@@ -1,0 +1,29 @@
+# F104.9.6 — broberg-call-demo (owner test page) is deployed ONLY through the fleet's shared
+# fly-server-deploy.yml. A test page: the gate is the workflow's own Machine-plan/-verify + health.
+name: call-demo-deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/call-demo/**"
+      - "packages/call/src/**"
+      - ".github/workflows/call-demo-deploy.yml"
+  workflow_dispatch:
+concurrency:
+  group: deploy-broberg-call-demo
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  deploy:
+    uses: ./.github/workflows/fly-server-deploy.yml
+    with:
+      app: broberg-call-demo
+      working_directory: "."
+      config: apps/call-demo/fly.toml
+      dockerfile: apps/call-demo/Dockerfile
+      ha: false # a test page: one machine, cold when unused
+      expected_machines: 1
+      health_url: https://broberg-call-demo.fly.dev/health
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_CALL_DEMO }} # app-scoped deploy token (F033.24)
