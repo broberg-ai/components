@@ -83,6 +83,10 @@ export type Recording = {
   id: string; room: string; owner: string; egressId: string; attempts: number;
   state: "recording" | "complete" | "failed" | "stopped"; error?: string;
   files?: EgressInfo["files"];
+  /** F104.9.7 — true once the egress reports EGRESS_ACTIVE: the recorder has really
+   *  started. Before that a cold machine is still launching its browser (~20 s), and a
+   *  stop then ends with «Start signal not received» and no file. */
+  live?: boolean;
 };
 
 const FINAL = new Set(["EGRESS_COMPLETE", "EGRESS_FAILED", "EGRESS_ABORTED", "EGRESS_LIMIT_REACHED"]);
@@ -156,18 +160,24 @@ export function createController(d: Deps) {
       for (const rec of recordings.values()) {
         if (rec.state !== "recording" && !(rec.state === "stopped" && !rec.files)) continue;
         const e = await d.lk.get(rec.egressId);
+        if (e && rec.state === "recording" && e.status === "EGRESS_ACTIVE") rec.live = true;
         if (!e || !FINAL.has(e.status)) continue;
         lastUse = d.now();
         if (rec.state === "recording" && RETRYABLE.test(e.error) && rec.attempts < MAX_ATTEMPTS && (await d.lk.participants(rec.room)) > 0) {
           rec.attempts++;
           d.log("recording got no start signal, starting it again", { id: rec.id, attempt: rec.attempts });
           rec.egressId = await startEgress(rec.room);
+          rec.live = false;
           continue;
         }
         rec.files = e.files;
         if (rec.state === "recording") {
           rec.state = e.status === "EGRESS_COMPLETE" ? "complete" : "failed";
           if (rec.state === "failed") rec.error = e.error;
+        } else if (!e.files.length && e.error) {
+          // F104.9.7 — stopped by the user, but nothing was written (stopped before the
+          // recorder started). Say why, or the caller waits for a file that never comes.
+          rec.error = e.error;
         }
         d.log("recording ended", { id: rec.id, state: rec.state, error: e.error });
       }

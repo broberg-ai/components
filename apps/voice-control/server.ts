@@ -91,7 +91,7 @@ const deps: Deps = {
 const control = createController(deps);
 const json = (status: number, body: unknown) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 const view = (r: ReturnType<typeof control.recordings.get> & {}) => ({
-  recordingId: r.id, egressId: r.egressId, room: r.room, state: r.state, attempts: r.attempts, error: r.error, files: r.files,
+  recordingId: r.id, egressId: r.egressId, room: r.room, state: r.state, live: !!r.live, attempts: r.attempts, error: r.error, files: r.files,
 });
 
 Bun.serve({

@@ -38,12 +38,14 @@ row1.append(nameIn, roomIn, join);
 row2.append(cam, screen, recStart, recStop, leave, recBadge);
 
 let call: VoiceCall | undefined;
-let recording: { id: string; room: string } | undefined;
+let recording: { id: string; room: string; live: boolean } | undefined;
 const setConnected = (on: boolean) => {
   for (const b of [cam, screen, leave]) b.disabled = !on;
   recStart.disabled = !on || !!recording;
   join.disabled = on; nameIn.disabled = on; roomIn.disabled = on;
-  recStop.disabled = !recording;
+  // F104.9.7 — Stop only once the recorder is really running; a stop before that ends
+  // «Start signal not received» with no file.
+  recStop.disabled = !recording?.live;
 };
 setConnected(false);
 
@@ -85,9 +87,19 @@ leave.onclick = () => busy(leave, "Forlader…", async () => {
 
 recStart.onclick = () => busy(recStart, "Starter… (op til 30 s)", async () => {
   const r = await api("/record/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: roomIn.value }) });
-  recording = { id: r.recordingId, room: roomIn.value };
+  const rec = { id: r.recordingId as string, room: roomIn.value, live: !!r.live };
+  recording = rec;
+  status.textContent = "Starter optagelsen … på en kold maskine tager det ca. 20-30 sekunder.";
+  // F104.9.7 — wait until the recorder reports it is running before saying «Optager nu».
+  for (let i = 0; i < 40 && !rec.live; i++) {
+    await new Promise((res) => setTimeout(res, 2000));
+    const s = await api(`/record/${rec.id}?room=${encodeURIComponent(rec.room)}`);
+    if (s.state === "failed") { recording = undefined; throw new Error(`Optagelsen kunne ikke starte: ${s.error || "ukendt fejl"}`); }
+    rec.live = !!s.live;
+  }
+  if (!rec.live) { status.textContent = "Optageren svarer ikke endnu. Du kan stadig stoppe, men der kommer måske ingen fil."; rec.live = true; return; }
   recBadge.classList.add("show");
-  status.textContent = "Optagelsen er startet. På en kold maskine går der ca. 20 sekunder, før billedet kommer med.";
+  status.textContent = "Optager nu.";
 });
 recStop.onclick = () => busy(recStop, "Stopper…", async () => {
   if (!recording) return;

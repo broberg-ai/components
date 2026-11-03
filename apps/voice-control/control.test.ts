@@ -154,4 +154,41 @@ describe("controller", () => {
     await expect(c.start("../etc", "APIjam")).rejects.toThrow("invalid_room");
     expect(f.calls).toEqual([]);
   });
+
+  // F104.9.7 — the owner pressed Stop ~18 s in, before the cold recorder had started:
+  // egress ended «Start signal not received», no file, and the page waited 3 minutes.
+  test("live is false while the egress is still starting, true once it reports EGRESS_ACTIVE", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    const rec = await c.start("jam:live1", "APIjam");
+    f.egress.get(rec.egressId)!.status = "EGRESS_STARTING";
+    await c.tick();
+    expect(rec.live).toBeFalsy();
+    f.egress.get(rec.egressId)!.status = "EGRESS_ACTIVE";
+    await c.tick();
+    expect(rec.live).toBe(true);
+  });
+
+  test("a recording stopped before it started reports WHY, with no file", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    const rec = await c.start("jam:early1", "APIjam");
+    f.egress.get(rec.egressId)!.status = "EGRESS_STARTING";
+    f.d.lk.stop = async (id) => { const e = f.egress.get(id)!; e.status = "EGRESS_ABORTED"; e.error = "Start signal not received"; e.files = []; };
+    await c.stop(rec.id);
+    await c.tick();
+    expect(rec.state).toBe("stopped");
+    expect(rec.error).toBe("Start signal not received");
+    expect(rec.files).toEqual([]);
+  });
+
+  test("a normal stop keeps no error and carries the file", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    const rec = await c.start("jam:ok1", "APIjam");
+    await c.stop(rec.id);
+    await c.tick();
+    expect(rec.error).toBeUndefined();
+    expect(rec.files?.[0]?.name).toBe("x.mp4");
+  });
 });
