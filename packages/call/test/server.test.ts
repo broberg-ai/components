@@ -178,6 +178,15 @@ describe("startRecording / stopRecording / getRecording (F104.9.5)", () => {
     await expect(prewarmRecording("jam:42", opts)).rejects.toThrow(/403: room_not_in_token/);
   });
 
+  it("F104.9.9 layout: omitted sends no layout (service default = speaker); grid is sent as asked", async () => {
+    serve(200, { recordingId: "rec_1", room: "jam:42", state: "recording", layout: "speaker" });
+    await startRecording("jam:42", opts);
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ room: "jam:42" });
+    serve(200, { recordingId: "rec_2", room: "jam:42", state: "recording", layout: "grid" });
+    await startRecording("jam:42", opts, { layout: "grid" });
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ room: "jam:42", layout: "grid" });
+  });
+
   it("the ticket runs out after 5 minutes", async () => {
     serve(200, { recordingId: "rec_1", room: "jam:42", state: "recording" });
     await startRecording("jam:42", opts);

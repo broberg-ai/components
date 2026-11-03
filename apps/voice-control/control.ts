@@ -68,7 +68,7 @@ export type Deps = {
   machine: { state(): Promise<string>; start(): Promise<void>; stop(): Promise<void> };
   egressReady(): Promise<boolean>; // the recording machine answers its health port
   lk: {
-    startComposite(room: string, filepath: string): Promise<string>; // → egress id
+    startComposite(room: string, filepath: string, layout: EgressLayout): Promise<string>; // → egress id
     /** F104.9.8 — a recording of a BLANK web page, never of a meeting: it only makes the
      *  recording machine launch its browser once, so the first real recording starts warm. */
     startWarmup(filepath: string): Promise<string>;
@@ -82,8 +82,19 @@ export type Deps = {
   log(msg: string, data?: Record<string, unknown>): void;
 };
 
+/**
+ * F104.9.9 — what the recording looks like. Owner 3/11: like Google Meet by default —
+ * only the person speaking fills the picture — and "grid" for everyone at once.
+ * Our value → LiveKit's room-composite layout.
+ */
+export const LAYOUTS = { speaker: "single-speaker", grid: "grid" } as const;
+export type Layout = keyof typeof LAYOUTS;
+export type EgressLayout = (typeof LAYOUTS)[Layout];
+export const isLayout = (v: unknown): v is Layout => typeof v === "string" && Object.hasOwn(LAYOUTS, v);
+
 export type Recording = {
   id: string; room: string; owner: string; egressId: string; attempts: number;
+  layout: Layout;
   state: "recording" | "complete" | "failed" | "stopped"; error?: string;
   files?: EgressInfo["files"];
   /** F104.9.7 — true once the egress reports EGRESS_ACTIVE: the recorder has really
@@ -103,6 +114,24 @@ export const READY_TIMEOUT_MS = 90_000;
 // Owner 3/11 2026: start cold, warm up when a meeting starts, and if nothing is recorded
 // within 3 minutes, turn it off again — so a meeting without a recording costs 3 minutes.
 export const IDLE_GRACE_MS = 3 * 60_000;
+/**
+ * F104.9.8 — an egress still «starting» after this long is an orphan, not a recording: a
+ * real start reaches ACTIVE in under a minute. Measured 3/11 2026: an egress whose machine
+ * went away stayed EGRESS_STARTING in LiveKit for hours, could not be stopped, and kept the
+ * recording machine on because idleCheck counted it as active.
+ */
+export const STALE_STARTING_MS = 2 * 60_000;
+
+/** How many egresses really hold the recording machine: active ones, plus starting ones that are still young. */
+export function countActive(items: { status?: unknown; started_at?: unknown; startedAt?: unknown }[], nowMs: number): number {
+  return items.filter((e) => {
+    const status = String(e.status ?? "");
+    if (status === "EGRESS_ACTIVE" || status === "EGRESS_ENDING") return true;
+    if (status !== "EGRESS_STARTING") return false;
+    const ns = Number(e.started_at ?? e.startedAt ?? 0); // LiveKit reports nanoseconds since epoch
+    return ns > 0 && nowMs - ns / 1e6 < STALE_STARTING_MS;
+  }).length;
+}
 export const WARMUP_WAIT_MS = 60_000;
 
 export function createController(d: Deps) {
@@ -158,10 +187,10 @@ export function createController(d: Deps) {
     }
   }
 
-  async function startEgress(room: string): Promise<string> {
+  async function startEgress(room: string, layout: Layout): Promise<string> {
     // LiveKit answers «no response from servers» for the few seconds before a
     // fresh egress node has registered itself, so the first call may need a retry.
-    return withRetry(() => d.lk.startComposite(room, `${room}/{time}.mp4`));
+    return withRetry(() => d.lk.startComposite(room, `${room}/{time}.mp4`, LAYOUTS[layout]));
   }
 
   return {
@@ -182,13 +211,14 @@ export function createController(d: Deps) {
       }
       return { warmth: warm };
     },
-    async start(room: string, owner: string): Promise<Recording> {
+    async start(room: string, owner: string, layout: Layout = "speaker"): Promise<Recording> {
       if (!ROOM_RE.test(room)) throw new Error("invalid_room");
+      if (!isLayout(layout)) throw new Error("invalid_layout");
       for (const r of recordings.values()) if (r.room === room && r.state === "recording") return r;
       await ensureMachine();
-      const egressId = await startEgress(room);
+      const egressId = await startEgress(room, layout);
       if (warm === "cold") warm = "warm"; // a real recording launches the browser too
-      const rec: Recording = { id: "rec_" + randomBytes(9).toString("base64url"), room, owner, egressId, attempts: 1, state: "recording" };
+      const rec: Recording = { id: "rec_" + randomBytes(9).toString("base64url"), room, owner, egressId, attempts: 1, layout, state: "recording" };
       recordings.set(rec.id, rec);
       d.log("recording started", { id: rec.id, room, egressId });
       return rec;
@@ -216,7 +246,7 @@ export function createController(d: Deps) {
         if (rec.state === "recording" && RETRYABLE.test(e.error) && rec.attempts < MAX_ATTEMPTS && (await d.lk.participants(rec.room)) > 0) {
           rec.attempts++;
           d.log("recording got no start signal, starting it again", { id: rec.id, attempt: rec.attempts });
-          rec.egressId = await startEgress(rec.room);
+          rec.egressId = await startEgress(rec.room, rec.layout);
           rec.live = false;
           continue;
         }

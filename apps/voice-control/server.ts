@@ -1,6 +1,6 @@
 // F104.9.3 — broberg-voice-control. See control.ts for the decisions; this file
 // is only the wiring: HTTP routes, LiveKit's Twirp API, Fly's Machines API.
-import { createController, parseKeys, signJwt, verifyAppToken, type Deps, type EgressInfo } from "./control";
+import { countActive, createController, isLayout, parseKeys, signJwt, verifyAppToken, type Deps, type EgressInfo } from "./control";
 
 const env = (k: string) => {
   const v = process.env[k];
@@ -13,6 +13,9 @@ const EGRESS_SECRET = env("LIVEKIT_EGRESS_API_SECRET");
 const FLY_TOKEN = env("FLY_EGRESS_TOKEN"); // app-scoped to broberg-voice-egress only
 const LIVEKIT_URL = process.env.LIVEKIT_INTERNAL_URL ?? "http://broberg-voice.internal:7880";
 const EGRESS_APP = process.env.EGRESS_APP ?? "broberg-voice-egress";
+// F104.9.8 — the blank page the warm-up films. LiveKit refuses about:blank («invalid field:
+// web url»), so control serves one itself; derived from Fly's own app name, not a second copy.
+const WARMUP_URL = process.env.WARMUP_URL ?? `https://${env("FLY_APP_NAME")}.fly.dev/warmup`;
 const EGRESS_HEALTH = process.env.EGRESS_HEALTH_URL ?? `http://${EGRESS_APP}.internal:8080/`;
 const MACHINES = `https://api.machines.dev/v1/apps/${EGRESS_APP}/machines`;
 const flyAuth = FLY_TOKEN.startsWith("FlyV1 ") ? FLY_TOKEN : `Bearer ${FLY_TOKEN}`;
@@ -72,17 +75,18 @@ const deps: Deps = {
     }
   },
   lk: {
-    startComposite: async (room, filepath) =>
-      toInfo(await twirp("Egress", "StartRoomCompositeEgress", { room_name: room, layout: "grid", file_outputs: [{ file_type: "MP4", filepath }] }, { roomRecord: true })).id,
+    startComposite: async (room, filepath, layout) =>
+      toInfo(await twirp("Egress", "StartRoomCompositeEgress", { room_name: room, layout, file_outputs: [{ file_type: "MP4", filepath }] }, { roomRecord: true })).id,
     // F104.9.8 — a blank page, never a meeting; it only launches the browser once.
     startWarmup: async (filepath) =>
-      toInfo(await twirp("Egress", "StartWebEgress", { url: "about:blank", await_start_signal: false, file_outputs: [{ file_type: "MP4", filepath }] }, { roomRecord: true })).id,
+      toInfo(await twirp("Egress", "StartWebEgress", { url: WARMUP_URL, await_start_signal: false, file_outputs: [{ file_type: "MP4", filepath }] }, { roomRecord: true })).id,
     get: async (id) => {
       const r = await twirp("Egress", "ListEgress", { egress_id: id }, { roomRecord: true });
       const e = (r.items ?? [])[0];
       return e ? toInfo(e) : null;
     },
-    activeCount: async () => ((await twirp("Egress", "ListEgress", { active: true }, { roomRecord: true })).items ?? []).length,
+    // F104.9.8 — an orphan stuck in «starting» must not keep the machine on forever.
+    activeCount: async () => countActive((await twirp("Egress", "ListEgress", { active: true }, { roomRecord: true })).items ?? [], Date.now()),
     stop: async (id) => { await twirp("Egress", "StopEgress", { egress_id: id }, { roomRecord: true }); },
     participants: async (room) => ((await twirp("RoomService", "ListParticipants", { room }, { roomAdmin: true, room })).participants ?? []).length,
   },
@@ -94,13 +98,14 @@ const deps: Deps = {
 const control = createController(deps);
 const json = (status: number, body: unknown) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 const view = (r: ReturnType<typeof control.recordings.get> & {}) => ({
-  recordingId: r.id, egressId: r.egressId, room: r.room, state: r.state, live: !!r.live, attempts: r.attempts, error: r.error, files: r.files,
+  recordingId: r.id, egressId: r.egressId, room: r.room, state: r.state, layout: r.layout, live: !!r.live, attempts: r.attempts, error: r.error, files: r.files,
 });
 
 Bun.serve({
   port: Number(process.env.PORT ?? 8080),
   async fetch(req) {
     const url = new URL(req.url);
+    if (url.pathname === "/warmup") return new Response("<!doctype html><title>warm-up</title>", { headers: { "content-type": "text/html; charset=utf-8" } });
     if (url.pathname === "/health") return json(200, { ok: true, recordings: [...control.recordings.values()].filter((r) => r.state === "recording").length });
 
     const auth = verifyAppToken(req.headers.get("authorization")?.replace(/^Bearer /, "") ?? null, APP_KEYS);
@@ -108,9 +113,11 @@ Bun.serve({
 
     try {
       if (req.method === "POST" && url.pathname === "/v1/recordings") {
-        const body = (await req.json().catch(() => ({}))) as { room?: string };
+        const body = (await req.json().catch(() => ({}))) as { room?: string; layout?: unknown };
         if (body.room !== auth.room) return json(403, { error: "room_not_in_token" });
-        return json(200, view(await control.start(auth.room, auth.key)));
+        // F104.9.9 — "speaker" (default, like Meet) or "grid"; anything else is refused before a machine starts.
+        if (body.layout !== undefined && !isLayout(body.layout)) return json(400, { error: "invalid_layout" });
+        return json(200, view(await control.start(auth.room, auth.key, body.layout ?? "speaker")));
       }
       // F104.9.8 — a meeting started: warm the recording machine up (returns at once).
       if (req.method === "POST" && url.pathname === "/v1/prewarm") {
@@ -128,7 +135,7 @@ Bun.serve({
       return json(404, { error: "not_found" });
     } catch (e) {
       log("request failed", { path: url.pathname, error: String(e) });
-      return json(e instanceof Error && e.message === "invalid_room" ? 400 : 502, { error: e instanceof Error ? e.message : "failed" });
+      return json(e instanceof Error && (e.message === "invalid_room" || e.message === "invalid_layout") ? 400 : 502, { error: e instanceof Error ? e.message : "failed" });
     }
   },
 });

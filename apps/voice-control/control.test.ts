@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createController, signJwt, verifyAppToken, parseKeys, IDLE_GRACE_MS, MAX_ATTEMPTS, type Deps, type EgressInfo } from "./control";
+import { countActive, STALE_STARTING_MS, createController, signJwt, verifyAppToken, parseKeys, IDLE_GRACE_MS, MAX_ATTEMPTS, type Deps, type EgressInfo } from "./control";
 
 const KEYS = parseKeys("APIjam: jamsecret\nAPIother: othersecret");
 const tok = (claims: Record<string, unknown>, key = "APIjam", secret = "jamsecret") => signJwt(claims, key, secret);
@@ -40,6 +40,7 @@ function fake(opts: { participants?: number } = {}) {
   const calls: string[] = [];
   let started = 0;
   const egress = new Map<string, EgressInfo>();
+  const layouts: string[] = [];
   const d: Deps = {
     machine: {
       state: async () => state,
@@ -48,9 +49,10 @@ function fake(opts: { participants?: number } = {}) {
     },
     egressReady: async () => state === "started",
     lk: {
-      startComposite: async (room, filepath) => {
+      startComposite: async (room, filepath, layout) => {
         const id = `EG_${++started}`;
         calls.push(`start ${room} ${filepath}`);
+        layouts.push(layout);
         egress.set(id, { id, status: "EGRESS_ACTIVE", error: "", files: [] });
         return id;
       },
@@ -69,7 +71,7 @@ function fake(opts: { participants?: number } = {}) {
     sleep: async (ms) => { t += ms; },
     log: () => {},
   };
-  return { d, calls, egress, advance: (ms: number) => { t += ms; }, setState: (s: string) => { state = s; } };
+  return { d, calls, egress, layouts, advance: (ms: number) => { t += ms; }, setState: (s: string) => { state = s; } };
 }
 
 describe("controller", () => {
@@ -244,5 +246,46 @@ describe("controller", () => {
     await settle(); await settle(); await settle();
     for (let i = 0; i < 30 && c.warmth !== "cold"; i++) await settle();
     expect(c.warmth).toBe("cold");
+  });
+
+  // F104.9.9 — owner 3/11: like Meet by default (only the speaker), "grid" on request.
+  test("the default recording shows only the person speaking (LiveKit single-speaker)", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    const rec = await c.start("jam:lay1", "APIjam");
+    expect(f.layouts).toEqual(["single-speaker"]);
+    expect(rec.layout).toBe("speaker");
+  });
+
+  test('layout "grid" records everyone at once', async () => {
+    const f = fake();
+    const c = createController(f.d);
+    await c.start("jam:lay2", "APIjam", "grid");
+    expect(f.layouts).toEqual(["grid"]);
+  });
+
+  test("an unknown layout is refused before the machine starts", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    await expect(c.start("jam:lay3", "APIjam", "mosaic" as never)).rejects.toThrow("invalid_layout");
+    expect(f.calls).toEqual([]);
+  });
+
+  test("a retried recording keeps its layout", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    const rec = await c.start("jam:lay4", "APIjam", "grid");
+    const e = f.egress.get(rec.egressId)!; e.status = "EGRESS_ABORTED"; e.error = "Start signal not received";
+    await c.tick();
+    expect(f.layouts).toEqual(["grid", "grid"]);
+  });
+
+  test("an egress stuck in «starting» for over 2 minutes does not keep the machine on", () => {
+    const now = 1_800_000_000_000;
+    const ns = (ms: number) => String(ms * 1e6);
+    expect(countActive([{ status: "EGRESS_ACTIVE", started_at: ns(now - 3_600_000) }], now)).toBe(1);
+    expect(countActive([{ status: "EGRESS_STARTING", started_at: ns(now - 30_000) }], now)).toBe(1);
+    expect(countActive([{ status: "EGRESS_STARTING", started_at: ns(now - STALE_STARTING_MS - 1000) }], now)).toBe(0);
+    expect(countActive([{ status: "EGRESS_COMPLETE" }, { status: "EGRESS_STARTING" }], now)).toBe(0);
   });
 });

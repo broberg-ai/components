@@ -200,12 +200,25 @@ async function control(path: string, room: string, opts: RecordingOptions, init:
 }
 
 /**
- * Start recording the whole room (everyone, one video, grid layout).
+ * F104.9.9 — what the recording looks like. `"speaker"` (the service's default): only the
+ * person speaking fills the picture, like Google Meet. `"grid"`: everyone at once.
+ */
+export type RecordingLayout = "speaker" | "grid";
+export interface StartRecordingOptions {
+  /** Omit for the service's default, `"speaker"`. */
+  layout?: RecordingLayout;
+}
+
+/**
+ * Start recording the whole room (everyone, one video). Layout: `speaker` by default (like
+ * Google Meet — the person speaking fills the picture), or `{ layout: "grid" }` for everyone at once.
  * Ask for every participant's consent BEFORE calling this — it records all of them.
  * On a cold recording machine the picture joins after ~20 s.
  */
-export function startRecording(room: string, opts: RecordingOptions): Promise<Recording> {
-  return control("/v1/recordings", room, opts, { method: "POST", body: JSON.stringify({ room }) });
+export function startRecording(room: string, opts: RecordingOptions, options: StartRecordingOptions = {}): Promise<Recording> {
+  const body: { room: string; layout?: RecordingLayout } = { room };
+  if (options.layout !== undefined) body.layout = options.layout;
+  return control("/v1/recordings", room, opts, { method: "POST", body: JSON.stringify(body) });
 }
 
 /** Stop a recording. `room` must be the room it was started for. */
