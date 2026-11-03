@@ -19,8 +19,8 @@
  },
  "@broberg/media": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/media",
-  "version": "0.6.0",
-  "publishedAt": "2026-10-13T23:35:43.931Z",
+  "version": "0.7.0",
+  "publishedAt": "2026-11-03T15:16:05.063Z",
   "provenance": "yes"
  },
  "@broberg/backup": {
