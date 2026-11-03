@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-02T12:33:18.061Z",
+ "scanned_at": "2026-11-03T12:01:58.471Z",
  "repos_scanned": 83,
  "repos_failed": 0,
- "manifests_read": 316,
+ "manifests_read": 317,
  "manifests_unreadable": 0,
- "edges": 445,
+ "edges": 446,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1240,6 +1240,14 @@
       "installed": "0.5.1"
      }
     ],
+    "@broberg/data-table": [
+     {
+      "range": "0.3.1",
+      "field": "dependencies",
+      "at": "apps/web/package.json",
+      "installed": "0.3.1"
+     }
+    ],
     "@broberg/gravatar": [
      {
       "range": "0.1.0",
@@ -1284,7 +1292,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 65,
+   "manifests": 66,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -1602,6 +1610,12 @@
      }
     ],
     "@broberg/secret-scan": [
+     {
+      "range": ">=0.15.0 <1",
+      "field": "dependencies",
+      "at": "packages/legal/package.json",
+      "installed": "0.15.0"
+     },
      {
       "range": ">=0.9.3 <1",
       "field": "dependencies",
@@ -3627,22 +3641,22 @@
     ],
     "@broberg/legal": [
      {
-      "range": "0.4.0",
+      "range": "0.5.0",
       "field": "dependencies",
       "at": "apps/admin-server/package.json",
-      "installed": "0.4.0"
+      "installed": "0.5.0"
      },
      {
-      "range": "0.4.0",
+      "range": "0.5.0",
       "field": "dependencies",
       "at": "apps/landing/package.json",
-      "installed": "0.4.0"
+      "installed": "0.5.0"
      },
      {
-      "range": "0.4.0",
+      "range": "0.5.0",
       "field": "devDependencies",
       "at": "package.json",
-      "installed": "0.4.0"
+      "installed": "0.5.0"
      }
     ],
     "@broberg/lens": [
