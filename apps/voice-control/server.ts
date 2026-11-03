@@ -74,6 +74,9 @@ const deps: Deps = {
   lk: {
     startComposite: async (room, filepath) =>
       toInfo(await twirp("Egress", "StartRoomCompositeEgress", { room_name: room, layout: "grid", file_outputs: [{ file_type: "MP4", filepath }] }, { roomRecord: true })).id,
+    // F104.9.8 — a blank page, never a meeting; it only launches the browser once.
+    startWarmup: async (filepath) =>
+      toInfo(await twirp("Egress", "StartWebEgress", { url: "about:blank", await_start_signal: false, file_outputs: [{ file_type: "MP4", filepath }] }, { roomRecord: true })).id,
     get: async (id) => {
       const r = await twirp("Egress", "ListEgress", { egress_id: id }, { roomRecord: true });
       const e = (r.items ?? [])[0];
@@ -109,6 +112,12 @@ Bun.serve({
         if (body.room !== auth.room) return json(403, { error: "room_not_in_token" });
         return json(200, view(await control.start(auth.room, auth.key)));
       }
+      // F104.9.8 — a meeting started: warm the recording machine up (returns at once).
+      if (req.method === "POST" && url.pathname === "/v1/prewarm") {
+        const body = (await req.json().catch(() => ({}))) as { room?: string };
+        if (body.room !== auth.room) return json(403, { error: "room_not_in_token" });
+        return json(202, control.prewarm());
+      }
       const m = url.pathname.match(/^\/v1\/recordings\/(rec_[\w-]+)(\/stop)?$/);
       if (m) {
         const rec = control.recordings.get(m[1]);
@@ -129,6 +138,7 @@ setInterval(async () => {
   if (ticking) return;
   ticking = true;
   try { await control.tick(); } catch (e) { log("tick failed", { error: String(e) }); } finally { ticking = false; }
-}, 3000);
-setInterval(() => control.idleCheck().catch((e) => log("idle check failed", { error: String(e) })), 60_000);
+}, 1000); // F104.9.8 — every second: a recording's «live» reaches the user within ~1 s
+// Every 15 s, so «3 minutes without a recording» ends within 3¼ minutes, not 4.
+setInterval(() => control.idleCheck().catch((e) => log("idle check failed", { error: String(e) })), 15_000);
 log("broberg-voice-control ready", { apps: [...APP_KEYS.keys()], egressApp: EGRESS_APP });

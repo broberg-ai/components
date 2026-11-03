@@ -106,6 +106,11 @@ Bun.serve({
       const token = await createRoomToken({ apiKey: API_KEY, apiSecret: API_SECRET, room, identity, name, sources: ["microphone", "camera", "screen_share", "screen_share_audio"] });
       return Response.json({ token, room, url: MEDIA_URL });
     }
+    // F104.9.8 — someone joined: warm the recording machine up (nothing is recorded).
+    if (u.pathname === "/record/prewarm" && req.method === "POST") {
+      const room = roomOf((await req.json().catch(() => ({}))).room);
+      return control("/v1/prewarm", room, { method: "POST", body: JSON.stringify({ room }) });
+    }
     if (u.pathname === "/record/start" && req.method === "POST") {
       const room = roomOf((await req.json().catch(() => ({}))).room);
       return control("/v1/recordings", room, { method: "POST", body: JSON.stringify({ room }) });

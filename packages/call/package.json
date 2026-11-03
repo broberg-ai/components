@@ -1,6 +1,6 @@
 {
   "name": "@broberg/call",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Calls for 2–10 people on a self-hosted LiveKit SFU in the EU — audio, camera and screen share: the app's server mints a short-lived, room-bound ticket that allows exactly the sources it names (microphone only by default) and verifies LiveKit's signed webhooks; the browser joins with noise suppression, echo cancellation and auto gain, and gets mute, devices, per-person volume, who-is-speaking, the participant list, camera and screen share on/off (incl. the browser's own stop button), every video picture to attach, and an audio-only mode — with simulcast, adaptive stream and dynacast. 0.3.0 records the whole call to EU storage (startRecording/stopRecording/getRecording on the server, a recording state every participant sees in the browser).",
   "type": "module",
   "license": "MIT",

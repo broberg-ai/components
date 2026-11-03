@@ -80,9 +80,10 @@ call.onRecording((on) => showRecordingBadge(on));    // at once + on start/stop 
 The whole call — everyone, one video, grid layout — is recorded to EU storage (R2, EU jurisdiction) and deleted after 365 days. A recording machine runs only while something is being recorded, so recording costs nothing while nobody records.
 
 ```ts
-import { startRecording, stopRecording, getRecording } from "@broberg/call/server";
+import { prewarmRecording, startRecording, stopRecording, getRecording } from "@broberg/call/server";
 
 const opts = { apiKey, apiSecret, controlUrl: process.env.CALL_RECORDING_URL! }; // the recording service, from YOUR config
+await prewarmRecording("jam:42", opts);                  // when the meeting starts — { warmth: "warming" }
 const rec = await startRecording("jam:42", opts);       // { recordingId, room, state: "recording", … }
 await stopRecording(rec.recordingId, "jam:42", opts);    // state: "stopped"
 const done = await getRecording(rec.recordingId, "jam:42", opts); // poll until done.files is there (or state "failed")
@@ -90,7 +91,8 @@ done.files;                                              // [{ name, size, durat
 ```
 
 - **Consent first.** It records every participant. Get each person's consent (BID purpose `call-recording`) BEFORE calling `startRecording`.
-- **Cold start:** when the recording machine is asleep, the picture joins after ~20 s; when it is warm, after under 2 s. Tell people recording is starting, not that it has.
+- **Start time, measured 3/11 2026:** from a cold recording machine ~36 s until the recording runs; from a warm one ~5 s. Tell people recording is starting, not that it has — the service reports `live: true` once it really runs.
+- **`prewarmRecording(room, opts)` (0.4.0, F104.9.8): call it when a meeting starts** (first person joins). It returns at once; the service starts the machine and warms its browser on a BLANK page — nothing is recorded, so no consent is needed for it. A recording started after the warm-up begins in seconds. If nothing is recorded within 3 minutes, the machine goes off again, so a meeting without a recording costs those 3 minutes.
 - The request carries a 5-minute ticket signed with YOUR app's LiveKit key and bound to ONE room — an app can only start, stop or read recordings of the room it names.
 - A refusal from the service is `VoiceError` `recording_failed` (status + reason in the message), never a recording. A `controlUrl` that is not https (plain http is allowed only for localhost) is `invalid_control_url` — the request carries a recording ticket.
 - States: `recording` · `stopped` (after `stopRecording`) · `complete` (the room emptied by itself) · `failed` (with `error`). After a stop, `files` is absent until the file is written.

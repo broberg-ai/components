@@ -69,6 +69,9 @@ export type Deps = {
   egressReady(): Promise<boolean>; // the recording machine answers its health port
   lk: {
     startComposite(room: string, filepath: string): Promise<string>; // → egress id
+    /** F104.9.8 — a recording of a BLANK web page, never of a meeting: it only makes the
+     *  recording machine launch its browser once, so the first real recording starts warm. */
+    startWarmup(filepath: string): Promise<string>;
     get(egressId: string): Promise<EgressInfo | null>;
     activeCount(): Promise<number>;
     stop(egressId: string): Promise<void>;
@@ -97,11 +100,16 @@ export const MAX_ATTEMPTS = 3;
 export const READY_TIMEOUT_MS = 90_000;
 // The machine is stopped once nothing has been recorded for this long, so a
 // second recording right after the first does not pay another cold start.
-export const IDLE_GRACE_MS = 2 * 60_000;
+// Owner 3/11 2026: start cold, warm up when a meeting starts, and if nothing is recorded
+// within 3 minutes, turn it off again — so a meeting without a recording costs 3 minutes.
+export const IDLE_GRACE_MS = 3 * 60_000;
+export const WARMUP_WAIT_MS = 60_000;
 
 export function createController(d: Deps) {
   const recordings = new Map<string, Recording>();
   let lastUse = 0;
+  // F104.9.8 — has the browser on the recording machine run since it last started?
+  let warm: "cold" | "warming" | "warm" = "cold";
 
   async function ensureMachine() {
     lastUse = d.now();
@@ -116,13 +124,11 @@ export function createController(d: Deps) {
     }
   }
 
-  async function startEgress(room: string): Promise<string> {
-    // LiveKit answers «no response from servers» for the few seconds before a
-    // fresh egress node has registered itself, so the first call may need a retry.
+  async function withRetry(fn: () => Promise<string>): Promise<string> {
     let last: unknown;
     for (let i = 0; i < 10; i++) {
       try {
-        return await d.lk.startComposite(room, `${room}/{time}.mp4`);
+        return await fn();
       } catch (e) {
         last = e;
         await d.sleep(2000);
@@ -131,13 +137,57 @@ export function createController(d: Deps) {
     throw last;
   }
 
+  async function warmUp() {
+    const t0 = d.now();
+    try {
+      await ensureMachine();
+      const id = await withRetry(() => d.lk.startWarmup(`warmup/{time}.mp4`));
+      const until = d.now() + WARMUP_WAIT_MS;
+      let e = await d.lk.get(id);
+      while (e && e.status !== "EGRESS_ACTIVE" && !FINAL.has(e.status) && d.now() < until) {
+        await d.sleep(1000);
+        e = await d.lk.get(id);
+      }
+      await d.lk.stop(id).catch(() => {}); // already ended is fine
+      warm = "warm";
+      lastUse = d.now();
+      d.log("recording machine warmed up", { ms: d.now() - t0, status: e?.status ?? "unknown" });
+    } catch (err) {
+      warm = "cold";
+      d.log("warm-up failed", { error: String(err) });
+    }
+  }
+
+  async function startEgress(room: string): Promise<string> {
+    // LiveKit answers «no response from servers» for the few seconds before a
+    // fresh egress node has registered itself, so the first call may need a retry.
+    return withRetry(() => d.lk.startComposite(room, `${room}/{time}.mp4`));
+  }
+
   return {
     recordings,
+    get warmth() { return warm; },
+
+    /**
+     * F104.9.8 — a meeting started: get the recording machine and its browser ready so a
+     * recording started soon after begins in seconds. Returns at once; the warm-up runs on.
+     * Nothing is recorded — the warm-up films a blank page. If no recording follows within
+     * IDLE_GRACE_MS, idleCheck turns the machine off again.
+     */
+    prewarm(): { warmth: "cold" | "warming" | "warm" } {
+      lastUse = d.now();
+      if (warm === "cold") {
+        warm = "warming";
+        void warmUp();
+      }
+      return { warmth: warm };
+    },
     async start(room: string, owner: string): Promise<Recording> {
       if (!ROOM_RE.test(room)) throw new Error("invalid_room");
       for (const r of recordings.values()) if (r.room === room && r.state === "recording") return r;
       await ensureMachine();
       const egressId = await startEgress(room);
+      if (warm === "cold") warm = "warm"; // a real recording launches the browser too
       const rec: Recording = { id: "rec_" + randomBytes(9).toString("base64url"), room, owner, egressId, attempts: 1, state: "recording" };
       recordings.set(rec.id, rec);
       d.log("recording started", { id: rec.id, room, egressId });
@@ -190,6 +240,7 @@ export function createController(d: Deps) {
       if ((await d.machine.state()) !== "started") return false;
       d.log("nothing is being recorded, stopping the recording machine");
       await d.machine.stop();
+      warm = "cold";
       return true;
     },
   };

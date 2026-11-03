@@ -54,6 +54,12 @@ function fake(opts: { participants?: number } = {}) {
         egress.set(id, { id, status: "EGRESS_ACTIVE", error: "", files: [] });
         return id;
       },
+      startWarmup: async (filepath) => {
+        const id = `EG_${++started}`;
+        calls.push(`warmup ${filepath}`);
+        egress.set(id, { id, status: "EGRESS_ACTIVE", error: "", files: [] });
+        return id;
+      },
       get: async (id) => egress.get(id) ?? null,
       activeCount: async () => [...egress.values()].filter((e) => e.status === "EGRESS_ACTIVE").length,
       stop: async (id) => { calls.push(`stop ${id}`); const e = egress.get(id)!; e.status = "EGRESS_COMPLETE"; e.files = [{ name: "x.mp4", size: 10, durationSec: 5 }]; },
@@ -190,5 +196,53 @@ describe("controller", () => {
     await c.tick();
     expect(rec.error).toBeUndefined();
     expect(rec.files?.[0]?.name).toBe("x.mp4");
+  });
+
+  // F104.9.8 — owner 3/11: start cold; warm up when a meeting starts; off again after 3 min.
+  const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+
+  test("prewarm starts the machine and films a BLANK page, never the meeting, then stops it", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    expect(c.prewarm()).toEqual({ warmth: "warming" });
+    await settle();
+    expect(f.calls).toEqual(["machine.start", "warmup warmup/{time}.mp4", "stop EG_1"]);
+    expect(f.calls.some((x) => x.startsWith("start "))).toBe(false); // no room was recorded
+    expect(c.warmth).toBe("warm");
+  });
+
+  test("a second prewarm while warm or warming starts nothing new", async () => {
+    const f = fake();
+    const c = createController(f.d);
+    c.prewarm();
+    expect(c.prewarm()).toEqual({ warmth: "warming" });
+    await settle();
+    expect(c.prewarm()).toEqual({ warmth: "warm" });
+    expect(f.calls.filter((x) => x.startsWith("warmup"))).toHaveLength(1);
+  });
+
+  test("no recording within 3 minutes of a prewarm: the machine goes off and is cold again", async () => {
+    expect(IDLE_GRACE_MS).toBe(3 * 60_000);
+    const f = fake();
+    const c = createController(f.d);
+    c.prewarm();
+    await settle();
+    f.advance(IDLE_GRACE_MS - 1000);
+    expect(await c.idleCheck()).toBe(false);
+    f.advance(2000);
+    expect(await c.idleCheck()).toBe(true);
+    expect(f.calls.at(-1)).toBe("machine.stop");
+    expect(c.warmth).toBe("cold");
+  });
+
+  test("a failed warm-up leaves the machine cold (the next prewarm tries again)", async () => {
+    const f = fake();
+    f.d.lk.startWarmup = async () => { throw new Error("boom"); };
+    f.d.sleep = async () => {};
+    const c = createController(f.d);
+    c.prewarm();
+    await settle(); await settle(); await settle();
+    for (let i = 0; i < 30 && c.warmth !== "cold"; i++) await settle();
+    expect(c.warmth).toBe("cold");
   });
 });

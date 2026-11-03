@@ -67,6 +67,10 @@ join.onclick = () => busy(join, "Forbinder…", async () => {
   localStorage.setItem("demo-name", nameIn.value);
   const t = await api(`/token?name=${encodeURIComponent(nameIn.value)}&room=${encodeURIComponent(roomIn.value)}`);
   call = await joinVoice({ url: t.url, token: t.token });
+  // F104.9.8 — warm the recording machine up now, so «Optag» starts in seconds. Nothing is
+  // recorded by this; if nobody records within 3 minutes the machine goes off again.
+  api("/record/prewarm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: roomIn.value }) })
+    .catch((e) => { error.textContent = `Optagelsen kunne ikke gøres klar på forhånd: ${(e as Error).message}`; });
   status.textContent = `Forbundet til rummet «${roomIn.value || "demo"}». Send linket ${location.origin}/?room=${encodeURIComponent(roomIn.value || "demo")} til den anden Mac.`;
   call.onLocalMedia((m) => { cam.classList.toggle("on", m.camera); screen.classList.toggle("on", m.screenShare); });
   call.onVideos((vs) => {
@@ -89,10 +93,10 @@ recStart.onclick = () => busy(recStart, "Starter… (op til 30 s)", async () => 
   const r = await api("/record/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: roomIn.value }) });
   const rec = { id: r.recordingId as string, room: roomIn.value, live: !!r.live };
   recording = rec;
-  status.textContent = "Starter optagelsen … på en kold maskine tager det ca. 20-30 sekunder.";
+  status.textContent = "Starter optagelsen …";
   // F104.9.7 — wait until the recorder reports it is running before saying «Optager nu».
-  for (let i = 0; i < 40 && !rec.live; i++) {
-    await new Promise((res) => setTimeout(res, 2000));
+  for (let i = 0; i < 80 && !rec.live; i++) {
+    await new Promise((res) => setTimeout(res, 1000));
     const s = await api(`/record/${rec.id}?room=${encodeURIComponent(rec.room)}`);
     if (s.state === "failed") { recording = undefined; throw new Error(`Optagelsen kunne ikke starte: ${s.error || "ukendt fejl"}`); }
     rec.live = !!s.live;

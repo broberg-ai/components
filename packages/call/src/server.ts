@@ -213,6 +213,17 @@ export function stopRecording(recordingId: string, room: string, opts: Recording
   return control(`/v1/recordings/${encodeURIComponent(recordingId)}/stop`, room, opts, { method: "POST" });
 }
 
+/**
+ * F104.9.8 — a meeting started: ask the recording service to get ready, so a recording
+ * started in the next minutes begins in seconds instead of ~35 s from cold. Nothing is
+ * recorded (the service warms up on a blank page). Call it when the first person joins;
+ * it returns at once. If no recording follows within 3 minutes, the service turns the
+ * recording machine off again, so a meeting without a recording costs those 3 minutes.
+ */
+export async function prewarmRecording(room: string, opts: RecordingOptions): Promise<{ warmth: "cold" | "warming" | "warm" }> {
+  return (await control("/v1/prewarm", room, opts, { method: "POST", body: JSON.stringify({ room }) })) as unknown as { warmth: "cold" | "warming" | "warm" };
+}
+
 /** Read where a recording stands — after a stop, poll until `files` is there (or `state` is `failed`). */
 export function getRecording(recordingId: string, room: string, opts: RecordingOptions): Promise<Recording> {
   return control(`/v1/recordings/${encodeURIComponent(recordingId)}`, room, opts, { method: "GET" });

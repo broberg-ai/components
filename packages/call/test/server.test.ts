@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccessToken, TokenVerifier } from "livekit-server-sdk";
-import { createRoomToken, getRecording, startRecording, stopRecording, verifyWebhook, VoiceError } from "../src/server";
+import { createRoomToken, getRecording, prewarmRecording, startRecording, stopRecording, verifyWebhook, VoiceError } from "../src/server";
 // The recording service's OWN verifier — so the test proves the ticket we sign is one it accepts.
 import { parseKeys, verifyAppToken } from "../../../apps/voice-control/control";
 
@@ -162,6 +162,20 @@ describe("startRecording / stopRecording / getRecording (F104.9.5)", () => {
     expect(JSON.parse(calls[0]!.body!)).toEqual({ room: "jam:42" });
     expect(verifyAppToken(calls[0]!.auth, keys)).toEqual({ ok: true, key: creds.apiKey, room: "jam:42" });
     expect(verifyAppToken(calls[0]!.auth, parseKeys(`${creds.apiKey}: another-secret-of-adequate-length-000000000`)).ok).toBe(false);
+  });
+
+  it("F104.9.8 prewarm: POSTs /v1/prewarm for the room with the same room-bound ticket, and returns the warmth", async () => {
+    serve(202, { warmth: "warming" });
+    expect(await prewarmRecording("jam:42", opts)).toEqual({ warmth: "warming" });
+    expect(calls[0]!.url).toBe("https://control.test/v1/prewarm");
+    expect(calls[0]!.method).toBe("POST");
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ room: "jam:42" });
+    expect(verifyAppToken(calls[0]!.auth, keys)).toEqual({ ok: true, key: creds.apiKey, room: "jam:42" });
+  });
+
+  it("F104.9.8 prewarm: a refusal throws, never a silent success", async () => {
+    serve(403, { error: "room_not_in_token" });
+    await expect(prewarmRecording("jam:42", opts)).rejects.toThrow(/403: room_not_in_token/);
   });
 
   it("the ticket runs out after 5 minutes", async () => {
