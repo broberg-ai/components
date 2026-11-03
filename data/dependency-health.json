@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-03T00:01:42.753Z",
+ "checked_at": "2026-11-03T08:30:26.655Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -154,7 +154,7 @@
    "verdict": "OK"
   },
   "@broberg/bodymap": {
-   "version": "0.15.0",
+   "version": "0.16.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -450,7 +450,7 @@
    "verdict": "OK"
   },
   "@broberg/deploy-core": {
-   "version": "0.9.0",
+   "version": "0.10.0",
    "status": "ok",
    "prod": {
     "critical": 0,
