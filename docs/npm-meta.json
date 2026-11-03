@@ -355,8 +355,8 @@
  },
  "@broberg/deploy-core": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/deploy-core",
-  "version": "0.9.0",
-  "publishedAt": "2026-11-02T19:22:18.171Z",
+  "version": "0.10.0",
+  "publishedAt": "2026-11-03T03:31:59.925Z",
   "provenance": "yes"
  },
  "@broberg/tenant": {
