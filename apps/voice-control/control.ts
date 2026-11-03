@@ -101,6 +101,9 @@ export type Recording = {
    *  started. Before that a cold machine is still launching its browser (~20 s), and a
    *  stop then ends with «Start signal not received» and no file. */
   live?: boolean;
+  /** F104.9.10 — control's clock when «Optag» arrived and when «Stop» arrived. */
+  requestedAt?: number;
+  stoppedAt?: number;
 };
 
 const FINAL = new Set(["EGRESS_COMPLETE", "EGRESS_FAILED", "EGRESS_ABORTED", "EGRESS_LIMIT_REACHED"]);
@@ -205,6 +208,7 @@ export function createController(d: Deps) {
      */
     prewarm(): { warmth: "cold" | "warming" | "warm" } {
       lastUse = d.now();
+      d.log("prewarm requested", { warmth: warm });
       if (warm === "cold") {
         warm = "warming";
         void warmUp();
@@ -215,12 +219,14 @@ export function createController(d: Deps) {
       if (!ROOM_RE.test(room)) throw new Error("invalid_room");
       if (!isLayout(layout)) throw new Error("invalid_layout");
       for (const r of recordings.values()) if (r.room === room && r.state === "recording") return r;
+      const requestedAt = d.now();
+      const warmth = warm; // F104.9.10 — was the machine ready when «Optag» was pressed?
       await ensureMachine();
       const egressId = await startEgress(room, layout);
       if (warm === "cold") warm = "warm"; // a real recording launches the browser too
-      const rec: Recording = { id: "rec_" + randomBytes(9).toString("base64url"), room, owner, egressId, attempts: 1, layout, state: "recording" };
+      const rec: Recording = { id: "rec_" + randomBytes(9).toString("base64url"), room, owner, egressId, attempts: 1, layout, state: "recording", requestedAt };
       recordings.set(rec.id, rec);
-      d.log("recording started", { id: rec.id, room, egressId });
+      d.log("recording started", { id: rec.id, room, egressId, layout, warmth, acceptedMs: d.now() - requestedAt });
       return rec;
     },
 
@@ -230,6 +236,7 @@ export function createController(d: Deps) {
       if (rec.state === "recording") {
         await d.lk.stop(rec.egressId).catch(() => {}); // already ended is fine: tick() reads the result
         rec.state = "stopped";
+        rec.stoppedAt = d.now();
       }
       lastUse = d.now();
       return rec;
@@ -240,7 +247,10 @@ export function createController(d: Deps) {
       for (const rec of recordings.values()) {
         if (rec.state !== "recording" && !(rec.state === "stopped" && !rec.files)) continue;
         const e = await d.lk.get(rec.egressId);
-        if (e && rec.state === "recording" && e.status === "EGRESS_ACTIVE") rec.live = true;
+        if (e && rec.state === "recording" && e.status === "EGRESS_ACTIVE" && !rec.live) {
+          rec.live = true;
+          d.log("recording live", { id: rec.id, startToLiveMs: d.now() - (rec.requestedAt ?? d.now()), attempts: rec.attempts });
+        }
         if (!e || !FINAL.has(e.status)) continue;
         lastUse = d.now();
         if (rec.state === "recording" && RETRYABLE.test(e.error) && rec.attempts < MAX_ATTEMPTS && (await d.lk.participants(rec.room)) > 0) {
@@ -259,7 +269,14 @@ export function createController(d: Deps) {
           // recorder started). Say why, or the caller waits for a file that never comes.
           rec.error = e.error;
         }
-        d.log("recording ended", { id: rec.id, state: rec.state, error: e.error });
+        // F104.9.10 — how long the file took after «Stop» (or why there is none).
+        const sinceStop = d.now() - (rec.stoppedAt ?? d.now());
+        if (e.files.length) {
+          const f = e.files[0]!;
+          d.log("recording saved", { id: rec.id, state: rec.state, stopToFileMs: sinceStop, bytes: f.size, durationSec: Math.round(f.durationSec) });
+        } else {
+          d.log("recording not saved", { id: rec.id, state: rec.state, error: e.error, stopToEndMs: sinceStop });
+        }
       }
     },
 

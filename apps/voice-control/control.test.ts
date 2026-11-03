@@ -288,4 +288,50 @@ describe("controller", () => {
     expect(countActive([{ status: "EGRESS_STARTING", started_at: ns(now - STALE_STARTING_MS - 1000) }], now)).toBe(0);
     expect(countActive([{ status: "EGRESS_COMPLETE" }, { status: "EGRESS_STARTING" }], now)).toBe(0);
   });
+
+  // F104.9.10 — owner 3/11: «Du burde lave en log der tæller hvor langt tid det tager».
+  test("the log tells how long «Optag» took to run and «Stop» took to a file", async () => {
+    const f = fake();
+    const lines: [string, Record<string, unknown>][] = [];
+    f.d.log = (msg, data) => { lines.push([msg, data ?? {}]); };
+    const c = createController(f.d);
+    const rec = await c.start("jam:t1", "APIjam");
+    const started = lines.find(([m]) => m === "recording started")![1];
+    expect(started).toMatchObject({ layout: "speaker", warmth: "cold" });
+    f.egress.get(rec.egressId)!.status = "EGRESS_STARTING";
+    f.advance(2000); await c.tick();
+    f.egress.get(rec.egressId)!.status = "EGRESS_ACTIVE";
+    f.advance(1500); await c.tick();
+    f.advance(1000); await c.tick(); // a second ACTIVE tick must not log «live» again
+    expect(lines.filter(([m]) => m === "recording live").map(([, d]) => d.startToLiveMs)).toEqual([3500]);
+    await c.stop(rec.id);
+    f.advance(4000); await c.tick();
+    expect(lines.find(([m]) => m === "recording saved")![1]).toMatchObject({ stopToFileMs: 4000, bytes: 10, durationSec: 5 });
+  });
+
+  test("a recording stopped before it ran logs «not saved» with the reason, never «saved»", async () => {
+    const f = fake();
+    const lines: [string, Record<string, unknown>][] = [];
+    f.d.log = (msg, data) => { lines.push([msg, data ?? {}]); };
+    const c = createController(f.d);
+    const rec = await c.start("jam:t2", "APIjam");
+    f.egress.get(rec.egressId)!.status = "EGRESS_STARTING";
+    f.d.lk.stop = async (id) => { const e = f.egress.get(id)!; e.status = "EGRESS_ABORTED"; e.error = "Start signal not received"; e.files = []; };
+    await c.stop(rec.id);
+    f.advance(2500); await c.tick();
+    expect(lines.some(([m]) => m === "recording saved")).toBe(false);
+    expect(lines.find(([m]) => m === "recording not saved")![1]).toMatchObject({ error: "Start signal not received", stopToEndMs: 2500 });
+  });
+
+  test("a recording started while warm says so", async () => {
+    const f = fake();
+    const lines: [string, Record<string, unknown>][] = [];
+    f.d.log = (msg, data) => { lines.push([msg, data ?? {}]); };
+    const c = createController(f.d);
+    c.prewarm();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await c.start("jam:t3", "APIjam", "grid");
+    expect(lines.find(([m]) => m === "prewarm requested")![1]).toMatchObject({ warmth: "cold" });
+    expect(lines.find(([m]) => m === "recording started")![1]).toMatchObject({ warmth: "warm", layout: "grid" });
+  });
 });
