@@ -67,8 +67,8 @@ describe.each(providers)("F006.8 — %s provider", (_name, make) => {
   afterEach(async () => cleanup());
 
   it("list returns LOGICAL keys under the folder, sorted — and never the neighbour kunder/10", async () => {
-    expect(await store.list("kunder/1")).toEqual({ keys: ["kunder/1/a.txt", "kunder/1/sub/b & c.txt"] });
-    expect(await store.list("kunder/1/")).toEqual({ keys: ["kunder/1/a.txt", "kunder/1/sub/b & c.txt"] });
+    expect(await store.list("kunder/1")).toEqual({ keys: ["kunder/1/a.txt", "kunder/1/sub/b & c.txt"], objects: expect.any(Array) });
+    expect(await store.list("kunder/1/")).toEqual({ keys: ["kunder/1/a.txt", "kunder/1/sub/b & c.txt"], objects: expect.any(Array) });
   });
 
   it("an empty prefix lists everything under keyPrefix", async () => {
@@ -91,7 +91,7 @@ describe.each(providers)("F006.8 — %s provider", (_name, make) => {
 
   it("deletePrefix removes everything under the folder, says how many, and leaves the neighbour", async () => {
     expect(await store.deletePrefix("kunder/1")).toEqual({ deleted: 2 });
-    expect(await store.list("kunder/1")).toEqual({ keys: [] });
+    expect(await store.list("kunder/1")).toEqual({ keys: [], objects: expect.any(Array) });
     expect((await store.list("")).keys).toEqual(["andet/y.txt", "kunder/10/x.txt"]);
   });
 
@@ -105,7 +105,7 @@ describe.each(providers)("F006.8 — %s provider", (_name, make) => {
     const real = store.list.bind(store);
     store.list = (p, o) => real(p, { ...o, limit: 2 });
     expect(await store.deletePrefix("many")).toEqual({ deleted: 5 });
-    expect(await real("many")).toEqual({ keys: [] });
+    expect(await real("many")).toEqual({ keys: [], objects: expect.any(Array) });
   });
 });
 

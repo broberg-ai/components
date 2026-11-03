@@ -1,4 +1,4 @@
-// Cloudflare R2 provider. R2 speaks the S3 API, so this is a thin SigV4 layer
+// Cloudflare R2 + Tigris providers (F059.4). Both speak the S3 API, so this is a thin SigV4 layer
 // over aws4fetch (tiny, zero-dep, runs in Node/Bun/edge/Workers). No AWS SDK.
 import { AwsClient } from "aws4fetch";
 import type {
@@ -7,8 +7,12 @@ import type {
   MediaBody,
   MediaObject,
   MediaStore,
+  BucketAccountConfig,
+  BucketInfo,
+  ListObject,
   R2Config,
   SignedUrlOptions,
+  TigrisConfig,
   UploadOptions,
 } from "../types";
 import { safeKey } from "../safe-key";
@@ -31,18 +35,80 @@ const r2Host = (accountId: string, jurisdiction?: string) =>
 const encodeKey = (key: string) =>
   key.split("/").map(encodeURIComponent).join("/");
 
-export function createR2Store(cfg: R2Config): MediaStore {
-  const base = `https://${r2Host(cfg.accountId, cfg.jurisdiction)}/${cfg.bucket}`;
-  const prefix = cfg.keyPrefix ? `${cfg.keyPrefix.replace(/\/+$/, "")}/` : "";
-  const publicBase = cfg.publicBaseUrl ? cfg.publicBaseUrl.replace(/\/+$/, "") : undefined;
-  // R2 always uses region "auto"; the S3 service signs the request.
-  const aws = new AwsClient({
-    accessKeyId: cfg.accessKeyId,
-    secretAccessKey: cfg.secretAccessKey,
+/** The S3 account a bucket lives in: where to reach it and how to sign. */
+interface S3Account {
+  /** Provider name, used in every error message ("media(tigris): …"). */
+  name: string;
+  /** Endpoint origin, e.g. "https://acct.eu.r2.cloudflarestorage.com". */
+  origin: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
+const s3Client = (a: S3Account) =>
+  // R2 and Tigris both sign with region "auto" for the S3 service.
+  new AwsClient({
+    accessKeyId: a.accessKeyId,
+    secretAccessKey: a.secretAccessKey,
     region: "auto",
     service: "s3",
-    retries: 2, // modest resilience against R2's transient 5xx/429 (aws4fetch defaults to 10)
+    retries: 2, // modest resilience against transient 5xx/429 (aws4fetch defaults to 10)
   });
+
+const r2Origin = (accountId: string, jurisdiction?: string) => `https://${r2Host(accountId, jurisdiction)}`;
+
+/** F059.4 — Tigris (Fly's object storage). S3-compatible, region "auto". */
+export const TIGRIS_ENDPOINT = "https://fly.storage.tigris.dev";
+const tigrisOrigin = (endpoint?: string) => (endpoint ?? TIGRIS_ENDPOINT).replace(/\/+$/, "");
+
+/** One object in a {@link ListResult}: its logical key, byte size and last-modified time (ISO). */
+const readObjects = (xml: string, strip: number): ListObject[] =>
+  [...xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)].map((m) => {
+    const c = m[1]!;
+    const key = decodeXml(c.match(/<Key>([\s\S]*?)<\/Key>/)?.[1] ?? "").slice(strip);
+    const size = Number(c.match(/<Size>\s*(\d+)\s*<\/Size>/)?.[1] ?? NaN);
+    const raw = c.match(/<LastModified>([\s\S]*?)<\/LastModified>/)?.[1];
+    const t = raw ? new Date(raw.trim()) : null;
+    return { key, size, lastModified: t && !Number.isNaN(t.getTime()) ? t.toISOString() : "" };
+  });
+
+export function createR2Store(cfg: R2Config): MediaStore {
+  return createS3Store(cfg, { name: "r2", origin: r2Origin(cfg.accountId, cfg.jurisdiction), accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey });
+}
+
+export function createTigrisStore(cfg: TigrisConfig): MediaStore {
+  return createS3Store(cfg, { name: "tigris", origin: tigrisOrigin(cfg.endpoint), accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey });
+}
+
+/**
+ * F059.4 — the buckets an account can see. Read-only (one signed GET on the endpoint root).
+ * A bucket list belongs to the ACCOUNT, not to a bucket, which is why this is not on
+ * {@link MediaStore}. For R2, `jurisdiction` picks the host: an EU bucket is only listed
+ * by the EU host and a default one only by the default host.
+ */
+export async function listBuckets(cfg: BucketAccountConfig): Promise<BucketInfo[]> {
+  const account: S3Account =
+    cfg.provider === "r2"
+      ? { name: "r2", origin: r2Origin(cfg.accountId, cfg.jurisdiction), accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey }
+      : { name: "tigris", origin: tigrisOrigin(cfg.endpoint), accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey };
+  const res = await s3Client(account).fetch(`${account.origin}/`, { method: "GET" });
+  const xml = await res.text().catch(() => "");
+  if (!res.ok || /<Error>/.test(xml)) throw new Error(`media(${account.name}): listBuckets failed ${res.status} ${xml}`.trim());
+  return [...xml.matchAll(/<Bucket>([\s\S]*?)<\/Bucket>/g)].map((m) => {
+    const b = m[1]!;
+    const name = decodeXml(b.match(/<Name>([\s\S]*?)<\/Name>/)?.[1] ?? "");
+    const raw = b.match(/<CreationDate>([\s\S]*?)<\/CreationDate>/)?.[1];
+    const t = raw ? new Date(raw.trim()) : null;
+    return { name, createdAt: t && !Number.isNaN(t.getTime()) ? t.toISOString() : "" };
+  });
+}
+
+function createS3Store(cfg: R2Config | TigrisConfig, account: S3Account): MediaStore {
+  const name = account.name;
+  const base = `${account.origin}/${cfg.bucket}`;
+  const prefix = cfg.keyPrefix ? `${cfg.keyPrefix.replace(/\/+$/, "")}/` : "";
+  const publicBase = cfg.publicBaseUrl ? cfg.publicBaseUrl.replace(/\/+$/, "") : undefined;
+  const aws = s3Client(account);
 
   // Strip a leading slash so callers can pass "/logo.png" or "logo.png" alike,
   // and REFUSE anything that would climb out of the bucket or the prefix.
@@ -52,10 +118,10 @@ export function createR2Store(cfg: R2Config): MediaStore {
   // ".." — a dot is not encoded — so `..` reaches the URL intact and the URL
   // parser collapses it. `volume` refused the same key; `r2` did not. See
   // ../safe-key.ts for the measurement (F086).
-  const normalize = (key: string) => safeKey(key, "r2");
+  const normalize = (key: string) => safeKey(key, name);
   // The prefix is validated WITH the key, so a prefix cannot smuggle one in
   // either — the same second pass volume has always done.
-  const fullKey = (key: string) => safeKey(prefix + normalize(key), "r2");
+  const fullKey = (key: string) => safeKey(prefix + normalize(key), name);
   const objectUrl = (key: string) => `${base}/${encodeKey(fullKey(key))}`;
 
   return {
@@ -73,7 +139,7 @@ export function createR2Store(cfg: R2Config): MediaStore {
       if (typeof byteLength === "number") headers["content-length"] = String(byteLength);
       const res = await aws.fetch(objectUrl(key), { method: "PUT", body: body as BodyInit, headers });
       if (!res.ok) {
-        throw new Error(`media(r2): upload failed ${res.status} ${await res.text().catch(() => "")}`.trim());
+        throw new Error(`media(${name}): upload failed ${res.status} ${await res.text().catch(() => "")}`.trim());
       }
       // Return the LOGICAL key (prefix applied internally) — safe to feed back
       // into signedUrl/delete/publicUrl without double-prefixing.
@@ -89,7 +155,7 @@ export function createR2Store(cfg: R2Config): MediaStore {
     async delete(key: string) {
       const res = await aws.fetch(objectUrl(key), { method: "DELETE" });
       if (!res.ok && res.status !== 404) {
-        throw new Error(`media(r2): delete failed ${res.status}`);
+        throw new Error(`media(${name}): delete failed ${res.status}`);
       }
     },
 
@@ -99,7 +165,7 @@ export function createR2Store(cfg: R2Config): MediaStore {
       // failure to ASK, and must not be collapsed into the same null.
       if (res.status === 404) return null;
       if (!res.ok) {
-        throw new Error(`media(r2): get failed ${res.status} ${await res.text().catch(() => "")}`.trim());
+        throw new Error(`media(${name}): get failed ${res.status} ${await res.text().catch(() => "")}`.trim());
       }
       return {
         bytes: new Uint8Array(await res.arrayBuffer()),
@@ -110,21 +176,22 @@ export function createR2Store(cfg: R2Config): MediaStore {
     // S3 ListObjectsV2. The XML is small and flat; three fields are read
     // without pulling in a parser.
     async list(folder: string, opts: ListOptions = {}): Promise<ListResult> {
-      const q = new URLSearchParams({ "list-type": "2", prefix: prefix + folderPrefix(folder, "r2", true), "max-keys": String(clampLimit(opts.limit)) });
+      const q = new URLSearchParams({ "list-type": "2", prefix: prefix + folderPrefix(folder, name, true), "max-keys": String(clampLimit(opts.limit)) });
       if (opts.cursor) q.set("continuation-token", opts.cursor);
       const res = await aws.fetch(`${base}?${q.toString()}`, { method: "GET" });
       if (!res.ok) {
-        throw new Error(`media(r2): list failed ${res.status} ${await res.text().catch(() => "")}`.trim());
+        throw new Error(`media(${name}): list failed ${res.status} ${await res.text().catch(() => "")}`.trim());
       }
       const xml = await res.text();
-      const keys = [...xml.matchAll(/<Key>([\s\S]*?)<\/Key>/g)].map((m) => decodeXml(m[1]!).slice(prefix.length)).sort();
+      const objects = readObjects(xml, prefix.length).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+      const keys = objects.map((o) => o.key);
       const truncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/i.test(xml);
       const next = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1];
-      return truncated && next ? { keys, cursor: decodeXml(next) } : { keys };
+      return truncated && next ? { keys, objects, cursor: decodeXml(next) } : { keys, objects };
     },
 
     async deletePrefix(folder: string) {
-      return deleteUnder(this, folder, "r2");
+      return deleteUnder(this, folder, name);
     },
 
     // F099.20 — S3 multipart, signed with the same SigV4 client. The server keeps the keys;
@@ -135,45 +202,45 @@ export function createR2Store(cfg: R2Config): MediaStore {
         if (opts?.contentType) headers["content-type"] = opts.contentType;
         const res = await aws.fetch(`${objectUrl(key)}?uploads`, { method: "POST", headers });
         const xml = await res.text().catch(() => "");
-        if (!res.ok) throw new Error(`media(r2): multipart create failed ${res.status} ${xml}`.trim());
+        if (!res.ok) throw new Error(`media(${name}): multipart create failed ${res.status} ${xml}`.trim());
         const uploadId = xml.match(/<UploadId>([\s\S]*?)<\/UploadId>/)?.[1];
-        if (!uploadId) throw new Error("media(r2): multipart create answered without an UploadId");
+        if (!uploadId) throw new Error(`media(${name}): multipart create answered without an UploadId`);
         return { key: normalize(key), uploadId: decodeXml(uploadId) };
       },
       async presignPart(key, uploadId, partNumber, opts) {
-        if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) throw new Error(`media(r2): partNumber must be 1–10000, got ${partNumber}`);
-        if (!uploadId) throw new Error("media(r2): uploadId is required");
+        if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) throw new Error(`media(${name}): partNumber must be 1–10000, got ${partNumber}`);
+        if (!uploadId) throw new Error(`media(${name}): uploadId is required`);
         const q = new URLSearchParams({ partNumber: String(partNumber), uploadId, "X-Amz-Expires": String(opts?.expiresIn ?? 3600) });
         const signed = await aws.sign(`${objectUrl(key)}?${q.toString()}`, { method: "PUT", aws: { signQuery: true } });
         return signed.url;
       },
       async complete(key, uploadId, parts) {
-        if (!parts.length) throw new Error("media(r2): complete needs at least one part");
+        if (!parts.length) throw new Error(`media(${name}): complete needs at least one part`);
         for (let i = 0; i < parts.length; i++) {
           const p = parts[i]!;
-          if (!Number.isInteger(p.partNumber) || p.partNumber < 1 || p.partNumber > 10000) throw new Error(`media(r2): bad partNumber ${p.partNumber}`);
-          if (i > 0 && p.partNumber <= parts[i - 1]!.partNumber) throw new Error("media(r2): parts must be in ascending order without repeats");
-          if (typeof p.etag !== "string" || !p.etag) throw new Error(`media(r2): part ${p.partNumber} has no ETag`);
+          if (!Number.isInteger(p.partNumber) || p.partNumber < 1 || p.partNumber > 10000) throw new Error(`media(${name}): bad partNumber ${p.partNumber}`);
+          if (i > 0 && p.partNumber <= parts[i - 1]!.partNumber) throw new Error(`media(${name}): parts must be in ascending order without repeats`);
+          if (typeof p.etag !== "string" || !p.etag) throw new Error(`media(${name}): part ${p.partNumber} has no ETag`);
         }
         const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         const body = `<CompleteMultipartUpload>${parts.map((p) => `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>${esc(p.etag)}</ETag></Part>`).join("")}</CompleteMultipartUpload>`;
         const res = await aws.fetch(`${objectUrl(key)}?${new URLSearchParams({ uploadId }).toString()}`, { method: "POST", body, headers: { "content-type": "application/xml" } });
         const xml = await res.text().catch(() => "");
         // S3 can answer 200 with an <Error> in the body — that is a failure, not a success.
-        if (!res.ok || /<Error>/.test(xml)) throw new Error(`media(r2): multipart complete failed ${res.status} ${xml}`.trim());
+        if (!res.ok || /<Error>/.test(xml)) throw new Error(`media(${name}): multipart complete failed ${res.status} ${xml}`.trim());
         return { key: normalize(key) };
       },
       async abort(key, uploadId) {
         const res = await aws.fetch(`${objectUrl(key)}?${new URLSearchParams({ uploadId }).toString()}`, { method: "DELETE" });
-        if (!res.ok && res.status !== 404) throw new Error(`media(r2): multipart abort failed ${res.status}`);
+        if (!res.ok && res.status !== 404) throw new Error(`media(${name}): multipart abort failed ${res.status}`);
       },
     },
 
     publicUrl(key: string): string {
       if (!publicBase) {
         throw new Error(
-          "media(r2): publicUrl requires publicBaseUrl in the config (the bucket's " +
-            "public R2 custom-domain or r2.dev URL). Public access is off until it is set.",
+          `media(${name}): publicUrl requires publicBaseUrl in the config (the bucket's ` +
+            "public URL, e.g. an R2 custom-domain or r2.dev URL). Public access is off until it is set.",
         );
       }
       return `${publicBase}/${encodeKey(fullKey(key))}`;

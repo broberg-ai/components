@@ -115,7 +115,23 @@ const { deleted } = await media.deletePrefix("kunder/42");              // e.g. 
 - **A prefix is a folder.** `"kunder/1"` means everything under `kunder/1/`, never `kunder/10/…` — as a plain string match, a GDPR delete would take another customer's files.
 - Keys come back **logical** (keyPrefix stripped), like `upload()` returns them. Page size 1–1000 (default 1000); `cursor` is set only when there is more.
 - `deletePrefix("")` is refused: it would empty the store. If a delete reports success but the object stays, `deletePrefix` stops with an error instead of looping.
-- r2 uses S3 ListObjectsV2; volume walks the folder. **The r2 half is tested against a fake S3 that answers real ListObjectsV2 XML, not yet against a live bucket.**
+- r2 uses S3 ListObjectsV2; volume walks the folder. Since 0.7.0 r2's `list()` is measured against a live EU bucket (see below).
+
+## Size, time, Tigris and bucket lists (0.7.0, F059.4)
+
+```ts
+const { objects = [] } = await media.list("db");          // [{ key, size, lastModified }] — same order as keys
+const newest = [...objects].sort((a, b) => b.lastModified.localeCompare(a.lastModified))[0];
+
+const tigris = createMedia({ provider: "tigris", accessKeyId, secretAccessKey, bucket: "backups" }); // fly.storage.tigris.dev
+const buckets = await listBuckets({ provider: "r2", accountId, jurisdiction: "eu", accessKeyId, secretAccessKey });
+// [{ name, createdAt }]
+```
+
+- **`objects`** sits beside `keys` with `size` (bytes) and `lastModified` (ISO, UTC). Every built-in provider fills it; it is typed optional only so a hand-written test double returning `{ keys }` still compiles.
+- **`tigris`** is the same S3 code as `r2` on another host (`endpoint` overrides `https://fly.storage.tigris.dev`), so every `MediaStore` method works the same. Errors say `media(tigris)`.
+- **`listBuckets()`** is a separate function because a bucket list belongs to the account, not a bucket. For R2, `jurisdiction` picks the host: an EU bucket only shows up on the EU host. It needs an **account-level** key — a bucket-scoped R2 token gets `403 AccessDenied`, and that is thrown, never returned as an empty list.
+- **Measured 3/11 2026:** `list()` against the live EU bucket `broberg-call-recordings` returned sizes, times and a cursor in the same order as `keys`. **Not live-measured:** a successful `listBuckets()` (our key is bucket-scoped and got the 403 above) and Tigris (we hold no Tigris key) — both are tested against real S3 XML with a stubbed fetch.
 
 ## Provisioning the bucket
 

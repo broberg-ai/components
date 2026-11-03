@@ -16,7 +16,7 @@
 // route YOUR app must serve, and `get()` is what it serves from. That asymmetry
 // is real and is stated rather than hidden — a provider that returned a URL
 // nothing answered would be the worst kind of green.
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
 import type {
   ListOptions,
@@ -124,7 +124,14 @@ export function createVolumeStore(cfg: VolumeConfig): MediaStore {
       const after = opts.cursor ? all.filter((k) => k > opts.cursor!) : all;
       const limit = clampLimit(opts.limit);
       const keys = after.slice(0, limit);
-      return after.length > limit ? { keys, cursor: keys[keys.length - 1] } : { keys };
+      // F059.4 — size + last-modified from the file itself, same order as keys.
+      const objects = await Promise.all(
+        keys.map(async (key) => {
+          const st = await stat(objectPath(key));
+          return { key, size: st.size, lastModified: st.mtime.toISOString() };
+        }),
+      );
+      return after.length > limit ? { keys, objects, cursor: keys[keys.length - 1] } : { keys, objects };
     },
 
     async deletePrefix(folder: string) {

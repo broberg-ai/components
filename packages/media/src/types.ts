@@ -104,9 +104,25 @@ export interface ListOptions {
   limit?: number;
 }
 
+/** F059.4 — one object in a listing. */
+export interface ListObject {
+  /** Logical key (keyPrefix stripped) — the same string as in {@link ListResult.keys}. */
+  key: string;
+  /** Size in bytes. */
+  size: number;
+  /** Last-modified time as an ISO 8601 string (UTC). "" only if the store gave none. */
+  lastModified: string;
+}
+
 /** One page of {@link MediaStore.list}. */
 export interface ListResult {
   keys: string[];
+  /**
+   * F059.4 — the same objects as `keys`, in the same order, with size and last-modified.
+   * Every built-in provider fills it; it is optional only so a hand-written MediaStore
+   * (a test double) that returns `{ keys }` still compiles.
+   */
+  objects?: ListObject[];
   /** Present only when there are more keys; pass it back to get the next page. */
   cursor?: string;
 }
@@ -129,6 +145,32 @@ export interface R2Config {
    * (it throws until this is configured). Trailing slash optional.
    */
   publicBaseUrl?: string;
+}
+
+/** F059.4 — Tigris (Fly's object storage) provider config. S3-compatible, region "auto". */
+export interface TigrisConfig {
+  provider: "tigris";
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+  /** Endpoint origin. Default "https://fly.storage.tigris.dev". */
+  endpoint?: string;
+  /** Same meaning as on R2. */
+  keyPrefix?: string;
+  /** Same meaning as on R2: the bucket's public base URL, or `publicUrl()` throws. */
+  publicBaseUrl?: string;
+}
+
+/** F059.4 — the account {@link listBuckets} reads. A bucket list belongs to the account, not a bucket. */
+export type BucketAccountConfig =
+  | { provider: "r2"; accountId: string; jurisdiction?: "default" | "eu"; accessKeyId: string; secretAccessKey: string }
+  | { provider: "tigris"; endpoint?: string; accessKeyId: string; secretAccessKey: string };
+
+/** F059.4 — one bucket from {@link listBuckets}. */
+export interface BucketInfo {
+  name: string;
+  /** Creation time as ISO 8601 (UTC). "" only if the store gave none. */
+  createdAt: string;
 }
 
 /**
@@ -156,4 +198,4 @@ export interface VolumeConfig {
 }
 
 /** The config union — grows as providers are added (s3, supabase, gcs …). */
-export type MediaConfig = R2Config | VolumeConfig;
+export type MediaConfig = R2Config | TigrisConfig | VolumeConfig;
