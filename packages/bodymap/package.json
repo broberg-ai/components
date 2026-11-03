@@ -1,6 +1,6 @@
 {
   "name": "@broberg/bodymap",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Interactive body pain-map: a body a patient clicks to mark where it hurts, producing a structured PainReport (bodymap/v1). Framework-neutral core (region taxonomy + zod PainReport model + selection) + a 2D SVG React renderer + a rotatable 3D renderer (vanilla three.js) on the SAME core.",
   "type": "module",
   "license": "MIT",
@@ -24,6 +24,11 @@
       "import": "./dist/react.js",
       "require": "./dist/react.cjs"
     },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
     "./three": {
       "types": "./dist/three.d.ts",
       "import": "./dist/three.js",
@@ -33,8 +38,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "rm -rf dist && tsup && node verify-exports.mjs",
-    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json",
+    "build": "rm -rf dist && tsup && node verify-exports.mjs && node check-preact.mjs",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=.vitest-report/results.json && vitest run -c vitest.preact.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -42,13 +47,17 @@
   },
   "peerDependencies": {
     "react": ">=18.0.0",
-    "three": ">=0.160.0"
+    "three": ">=0.160.0",
+    "preact": ">=10.19.0"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "three": {
+      "optional": true
+    },
+    "preact": {
       "optional": true
     }
   },
@@ -57,6 +66,7 @@
     "@types/react": "^19.0.0",
     "@types/three": "^0.185.0",
     "happy-dom": "^15.0.0",
+    "preact": "^11.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.185.1",

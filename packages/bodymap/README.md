@@ -78,6 +78,21 @@ type RegionConfig = Record<string, { visible?: boolean; selectable?: boolean }>;
 An absent key is visible + selectable. Hidden ⇒ never selectable. `resolveRegions`
 and `isSelectable` apply the config for custom renderers.
 
+## 2D renderer (Preact) — 0.15.0, F052.4
+
+For a Stack B app (Vite + Preact): the same `<BodyMap>` and `<BodyMapCompare>`, the same props,
+`RegionConfig`, `onChange(PainReport)` and `data-testid`s — without React.
+
+```tsx
+import { BodyMap } from "@broberg/bodymap/preact";
+<BodyMap onChange={(report) => save(report)} />
+```
+
+It is not a second implementation: `./preact` is the SAME source as `./react`, built with
+`react → preact/hooks` and the Preact JSX runtime, so the two cannot drift. The build fails if
+`dist/preact.*` imports `react` (check-preact.mjs). Needs `preact` (≥10.19) as a peer. The 3D
+renderer stays React-only for now.
+
 ## 3D renderer (React + three.js)
 
 A rotatable 3D body on the **same** core + wire — a realistic Blender Studio human

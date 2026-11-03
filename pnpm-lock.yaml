@@ -270,6 +270,9 @@ importers:
       happy-dom:
         specifier: ^15.0.0
         version: 15.11.7
+      preact:
+        specifier: ^11.1.1
+        version: 11.1.1
       react:
         specifier: ^19.0.0
         version: 19.2.7
@@ -318,7 +321,7 @@ importers:
         version: 0.3.1(hono@4.12.25)
       '@broberg/forms-turnstile':
         specifier: '>=0.3.0 <1'
-        version: 0.3.0(hono@4.12.25)(preact@10.29.2)(react@19.2.7)
+        version: 0.3.0(hono@4.12.25)(preact@11.1.1)(react@19.2.7)
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
@@ -4394,6 +4397,14 @@ packages:
   preact@10.29.2:
     resolution: {integrity: sha512-7tNmwg/7mzzAoB/8kSg6Hl37JraAZw3Z3A0JSY7VXlZwo82Xn0G7wKbNNs2qoF4ZEEsQGTwDAroNdqKs1ofJxQ==}
 
+  preact@11.1.1:
+    resolution: {integrity: sha512-vpFVfai437pbuLri7XVeslCPfrEZX6Z1S2gV+MOFrA/kji+NKUXvH7y01EnVjA1guLigfkVp77Sqipd4SIllCg==}
+    peerDependencies:
+      preact-render-to-string: '>=6.7.0'
+    peerDependenciesMeta:
+      preact-render-to-string:
+        optional: true
+
   pretty-format@27.5.1:
     resolution: {integrity: sha512-Qb1gy5OrP5+zDf2Bvnzdl3jsTf1qXVMazbvCoKhtKqVs4/YK4ozX4gKQJJVyNe+cajNPn0KoC0MC3FUmaHWEmQ==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
@@ -5328,10 +5339,10 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@broberg/forms-turnstile@0.3.0(hono@4.12.25)(preact@10.29.2)(react@19.2.7)':
+  '@broberg/forms-turnstile@0.3.0(hono@4.12.25)(preact@11.1.1)(react@19.2.7)':
     optionalDependencies:
       hono: 4.12.25
-      preact: 10.29.2
+      preact: 11.1.1
       react: 19.2.7
 
   '@broberg/http@0.1.0': {}
@@ -7832,6 +7843,8 @@ snapshots:
   postgres@3.4.9: {}
 
   preact@10.29.2: {}
+
+  preact@11.1.1: {}
 
   pretty-format@27.5.1:
     dependencies:
