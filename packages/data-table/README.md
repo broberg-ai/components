@@ -53,7 +53,7 @@ const columns: Column<Doc>[] = [
 - **No native `select`, `dialog` or `option`** (D-4cd764). Every dropdown is a button plus a menu/listbox: arrows move, Enter or Space chooses, Escape closes, a click outside closes.
 - **Every interactive element has a `data-testid`** under one prefix (`testId`, default `data-table`): `-search`, `-columns`, `-columns-<col>`, `-sort-<col>`, `-header-<col>`, `-select-all`, `-select-<row>`, `-row-<row>`, `-cell-<row>-<col>` (select trigger), `-cell-<row>-<col>-option-<value>`, `-actions-<row>`, `-actions-<row>-<n>`, `-live` (reorder announcements), `row-drag-<row>` (unprefixed, like `row-card-<row>`), `-page-size`, `-page-size-<n>`, `-page-first|prev|next|last`, `-page-label`, `-selected-label`, `-empty`.
 - **Colours are theme tokens only**; the CSS contains no colour literal (a test enforces it).
-- **Labels are Danish by default**; pass `labels` to override any of them.
+- **Labels are Danish by default**; `locale="en"` switches the whole table (texts and numbers) to English (0.4.0, F094.7). `labels` still overrides any single text, and `numberLocale` (e.g. `"da-DK"`) sets the number format on its own, since a user's Format can differ from the language. `LABELS_DA` and `LABELS_EN` are exported; `DEFAULT_LABELS` stays (= the Danish set).
 
 ## The core, without Preact
 

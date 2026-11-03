@@ -82,7 +82,7 @@ export interface DataTableLabels {
   dragCancelled: string;
 }
 
-export const DEFAULT_LABELS: DataTableLabels = {
+export const LABELS_DA: DataTableLabels = {
   search: "Søg…",
   columns: "Tilpas kolonner",
   selected: (s, t) => `${s} af ${t} rækker valgt`,
@@ -103,6 +103,37 @@ export const DEFAULT_LABELS: DataTableLabels = {
   dragDropped: (p, t) => `Række sluppet på position ${p} af ${t}.`,
   dragCancelled: "Flytning fortrudt.",
 };
+
+/** F094.7 — the same table in English. */
+export const LABELS_EN: DataTableLabels = {
+  search: "Search…",
+  columns: "Columns",
+  selected: (s, t) => `${s} of ${t} rows selected`,
+  rowsPerPage: "Rows per page",
+  page: (p, c) => `Page ${p} of ${c}`,
+  first: "First page",
+  previous: "Previous page",
+  next: "Next page",
+  last: "Last page",
+  selectAll: "Select all",
+  selectRow: "Select row",
+  rowActions: "Actions",
+  empty: "No results.",
+  dragHandle: "Move row — space lifts, arrows move",
+  dragDisabled: "Cannot be moved while the table is sorted or filtered",
+  dragLifted: (p, t) => `Row lifted, position ${p} of ${t}. Up and down arrows move, space drops, Escape cancels.`,
+  dragMoved: (p, t) => `Position ${p} of ${t}.`,
+  dragDropped: (p, t) => `Row dropped at position ${p} of ${t}.`,
+  dragCancelled: "Move cancelled.",
+};
+
+/** Kept so existing imports do not break — the Danish set, the default when no locale is given. */
+export const DEFAULT_LABELS: DataTableLabels = LABELS_DA;
+
+/** F094.7 — the built-in text set. "da" is the default, so an upgrade never changes a consumer's language. */
+export type DataTableLocale = "da" | "en";
+const LOCALE_LABELS: Record<DataTableLocale, DataTableLabels> = { da: LABELS_DA, en: LABELS_EN };
+const LOCALE_NUMBERS: Record<DataTableLocale, string> = { da: "da-DK", en: "en-GB" };
 
 export interface DataTableProps<T> {
   columns: Column<T>[];
@@ -126,12 +157,15 @@ export interface DataTableProps<T> {
   pageSizes?: number[];
   initialPageSize?: number;
   labels?: Partial<DataTableLabels>;
+  /** F094.7 — built-in text set; default "da". `labels` still wins, field by field. */
+  locale?: DataTableLocale;
+  /** F094.7 — number format (BCP-47, e.g. "da-DK"). Defaults from `locale`; a user's Format may differ from the language. */
+  numberLocale?: string;
 }
 
 const valueOf = <T,>(col: Column<T>, row: T): unknown =>
   col.accessor ? col.accessor(row) : (row as Record<string, unknown>)[col.id];
 
-const numberFormat = new Intl.NumberFormat("da-DK");
 
 // ── icons: stroke, currentColor, no emoji (D-9d5cce) ──
 const Icon = ({ d, label }: { d: string; label?: string }) => (
@@ -309,7 +343,9 @@ function Checkbox(props: { state: "none" | "some" | "all"; label: string; testId
 
 export function DataTable<T>(props: DataTableProps<T>) {
   const p = props.testId ?? "data-table";
-  const L: DataTableLabels = { ...DEFAULT_LABELS, ...props.labels };
+  const locale: DataTableLocale = props.locale ?? "da";
+  const L: DataTableLabels = { ...LOCALE_LABELS[locale], ...props.labels };
+  const numberFormat = useMemo(() => new Intl.NumberFormat(props.numberLocale ?? LOCALE_NUMBERS[locale]), [props.numberLocale, locale]);
   const pageSizes = props.pageSizes ?? [10, 20, 30, 40, 50];
 
   const [query, setQuery] = useState("");
