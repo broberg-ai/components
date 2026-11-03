@@ -2,8 +2,8 @@
 // (voice, camera, screen share) and recording on his own machines. Owner's GO 2/11 2026
 // «GO med adgangskode». Not a product: one room per name, recordings play back from R2.
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { AwsClient } from "aws4fetch";
 import { createRoomToken } from "../../packages/call/src/server.ts";
+import { createMedia } from "../../packages/media/src/index.ts";
 
 const env = (k: string) => {
   const v = process.env[k];
@@ -15,9 +15,19 @@ const API_SECRET = env("LIVEKIT_API_SECRET");
 const PASSWORD = env("DEMO_PASSWORD");
 const MEDIA_URL = process.env.MEDIA_URL ?? "wss://voice.broberg.ai";
 const CONTROL_URL = process.env.CONTROL_URL ?? "https://broberg-voice-control.fly.dev";
-const R2_ENDPOINT = env("R2_ENDPOINT").replace(/\/$/, "");
-const R2 = new AwsClient({ accessKeyId: env("R2_ACCESS_KEY_ID"), secretAccessKey: env("R2_SECRET_ACCESS_KEY"), service: "s3", region: "auto" });
-const BUCKET = "broberg-call-recordings";
+// Recordings live in R2 (EU). Read through @broberg/media, the fleet's storage facade —
+// the account id and jurisdiction come from the one endpoint secret, never a second copy.
+const R2_ENDPOINT = env("R2_ENDPOINT");
+const r2Host = R2_ENDPOINT.match(/^https:\/\/([^.]+)(\.eu)?\.r2\.cloudflarestorage\.com/);
+if (!r2Host) throw new Error("R2_ENDPOINT must be https://<account>[.eu].r2.cloudflarestorage.com");
+const media = createMedia({
+  provider: "r2",
+  accountId: r2Host[1]!,
+  jurisdiction: r2Host[2] ? "eu" : "default",
+  accessKeyId: env("R2_ACCESS_KEY_ID"),
+  secretAccessKey: env("R2_SECRET_ACCESS_KEY"),
+  bucket: "broberg-call-recordings",
+});
 const ROOM_PREFIX = "demo:";
 
 // ---- a session cookie that proves the password was typed (no native browser dialog) ----
@@ -105,11 +115,25 @@ Bun.serve({
       const room = roomOf(u.searchParams.get("room"));
       return control(`/v1/recordings/${m[1]}${m[2] ?? ""}`, room, { method: m[2] ? "POST" : "GET" });
     }
+    // F104.9.7 — the demo's recordings come from the bucket, not from the page's memory,
+    // so they are still there after a reload (owner 3/11: «ingen historik i demo efter reload»).
+    if (u.pathname === "/recordings") {
+      const recordings: { key: string; size: number; at: string }[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await media.list("", { cursor });
+        for (const o of page.objects ?? []) {
+          if (o.key.startsWith(ROOM_PREFIX) && o.key.endsWith(".mp4")) recordings.push({ key: o.key, size: o.size, at: o.lastModified });
+        }
+        cursor = page.cursor;
+      } while (cursor);
+      recordings.sort((a, b) => (a.at < b.at ? 1 : -1));
+      return Response.json({ recordings });
+    }
     if (u.pathname === "/play") {
       const key = u.searchParams.get("key") ?? "";
       if (!key.startsWith(ROOM_PREFIX) || key.includes("..")) return Response.json({ error: "not_a_demo_recording" }, { status: 400 });
-      const signed = await R2.sign(`${R2_ENDPOINT}/${BUCKET}/${key.split("/").map(encodeURIComponent).join("/")}?X-Amz-Expires=3600`, { aws: { signQuery: true } });
-      return new Response(null, { status: 302, headers: { location: signed.url } });
+      return new Response(null, { status: 302, headers: { location: await media.signedUrl(key, { expiresIn: 3600 }), "cache-control": "no-store" } });
     }
     return page(`<main id="app"></main><script type="module">${bundle}</script>`);
   },

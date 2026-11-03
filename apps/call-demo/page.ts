@@ -94,18 +94,41 @@ recStop.onclick = () => busy(recStop, "Stopper…", async () => {
   const rec = recording;
   await api(`/record/${rec.id}/stop?room=${encodeURIComponent(rec.room)}`, { method: "POST" });
   recording = undefined; recBadge.classList.remove("show");
-  const li = h("li", { "data-testid": `demo-recording-${rec.id}` }, "Gemmer optagelsen…");
+  const li = h("li", { "data-testid": `demo-recording-${rec.id}`, "data-pending": "" }, "Gemmer optagelsen…");
   recList.prepend(li);
   for (let i = 0; i < 60; i++) {
     await new Promise((r) => setTimeout(r, 3000));
     const s = await api(`/record/${rec.id}?room=${encodeURIComponent(rec.room)}`);
     const f = s.files?.[0];
     if (f?.name && f.size > 0) {
-      li.textContent = "";
-      li.append(h("a", { href: `/play?key=${encodeURIComponent(f.name)}`, target: "_blank", rel: "noopener noreferrer", "data-testid": `demo-play-${rec.id}` }, `Afspil (${Math.round(f.durationSec)} s, ${(f.size / 1e6).toFixed(1)} MB)`));
+      li.remove();
+      await loadRecordings();
       return;
     }
-    if (s.state === "failed") { li.textContent = `Optagelsen fejlede: ${s.error ?? "ukendt"}`; return; }
+    // F104.9.7 — a recording can END with an error and no file ("stopped" + error, e.g.
+    // «Start signal not received»). That used to fall through, so the line said
+    // «Gemmer optagelsen…» for 3 minutes about a file that would never come.
+    if (s.state === "failed" || ((s.state === "stopped" || s.state === "done") && s.error && !s.files?.length)) {
+      li.textContent = `Optagelsen blev ikke gemt: ${s.error || "ukendt fejl"}`;
+      li.className = "error";
+      return;
+    }
   }
   li.textContent = "Optagelsen blev ikke færdig inden for 3 minutter.";
 });
+
+// F104.9.7 — the list comes from the bucket, so it survives a reload and shows every
+// recording made in the demo, newest first.
+const fmtTime = (iso: string) => new Date(iso).toLocaleString("da-DK", { dateStyle: "short", timeStyle: "short" });
+async function loadRecordings() {
+  const { recordings } = (await api("/recordings")) as { recordings: { key: string; size: number; at: string }[] };
+  const pending = [...recList.querySelectorAll("li[data-pending]")];
+  recList.replaceChildren(...pending);
+  if (!recordings.length) { recList.append(h("li", { "data-testid": "demo-recordings-empty", class: "status" }, "Ingen optagelser endnu.")); return; }
+  for (const r of recordings) {
+    const li = h("li", { "data-testid": "demo-recording-item" });
+    li.append(h("a", { href: `/play?key=${encodeURIComponent(r.key)}`, target: "_blank", rel: "noopener noreferrer", "data-testid": "demo-play" }, `Afspil — ${fmtTime(r.at)} (${(r.size / 1e6).toFixed(1)} MB)`));
+    recList.append(li);
+  }
+}
+loadRecordings().catch((e) => { error.textContent = `Kunne ikke hente optagelser: ${(e as Error).message}`; });
