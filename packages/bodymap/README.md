@@ -254,6 +254,15 @@ region *in order to mark it*. Nobody had ever tested changing their mind. Nothin
 was behaving wrongly — it was a path with no exit, and paths with no exit do not
 fail, they strand people.
 
+### The open panel asks for what it wants (0.16.0)
+
+With a region open and nothing marked, both renderers show a question —
+«Hvor ondt gør det? Vælg et tal.» / «How much does it hurt? Pick a number.»
+(`bodymap-ask` / `bodymap3d-ask`). It disappears once an intensity is chosen.
+Without it, the missing «Remove» read as *the button is gone* rather than
+*nothing chosen yet* — the product's own owner reported it as a bug. Change the
+text with `labels={{ ask: "…" }}`; `ask: ""` hides it.
+
 ## Fullscreen — fill the viewport with the body
 
 ```tsx

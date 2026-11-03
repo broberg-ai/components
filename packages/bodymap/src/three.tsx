@@ -969,6 +969,8 @@ export function BodyMap3D(props: BodyMap3DProps) {
                   style={{ ...btn(chrome), width: TOUCH_MIN, height: TOUCH_MIN, minWidth: TOUCH_MIN, padding: 0, borderRadius: "50%", fontSize: 20, lineHeight: 1, color: chrome.mutedText, borderColor: chrome.border, background: chrome.panelBg }}
                 >×</button>
               </div>
+              {/* F052.28 — the panel asks for what it wants until an intensity is chosen. */}
+              {!current && L.ask && <div data-testid="bodymap3d-ask" aria-live="polite" style={{ fontSize: 15, fontWeight: 600, color: chrome.text, marginBottom: 10 }}>{L.ask}</div>}
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: chrome.mutedText, marginBottom: 7 }}>{L.intensity}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
                 {Array.from({ length: 11 }, (_, i) => (

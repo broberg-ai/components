@@ -530,3 +530,37 @@ describe("closing the picker without marking anything (F052.26)", () => {
     expect(close.getAttribute("aria-label")).toBe("Luk");
   });
 });
+
+// F052.28 — an open panel with nothing marked asks for what it wants, so the absent
+// «Fjern punkt» reads as "nothing chosen yet" instead of "the button is gone".
+describe("F052.28 — the panel asks until an intensity is chosen (2D)", () => {
+  it("asks while nothing is marked, and stops asking once an intensity is chosen", () => {
+    let last: PainReport | undefined;
+    render(<BodyMap onChange={(r) => (last = r)} />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.getByTestId("bodymap-ask").textContent).toBe("Hvor ondt gør det? Vælg et tal.");
+    // Opening a region and reading the prompt writes NOTHING to the record.
+    expect(last ?? [], "opening a region wrote to the report").toEqual([]);
+    expect(screen.queryByTestId("bodymap-remove"), "remove gating must not widen").toBeNull();
+    fireEvent.click(screen.getByTestId("bodymap-intensity-3"));
+    expect(screen.queryByTestId("bodymap-ask"), "prompt still shown after choosing").toBeNull();
+    expect(screen.getByTestId("bodymap-remove")).toBeTruthy();
+    expect(last?.map((p) => [p.region, p.intensity])).toEqual([["knee_right", 3]]);
+  });
+
+  it("is localised — English locale asks in English, never Danish", () => {
+    render(<BodyMap locale="en" />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.getByTestId("bodymap-ask").textContent).toBe("How much does it hurt? Pick a number.");
+  });
+
+  it("is overridable through the labels object, and an empty string hides it", () => {
+    const { unmount } = render(<BodyMap labels={{ ask: "Hvor meget?" }} />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.getByTestId("bodymap-ask").textContent).toBe("Hvor meget?");
+    unmount();
+    render(<BodyMap labels={{ ask: "" }} />);
+    fireEvent.click(screen.getByTestId("bodymap-region-knee_right"));
+    expect(screen.queryByTestId("bodymap-ask")).toBeNull();
+  });
+});

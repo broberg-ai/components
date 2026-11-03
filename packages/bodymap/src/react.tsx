@@ -149,6 +149,11 @@ export interface BodyMapLabels {
   intensity: string;
   quality: string;
   remove: string;
+  /** F052.28 — the open panel's question while nothing is marked yet, so the absent
+   *  «remove» reads as "nothing chosen" rather than "the button is gone". Hidden once
+   *  an intensity is chosen. Optional so a consumer's full label object still compiles;
+   *  "" hides it. */
+  ask?: string;
   /** Close the picker without marking anything (F052.26). */
   close: string;
   front: string;
@@ -187,6 +192,7 @@ export const LABELS_DA: BodyMapLabels = {
   intensity: "Intensitet (0-10)",
   quality: "Kvalitet",
   remove: "Fjern punkt",
+  ask: "Hvor ondt gør det? Vælg et tal.",
   close: "Luk",
   front: "Forfra",
   back: "Bagfra",
@@ -211,6 +217,7 @@ export const LABELS_EN: BodyMapLabels = {
   intensity: "Intensity (0-10)",
   quality: "Quality",
   remove: "Remove point",
+  ask: "How much does it hurt? Pick a number.",
   close: "Close",
   front: "Front",
   back: "Back",
@@ -338,6 +345,7 @@ const STYLE = `
 .bmap__close:active{transform:scale(.94)}
 .bmap__close:focus-visible{outline:2px solid var(--bmap-accent,#0c7d77);outline-offset:2px}
 .bmap__code{font:11px ui-monospace,monospace;color:var(--bmap-muted);background:var(--bmap-badge-bg);border-radius:6px;padding:2px 7px}
+.bmap__ask{font-size:15px;font-weight:600;color:var(--bmap-ink);margin:0 0 10px}
 .bmap__lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bmap-muted);margin:0 0 7px}
 .bmap__scale{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .bmap__i{font:inherit;font-size:14px;font-weight:600;width:38px;height:38px;border-radius:9px;border:1px solid var(--bmap-line);background:#fff;color:var(--bmap-ink);cursor:pointer;transition:border-color .1s,background .1s,transform .1s}
@@ -701,6 +709,7 @@ export function BodyMap({
               onClick={() => setSelected(null)}
             >×</button>
           </div>
+          {!current && L.ask && <p className="bmap__ask" data-testid="bodymap-ask" aria-live="polite">{L.ask}</p>}
           <p className="bmap__lbl" id="bmap-intensity-lbl">{L.intensity}</p>
           <div className="bmap__scale" role="group" aria-labelledby="bmap-intensity-lbl">
             {Array.from({ length: 11 }, (_, n) => (
