@@ -43,3 +43,13 @@ export type {
   FlyLogEntry,
   FlyLogPage,
 } from "./deploy/fly-machines.js";
+
+// F033.3 — deploy-event bus (lifted from cms).
+export { createDeployEventBus } from "./deploy/event-bus.js";
+export type {
+  DeployEvent,
+  DeployStatus,
+  DeployListener,
+  DeployEventBus,
+  DeployEventBusOptions,
+} from "./deploy/event-bus.js";

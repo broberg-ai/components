@@ -22,6 +22,8 @@ const FILES = {
   // F033.13 — the Fly client. Each mutation below restores a defect measured in
   // a consumer's own copy (cms, whop) or a trap measured in Fly's live API.
   "fly-machines": join(PKG, "src", "deploy", "fly-machines.ts"),
+  // F033.3 — the deploy-event bus lifted from cms.
+  "event-bus": join(PKG, "src", "deploy", "event-bus.ts"),
 };
 const FILE = FILES["fly-live"]; // default for a mutation that names no file
 
@@ -37,6 +39,30 @@ if (dirty) {
 }
 
 const MUTATIONS = [
+  {
+    // F033.3 — the channel key loses orgId: one org's subscriber hears another org's site.
+    name: "the bus key drops orgId",
+    file: "event-bus",
+    from: "const keyOf = (orgId: string, siteId: string) => `${orgId}:${siteId}`;",
+    to: "const keyOf = (_orgId: string, siteId: string) => siteId;",
+    expect: ["orgId and siteId are both part of the key — same siteId in another org is not heard"],
+  },
+  {
+    // F033.3 — push fires on every status: a user is buzzed for "queued" and "building".
+    name: "the push hook fires for non-terminal events",
+    file: "event-bus",
+    from: 'if (opts.dispatch && (event.status === "built" || event.status === "errored")) {',
+    to: "if (opts.dispatch) {",
+    expect: ["fires for built and errored, never for queued or building"],
+  },
+  {
+    // F033.3 — cms's original: a throwing listener is swallowed in an empty catch.
+    name: "a throwing listener is swallowed instead of reported",
+    file: "event-bus",
+    from: '          try { fn(event); } catch (err) { report(err, "listener", event); }',
+    to: "          try { fn(event); } catch { /* swallowed */ }",
+    expect: ["one throwing listener does not stop the others, and the error is REPORTED, not swallowed"],
+  },
   {
     // F033.20 — THE DEFECT, RESTORED: an old page's hashed asset is on disk in a
     // kept deploy and still answers 404, so an installed app goes white.

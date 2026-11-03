@@ -1,16 +1,34 @@
 # @broberg/deploy-core
 
-The broberg.ai fleet's shared deploy execution layer. It contains exactly two
-things:
+The broberg.ai fleet's shared deploy execution layer. It contains three things:
 
 | Part | What it does |
 |---|---|
 | **Fly Live** (`flyLiveDeploy`, `syncContent`, `diffManifests`, …) | HMAC-signed incremental content sync to a Fly app, plus the one-time infra build. |
 | **`FlyClient`** (since 0.4.0) | The Fly.io API: apps and machines over the Machines REST API, and the GraphQL calls the fleet uses. |
+| **`createDeployEventBus`** (since 0.10.0) | The in-process deploy-event bus: webhook receivers publish, SSE endpoints subscribe, per `orgId:siteId`. |
 
-It does **not** contain Cloudflare Pages, GitHub Pages or a deploy-event bus.
-Earlier versions of this package's description said it did; the code never had
-them (planned in F033.2 / F033.3).
+It does **not** contain Cloudflare Pages or GitHub Pages providers (planned in F033.2).
+
+## Deploy-event bus (0.10.0, F033.3)
+
+```ts
+import { createDeployEventBus } from "@broberg/deploy-core";
+
+const bus = createDeployEventBus({
+  dispatch: (e) => sendPush(e),          // optional: only for "built" / "errored"
+  onError: (err, where) => log.warn(where, err), // default console.warn
+});
+const off = bus.subscribe(orgId, siteId, (e) => sse.send(e));
+bus.publish({ type: "page-build", orgId, siteId, status: "built", url, ts: new Date().toISOString() });
+bus.listenerCount(orgId, siteId);
+```
+
+- **One bus per app**, from the factory — never a module-level Map, so two buses in one process never hear each other.
+- **No `originator` field.** F033.4 planned one for Upmetrics' relay and was closed 30/10: Upmetrics derives the sender from the project itself.
+- **Publishing to a site nobody listens to is a no-op.** The push hook still fires for a terminal event, because push reaches users who have no tab open.
+- **A throwing listener or a failed push is reported via `onError`**, never thrown at the webhook that published, and never swallowed silently (cms's original had an empty catch).
+- **Single process.** Several instances of one app would need Redis pub/sub; out of scope.
 
 ## Fly Live: a server fix reaches apps that already run (0.8.0, F033.18)
 
