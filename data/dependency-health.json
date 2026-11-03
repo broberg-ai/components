@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-02T15:50:09.635Z",
+ "checked_at": "2026-11-03T00:01:42.753Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -154,7 +154,7 @@
    "verdict": "OK"
   },
   "@broberg/bodymap": {
-   "version": "0.14.0",
+   "version": "0.15.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -191,7 +191,7 @@
    "verdict": "OK"
   },
   "@broberg/call": {
-   "version": "0.3.0",
+   "version": "0.3.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -228,7 +228,7 @@
    "verdict": "OK"
   },
   "@broberg/chat": {
-   "version": "0.8.0",
+   "version": "0.9.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -450,7 +450,7 @@
    "verdict": "OK"
   },
   "@broberg/deploy-core": {
-   "version": "0.8.2",
+   "version": "0.9.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -968,7 +968,7 @@
    "verdict": "OK"
   },
   "@broberg/mail": {
-   "version": "0.22.0",
+   "version": "0.25.0",
    "status": "ok",
    "prod": {
     "critical": 0,
