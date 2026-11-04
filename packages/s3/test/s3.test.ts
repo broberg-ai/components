@@ -13,7 +13,7 @@ function setup(opts: Partial<Parameters<typeof createS3Handler>[1]> = {}, user: 
   const s3 = fakeS3();
   const signer = createS3Signer({ accountId: "acct", bucket: "b", accessKeyId: "AKID", secretAccessKey: SECRET, fetch: s3.fetch });
   const handler = createS3Handler(signer, { authorize: () => (user ? { prefix: user } : null), ...opts });
-  const call = (body: unknown) => handler(new Request("http://site/api/s3", { method: "POST", body: JSON.stringify(body) }));
+  const call = (body: unknown) => handler(new Request("http://site/api/s3", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
   // The browser's fetch: endpoint → handler, anything else → the bucket.
   const browserFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const u = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -68,7 +68,7 @@ describe("handler — security", () => {
   });
   it("not configured → 503", async () => {
     const h = createS3Handler(null, { authorize: () => ({ prefix: "u" }) });
-    const r = await h(new Request("http://site/api/s3", { method: "POST", body: "{}" }));
+    const r = await h(new Request("http://site/api/s3", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }));
     expect(r.status).toBe(503);
     expect((await r.json()).error.code).toBe("not_configured");
   });
@@ -103,6 +103,13 @@ describe("handler — security", () => {
     expect(r.status).toBe(413);
     expect(s3.objects.size).toBe(0);
     expect(s3.uploads.size).toBe(0);
+  });
+  it("a cross-site form post (text/plain) is refused before anything happens", async () => {
+    const { handler, s3 } = setup();
+    const r = await handler(new Request("http://site/api/s3", { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ action: "start", filename: "a.mp4", size: 10, type: "video/mp4" }) }));
+    expect(r.status).toBe(415);
+    expect((await r.json()).error.code).toBe("json_required");
+    expect(s3.requests).toEqual([]);
   });
   it("no response body or header ever contains the secret access key", async () => {
     const { call } = setup();

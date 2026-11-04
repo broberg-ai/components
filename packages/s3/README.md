@@ -61,6 +61,7 @@ Preact: `import { useUpload } from "@broberg/s3/preact"` → `{ status, progress
 | Key outside the user's `prefix/` (incl. `..`, `%2e`, `//`) → | **403**, every action, upload and download |
 | Larger than `maxBytes` → | **413** at start; and at complete the real size is read from the bucket — a lie is discarded |
 | Type not in `allowedTypes` → | **415** |
+| Not `content-type: application/json` (a cross-site form post) → | **415**, nothing happens |
 | Not configured → | **503** |
 | Signed URL lifetime | ≤ **15 min**, one object (and one part) |
 | The secret key | never in any response (tested) |

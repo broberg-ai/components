@@ -90,6 +90,10 @@ export function createS3Handler(signer: S3Signer | null, opts: S3HandlerOptions)
       if (!who) throw new HttpError(401, "unauthorized", "sign in first");
       const prefix = checkPrefix(who.prefix);
 
+      // JSON only: a cross-site <form> can POST text/plain with the user's cookies,
+      // but cannot set application/json without a CORS preflight this route never grants.
+      if (!(req.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json"))
+        throw new HttpError(415, "json_required", "content-type must be application/json");
       let body: Record<string, unknown>;
       try { body = (await req.json()) as Record<string, unknown>; } catch { throw new HttpError(400, "bad_json", "body must be JSON"); }
       if (!body || typeof body !== "object") throw new HttpError(400, "bad_json", "body must be a JSON object");
