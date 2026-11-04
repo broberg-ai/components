@@ -5,14 +5,29 @@
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
-    "./client": { "types": "./dist/client.d.ts", "import": "./dist/client.js", "require": "./dist/client.cjs" },
-    "./preact": { "types": "./dist/preact.d.ts", "import": "./dist/preact.js", "require": "./dist/preact.cjs" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "require": "./dist/client.cjs"
+    },
+    "./preact": {
+      "types": "./dist/preact.d.ts",
+      "import": "./dist/preact.js",
+      "require": "./dist/preact.cjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -27,16 +42,39 @@
     "preact": ">=10"
   },
   "peerDependenciesMeta": {
-    "preact": { "optional": true }
+    "preact": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "happy-dom": "^15.0.0",
     "preact": "^10.24.0",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
-  "keywords": ["s3", "r2", "cloudflare", "tigris", "upload", "download", "multipart", "presigned", "large files", "resumable", "store filer", "upload af video", "broberg"],
-  "repository": { "type": "git", "url": "https://github.com/broberg-ai/components", "directory": "packages/s3" },
-  "publishConfig": { "access": "public" }
+  "keywords": [
+    "s3",
+    "r2",
+    "cloudflare",
+    "tigris",
+    "upload",
+    "download",
+    "multipart",
+    "presigned",
+    "large files",
+    "resumable",
+    "store filer",
+    "upload af video",
+    "broberg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/broberg-ai/components",
+    "directory": "packages/s3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

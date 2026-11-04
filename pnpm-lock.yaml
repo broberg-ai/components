@@ -1019,6 +1019,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.3
+      happy-dom:
+        specifier: ^15.0.0
+        version: 15.11.7
       preact:
         specifier: ^10.24.0
         version: 10.29.2
