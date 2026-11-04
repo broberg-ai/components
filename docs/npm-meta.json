@@ -91,8 +91,8 @@
  },
  "@broberg/secret-scan": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/secret-scan",
-  "version": "0.15.0",
-  "publishedAt": "2026-10-31T17:13:02.377Z",
+  "version": "0.16.1",
+  "publishedAt": "2026-11-04T11:58:52.976Z",
   "provenance": "yes"
  },
  "@broberg/lens": {
