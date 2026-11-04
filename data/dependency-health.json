@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-04T11:51:39.892Z",
+ "checked_at": "2026-11-04T12:07:59.845Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -841,8 +841,8 @@
     "low": 0
    },
    "outdated": {
-    "total": 3,
-    "shipped": 0,
+    "total": 4,
+    "shipped": 1,
     "deprecated": 0
    },
    "osv": {
@@ -1470,7 +1470,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 5,
+    "total": 6,
     "shipped": 0,
     "deprecated": 0
    },
@@ -1988,8 +1988,8 @@
     "low": 0
    },
    "outdated": {
-    "total": 10,
-    "shipped": 0,
+    "total": 11,
+    "shipped": 1,
     "deprecated": 0
    },
    "osv": {
