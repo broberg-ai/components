@@ -164,7 +164,8 @@
         "@broberg/stripe",
         "@broberg/webpush",
         "@broberg/backup",
-        "@broberg/legal"
+        "@broberg/legal",
+        "@broberg/s3"
       ],
       "min_tests": {
         "@broberg/bodymap": 67,
@@ -179,7 +180,8 @@
         "@broberg/stripe": 38,
         "@broberg/webpush": 38,
         "@broberg/backup": 7,
-        "@broberg/legal": 7
+        "@broberg/legal": 7,
+        "@broberg/s3": 8
       }
     }
   ]

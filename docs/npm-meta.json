@@ -23,6 +23,12 @@
   "publishedAt": "2026-11-03T15:16:05.063Z",
   "provenance": "yes"
  },
+ "@broberg/s3": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/s3",
+  "version": "0.1.0",
+  "publishedAt": "2026-11-04T11:56:03.290Z",
+  "provenance": "no"
+ },
  "@broberg/backup": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/backup",
   "version": "0.1.0",
