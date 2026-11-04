@@ -20,6 +20,77 @@
   regex = '''https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/[0-9]{17,20}/[A-Za-z0-9_-]{60,70}'''
   keywords = ["discord"]
 
+# ── The fleet's own key formats (F090.6) ──────────────────────────────────
+# Mirrors @broberg/secret-scan, so the two layers of cardmem's fleet git gate
+# (F036.23) catch the same keys — a gap in one must not be a gap in the gate.
+# gitleaks is Go RE2: no lookarounds, so the "mixed letters + digits" guard
+# secret-scan uses becomes `entropy` + a per-rule allowlist on the secret.
+
+[[rules]]
+  id = "fleet-trail-key"
+  description = "Trail API key (trail_)"
+  regex = '''\btrail_[A-Za-z0-9]{20,}'''
+  keywords = ["trail_"]
+
+[[rules]]
+  id = "fleet-cardmem-key"
+  description = "cardmem key (pa_ / pi_ / pk_)"
+  regex = '''\bp[aik]_[A-Za-z0-9]{20,}'''
+  keywords = ["pa_", "pi_", "pk_"]
+
+[[rules]]
+  id = "fleet-piw-key"
+  description = "piw_ key (64 hex)"
+  regex = '''\bpiw_[0-9a-f]{64}'''
+  keywords = ["piw_"]
+
+[[rules]]
+  id = "fleet-upmetrics-key"
+  description = "Upmetrics project key (uk_ + 32-64 alphanumerics)"
+  regex = '''\buk_[A-Za-z0-9]{32,64}'''
+  keywords = ["uk_"]
+
+[[rules]]
+  id = "fleet-cloudflare-user-token"
+  description = "Cloudflare user API token (cfut_)"
+  regex = '''\bcfut_[A-Za-z0-9_-]{41,64}'''
+  keywords = ["cfut_"]
+
+[[rules]]
+  id = "fleet-fly-token"
+  description = "Fly.io token (FlyV1 fm2_ / fo1_)"
+  regex = '''(?:FlyV1 fm2_[A-Za-z0-9+/=_-]{20,}|\bfo1_[A-Za-z0-9_-]{20,})'''
+  keywords = ["fm2_", "fo1_"]
+
+[[rules]]
+  id = "fleet-apikey-prefixed"
+  description = "@broberg/apikey key (<prefix>_ + 64 hex)"
+  regex = '''(?:^|[^A-Za-z0-9_])([a-z][a-z0-9]{1,15}_[0-9a-f]{64})(?:[^A-Za-z0-9_]|$)'''
+  secretGroup = 1
+
+[[rules]]
+  id = "fleet-bearer-token"
+  description = "Bearer value with no known prefix (high entropy)"
+  regex = '''\bBearer\s+([A-Za-z0-9._~+/-]{24,}={0,2})'''
+  secretGroup = 1
+  entropy = 3.5
+  keywords = ["bearer"]
+  [[rules.allowlists]]
+    # no digit = a word, not a token; all digits = an id
+    regexTarget = "secret"
+    regexes = ['''^[A-Za-z._~+/=-]+$''', '''^[0-9._~+/=-]+$''']
+
+[[rules]]
+  id = "fleet-labeled-token-param"
+  description = "token= / key= / secret= value with no known prefix (high entropy)"
+  regex = '''(?:^|[^A-Za-z0-9_])(?:access_token|api_key|apikey|token|key|secret|ACCESS_TOKEN|API_KEY|APIKEY|TOKEN|KEY|SECRET)=([A-Za-z0-9._~+/-]{24,}={0,2})'''
+  secretGroup = 1
+  entropy = 3.5
+  keywords = ["token=", "key=", "secret="]
+  [[rules.allowlists]]
+    regexTarget = "secret"
+    regexes = ['''^[A-Za-z._~+/=-]+$''', '''^[0-9._~+/=-]+$''']
+
 # NO allowlist of test files, deliberately. A real key pasted into a test file
 # is still a leak, and "it's only a test" is where fixtures and real keys mix.
 # A known false positive is accepted per repo by its fingerprint in that repo's

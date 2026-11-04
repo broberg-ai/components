@@ -314,6 +314,22 @@ const MUTATIONS = [
   for (const m of text.matchAll(CPR)) {`,
     survives: true,
   },
+  // F090.6 — the fleet git gate's gaps, each one restored.
+  {
+    name: 'uk_ shrinks back to the one 48-hex generator (cardmem\'s 40-mixed slips through)',
+    from: String.raw`regex: /\buk_[A-Za-z0-9]{32,64}(?![A-Za-z0-9])/g,`,
+    to: String.raw`regex: /\buk_[0-9a-f]{48}(?![A-Za-z0-9])/g,`,
+  },
+  {
+    name: 'Bearer no longer demands a digit (a long word after Bearer is redacted)',
+    from: String.raw`/\bBearer\s+(?=[A-Za-z0-9._~+\/-]*\d)`,
+    to: String.raw`/\bBearer\s+`,
+  },
+  {
+    name: 'token=/key= loses its left boundary (monkey= reads as key=)',
+    from: String.raw`/(?<![A-Za-z0-9_])(?:access_token|api_key`,
+    to: String.raw`/(?:access_token|api_key`,
+  },
 ];
 
 function redSet() {

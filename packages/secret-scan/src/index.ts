@@ -300,10 +300,14 @@ const PATTERNS: SecretPattern[] = [
     regex: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
   },
   {
-    // genApiKey = randomBytes(24).hex → uk_ + exactly 48 lowercase hex.
+    // genApiKey = randomBytes(24).hex → uk_ + 48 lowercase hex (components' real key,
+    // measured 4/11 2026). F090.6: widened to 32–64 alphanumerics — cardmem's fleet
+    // git gate (F036.23) planted uk_ + 40 mixed and it slipped through; a uk_ prefix
+    // with a tail that long has next to no false positives, and a key from another
+    // generator must not pass the gate because its alphabet differs.
     label: 'upmetrics-key',
-    description: 'Upmetrics project key (uk_ + 48 hex)',
-    regex: /\buk_[0-9a-f]{48}/g,
+    description: 'Upmetrics project key (uk_ + 32–64 alphanumerics; real keys are 48 hex)',
+    regex: /\buk_[A-Za-z0-9]{32,64}(?![A-Za-z0-9])/g,
   },
   {
     label: 'cardmem-key',
@@ -561,6 +565,25 @@ const PATTERNS: SecretPattern[] = [
     label: 'labeled-hex-secret',
     description: 'A 40+ hex value assigned to a secret/token/password/api-key-named field',
     regex: /\b[A-Za-z0-9_-]*(?:secret|token|password|api[_-]?key)\b\s*[:=]\s*["'`]?[0-9a-f]{40,}/gi,
+  },
+  {
+    // F090.6 — a bearer token with no known prefix (cardmem's git gate, F036.23).
+    // CONTEXT, not randomness: the word «Bearer» is the signal, like the field name
+    // is for labeled-hex-secret. The value must look like a secret, not a word or a
+    // placeholder: 24+ token chars, a digit AND a letter, and either an uppercase
+    // letter or four digits. «Bearer <token>», «Bearer ${TOKEN}» and «Bearer abc» are
+    // left alone. A JWT after Bearer is caught earlier by its own pattern.
+    label: 'bearer-token',
+    description: 'A high-entropy value after «Bearer » (no known prefix)',
+    regex: /\bBearer\s+(?=[A-Za-z0-9._~+\/-]*\d)(?=[A-Za-z0-9._~+\/-]*[A-Za-z])(?=[A-Za-z0-9._~+\/-]*[A-Z]|(?:[A-Za-z0-9._~+\/-]*\d){4})[A-Za-z0-9._~+\/-]{24,}={0,2}(?![A-Za-z0-9._~+\/-])/g,
+  },
+  {
+    // F090.6 — the same shape assigned to token=/key=/secret= (a URL query or an
+    // env line) with no known prefix. Case-sensitive on purpose: /i would make the
+    // [A-Z] requirement match lowercase and let identifiers through.
+    label: 'labeled-token-param',
+    description: 'A high-entropy value in token=/key=/secret=/api_key=/access_token=',
+    regex: /(?<![A-Za-z0-9_])(?:access_token|api_key|apikey|token|key|secret|ACCESS_TOKEN|API_KEY|APIKEY|TOKEN|KEY|SECRET)=(?=[A-Za-z0-9._~+\/-]*\d)(?=[A-Za-z0-9._~+\/-]*[A-Za-z])(?=[A-Za-z0-9._~+\/-]*[A-Z]|(?:[A-Za-z0-9._~+\/-]*\d){4})[A-Za-z0-9._~+\/-]{24,}={0,2}(?![A-Za-z0-9._~+\/-])/g,
   },
   {
     // Discord bot token — three base64url segments. Anchored both sides so it

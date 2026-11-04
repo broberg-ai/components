@@ -36,6 +36,25 @@ const { redacted, findings } = redactSecrets("the key is sk-ant-api03-… use it
 hasSecret("nothing here"); // false
 ```
 
+## CLI — `secret-scan --stdin` (v0.16.0)
+
+For a git hook or a CI step, without embedding a script:
+
+```bash
+git diff --cached | npx secret-scan --stdin
+```
+
+Prints `<label> line <n>` for each finding — **never the value** — and exits
+**1** on a finding, **0** when nothing was found, **2** when it could not scan.
+A secret spanning lines (a PEM key) is reported as `(spans several lines)`.
+Same pattern set and defaults as `redactSecrets(text)` (format axis only).
+
+v0.16.0 also adds `bearer-token` and `labeled-token-param` (`token=`, `key=`,
+`secret=` …): a value of 24+ characters mixing letters and digits, so
+`Bearer <token>`, `${TOKEN}` and plain words are left alone; and `upmetrics-key`
+now takes 32–64 alphanumerics after `uk_`. The fleet gitleaks config
+(`secret-gate/gitleaks.toml`) carries the same fleet formats (F090.6).
+
 `redactSecrets` is **pure + deterministic**: clean input returns byte-identical
 with `findings: []`. It replaces every detected secret with `[REDACTED:<label>]`
 and never blocks the write — the surrounding knowledge survives.

@@ -20,12 +20,15 @@ gate that nothing depends on stops nothing.
 
 ## What it does
 
-1. **Self-test first.** It plants a fake GitHub token, Discord webhook and Slack
-   webhook (generated on the fly, never committed) and fails unless all three are
-   found. A config that silently runs with zero rules, which is how a Discord
+1. **Self-test first.** It plants a fake GitHub token, Discord and Slack webhook
+   and one fake per fleet key format (generated on the fly, never committed) and
+   fails unless every one is found. A config that silently runs with zero rules, which is how a Discord
    webhook stayed in a public cms repo for six months, can no longer report clean.
 2. **Scans every commit** with `gitleaks.toml` here: gitleaks' built-in rules
-   (`useDefault = true`) plus Discord webhooks, which the built-ins miss.
+   (`useDefault = true`) plus Discord webhooks, which the built-ins miss, and the
+   fleet's own formats (F090.6): `trail_`, `pa_`/`pi_`/`pk_`, `piw_`, `uk_`,
+   `cfut_`, Fly `fm2_`/`fo1_`, `<prefix>_<64 hex>` apikeys, and high-entropy
+   `Bearer` / `token=` / `key=` / `secret=` values.
 3. Prints file, line, commit and rule for each finding, **never the value**
    (`--redact`), and keeps the report as a run artifact.
 
