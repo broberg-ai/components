@@ -53,6 +53,30 @@ await cancelUpload(file, { endpoint: "/api/s3" }); // discard an interrupted upl
 Preact: `import { useUpload } from "@broberg/s3/preact"` → `{ status, progress, error, result, start, pause, cancel }`.
 **There is no visual component** — the site owns its design (and its `data-testid`s).
 
+## What has arrived, and what is still under way (v0.2.0)
+
+```ts
+// Server, any prefix (e.g. an admin page showing every sender):
+await signer.listObjects({ prefix: "uploads/", includeMetadata: true });
+// → [{ key, size, lastModified, metadata: { uploadedby, "total-bytes", "original-filename" } }]
+await signer.listUploads({ prefix: "uploads/" });
+// → [{ key, uploadId, initiated, sentBytes, totalBytes, filename, metadata: { uploadedBy } }]  → «4,9 af 8,0 GB»
+
+// Browser, always locked to the caller's own prefix:
+import { listFiles, listUploads } from "@broberg/s3/client";
+await listFiles({ endpoint: "/api/s3", metadata: true });
+await listUploads({ endpoint: "/api/s3" });
+```
+
+Who sent it comes from **your** `authorize()`: return `{ prefix, metadata: { uploadedBy: user.email } }` — set
+on the server from the session, never taken from the browser. It is stored as `x-amz-meta-*` on the finished
+object (S3 lower-cases those keys: `uploadedby`) and in a small marker under `<folder>/.s3-pending/` while the
+upload runs, because S3 cannot report metadata for an unfinished upload. The marker is deleted on complete and
+abort and never appears in `listObjects`.
+
+**Match an in-progress upload by `key`, not `uploadId`:** R2 lists a *different* (equally valid) uploadId than
+the one start returned — measured live.
+
 ## Security — what is enforced
 
 | | |

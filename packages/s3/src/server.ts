@@ -22,6 +22,37 @@ export interface S3Config {
 
 export interface UploadedPart { partNumber: number; etag: string; size?: number }
 
+/** A stored object. `metadata` only when asked for (one HEAD per object). */
+export interface StoredObject { key: string; size: number; lastModified: string; metadata?: Record<string, string> }
+
+/** A multipart upload that has not been completed or aborted yet. */
+export interface PendingUpload {
+  key: string;
+  uploadId: string;
+  initiated: string;
+  /** Bytes the bucket already holds for it (sum of its parts). */
+  sentBytes: number;
+  /** From the marker written at start; absent for uploads started without @broberg/s3's handler. */
+  totalBytes?: number;
+  filename?: string;
+  metadata?: Record<string, string>;
+  /** The marker existed but was not valid JSON. */
+  markerUnreadable?: boolean;
+}
+
+export interface ObjectInfo { size: number; lastModified: string; contentType: string | null; metadata: Record<string, string> }
+
+/** Hidden folder that holds one small JSON marker per upload in progress. Never listed by listObjects. */
+export const PENDING_DIR = ".s3-pending";
+// Keyed by the OBJECT key, never the uploadId: R2 hands out a different uploadId
+// string in ListMultipartUploads than at CreateMultipartUpload (both valid, not
+// comparable — measured live 4/11 2026), so an id-keyed marker is never found again.
+export const markerKeyFor = (key: string) => {
+  const i = key.lastIndexOf("/");
+  return `${key.slice(0, i + 1)}${PENDING_DIR}/${encodeURIComponent(key.slice(i + 1))}.json`;
+};
+const isMarker = (key: string) => key.split("/").includes(PENDING_DIR);
+
 export const MIN_PART_SIZE = 8 * 1024 * 1024;
 export const DEFAULT_PART_SIZE = 16 * 1024 * 1024;
 export const MAX_PARTS = 10_000;
@@ -42,7 +73,7 @@ const xmlUnescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&lt;/g, "<
 
 export interface S3Signer {
   /** Begin a multipart upload. */
-  start(input: { key: string; contentType?: string }): Promise<{ uploadId: string }>;
+  start(input: { key: string; contentType?: string; metadata?: Record<string, string> }): Promise<{ uploadId: string }>;
   /** A presigned PUT for one part of one upload. */
   signPart(input: { key: string; uploadId: string; partNumber: number; expiresIn?: number }): Promise<string>;
   /** Parts the bucket already holds for this upload (the truth a resume starts from). */
@@ -53,7 +84,39 @@ export interface S3Signer {
   signDownload(input: { key: string; expiresIn?: number; filename?: string }): Promise<string>;
   /** Size of a stored object, or null when it does not exist. */
   head(key: string): Promise<number | null>;
+  /** Size, date, type and x-amz-meta of a stored object, or null. */
+  headObject(key: string): Promise<ObjectInfo | null>;
+  /** Every object under `prefix` (all pages). Upload markers are left out. */
+  listObjects(input: { prefix: string; includeMetadata?: boolean }): Promise<StoredObject[]>;
+  /** Every unfinished upload under `prefix`, with how far it has got. */
+  listUploads(input: { prefix: string }): Promise<PendingUpload[]>;
+  /** Small server-side write (markers, manifests). Not for user files — those go browser → bucket. */
+  putObject(input: { key: string; body: string; contentType?: string }): Promise<void>;
+  /** Read a small object as text, or null when it does not exist. */
+  getText(key: string): Promise<string | null>;
+  deleteObject(key: string): Promise<void>;
 }
+
+/** x-amz-meta values must be header-safe: keys lower-case [a-z0-9-], values URI-encoded, ≤ 2 KB in all. */
+export function metaHeaders(meta?: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  let total = 0;
+  for (const [k, v] of Object.entries(meta ?? {})) {
+    const key = k.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    if (!key) continue;
+    const val = encodeURIComponent(String(v));
+    total += key.length + val.length;
+    if (total > 2000) throw new S3Error("@broberg/s3: metadata is larger than 2 KB", 400);
+    out[`x-amz-meta-${key}`] = val;
+  }
+  return out;
+}
+
+const readMeta = (h: Headers): Record<string, string> => {
+  const m: Record<string, string> = {};
+  h.forEach((v, k) => { if (k.startsWith("x-amz-meta-")) { try { m[k.slice(11)] = decodeURIComponent(v); } catch { m[k.slice(11)] = v; } } });
+  return m;
+};
 
 export class S3Error extends Error {
   constructor(message: string, readonly status: number, readonly s3Code?: string) {
@@ -101,11 +164,11 @@ export function createS3Signer(cfg: S3Config): S3Signer {
     return signed.url;
   }
 
-  return {
-    async start({ key, contentType }) {
+  const api: S3Signer = {
+    async start({ key, contentType, metadata }) {
       const url = objectUrl(key);
       url.searchParams.set("uploads", "");
-      const xml = await call("POST", url, undefined, contentType ? { "content-type": contentType } : undefined);
+      const xml = await call("POST", url, undefined, { ...(contentType ? { "content-type": contentType } : {}), ...metaHeaders(metadata) });
       const uploadId = xmlText(xml, "UploadId");
       if (!uploadId) throw new S3Error("@broberg/s3: CreateMultipartUpload returned no UploadId", 502);
       return { uploadId: xmlUnescape(uploadId) };
@@ -169,7 +232,96 @@ export function createS3Signer(cfg: S3Config): S3Signer {
       if (!res.ok) throw new S3Error(`@broberg/s3: HEAD → ${res.status}`, res.status);
       return Number(res.headers.get("content-length"));
     },
+    async headObject(key) {
+      const signed = await aws.sign(objectUrl(key).toString(), { method: "HEAD" });
+      const res = await doFetch(signed);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new S3Error(`@broberg/s3: HEAD → ${res.status}`, res.status);
+      return {
+        size: Number(res.headers.get("content-length")),
+        lastModified: new Date(res.headers.get("last-modified") ?? 0).toISOString(),
+        contentType: res.headers.get("content-type"),
+        metadata: readMeta(res.headers),
+      };
+    },
+    async listObjects({ prefix, includeMetadata }) {
+      const out: StoredObject[] = [];
+      let token: string | undefined;
+      for (;;) {
+        const url = new URL(`${origin}/${encodeURIComponent(cfg.bucket)}`);
+        url.searchParams.set("list-type", "2");
+        url.searchParams.set("prefix", prefix);
+        if (token) url.searchParams.set("continuation-token", token);
+        const xml = await call("GET", url);
+        for (const m of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+          const key = xmlUnescape(xmlText(m[1]!, "Key") ?? "");
+          if (!key || isMarker(key)) continue;
+          out.push({ key, size: Number(xmlText(m[1]!, "Size")), lastModified: new Date(xmlText(m[1]!, "LastModified") ?? 0).toISOString() });
+        }
+        if (xmlText(xml, "IsTruncated") !== "true") break;
+        token = xmlText(xml, "NextContinuationToken");
+        if (!token) break;
+        token = xmlUnescape(token);
+      }
+      if (includeMetadata) for (const o of out) o.metadata = (await api.headObject(o.key))?.metadata ?? {};
+      return out;
+    },
+    async listUploads({ prefix }) {
+      const found: Array<{ key: string; uploadId: string; initiated: string }> = [];
+      let keyMarker: string | undefined, idMarker: string | undefined;
+      for (;;) {
+        const url = new URL(`${origin}/${encodeURIComponent(cfg.bucket)}`);
+        url.searchParams.set("uploads", "");
+        url.searchParams.set("prefix", prefix);
+        if (keyMarker) url.searchParams.set("key-marker", keyMarker);
+        if (idMarker) url.searchParams.set("upload-id-marker", idMarker);
+        const xml = await call("GET", url);
+        for (const m of xml.matchAll(/<Upload>([\s\S]*?)<\/Upload>/g)) {
+          found.push({
+            key: xmlUnescape(xmlText(m[1]!, "Key") ?? ""),
+            uploadId: xmlUnescape(xmlText(m[1]!, "UploadId") ?? ""),
+            initiated: new Date(xmlText(m[1]!, "Initiated") ?? 0).toISOString(),
+          });
+        }
+        if (xmlText(xml, "IsTruncated") !== "true") break;
+        keyMarker = xmlText(xml, "NextKeyMarker");
+        idMarker = xmlText(xml, "NextUploadIdMarker");
+        if (!keyMarker) break;
+        keyMarker = xmlUnescape(keyMarker); idMarker = idMarker && xmlUnescape(idMarker);
+      }
+      const out: PendingUpload[] = [];
+      for (const u of found) {
+        if (isMarker(u.key)) continue;
+        const parts = await api.listParts(u);
+        const p: PendingUpload = { ...u, sentBytes: parts.reduce((s, x) => s + (x.size ?? 0), 0) };
+        const marker = await api.getText(markerKeyFor(u.key));
+        if (marker) {
+          try {
+            const m = JSON.parse(marker) as { totalBytes?: number; filename?: string; metadata?: Record<string, string> };
+            p.totalBytes = m.totalBytes; p.filename = m.filename; p.metadata = m.metadata;
+          } catch {
+            p.markerUnreadable = true; // the upload itself is still listed; only its display fields are lost
+          }
+        }
+        out.push(p);
+      }
+      return out;
+    },
+    async putObject({ key, body, contentType }) {
+      await call("PUT", objectUrl(key), body, { "content-type": contentType ?? "application/octet-stream" });
+    },
+    async getText(key) {
+      const signed = await aws.sign(objectUrl(key).toString(), { method: "GET" });
+      const res = await doFetch(signed);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new S3Error(`@broberg/s3: GET → ${res.status}`, res.status);
+      return res.text();
+    },
+    async deleteObject(key) {
+      await call("DELETE", objectUrl(key));
+    },
   };
+  return api;
 }
 
 type Env = Record<string, string | undefined>;

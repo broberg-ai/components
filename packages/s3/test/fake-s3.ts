@@ -1,16 +1,19 @@
 // An in-memory S3 that speaks just enough of the protocol: multipart + GET + HEAD.
 // It checks what a real bucket checks that matters here: the signature is present,
 // a presigned URL does not outlive MAX_EXPIRES, and parts are completed in order.
-export interface FakeS3 { fetch: typeof fetch; objects: Map<string, Uint8Array>; uploads: Map<string, { key: string; parts: Map<number, Uint8Array> }>; requests: string[]; failNextPut: number }
+export interface FakeS3 { fetch: typeof fetch; objects: Map<string, Uint8Array>; meta: Map<string, { headers: Record<string, string>; type: string; at: string }>; uploads: Map<string, { key: string; parts: Map<number, Uint8Array>; headers: Record<string, string>; type: string; at: string }>; requests: string[]; failNextPut: number; pageSize: number }
 
 export function fakeS3(origin = "https://acct.eu.r2.cloudflarestorage.com"): FakeS3 {
   const objects = new Map<string, Uint8Array>();
-  const uploads = new Map<string, { key: string; parts: Map<number, Uint8Array> }>();
+  const uploads = new Map<string, { key: string; parts: Map<number, Uint8Array>; headers: Record<string, string>; type: string; at: string }>();
+  const meta = new Map<string, { headers: Record<string, string>; type: string; at: string }>();
+  const amz = (h: Headers) => { const o: Record<string, string> = {}; h.forEach((v, k) => { if (k.startsWith("x-amz-meta-")) o[k] = v; }); return o; };
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const requests: string[] = [];
   let n = 0;
   const etagOf = (b: Uint8Array) => `"etag-${b.length}-${b[0] ?? 0}-${b[b.length - 1] ?? 0}"`;
   const s3: FakeS3 = {
-    objects, uploads, requests, failNextPut: 0,
+    objects, meta, uploads, requests, failNextPut: 0, pageSize: 1000,
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       const req = input instanceof Request ? input : new Request(input, init);
       const url = new URL(req.url);
@@ -21,11 +24,31 @@ export function fakeS3(origin = "https://acct.eu.r2.cloudflarestorage.com"): Fak
       if (presigned && Number(url.searchParams.get("X-Amz-Expires")) > 900) return new Response("<Error><Code>TooLong</Code></Error>", { status: 400 });
       const key = decodeURIComponent(url.pathname.split("/").slice(2).join("/"));
       const q = url.searchParams;
+      if (key === "" && req.method === "GET" && q.get("list-type") === "2") {
+        const pre = q.get("prefix") ?? "";
+        const all = [...objects.keys()].filter((k) => k.startsWith(pre)).sort();
+        const start = Number(q.get("continuation-token") ?? 0);
+        const page = all.slice(start, start + s3.pageSize);
+        const more = start + s3.pageSize < all.length;
+        return new Response(`<ListBucketResult><IsTruncated>${more}</IsTruncated>${more ? `<NextContinuationToken>${start + s3.pageSize}</NextContinuationToken>` : ""}${page.map((k) => `<Contents><Key>${esc(k)}</Key><Size>${objects.get(k)!.length}</Size><LastModified>${meta.get(k)?.at ?? new Date(0).toISOString()}</LastModified></Contents>`).join("")}</ListBucketResult>`);
+      }
+      if (key === "" && req.method === "GET" && q.has("uploads")) {
+        const pre = q.get("prefix") ?? "";
+        const all = [...uploads].filter(([, u]) => u.key.startsWith(pre)).sort((a, b) => (a[1].key + a[0]).localeCompare(b[1].key + b[0]));
+        const km = q.get("key-marker"), im = q.get("upload-id-marker");
+        const start = km ? all.findIndex(([id, u]) => u.key === km && `listed-${id}` === im) + 1 : 0;
+        const page = all.slice(start, start + s3.pageSize);
+        const more = start + s3.pageSize < all.length;
+        const last = page.at(-1);
+        return new Response(`<ListMultipartUploadsResult><IsTruncated>${more}</IsTruncated>${more && last ? `<NextKeyMarker>${esc(last[1].key)}</NextKeyMarker><NextUploadIdMarker>listed-${last[0]}</NextUploadIdMarker>` : ""}${page.map(([id, u]) => `<Upload><Key>${esc(u.key)}</Key><UploadId>listed-${id}</UploadId><Initiated>${u.at}</Initiated></Upload>`).join("")}</ListMultipartUploadsResult>`);
+      }
       if (req.method === "POST" && q.has("uploads")) {
-        const id = `up${++n}`; uploads.set(id, { key, parts: new Map() });
+        const id = `up${++n}`; uploads.set(id, { key, parts: new Map(), headers: amz(req.headers), type: req.headers.get("content-type") ?? "", at: new Date().toISOString() });
         return new Response(`<InitiateMultipartUploadResult><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`);
       }
-      const up = q.get("uploadId") ? uploads.get(q.get("uploadId")!) : undefined;
+      // Like R2: an uploadId from a LISTING differs from the one CreateMultipartUpload gave, and both work.
+      const upId = q.get("uploadId")?.replace(/^listed-/, "");
+      const up = upId ? uploads.get(upId) : undefined;
       if (q.get("uploadId") && (!up || up.key !== key)) return new Response("<Error><Code>NoSuchUpload</Code></Error>", { status: 404 });
       if (req.method === "PUT" && up) {
         if (s3.failNextPut > 0) { s3.failNextPut--; return new Response("boom", { status: 500 }); }
@@ -44,14 +67,21 @@ export function fakeS3(origin = "https://acct.eu.r2.cloudflarestorage.com"): Fak
         const chunks: Uint8Array[] = [];
         for (const [pn, etag] of listed) { const b = up.parts.get(pn); if (!b || etagOf(b) !== etag) return new Response("<Error><Code>InvalidPart</Code></Error>"); chunks.push(b); }
         const all = new Uint8Array(chunks.reduce((s, c) => s + c.length, 0)); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
-        objects.set(key, all); uploads.delete(q.get("uploadId")!);
+        objects.set(key, all); meta.set(key, { headers: up.headers, type: up.type, at: new Date().toISOString() }); uploads.delete(upId!);
         return new Response("<CompleteMultipartUploadResult/>");
       }
-      if (req.method === "DELETE" && up) { uploads.delete(q.get("uploadId")!); return new Response(null, { status: 204 }); }
+      if (req.method === "DELETE" && up) { uploads.delete(upId!); return new Response(null, { status: 204 }); }
+      if (req.method === "PUT" && !q.has("uploadId")) {
+        objects.set(key, new Uint8Array(await req.arrayBuffer()));
+        meta.set(key, { headers: amz(req.headers), type: req.headers.get("content-type") ?? "", at: new Date().toISOString() });
+        return new Response("", { headers: { etag: '"x"' } });
+      }
+      if (req.method === "DELETE" && !q.has("uploadId")) { objects.delete(key); meta.delete(key); return new Response(null, { status: 204 }); }
       if (req.method === "GET" || req.method === "HEAD") {
         const o = objects.get(key);
         if (!o) return new Response("<Error><Code>NoSuchKey</Code></Error>", { status: 404 });
-        return new Response(req.method === "HEAD" ? null : (o as unknown as BodyInit), { headers: { "content-length": String(o.length) } });
+        const m = meta.get(key);
+        return new Response(req.method === "HEAD" ? null : (o as unknown as BodyInit), { headers: { "content-length": String(o.length), ...(m ? { "content-type": m.type, "last-modified": new Date(m.at).toUTCString(), ...m.headers } : {}) } });
       }
       return new Response("<Error><Code>NotImplemented</Code></Error>", { status: 501 });
     }) as typeof fetch,

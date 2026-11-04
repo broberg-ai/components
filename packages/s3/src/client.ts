@@ -174,3 +174,16 @@ export async function downloadUrl(key: string, opts: Pick<UploadOptions, "endpoi
   const { url } = await api<{ url: string }>(opts, { action: "download", key, filename: opts.filename });
   return url;
 }
+
+export interface ListedFile { key: string; size: number; lastModified: string; metadata?: Record<string, string> }
+export interface ListedUpload { key: string; uploadId: string; initiated: string; sentBytes: number; totalBytes?: number; filename?: string; metadata?: Record<string, string> }
+
+/** Files you have received (under your prefix). `metadata: true` adds who sent it — one extra request per file. */
+export async function listFiles(opts: Pick<UploadOptions, "endpoint" | "headers" | "fetch"> & { metadata?: boolean }): Promise<ListedFile[]> {
+  return (await api<{ objects: ListedFile[] }>(opts, { action: "objects", metadata: opts.metadata === true })).objects;
+}
+
+/** Uploads under your prefix that are still under way: «sentBytes of totalBytes», and who started them. */
+export async function listUploads(opts: Pick<UploadOptions, "endpoint" | "headers" | "fetch">): Promise<ListedUpload[]> {
+  return (await api<{ uploads: ListedUpload[] }>(opts, { action: "uploads" })).uploads;
+}

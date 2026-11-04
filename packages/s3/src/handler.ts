@@ -2,13 +2,19 @@
 // Every action asks the SITE's authorize() first and keeps the user inside the
 // object prefix it returns. The storage key never appears in a response.
 import {
-  MAX_EXPIRES_SECONDS, MAX_PARTS, S3Error, choosePartSize,
+  MAX_EXPIRES_SECONDS, MAX_PARTS, S3Error, choosePartSize, markerKeyFor,
   type S3Signer, type UploadedPart,
 } from "./server";
 
 export interface Authorized {
   /** Every object this user may touch lives under `<prefix>/`. E.g. "users/<bid-sub>". */
   prefix: string;
+  /**
+   * Stored with every upload this user starts (x-amz-meta on the object + the
+   * in-progress marker), e.g. { uploadedBy: "patrick@example.dk" }. Set by the
+   * SERVER from the session — never taken from the browser.
+   */
+  metadata?: Record<string, string>;
 }
 
 export interface S3HandlerOptions {
@@ -78,6 +84,12 @@ const randomId = () => {
 const defaultKeyFor = ({ prefix, filename }: { prefix: string; filename: string }) =>
   `${prefix}/${new Date().toISOString().slice(0, 10)}/${randomId()}-${safeFilename(filename)}`;
 
+/** Remove the in-progress marker. A failure is REPORTED (markerRemoved:false), never hidden — the upload itself succeeded. */
+async function dropMarker(signer: S3Signer, key: string): Promise<{ markerRemoved: boolean }> {
+  try { await signer.deleteObject(markerKeyFor(key)); return { markerRemoved: true }; }
+  catch { return { markerRemoved: false }; }
+}
+
 export function createS3Handler(signer: S3Signer | null, opts: S3HandlerOptions): (req: Request) => Promise<Response> {
   const maxBytes = opts.maxBytes ?? 20 * GiB;
   const expiresIn = Math.min(opts.expiresIn ?? MAX_EXPIRES_SECONDS, MAX_EXPIRES_SECONDS);
@@ -109,7 +121,13 @@ export function createS3Handler(signer: S3Signer | null, opts: S3HandlerOptions)
           if (!typeAllowed(contentType, opts.allowedTypes)) throw new HttpError(415, "type_not_allowed", `${contentType} is not accepted here`);
           const key = checkKey((opts.keyFor ?? defaultKeyFor)({ prefix, filename, contentType }), prefix);
           const partSize = choosePartSize(size, opts.partSize);
-          const { uploadId } = await signer.start({ key, contentType });
+          const metadata = { ...who.metadata, "total-bytes": String(size), "original-filename": filename };
+          const { uploadId } = await signer.start({ key, contentType, metadata });
+          // S3 cannot report metadata for an unfinished upload, so a small marker carries it.
+          await signer.putObject({
+            key: markerKeyFor(key), contentType: "application/json",
+            body: JSON.stringify({ totalBytes: size, filename, contentType, metadata: who.metadata ?? {}, initiated: new Date().toISOString() }),
+          });
           return json(200, { key, uploadId, partSize, partCount: Math.ceil(size / partSize) });
         }
         case "sign": {
@@ -140,6 +158,7 @@ export function createS3Handler(signer: S3Signer | null, opts: S3HandlerOptions)
           const total = stored.reduce((s, p) => s + (p.size ?? 0), 0);
           if (total > maxBytes) {
             await signer.abort({ key, uploadId });
+            await dropMarker(signer, key);
             throw new HttpError(413, "too_large", `upload exceeded ${maxBytes} bytes and was discarded`);
           }
           const parts: UploadedPart[] = (sent as Array<{ partNumber?: unknown; etag?: unknown }>).map((p) => {
@@ -147,12 +166,19 @@ export function createS3Handler(signer: S3Signer | null, opts: S3HandlerOptions)
             return { partNumber: p.partNumber as number, etag: p.etag };
           });
           await signer.complete({ key, uploadId, parts });
-          return json(200, { key, size: total });
+          return json(200, { key, size: total, ...(await dropMarker(signer, key)) });
         }
         case "abort": {
           const key = checkKey(body.key, prefix);
-          await signer.abort({ key, uploadId: checkUploadId(body.uploadId) });
-          return json(200, { aborted: true });
+          const uploadId = checkUploadId(body.uploadId);
+          await signer.abort({ key, uploadId });
+          return json(200, { aborted: true, ...(await dropMarker(signer, key)) });
+        }
+        case "objects": {
+          return json(200, { objects: await signer.listObjects({ prefix: prefix + "/", includeMetadata: body.metadata === true }) });
+        }
+        case "uploads": {
+          return json(200, { uploads: await signer.listUploads({ prefix: prefix + "/" }) });
         }
         case "download": {
           const key = checkKey(body.key, prefix);
@@ -161,7 +187,7 @@ export function createS3Handler(signer: S3Signer | null, opts: S3HandlerOptions)
           return json(200, { url, expiresIn });
         }
         default:
-          throw new HttpError(400, "unknown_action", "action must be start, sign, list, complete, abort or download");
+          throw new HttpError(400, "unknown_action", "action must be start, sign, list, complete, abort, download, objects or uploads");
       }
     } catch (e) {
       if (e instanceof HttpError) return json(e.status, { error: { code: e.code, message: e.message } });
