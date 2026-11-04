@@ -32,6 +32,7 @@ describe("F090.6 — Bearer with no known prefix", () => {
       "Authorization: Bearer $API_TOKEN",
       "send it as a Bearer token in the header",
       "Bearer abcdefghijklmnopqrstuvwxyzabcd", // a long lowercase word: no digit
+      "Bearer AuthorizationHeaderValueGoesHere", // mixed case, still no digit: a word, not a token
     ]) expect(hasSecret(t), t).toBe(false);
   });
 });
