@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-04T11:30:07.585Z",
+ "checked_at": "2026-11-04T11:51:39.892Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -1448,6 +1448,43 @@
    },
    "verdict": "OK"
   },
+  "@broberg/s3": {
+   "version": "0.1.0",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 5,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "osv": {
+    "status": "ok",
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0,
+    "unrated": 0,
+    "findings": []
+   },
+   "verdict": "OK"
+  },
   "@broberg/seal": {
    "version": "0.2.0",
    "status": "ok",
@@ -1486,7 +1523,7 @@
    "verdict": "OK"
   },
   "@broberg/secret-scan": {
-   "version": "0.16.0",
+   "version": "0.16.1",
    "status": "ok",
    "prod": {
     "critical": 0,
