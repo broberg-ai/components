@@ -37,9 +37,9 @@
  },
  "@broberg/backup": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/backup",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-26T16:47:06.445Z",
-  "provenance": "no"
+  "version": "0.4.0",
+  "publishedAt": "2026-11-05T16:30:34.666Z",
+  "provenance": "yes"
  },
  "@broberg/mail-core": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail-core",
@@ -391,8 +391,8 @@
  },
  "@broberg/ai-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
-  "version": "0.71.0",
-  "publishedAt": "2026-11-05T13:10:51.490Z",
+  "version": "0.71.1",
+  "publishedAt": "2026-11-05T13:18:18.061Z",
   "provenance": "yes"
  },
  "@broberg/fleet-client": {
