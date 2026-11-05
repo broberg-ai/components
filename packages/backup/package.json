@@ -1,6 +1,6 @@
 {
   "name": "@broberg/backup",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Nightly encrypted logical backup for the broberg.ai fleet, ported from broberg-id's production backup. JSON dump of the app's own tables → gzip → AES-256-GCM, the key wrapped with RSA-OAEP: the machine can encrypt, never open. Read back and sha-checked before it says ok; 30-day retention; a freshness answer for an uptime probe. runDbBackupParts writes a large database page by page, one encrypted part per page, so memory holds one page — not the database.",
   "type": "module",
   "license": "MIT",

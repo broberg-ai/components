@@ -227,7 +227,7 @@ describe("backupFreshness (ported) — what an uptime probe asks", () => {
     const store = memory();
     await runDbBackup({ source, store, publicKeyPem, what: "test", now: Date.UTC(2026, 9, 9, 1, 30) });
     const answer = await backupFreshness(store, now);
-    expect(answer).toEqual({ ok: true, newest: "2026-10-09", tables: 2, bytes: expect.any(Number) });
+    expect(answer).toEqual({ ok: true, newest: "2026-10-09", tables: 2, bytes: expect.any(Number), verified: "full", partsRead: true });
     expect(JSON.stringify(answer)).not.toContain("a@b.dk");
   });
 

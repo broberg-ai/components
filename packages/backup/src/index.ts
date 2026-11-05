@@ -251,7 +251,14 @@ export async function backupFreshness(
   store: Pick<BackupStore, "get">,
   now = Date.now(),
   prefix: string = BACKUP_PREFIX,
+  /**
+   * F093.4 — "full" (default) fetches and sha-checks every byte. "manifest" reads
+   * only the manifest, for an hourly probe on a large backup; its answer says
+   * partsRead:false so a green one is never mistaken for a verified copy.
+   */
+  opts: { verify?: "full" | "manifest" } = {},
 ) {
+  if (opts.verify === "manifest") return manifestFreshness(store, now, prefix);
   for (const d of [0, 1]) {
     const dd = day(now - d * 86_400_000);
     const [obj, man] = await Promise.all([store.get(objectKey(dd, prefix)), store.get(manifestKey(dd, prefix))]);
@@ -267,6 +274,8 @@ export async function backupFreshness(
           tables: Object.keys(m2.tables ?? {}).length,
           bytes: m2.parts.reduce((n, p) => n + p.ciphertextBytes, 0),
           parts: m2.parts.length,
+          verified: "full" as const,
+          partsRead: true as const,
         };
       }
     }
@@ -280,7 +289,59 @@ export async function backupFreshness(
     if (m.object !== objectKey(dd, prefix) || m.ciphertextSha256 !== sha256(obj.bytes)) {
       return { ok: false as const, reason: "manifest_mismatch", newest: dd };
     }
-    return { ok: true as const, newest: dd, tables: Object.keys(m.tables ?? {}).length, bytes: obj.bytes.length };
+    return {
+      ok: true as const,
+      newest: dd,
+      tables: Object.keys(m.tables ?? {}).length,
+      bytes: obj.bytes.length,
+      verified: "full" as const,
+      partsRead: true as const,
+    };
+  }
+  return { ok: false as const, reason: "no_backup_today_or_yesterday", newest: null };
+}
+
+/**
+ * F093.4 — the cheap probe: is there today's or yesterday's manifest, how old,
+ * how many parts? It fetches NO backup bytes, so it cannot see a missing or
+ * changed part — that is what the daily "full" check is for. The answer says so
+ * in two fields, because a green probe that LOOKS verified is the failure a
+ * backup probe exists to prevent.
+ */
+async function manifestFreshness(store: Pick<BackupStore, "get">, now: number, prefix: string) {
+  for (const d of [0, 1]) {
+    const dd = day(now - d * 86_400_000);
+    const man = await store.get(manifestKey(dd, prefix));
+    if (!man) continue;
+    let m: {
+      version?: number;
+      object?: string;
+      createdAt?: string;
+      tables?: Record<string, number>;
+      parts?: { key: string; ciphertextBytes: number }[];
+      ciphertextBytes?: number;
+    };
+    try {
+      m = JSON.parse(new TextDecoder().decode(man.bytes));
+    } catch {
+      return { ok: false as const, reason: "manifest_unreadable", newest: dd };
+    }
+    const isParts = m.version === 2 && Array.isArray(m.parts);
+    const pointsHome = isParts
+      ? m.parts!.every((p) => typeof p.key === "string" && p.key.startsWith(`${prefix}/${dd}/`))
+      : m.object === objectKey(dd, prefix);
+    if (!pointsHome) return { ok: false as const, reason: "manifest_mismatch", newest: dd };
+    const created = m.createdAt ? Date.parse(m.createdAt) : NaN;
+    return {
+      ok: true as const,
+      newest: dd,
+      tables: Object.keys(m.tables ?? {}).length,
+      bytes: isParts ? m.parts!.reduce((n, p) => n + p.ciphertextBytes, 0) : (m.ciphertextBytes ?? 0),
+      ...(isParts ? { parts: m.parts!.length } : {}),
+      ageMinutes: Number.isFinite(created) ? Math.floor((now - created) / 60_000) : null,
+      verified: "manifest" as const,
+      partsRead: false as const,
+    };
   }
   return { ok: false as const, reason: "no_backup_today_or_yesterday", newest: null };
 }

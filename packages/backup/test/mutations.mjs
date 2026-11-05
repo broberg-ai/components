@@ -136,6 +136,21 @@ const MUTATIONS = [
     to: "        for (const part of oldManifest.parts) await del(part.key);",
     expect: ["PREFIX BOUNDARY: retention never touches another app's parts, even if an old manifest names them"],
   },
+  // F093.4 — the manifest probe must never look like a verified copy.
+  {
+    name: "manifest probe claims it read the parts",
+    file: "index",
+    from: "      partsRead: false as const,\n",
+    to: "      partsRead: true as const,\n",
+    expect: ["reads ONLY manifests — no part or single-file key is ever fetched — and says partsRead:false"],
+  },
+  {
+    name: "manifest probe trusts a manifest that points outside the day",
+    file: "index",
+    from: "    if (!pointsHome) return { ok: false as const, reason: \"manifest_mismatch\", newest: dd };",
+    to: "",
+    expect: ["RED in manifest mode: unreadable manifest, a part outside the day, no manifest at all"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "backupmut-"));

@@ -261,3 +261,53 @@ describe("openDbBackupParts", () => {
     await expect(openAll(store, manifestOf(store))).rejects.toThrow(/does not match/);
   });
 });
+
+describe("backupFreshness verify:\"manifest\" (F093.4) — the hourly probe", () => {
+  test("reads ONLY manifests — no part or single-file key is ever fetched — and says partsRead:false", async () => {
+    const store = memory();
+    await runDbBackupParts({ source: pagedSource({ a: 25, b: 3 }).src, store, publicKeyPem, what: "t", now: NOW, pageSize: 10 });
+    const asked: string[] = [];
+    const watching = { get: async (k: string) => { asked.push(k); return store.get(k); } };
+    const f = await backupFreshness(watching, NOW + 90 * 60_000, "db-backup", { verify: "manifest" });
+    expect(f).toEqual({ ok: true, newest: today, tables: 2, bytes: expect.any(Number), parts: 4, ageMinutes: 90, verified: "manifest", partsRead: false });
+    expect(asked).toEqual([manifestKey(today)]);
+  });
+
+  test("a missing part is NOT seen by the manifest probe — and IS seen by full", async () => {
+    const store = memory();
+    await runDbBackupParts({ source: pagedSource({ a: 30 }).src, store, publicKeyPem, what: "t", now: NOW, pageSize: 10 });
+    store.mem.delete(partKey(today, 2));
+    expect(await backupFreshness(store, NOW, "db-backup", { verify: "manifest" })).toMatchObject({ ok: true, partsRead: false });
+    expect(await backupFreshness(store, NOW, "db-backup", { verify: "full" })).toEqual({ ok: false, reason: "manifest_mismatch", newest: today });
+    expect(await backupFreshness(store, NOW)).toEqual({ ok: false, reason: "manifest_mismatch", newest: today });
+  });
+
+  test("full (and the default) say what they read: verified:\"full\", partsRead:true", async () => {
+    const store = memory();
+    await runDbBackupParts({ source: pagedSource({ a: 5 }).src, store, publicKeyPem, what: "t", now: NOW });
+    expect(await backupFreshness(store, NOW)).toMatchObject({ ok: true, verified: "full", partsRead: true });
+  });
+
+  test("a single-file backup works in manifest mode too, without fetching the file", async () => {
+    const store = memory();
+    await runDbBackup({ source: { listTables: async () => ["t"], rows: async () => [{ id: 1 }] }, store, publicKeyPem, what: "t", now: NOW });
+    const asked: string[] = [];
+    const f = await backupFreshness({ get: async (k: string) => { asked.push(k); return store.get(k); } }, NOW, "db-backup", { verify: "manifest" });
+    expect(f).toMatchObject({ ok: true, newest: today, tables: 1, verified: "manifest", partsRead: false, ageMinutes: 0 });
+    expect(f).not.toHaveProperty("parts");
+    expect(asked).toEqual([manifestKey(today)]);
+  });
+
+  test("RED in manifest mode: unreadable manifest, a part outside the day, no manifest at all", async () => {
+    const store = memory();
+    store.mem.set(manifestKey(today), new TextEncoder().encode("not json"));
+    expect(await backupFreshness(store, NOW, "db-backup", { verify: "manifest" })).toEqual({ ok: false, reason: "manifest_unreadable", newest: today });
+    const s2 = memory();
+    await runDbBackupParts({ source: pagedSource({ a: 5 }).src, store: s2, publicKeyPem, what: "t", now: NOW });
+    const m = manifestOf(s2);
+    m.parts[0].key = partKey("2026-10-01", 1);
+    s2.mem.set(manifestKey(today), new TextEncoder().encode(JSON.stringify(m)));
+    expect(await backupFreshness(s2, NOW, "db-backup", { verify: "manifest" })).toEqual({ ok: false, reason: "manifest_mismatch", newest: today });
+    expect(await backupFreshness(memory(), NOW, "db-backup", { verify: "manifest" })).toEqual({ ok: false, reason: "no_backup_today_or_yesterday", newest: null });
+  });
+});

@@ -37,6 +37,7 @@ const contents = await openDbBackup({ cipher, manifest, privateKeyPem });
 - `<prefix>/<day>.manifest.json` (`version: 2`) lists every part with its sha256 and row count. It is written **only after every part has been read back and matched** — a night that broke half-way has no manifest, and the probe goes red.
 - One copy per day, 30 days, `prune: false` and `pruneSkipped` work as above; an old day's parts are deleted through that day's manifest, and an old single-file day is removed too, so switching leaves nothing behind.
 - `backupFreshness()` understands both formats and checks every part, one at a time.
+- **An hourly probe on a big backup** (0.4.0): `backupFreshness(store, now, prefix, { verify: "manifest" })` reads only the manifest — is there one from today or yesterday, how old (`ageMinutes`), how many parts. It downloads no backup bytes, so it cannot see a missing or changed part, and its answer says so: `verified: "manifest", partsRead: false`. Run the default (`verify: "full"`, answers `partsRead: true`) once a day right after the backup.
 
 ```ts
 import { runDbBackupParts, openDbBackupParts } from "@broberg/backup";
