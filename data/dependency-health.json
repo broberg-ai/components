@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-05T00:17:22.482Z",
+ "checked_at": "2026-11-05T08:25:45.172Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -1227,7 +1227,7 @@
    "verdict": "OK"
   },
   "@broberg/mollie": {
-   "version": "0.1.0",
+   "version": "0.1.1",
    "status": "ok",
    "prod": {
     "critical": 0,
