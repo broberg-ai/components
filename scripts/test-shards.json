@@ -5,7 +5,7 @@
     "",
     "WHY AN EXPLICIT LIST AND NOT AN AUTOMATIC SPLIT: an explicit list is checkable.",
     "A new package belonging to no shard is INVISIBLE to an automatic split and would",
-    "simply never run. Here it is caught — scripts/check-shard-coverage.mjs fails when",
+    "simply never run. Here it is caught \u2014 scripts/check-shard-coverage.mjs fails when",
     "any package with a test script is missing from this file, and it runs inside",
     "`pnpm test`.",
     "",
@@ -19,7 +19,7 @@
     "gets slower is a number somebody eventually deletes.",
     "",
     "min_tests (F080.6) is a ZERO-DETECTOR per package, set to half the count measured on",
-    "2026-09-30 (floor 1). It catches a package that ran and executed nothing — every test skipped,",
+    "2026-09-30 (floor 1). It catches a package that ran and executed nothing \u2014 every test skipped,",
     "or a -t filter matching none, both of which exit 0. It is deliberately far below the measured",
     "number: a floor that reddens when someone deletes one test is a floor somebody deletes."
   ],
@@ -165,7 +165,8 @@
         "@broberg/webpush",
         "@broberg/backup",
         "@broberg/legal",
-        "@broberg/s3"
+        "@broberg/s3",
+        "@broberg/mollie"
       ],
       "min_tests": {
         "@broberg/bodymap": 67,
@@ -181,7 +182,8 @@
         "@broberg/webpush": 38,
         "@broberg/backup": 7,
         "@broberg/legal": 7,
-        "@broberg/s3": 8
+        "@broberg/s3": 8,
+        "@broberg/mollie": 14
       }
     }
   ]

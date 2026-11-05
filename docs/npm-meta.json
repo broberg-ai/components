@@ -29,6 +29,12 @@
   "publishedAt": "2026-11-04T14:42:42.906Z",
   "provenance": "yes"
  },
+ "@broberg/mollie": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/mollie",
+  "version": "0.1.0",
+  "publishedAt": "2026-11-05T00:19:02.916Z",
+  "provenance": "no"
+ },
  "@broberg/backup": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/backup",
   "version": "0.1.0",
