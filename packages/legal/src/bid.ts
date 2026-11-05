@@ -10,7 +10,7 @@
 /** The one place BID's address lives in this package. */
 export const BID_URL = "https://id.broberg.ai";
 
-export type AcceptedDoc = "terms" | "dpa";
+export type AcceptedDoc = "terms" | "dpa" | "modules";
 
 export interface AcceptanceRecord {
   sub: string;

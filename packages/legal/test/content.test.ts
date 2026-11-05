@@ -51,8 +51,11 @@ describe("F110.14 — templates from the API, facts from the product", () => {
 });
 
 describe("the bundled documents (v1.0, approved by the owner's lawyer 2/11 2026)", () => {
-  it("every document resolves for every product in Danish, is NOT a draft, and is version 2026-11-02", () => {
-    for (const doc of DOC_IDS) {
+  // The five lawyer-approved documents of 2/11. "modules" (F110.17) is newer and has its own tests below.
+  const LAWYER_APPROVED = DOC_IDS.filter((d) => d !== "modules");
+  it("every lawyer-approved document resolves for every product in Danish, is NOT a draft, and is version 2026-11-02", () => {
+    expect(LAWYER_APPROVED).toEqual(["terms", "privacy", "trust", "dpa", "support"]);
+    for (const doc of LAWYER_APPROVED) {
       for (const p of FACTS) {
         const d = getDocument({ doc, locale: "da", facts: p });
         expect([doc, p.id, d.draft, d.version, d.effectiveFrom, d.sections.length > 0]).toEqual([doc, p.id, false, "2026-11-02", "2026-11-02", true]);

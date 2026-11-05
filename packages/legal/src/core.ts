@@ -44,6 +44,18 @@ export function placeholdersIn(text: string): Placeholder[] {
   return out;
 }
 
+/** F110.17 — the "modules" document is meaningless without the product's own numbers: refuse, never render a hollow table. */
+function moduleFacts(p: ProductFacts) {
+  const m = p.modules;
+  if (!m) throw new Error(`product "${p.id}" has no module terms facts (ProductFacts.modules) — the "modules" document needs them`);
+  const missing = (["operationsFee", "paymentProvider", "payoutCadence", "guidelinesUrl", "complaints", "complaintsResponse"] as const).filter((k) => !m[k]);
+  for (const k of ["guidelinesNoticeDays", "warningDeadlineDays", "exportDays"] as const) if (!Number.isInteger(m[k]) || m[k] < 0) missing.push(k as never);
+  if (missing.length) throw new Error(`product "${p.id}": module terms facts missing or invalid: ${missing.join(", ")}`);
+  const total = m.revenueShare.reduce((s, r) => s + r.percent, 0);
+  if (!m.revenueShare.length || Math.abs(total - 100) > 1e-9) throw new Error(`product "${p.id}": revenueShare must add up to 100 %, got ${total}`);
+  return m;
+}
+
 /** Fixed per-locale templates that turn a product fact into blocks. The only route from data to text. */
 const FACT_TEMPLATES: Record<Locale, Record<FactKey, (p: ProductFacts, id: string) => ResolvedBlock[]>> = {
   da: {
@@ -61,6 +73,24 @@ const FACT_TEMPLATES: Record<Locale, Record<FactKey, (p: ProductFacts, id: strin
           : `${p.name} er ikke omfattet af afsnittet om analyse af samtaler.`,
       },
     ],
+    moduleTerms: (p, id) => {
+      const m = moduleFacts(p);
+      return [{
+        id, type: "table", head: ["Hvad", "Gælder"],
+        rows: [
+          ...m.revenueShare.map((r) => [`Andel til ${r.party}`, `${r.percent} %`]),
+          ["Driftstillæg", m.operationsFee],
+          ["Betalingsudbyder", m.paymentProvider],
+          ["Udbetaling", m.payoutCadence],
+          ["Varsel ved ændrede retningslinjer", `${m.guidelinesNoticeDays} dage`],
+          ["Frist ved advarsel", `${m.warningDeadlineDays} dage`],
+          ["Retningslinjer", m.guidelinesUrl],
+          ["Klage", m.complaints],
+          ["Svarfrist på klage", m.complaintsResponse],
+          ["Eksport efter fjernelse", `${m.exportDays} dage`],
+        ],
+      }];
+    },
   },
   en: {
     hosting: (p, id) => [{ id, type: "table", head: ["What", "Where"], rows: p.hosting.map((h) => [h.what, h.where]) }],
@@ -77,6 +107,24 @@ const FACT_TEMPLATES: Record<Locale, Record<FactKey, (p: ProductFacts, id: strin
           : `${p.name} is not covered by the section on conversation analysis.`,
       },
     ],
+    moduleTerms: (p, id) => {
+      const m = moduleFacts(p);
+      return [{
+        id, type: "table", head: ["What", "Applies"],
+        rows: [
+          ...m.revenueShare.map((r) => [`Share to ${r.party}`, `${r.percent} %`]),
+          ["Operations surcharge", m.operationsFee],
+          ["Payment provider", m.paymentProvider],
+          ["Payout", m.payoutCadence],
+          ["Notice of changed guidelines", `${m.guidelinesNoticeDays} days`],
+          ["Deadline after a warning", `${m.warningDeadlineDays} days`],
+          ["Guidelines", m.guidelinesUrl],
+          ["Complaints", m.complaints],
+          ["Response time on complaints", m.complaintsResponse],
+          ["Export after removal", `${m.exportDays} days`],
+        ],
+      }];
+    },
   },
 };
 

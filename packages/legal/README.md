@@ -1,6 +1,6 @@
 # @broberg/legal
 
-**Status: 0.5.0. All five documents are v1.0, approved by the owner's lawyer (2/11 2026): `draft: false`, version and «gælder fra» 2026-11-02.**
+**Status: 0.8.0. The five general documents are v1.0, approved by the owner's lawyer (2/11 2026): `draft: false`, version and «gælder fra» 2026-11-02. The sixth, `modules` (0.8.0), is the owner's own text decision of 5/11 2026 and was deliberately NOT sent to a lawyer.**
 
 One set of legal documents for every broberg.ai product: `terms`, `privacy`, `trust`, `dpa` and
 `support`. The text is the same everywhere. Danish is the master and prevails; English sits beside it.
@@ -210,6 +210,31 @@ README §4 trap fixed. Additive; the texts are unchanged.
 gone too: legal.broberg.ai is an API.
 
 Plan: `docs/features/F110-legal-documents.md`, `docs/features/F110.14-legal-is-an-api.md`.
+
+## Terms for module owners and developers — `doc: "modules"` (0.8.0, F110.17)
+
+For a platform where clinics and developers publish modules (an App Store). The text says the
+platform answers for stability and may act on a module that breaks the guidelines: notice →
+warning with a deadline → pause → removal, and an **immediate pause in serious cases** (data at
+risk, a security hole, instability, illegal content) — always after a person has assessed it.
+During a pause the data is kept and the clinics pay nothing for the module. Complaints, a log of
+every step, payment and distribution, re-acceptance on material change (`AcceptedDoc` includes
+`"modules"`), Danish law.
+
+**No number is in the text.** Every figure comes from the product's own facts and appears in one
+table («Tal og frister»):
+
+```ts
+getDocument({ doc: "modules", locale: "da", facts: { ...myFacts, modules: {
+  revenueShare: [{ party: "platformen", percent: 30 }, { party: "modulejeren", percent: 70 }], // must add up to 100
+  operationsFee: "…", paymentProvider: "Mollie", payoutCadence: "månedligt",
+  guidelinesNoticeDays: 30, warningDeadlineDays: 14, guidelinesUrl: "https://…/retningslinjer",
+  complaints: "…", complaintsResponse: "3 hverdage", exportDays: 30,
+} } });
+```
+
+A product without `modules` facts gets an error, never a document with an empty table. BID must
+accept `"modules"` as a document type before acceptances can be recorded (asked of bid, 5/11).
 
 ## Pseudonymisation — `@broberg/legal/pseudonymise` (0.7.0, F110.8)
 

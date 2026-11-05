@@ -20,4 +20,17 @@ export const EXAMPLE_FACTS: ProductFacts =
   ],
   conversationAnalysis: true,
   healthData: false,
+  // F110.17 — only a platform with third-party modules sets this. EXAMPLE numbers, not anyone's real terms.
+  modules: {
+    revenueShare: [{ party: "platformen", percent: 30 }, { party: "modulejeren", percent: 70 }],
+    operationsFee: "Et fast månedligt beløb pr. modul pr. klinik",
+    paymentProvider: "Eksempel-betalingsudbyderen",
+    payoutCadence: "månedligt",
+    guidelinesNoticeDays: 30,
+    warningDeadlineDays: 14,
+    guidelinesUrl: "https://example.test/retningslinjer",
+    complaints: "klage@example.test",
+    complaintsResponse: "3 hverdage",
+    exportDays: 30,
+  },
 };

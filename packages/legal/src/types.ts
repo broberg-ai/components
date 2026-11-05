@@ -1,6 +1,6 @@
-/** The five documents (components F110). */
-export type DocId = "terms" | "privacy" | "trust" | "dpa" | "support";
-export const DOC_IDS: readonly DocId[] = ["terms", "privacy", "trust", "dpa", "support"];
+/** The documents (components F110). "modules" (F110.17) applies only to a platform with third-party modules. */
+export type DocId = "terms" | "privacy" | "trust" | "dpa" | "support" | "modules";
+export const DOC_IDS: readonly DocId[] = ["terms", "privacy", "trust", "dpa", "support", "modules"];
 
 /** Danish is the master and prevails (owner, 31 Oct 2026: «Danish wins we are a danish company»). */
 export type Locale = "da" | "en";
@@ -55,8 +55,29 @@ export interface ProductFacts {
   conversationAnalysis: boolean;
   /** Health data (art. 9) — only part 1–3 analysis without explicit consent. */
   healthData: boolean;
+  /** F110.17 — only a platform with third-party modules (an App Store) sets this; the "modules" document needs it. */
+  modules?: ModuleTermsFacts;
 }
-export type FactKey = "hosting" | "dataCategories" | "subprocessors" | "conversationAnalysis";
+
+/** The numbers and channels in the module-owner terms. The PRODUCT decides them; the text never contains them. */
+export interface ModuleTermsFacts {
+  /** Who gets what of a module's price. Must add up to 100. e.g. [{ party: "platformen", percent: 30 }, { party: "modulejeren", percent: 70 }] */
+  revenueShare: { party: string; percent: number }[];
+  /** The fixed operations surcharge, in the product's own words (e.g. "mindst DKK 25,00 pr. app pr. klinik pr. måned"). */
+  operationsFee: string;
+  paymentProvider: string;
+  /** e.g. "månedligt" / "monthly" */
+  payoutCadence: string;
+  guidelinesNoticeDays: number;
+  warningDeadlineDays: number;
+  guidelinesUrl: string;
+  /** Where a module owner complains (an address or a page). */
+  complaints: string;
+  /** e.g. "3 hverdage" / "3 working days" */
+  complaintsResponse: string;
+  exportDays: number;
+}
+export type FactKey = "hosting" | "dataCategories" | "subprocessors" | "conversationAnalysis" | "moduleTerms";
 
 /** The merge fields Contract Manager fills (contract-manager #5608, 31 Oct 2026). */
 export const PLACEHOLDERS = [
