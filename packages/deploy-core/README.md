@@ -55,6 +55,8 @@ const { state, exitCode } = await fly.waitForExit("my-app", jobId);
 const { entries, nextToken } = await fly.getMachineLogs("my-app", m.id);        // since 0.6.0
 await fly.getMachineLogs("my-app", m.id, { nextToken });                         // only newer lines — poll this to tail
 await fly.listVolumes("my-app");                // destroyed ones included — filter on state
+await fly.deleteVolume("my-app", "vol_123");     // 0.11.0 — Fly refuses an attached volume (FlyApiError). A lost answer + retry can throw 404 although it IS gone: re-read listVolumes before saying "not deleted"
+await fly.updateVolume("my-app", "vol_123", { snapshot_retention: 14, auto_backup_enabled: true }); // 0.11.0 — only the fields you give are sent
 await fly.listIps("my-app");                    // 0.9.0 — [{ ip, shared, region, serviceName, createdAt }]; a failure throws, never []
 await fly.promQuery("personal", 'sum(fly_instance_memory_mem_available{app="my-app"})');
 ```

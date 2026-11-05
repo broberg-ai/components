@@ -281,6 +281,21 @@ const MUTATIONS = [
     to: 'export const FLY_LIVE_SERVER_TS = SERVER_TEMPLATE.replace("__FLY_LIVE_SERVER_VERSION__", "1.0.0");',
     expect: ["the shipped server carries it"],
   },
+  // F033.28 — Operate's yes-button.
+  {
+    name: "deleteVolume uses the wrong HTTP method",
+    file: "fly-machines",
+    from: '    await this.rest("DELETE", this.volumePath(app, volumeId));',
+    to: '    await this.rest("POST", this.volumePath(app, volumeId));',
+    expect: ["F033.28 deleteVolume sends DELETE to the volume, Bearer, both parts URL-encoded"],
+  },
+  {
+    name: "updateVolume sends fields that were not given",
+    file: "fly-machines",
+    from: "    if (patch.snapshot_retention !== undefined) body.snapshot_retention = patch.snapshot_retention;",
+    to: "    body.snapshot_retention = patch.snapshot_retention ?? null;",
+    expect: ["F033.28 updateVolume with only auto_backup_enabled sends exactly that — retention is left as Fly has it"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "deploymut-"));

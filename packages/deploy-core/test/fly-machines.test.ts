@@ -311,6 +311,60 @@ describe("exitCodeOf", () => {
 });
 
 describe("F033.14 — volumes and Prometheus", () => {
+  it("F033.28 deleteVolume sends DELETE to the volume, Bearer, both parts URL-encoded", async () => {
+    const { fly, calls } = client([{ status: 200, body: "" }]);
+    await fly.deleteVolume("my app", "vol/1");
+    expect(calls).toEqual([{ url: "https://api.machines.dev/v1/apps/my%20app/volumes/vol%2F1", method: "DELETE", body: undefined, auth: `Bearer ${TOKEN}` }]);
+  });
+
+  it("F033.28 deleteVolume: a 409 (volume attached) throws FlyApiError after ONE request, no token in it", async () => {
+    const { fly, calls } = client([{ status: 409, body: { error: `volume is attached to machine; token ${TOKEN}` } }]);
+    const err = await fly.deleteVolume("app", "vol_1").catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.status).toBe(409);
+    expect(err.method).toBe("DELETE");
+    expect(err.path).toBe("/apps/app/volumes/vol_1");
+    expect(String(err.message)).not.toContain(TOKEN);
+    expect(calls.length).toBe(1);
+  });
+
+  it("F033.28 updateVolume PUTs ONLY the given fields and returns Fly's volume", async () => {
+    const vol = { id: "vol_1", name: "data", state: "created", size_gb: 3, region: "arn", snapshot_retention: 14 };
+    const { fly, calls } = client([{ status: 200, body: vol }]);
+    expect(await fly.updateVolume("app", "vol_1", { snapshot_retention: 14 })).toEqual(vol);
+    expect(calls[0].method).toBe("PUT");
+    expect(calls[0].url).toBe("https://api.machines.dev/v1/apps/app/volumes/vol_1");
+    expect(JSON.parse(calls[0].body!)).toEqual({ snapshot_retention: 14 });
+    expect(calls[0].auth).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("F033.28 updateVolume sends false as false (not dropped), both fields when both are given", async () => {
+    const { fly, calls } = client([{ status: 200, body: { id: "vol_1" } }]);
+    await fly.updateVolume("app", "vol_1", { auto_backup_enabled: false, snapshot_retention: 5 });
+    expect(JSON.parse(calls[0].body!)).toEqual({ snapshot_retention: 5, auto_backup_enabled: false });
+  });
+
+  it("F033.28 updateVolume with only auto_backup_enabled sends exactly that — retention is left as Fly has it", async () => {
+    const { fly, calls } = client([{ status: 200, body: { id: "vol_1" } }]);
+    await fly.updateVolume("app", "vol_1", { auto_backup_enabled: true });
+    expect(JSON.parse(calls[0].body!)).toEqual({ auto_backup_enabled: true });
+  });
+
+  it("F033.28 updateVolume: an empty patch is refused before any request", async () => {
+    const { fly, calls } = client([]);
+    await expect(fly.updateVolume("app", "vol_1", {})).rejects.toThrow(/empty patch/);
+    expect(calls.length).toBe(0);
+  });
+
+  it("F033.28 updateVolume: a 404 throws FlyApiError after ONE request", async () => {
+    const { fly, calls } = client([{ status: 404, body: { error: "not found" } }]);
+    const err = await fly.updateVolume("app", "vol_x", { snapshot_retention: 1 }).catch((e) => e);
+    expect(err).toBeInstanceOf(FlyApiError);
+    expect(err.status).toBe(404);
+    expect(err.method).toBe("PUT");
+    expect(calls.length).toBe(1);
+  });
+
   it("listVolumes GETs the app's volumes and returns Fly's array as-is", async () => {
     const vols = [
       { id: "vol_1", name: "data", state: "created", size_gb: 3, region: "arn" },

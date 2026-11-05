@@ -305,6 +305,34 @@ export class FlyClient {
     return (await this.rest<FlyVolume[]>("GET", `/apps/${encodeURIComponent(app)}/volumes`)) ?? [];
   }
 
+  /**
+   * F033.28 — delete one volume. Fly refuses a volume that is attached to a
+   * machine (4xx → FlyApiError, not retried). One caveat, as for destroyMachine:
+   * if the delete lands but its answer is lost (5xx / network), the retry gets a
+   * 404 and THROWS although the volume is gone — re-read listVolumes before
+   * telling anyone "not deleted".
+   */
+  async deleteVolume(app: string, volumeId: string): Promise<void> {
+    await this.rest("DELETE", this.volumePath(app, volumeId));
+  }
+
+  /**
+   * F033.28 — change a volume's backup settings. Sends ONLY the fields given,
+   * so an omitted setting is left as Fly has it. An empty patch is refused
+   * before any request: it could change nothing.
+   */
+  async updateVolume(
+    app: string,
+    volumeId: string,
+    patch: { snapshot_retention?: number; auto_backup_enabled?: boolean },
+  ): Promise<FlyVolume> {
+    const body: Record<string, unknown> = {};
+    if (patch.snapshot_retention !== undefined) body.snapshot_retention = patch.snapshot_retention;
+    if (patch.auto_backup_enabled !== undefined) body.auto_backup_enabled = patch.auto_backup_enabled;
+    if (Object.keys(body).length === 0) throw new Error("updateVolume: empty patch — give snapshot_retention and/or auto_backup_enabled");
+    return (await this.rest<FlyVolume>("PUT", this.volumePath(app, volumeId), body))!;
+  }
+
   // ── IPs ──
 
   /**
@@ -524,6 +552,10 @@ export class FlyClient {
   }
 
   // ── Internals ──
+
+  private volumePath(app: string, id: string): string {
+    return `/apps/${encodeURIComponent(app)}/volumes/${encodeURIComponent(id)}`;
+  }
 
   private machinePath(app: string, id: string): string {
     return `/apps/${encodeURIComponent(app)}/machines/${encodeURIComponent(id)}`;
