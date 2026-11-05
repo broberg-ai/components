@@ -558,6 +558,30 @@ jobs:
             exit 1
           fi
 
+          # F033.27 — WAIT for the rollout to settle before judging it. Measured at
+          # sanne 5/11 2026 (run 42020073952): the list showed the only machine in
+          # state «replacing» on v646 while v647 was the newest release, and the
+          # step said the release "did not reach a single machine"; a minute later
+          # that machine was started on v647. Judging mid-replace is a false red.
+          # Unsettled = a machine in a transitional state, or NO machine on the new
+          # release yet. Left-behind machines on an older release beside a new one
+          # do not hold the wait — the trimming below handles those.
+          SETTLE_TIMEOUT="${VERIFY_SETTLE_SECONDS:-180}"; SETTLE_EVERY="${VERIFY_SETTLE_INTERVAL:-10}"
+          settle_deadline=$(( $(date +%s) + SETTLE_TIMEOUT ))
+          while :; do
+            MOVING=$(printf '%s\n' "$ROWS" | awk -F'\t' '$2 ~ /^(replacing|created|starting|stopping|destroying|suspending|updating|launching)$/' | grep -c . || true)
+            ON_NEW=$(printf '%s\n' "$ROWS" | awk -F'\t' -v r="$LATEST" '$3==r' | grep -c . || true)
+            [ "$MOVING" -eq 0 ] && [ "$ON_NEW" -gt 0 ] && break
+            if [ "$(date +%s)" -ge "$settle_deadline" ]; then
+              echo "Not settled after ${SETTLE_TIMEOUT}s — judging what Fly shows now."
+              break
+            fi
+            echo "Waiting for the rollout to settle ($MOVING machine(s) mid-change, $ON_NEW on $LATEST):"
+            LIST_MACHINES
+            sleep "$SETTLE_EVERY"
+            READ_MACHINES
+          done
+
           # F033.22 — owner 1/11 2026: «JA» to the deploy removing surplus machines
           # itself, when expected_machines is set and Fly holds MORE. Only when
           # every machine is in ONE region and ONE process group: across regions

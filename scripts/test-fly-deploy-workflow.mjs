@@ -283,8 +283,8 @@ console.log("machine-verify (F033.21 + F033.22)");
   // `scale count` change it; `hide` drops ids from the Nth list read (Fly's list
   // is measured flaky); `scaleKeeps` decides WHICH machines scale count keeps —
   // like Fly, it does not care about releases.
-  const fakeFly = (machines, { latest, hide = {}, fail = [], scaleKeeps = "first" } = {}) => ({
-    files: { "state.json": JSON.stringify(machines) },
+  const fakeFly = (machines, { latest, hide = {}, fail = [], scaleKeeps = "first", later } = {}) => ({
+    files: { "state.json": JSON.stringify(machines), ...(later ? { "later.json": JSON.stringify(later.machines) } : {}) },
     stubs: {
       flyctl: `#!/bin/bash
 echo "$*" >> "$PWD/calls.log"
@@ -294,6 +294,7 @@ case "$1 $2" in
   "releases --json"|"releases --app"|"releases --config") echo '[{"Version": ${latest}}]';;
   "machine list")
     n=$(cat "$PWD/reads" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$PWD/reads"
+    ${later ? `[ "$n" -ge ${later.fromRead} ] && [ -f "$PWD/later.json" ] && mv "$PWD/later.json" "$S"` : ""}
     case "$n" in ${Object.entries(hide).map(([k, ids]) => `${k}) jq -c --argjson h '${JSON.stringify(ids)}' '[.[] | select(.id as $i | $h | index($i) | not)]' "$S";;`).join(" ")} *) cat "$S";; esac;;
   "machine destroy") jq -c --arg id "$3" '[.[] | select(.id != $id)]' "$S" > "$S.n" && mv "$S.n" "$S";;
   "scale count") jq -c --argjson n "$3" '${scaleKeeps === "first" ? ".[0:$n]" : ".[-$n:]"}' "$S" > "$S.n" && mv "$S.n" "$S";;
@@ -303,16 +304,23 @@ esac
   });
   const run = (machines, opts = {}, env = {}) => {
     const f = fakeFly(machines, opts);
-    return runStep(MACHINES, { env: { APP: "bid", CONFIG: "fly.toml", EXPECTED_MACHINES: "0", ...env }, files: f.files, stubs: f.stubs });
+    return runStep(MACHINES, { env: { APP: "bid", CONFIG: "fly.toml", EXPECTED_MACHINES: "0", VERIFY_SETTLE_SECONDS: "0", ...env }, files: f.files, stubs: f.stubs });
   };
 
+  // F033.27 — sanne run 42020073952: read mid-replace, a false red.
+  {
+    const midReplace = run([machine("m1", "replacing", "646")], { latest: 647, later: { fromRead: 4, machines: [machine("m1", "started", "647")] } }, { VERIFY_SETTLE_SECONDS: "60" });
+    check("Machine-verify WAITS while a machine is «replacing» and goes green once it is on the new release", midReplace.status === 0 && midReplace.out.includes("Waiting for the rollout to settle") && midReplace.out.includes("on the new release, v647"), midReplace.out);
+    const stuck = run([machine("m1", "started", "646")], { latest: 647 }, { VERIFY_SETTLE_SECONDS: "0" });
+    check("a machine that stays on the old release is still red after the wait, with the same message", stuck.status !== 0 && stuck.out.includes("the new release did not reach a single machine"), stuck.out);
+  }
   const same = run([machine("m1", "started", "7"), machine("m2", "stopped", "7")], { latest: 7 });
   {
     const sumDir = mkdtempSync(join(tmpdir(), "sum-"));
     const sum = join(sumDir, "summary.md");
     writeFileSync(sum, "");
     const f = fakeFly([machine("m1", "started", "7")], { latest: 7 });
-    const r = runStep(MACHINES, { env: { APP: "up", CONFIG: "fly.toml", EXPECTED_MACHINES: "1", GITHUB_STEP_SUMMARY: sum }, files: f.files, stubs: f.stubs });
+    const r = runStep(MACHINES, { env: { APP: "up", CONFIG: "fly.toml", EXPECTED_MACHINES: "1", GITHUB_STEP_SUMMARY: sum, VERIFY_SETTLE_SECONDS: "0" }, files: f.files, stubs: f.stubs });
     const written = readFileSync(sum, "utf8");
     check("Machine-verify writes its proof to the job summary (count, release, expected)", r.status === 0 && written.includes("Machine-verify:** ✓ 1 machine(s) on v7 (arn×1), expected 1"), written);
   }
@@ -449,9 +457,9 @@ if [ "$n" -lt 2 ]; then printf 'This deployment will:\n * create 2 "app" machine
   const dNone = runStep(DEPLOY, { env: { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "disc", DOCKERFILE: "", EXTRA_DEPLOY_ARGS: "", HA: "true", ONLY_MACHINES: "" } });
   check("deploy without ids → no --only-machines (unchanged)", !dNone.flyctlArgs.includes("--only-machines") && !dNone.flyctlArgs.includes("--update-only"), dNone.flyctlArgs);
 
-  const byConfig = runStep(MACHINES, { env: { APP: "", CONFIG: "fly.toml" } });
+  const byConfig = runStep(MACHINES, { env: { APP: "", CONFIG: "fly.toml", VERIFY_SETTLE_SECONDS: "0" } });
   check("without an app name it asks flyctl by --config", byConfig.flyctlArgs.includes("--config fly.toml"), byConfig.flyctlArgs);
-  const byApp = runStep(MACHINES, { env: { APP: "bid", CONFIG: "fly.toml" } });
+  const byApp = runStep(MACHINES, { env: { APP: "bid", CONFIG: "fly.toml", VERIFY_SETTLE_SECONDS: "0" } });
   check("with an app name it asks for that app", byApp.flyctlArgs.includes("--app bid"), byApp.flyctlArgs);
 }
 
