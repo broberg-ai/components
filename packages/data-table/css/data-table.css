@@ -144,3 +144,18 @@
 .bdt-drag-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .bdt-drag-handle[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 tr.is-dragging, .bdt-card.is-dragging { background: var(--accent-soft); }
+
+/* F094.8 — manual mode: a page is being fetched. The rows stay visible underneath. */
+.bdt-cards { position: relative; }
+.bdt-loading {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+.bdt-spinner {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: bdt-spin 0.8s linear infinite;
+}
+@keyframes bdt-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bdt-spinner { animation-duration: 2.4s; } }

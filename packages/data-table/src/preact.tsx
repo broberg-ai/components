@@ -71,6 +71,8 @@ export interface DataTableLabels {
   selectRow: string;
   rowActions: string;
   empty: string;
+  /** F094.8 — spoken while a page is being fetched (manual mode). */
+  loading: string;
   /** F094.2 — the drag handle's name when it can be used. */
   dragHandle: string;
   /** …and when it cannot: says WHY (sorted or filtered). */
@@ -96,6 +98,7 @@ export const LABELS_DA: DataTableLabels = {
   selectRow: "Vælg række",
   rowActions: "Handlinger",
   empty: "Ingen resultater.",
+  loading: "Henter …",
   dragHandle: "Flyt række — mellemrum løfter, pilene flytter",
   dragDisabled: "Kan ikke flyttes mens tabellen er sorteret eller filtreret",
   dragLifted: (p, t) => `Række løftet, position ${p} af ${t}. Pil op og ned flytter, mellemrum slipper, Escape fortryder.`,
@@ -119,6 +122,7 @@ export const LABELS_EN: DataTableLabels = {
   selectRow: "Select row",
   rowActions: "Actions",
   empty: "No results.",
+  loading: "Loading …",
   dragHandle: "Move row — space lifts, arrows move",
   dragDisabled: "Cannot be moved while the table is sorted or filtered",
   dragLifted: (p, t) => `Row lifted, position ${p} of ${t}. Up and down arrows move, space drops, Escape cancels.`,
@@ -161,6 +165,32 @@ export interface DataTableProps<T> {
   locale?: DataTableLocale;
   /** F094.7 — number format (BCP-47, e.g. "da-DK"). Defaults from `locale`; a user's Format may differ from the language. */
   numberLocale?: string;
+  /**
+   * F094.8 — SERVER-DRIVEN mode, for lists fetched page by page (BID: 20 000 users).
+   * The table does no searching, sorting or paging of its own: `rows` IS the current
+   * page, shown as given. Every change is reported through the callbacks below and
+   * the app fetches the next page. Drag-to-reorder is off (the server owns the order).
+   * Without `manual` nothing changes.
+   */
+  manual?: boolean;
+  /** manual: rows in total on the server — drives «Side x af y». */
+  total?: number;
+  /** manual: the current sort, or null. */
+  sort?: SortState | null;
+  onSortChange?: (sort: SortState | null) => void;
+  /** manual: the current page, 0-BASED (page 0 is «Side 1»). */
+  page?: number;
+  onPageChange?: (page: number) => void;
+  /** manual: rows per page. */
+  pageSize?: number;
+  onPageSizeChange?: (pageSize: number) => void;
+  /** manual: the current search text. */
+  search?: string;
+  /** manual: called after the user stops typing for `searchDebounceMs` (default 300). */
+  onSearchChange?: (q: string) => void;
+  searchDebounceMs?: number;
+  /** manual: a page is being fetched — a spinner covers the rows, which stay visible. */
+  loading?: boolean;
 }
 
 const valueOf = <T,>(col: Column<T>, row: T): unknown =>
@@ -348,10 +378,27 @@ export function DataTable<T>(props: DataTableProps<T>) {
   const numberFormat = useMemo(() => new Intl.NumberFormat(props.numberLocale ?? LOCALE_NUMBERS[locale]), [props.numberLocale, locale]);
   const pageSizes = props.pageSizes ?? [10, 20, 30, 40, 50];
 
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortState | null>(null);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState(props.initialPageSize ?? pageSizes[0] ?? 10);
+  const manual = props.manual === true;
+  const [query, setQuery] = useState(manual ? (props.search ?? "") : "");
+  const [localSort, setLocalSort] = useState<SortState | null>(null);
+  const [localPageIndex, setPageIndex] = useState(0);
+  const [localPageSize, setLocalPageSize] = useState(props.initialPageSize ?? pageSizes[0] ?? 10);
+  // In manual mode the app owns sort, page and size; the table only reports changes.
+  const sort = manual ? (props.sort ?? null) : localSort;
+  const pageIndex = manual ? Math.max(0, props.page ?? 0) : localPageIndex;
+  const pageSize = manual ? (props.pageSize ?? localPageSize) : localPageSize;
+  const setSort = (next: SortState | null) => { if (manual) props.onSortChange?.(next); else setLocalSort(next); };
+  const goToPage = (n: number) => { if (manual) props.onPageChange?.(n); else setPageIndex(n); };
+  const setPageSize = (n: number) => { if (manual) props.onPageSizeChange?.(n); else setLocalPageSize(n); };
+  // Search: typed text shows at once; the app hears it once typing pauses.
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
+  const onSearchInput = (q: string) => {
+    setQuery(q);
+    if (!manual) { setPageIndex(0); return; }
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => { props.onSearchChange?.(q); props.onPageChange?.(0); }, props.searchDebounceMs ?? 300);
+  };
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [hidden, setHidden] = useState<Set<string>>(
     () => new Set(props.columnStorageKey ? loadHiddenColumns(props.columnStorageKey) : []),
@@ -382,26 +429,28 @@ export function DataTable<T>(props: DataTableProps<T>) {
   const searchCols = shown.filter((c) => c.searchable ?? (c.cell === undefined || ["text", "badge", "status", "select"].includes(c.cell as string)));
 
   const filtered = useMemo(
-    () => filterRows(props.rows, query, (row) => searchCols.map((c) => {
+    () => manual ? props.rows : filterRows(props.rows, query, (row) => searchCols.map((c) => {
       const v = valueOf(c, row);
       // A select cell is searched by what the user SEES, not by the stored value.
       return c.cell === "select" ? (c.options?.find((o) => o.value === v)?.label ?? v) : v;
     })),
-    [props.rows, query, searchCols.map((c) => c.id).join("|")],
+    [props.rows, query, searchCols.map((c) => c.id).join("|"), manual],
   );
   const sorted = useMemo(
-    () => sortRows(filtered, sort, (row, id) => {
+    () => manual ? filtered : sortRows(filtered, sort, (row, id) => {
       const col = props.columns.find((c) => c.id === id);
       return col ? valueOf(col, row) : undefined;
     }),
-    [filtered, sort, props.columns],
+    [filtered, sort, props.columns, manual],
   );
-  const page = paginate(sorted, pageIndex, pageSize);
+  const page = manual
+    ? { rows: props.rows, pageIndex, pageCount: Math.max(1, Math.ceil((props.total ?? props.rows.length) / Math.max(1, pageSize))) }
+    : paginate(sorted, pageIndex, pageSize);
   useEffect(() => {
-    if (page.pageIndex !== pageIndex) setPageIndex(page.pageIndex);
-  }, [page.pageIndex, pageIndex]);
+    if (!manual && page.pageIndex !== pageIndex) setPageIndex(page.pageIndex);
+  }, [page.pageIndex, pageIndex, manual]);
 
-  const canReorder = !!props.onReorder && sort === null && query.trim() === "";
+  const canReorder = !manual && !!props.onReorder && sort === null && query.trim() === "";
   const pageRows = drag ? moveRow(page.rows, drag.from, drag.over) : page.rows;
   const pageTotal = page.rows.length;
 
@@ -599,10 +648,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
             aria-label={L.search}
             value={query}
             data-testid={`${p}-search`}
-            onInput={(e) => {
-              setQuery((e.currentTarget as HTMLInputElement).value);
-              setPageIndex(0);
-            }}
+            onInput={(e) => onSearchInput((e.currentTarget as HTMLInputElement).value)}
           />
         )}
         <Dropdown
@@ -620,7 +666,8 @@ export function DataTable<T>(props: DataTableProps<T>) {
       </div>
 
       {isMobile ? (
-        <div class="bdt-cards" data-testid={`${p}-cards`} ref={setRowsEl}>
+        <div class="bdt-cards" data-testid={`${p}-cards`} ref={setRowsEl} aria-busy={props.loading ? "true" : undefined}>
+          {props.loading && <div class="bdt-loading" data-testid={`${p}-loading`} role="status" aria-label={L.loading}><span class="bdt-spinner" /></div>}
           {props.selectable && page.rows.length > 0 && (
             <label class="bdt-cards-head">
               <Checkbox state={selectionState(pageIds, selected)} label={L.selectAll} testId={`${p}-select-all`}
@@ -665,7 +712,8 @@ export function DataTable<T>(props: DataTableProps<T>) {
         </div>
       ) : (
       <div class="bdt-scroll">
-        <table class="bdt-table">
+        {props.loading && <div class="bdt-loading" data-testid={`${p}-loading`} role="status" aria-label={L.loading}><span class="bdt-spinner" /></div>}
+        <table class="bdt-table" aria-busy={props.loading ? "true" : undefined}>
           <thead>
             <tr>
               {props.onReorder && <th class="bdt-th bdt-col-drag"><span class="bdt-sr">{L.dragHandle}</span></th>}
@@ -686,7 +734,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
                   >
                     {c.sortable ? (
                       <button type="button" class="bdt-sort" data-testid={`${p}-sort-${c.id}`}
-                        onClick={() => { setSort(nextSort(sort, c.id)); setPageIndex(0); }}>
+                        onClick={() => { setSort(nextSort(sort, c.id)); goToPage(0); }}>
                         <span>{c.header}</span>
                         <Icon d={dir === "asc" ? ICON.up : dir === "desc" ? ICON.down : ICON.both} />
                       </button>
@@ -739,7 +787,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
 
       <div class="bdt-footer">
         <div class="bdt-selected" data-testid={`${p}-selected-label`}>
-          {props.selectable ? L.selected(selectedVisible, filtered.length) : null}
+          {props.selectable ? L.selected(selectedVisible, manual ? (props.total ?? props.rows.length) : filtered.length) : null}
         </div>
         <div class="bdt-pager">
           <span class="bdt-label">{L.rowsPerPage}</span>
@@ -750,7 +798,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
             role="listbox"
             align="end"
             items={pageSizes.map((n) => ({ key: String(n), label: String(n), testId: `${p}-page-size-${n}`, checked: n === pageSize }))}
-            onChoose={(key) => { setPageSize(Number(key)); setPageIndex(0); }}
+            onChoose={(key) => { setPageSize(Number(key)); goToPage(0); }}
           />
           <span class="bdt-label" data-testid={`${p}-page-label`}>{L.page(page.pageIndex + 1, page.pageCount)}</span>
           {([
@@ -760,7 +808,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
             ["last", L.last, ICON.last, page.pageCount - 1, page.pageIndex >= page.pageCount - 1],
           ] as const).map(([key, label, icon, target, disabled]) => (
             <button key={key} type="button" class="bdt-icon-button" aria-label={label} disabled={disabled}
-              data-testid={`${p}-page-${key}`} onClick={() => setPageIndex(target)}>
+              data-testid={`${p}-page-${key}`} onClick={() => goToPage(target)}>
               <Icon d={icon} />
             </button>
           ))}

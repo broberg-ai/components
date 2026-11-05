@@ -48,6 +48,28 @@ const columns: Column<Doc>[] = [
 
 **The app owns the data.** The table never writes anything back; it calls `onCellChange`, `onSelectionChange` and your row actions, and renders the rows you pass.
 
+## Server-driven lists — `manual` (0.5.0)
+
+For lists too big to load at once (BID: 20 000 users). The table does no searching,
+sorting or paging itself: `rows` is the current page, shown as given, and every change
+is reported so the app can fetch the next page.
+
+```tsx
+<DataTable
+  manual columns={columns} rows={users} getRowId={(u) => u.id}
+  total={total}                         // rows in total → «Side x af y»
+  page={page} onPageChange={setPage}    // 0-BASED: page 0 is «Side 1»
+  pageSize={size} onPageSizeChange={setSize}
+  sort={sort} onSortChange={setSort}    // { columnId, dir: "asc" | "desc" } | null
+  search={q} onSearchChange={setQ}      // called once typing pauses (searchDebounceMs, default 300)
+  loading={fetching}                    // spinner over the rows; the rows stay visible
+/>
+```
+
+Sorting, searching and changing the page size also call `onPageChange(0)`. Drag-to-reorder
+is off in this mode (the server owns the order). Same testids, `aria-sort` and keyboard as
+always. Without `manual` nothing changes.
+
 ## Rules it follows
 
 - **No native `select`, `dialog` or `option`** (D-4cd764). Every dropdown is a button plus a menu/listbox: arrows move, Enter or Space chooses, Escape closes, a click outside closes.
