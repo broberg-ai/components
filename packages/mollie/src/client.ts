@@ -85,7 +85,12 @@ export function createMollieClient(opts: CreateMollieClientOptions = {}): Mollie
       body: body ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    let data: any = {};
+    try { data = text ? JSON.parse(text) : {}; }
+    catch {
+      // A proxy/edge error page (HTML) is still an answer with a status — report it as one.
+      throw new MollieError(`Mollie ${method} ${path} → ${res.status} (not JSON)`, res.ok ? 502 : res.status);
+    }
     if (!res.ok) throw new MollieError(`Mollie ${method} ${path} → ${res.status}${data?.title ? ` ${data.title}` : ""}`, res.status, data?.detail);
     return data as T;
   }

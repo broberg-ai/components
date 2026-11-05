@@ -38,6 +38,12 @@ describe("customer, mandate and monthly charges", () => {
     const rec = await mollie.createRecurringPayment({ customerId: c.id, mandateId: "mdt_1", amount: 19_900, currency: "DKK", description: "fysio.work — december" });
     expect(fm.payments.get(rec.id)).toMatchObject({ sequenceType: "recurring", customerId: c.id, mandateId: "mdt_1" });
   });
+  it("an HTML error page (proxy/edge) surfaces as a MollieError with its status, not a parse crash", async () => {
+    const html = (async () => new Response("<html>502 Bad Gateway</html>", { status: 502 })) as typeof fetch;
+    const r = createMollieClient({ apiKey: "test_abc", fetch: html });
+    if (!r.enabled) throw new Error();
+    await expect(r.mollie.getPayment("tr_1")).rejects.toMatchObject({ name: "MollieError", status: 502 });
+  });
   it("a Mollie error surfaces with its status", async () => {
     const fm = fakeMollie();
     const r = createMollieClient({ apiKey: "live_wrong", fetch: fm.fetch });

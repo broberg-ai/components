@@ -1,6 +1,6 @@
 {
   "name": "@broberg/mollie",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Mollie payments for the fleet with a split engine YOU control: one payment divided between platform, developer and clinic (any number of recipients, percent and fixed amounts, exact to the øre), executed through Mollie Connect for Marketplaces delayed routing. Customers, card mandates, monthly recurring charges, routing, refunds that reverse routing, and verified webhooks. No SDK dependency; ship-dark without MOLLIE_API_KEY.",
   "type": "module",
   "license": "MIT",
