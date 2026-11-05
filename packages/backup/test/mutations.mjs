@@ -107,6 +107,35 @@ const MUTATIONS = [
     to: "    const [obj, man] = await Promise.all([store.get(objectKey(dd)), store.get(manifestKey(dd))]);",
     expect: ["freshness reads the prefix it is given — another app's fresh copy does not make this one green"],
   },
+  // F093.3 — backup in parts.
+  {
+    name: "parts: a part is not read back before the next page",
+    file: "index",
+    from: "      if (back === null || sha256(back.bytes) !== ciphertextSha256) {",
+    to: "      if (false) {",
+    expect: ["a part read back wrong → readBackMatches false, NO manifest, and freshness is not green"],
+  },
+  {
+    name: "parts: freshness checks only the first part",
+    file: "index",
+    from: "  for (const part of m.parts) {\n    if (!part.key.startsWith(`${prefix}/${d}/`)) return part.key;",
+    to: "  for (const part of m.parts.slice(0, 1)) {\n    if (!part.key.startsWith(`${prefix}/${d}/`)) return part.key;",
+    expect: ["ONE part missing or changed → manifest_mismatch (every part is checked, not only the first)"],
+  },
+  {
+    name: "parts: today's copy is trusted without checking its parts",
+    file: "index",
+    from: "  if (prev && !(await firstBadPart(input.store, prev, today, prefix))) {",
+    to: "  if (prev) {",
+    expect: ["NEGATIVE: today's copy has a changed part → it writes again"],
+  },
+  {
+    name: "parts: retention follows an old manifest out of the app's prefix",
+    file: "index",
+    from: "        for (const part of oldManifest.parts) if (part.key.startsWith(`${prefix}/${old}/`)) await del(part.key);",
+    to: "        for (const part of oldManifest.parts) await del(part.key);",
+    expect: ["PREFIX BOUNDARY: retention never touches another app's parts, even if an old manifest names them"],
+  },
 ];
 
 const backup = mkdtempSync(join(tmpdir(), "backupmut-"));

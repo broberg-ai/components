@@ -255,6 +255,21 @@ export async function backupFreshness(
   for (const d of [0, 1]) {
     const dd = day(now - d * 86_400_000);
     const [obj, man] = await Promise.all([store.get(objectKey(dd, prefix)), store.get(manifestKey(dd, prefix))]);
+    // F093.3 — a backup in parts has a manifest and no single file.
+    if (man && !obj) {
+      const m2 = readManifest(man.bytes);
+      if (m2?.version === 2) {
+        const bad = await firstBadPart(store, m2, dd, prefix);
+        if (bad) return { ok: false as const, reason: "manifest_mismatch", newest: dd };
+        return {
+          ok: true as const,
+          newest: dd,
+          tables: Object.keys(m2.tables ?? {}).length,
+          bytes: m2.parts.reduce((n, p) => n + p.ciphertextBytes, 0),
+          parts: m2.parts.length,
+        };
+      }
+    }
     if (!obj || !man) continue;
     let m: { object?: string; ciphertextSha256?: string; tables?: Record<string, number> } = {};
     try {
@@ -268,4 +283,259 @@ export async function backupFreshness(
     return { ok: true as const, newest: dd, tables: Object.keys(m.tables ?? {}).length, bytes: obj.bytes.length };
   }
   return { ok: false as const, reason: "no_backup_today_or_yesterday", newest: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// F093.3 — BACKUP IN PARTS, for a database too big to hold in memory at once.
+//
+// cardmem 5/11 2026: 198 tables, 694 782 rows, ~850 MB in Postgres, on a 4 GB
+// machine that also runs the server. runDbBackup above builds ONE string of the
+// whole database — fine for BID, an OOM there. Here the source hands rows over a
+// page at a time, and each page becomes its own encrypted part:
+//
+//   <prefix>/<day>/part-00001.json.gz.enc   gzip(JSON {table, rows}) → AES-256-GCM, own IV
+//   <prefix>/<day>.manifest.json            version 2: every part's key, sha and row count
+//
+// One AES key per backup, wrapped with RSA-OAEP exactly as above: the machine
+// can encrypt, never open. The most held at once is one page.
+//
+// Same guarantees as the single file: each part is fetched BACK and sha-checked
+// before the next is read; the manifest is written only when every part is
+// proven, so a night that broke half-way has no manifest and the probe goes red;
+// one copy per day; 30 days, and retention deletes an old day's parts through
+// that day's manifest. Why parts and not one streamed object: BackupStore.upload
+// takes whole bytes, and demanding multipart of the store would break the
+// @broberg/media contract every consumer already has.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DEFAULT_PAGE_SIZE = 2000;
+
+export interface BackupPageSource {
+  /** The tables to include. Read from the database itself, so a new table is included on its own. */
+  listTables(): Promise<string[]>;
+  /** One table's rows, a page at a time (keyset or limit/offset — the app's query). */
+  pages(table: string, pageSize: number): AsyncIterable<Record<string, unknown>[]>;
+}
+
+export interface BackupPart {
+  key: string;
+  table: string;
+  rows: number;
+  iv: string;
+  plaintextSha256: string;
+  plaintextBytes: number;
+  ciphertextSha256: string;
+  ciphertextBytes: number;
+}
+
+export interface BackupPartsManifest {
+  version: 2;
+  what: string;
+  createdAt: string;
+  format: string;
+  wrappedKey: string;
+  parts: BackupPart[];
+  tables: Record<string, number>;
+  /** sha256 over the parts' ciphertext sha256s, in order — one fingerprint for the whole copy. */
+  ciphertextSha256: string;
+  plaintextBytes: number;
+}
+
+export interface BackupPartsResult extends Omit<BackupResult, "object"> {
+  /** The day's part directory, e.g. "db-backup/2026-11-05/". */
+  object: string;
+  parts: number;
+}
+
+export function partKey(d: string, n: number, prefix: string = BACKUP_PREFIX): string {
+  return `${prefix}/${d}/part-${String(n).padStart(5, "0")}.json.gz.enc`;
+}
+
+function readManifest(bytes: Uint8Array): BackupPartsManifest | null {
+  try {
+    const m = JSON.parse(new TextDecoder().decode(bytes));
+    return m && m.version === 2 && Array.isArray(m.parts) ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The first part that is missing, outside this day's directory, or not its manifest's bytes — fetched one at a time. */
+async function firstBadPart(store: Pick<BackupStore, "get">, m: BackupPartsManifest, d: string, prefix: string) {
+  for (const part of m.parts) {
+    if (!part.key.startsWith(`${prefix}/${d}/`)) return part.key;
+    const got = await store.get(part.key);
+    if (!got || sha256(got.bytes) !== part.ciphertextSha256) return part.key;
+  }
+  return null;
+}
+
+export async function runDbBackupParts(input: {
+  source: BackupPageSource;
+  store: BackupStore;
+  publicKeyPem: string;
+  /** Written into the manifest, e.g. «cardmem, UpCloud Postgres». */
+  what: string;
+  prefix?: string;
+  /** Rows per page (= per part). A number, or one per table — the big table gets its own. Default 2000. */
+  pageSize?: number | ((table: string) => number);
+  now?: number;
+  /** As in runDbBackup: false for a bucket with an object lock. */
+  prune?: boolean;
+}): Promise<BackupPartsResult> {
+  const now = input.now ?? Date.now();
+  const today = day(now);
+  const prefix = input.prefix ?? BACKUP_PREFIX;
+  const dir = `${prefix}/${today}/`;
+  const manifest = manifestKey(today, prefix);
+
+  // ONE COPY PER DAY — today's manifest exists and every part it names is whole.
+  const existing = await input.store.get(manifest);
+  const prev = existing ? readManifest(existing.bytes) : null;
+  if (prev && !(await firstBadPart(input.store, prev, today, prefix))) {
+    return {
+      object: dir,
+      manifest,
+      tables: prev.tables,
+      plaintextBytes: prev.plaintextBytes,
+      ciphertextSha256: prev.ciphertextSha256,
+      readBackMatches: true,
+      deleted: 0,
+      pruneSkipped: [],
+      parts: prev.parts.length,
+      alreadyToday: true,
+    };
+  }
+
+  const aesKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  const publicKey = await crypto.subtle.importKey("spki", der(input.publicKeyPem), { name: "RSA-OAEP", hash: "SHA-256" }, false, [
+    "encrypt",
+  ]);
+  const wrappedKey = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, new Uint8Array(await crypto.subtle.exportKey("raw", aesKey))),
+  );
+
+  const parts: BackupPart[] = [];
+  const counts: Record<string, number> = {};
+  let plaintextBytes = 0;
+  let readBackMatches = true;
+  outer: for (const table of await input.source.listTables()) {
+    counts[table] = 0;
+    const size = typeof input.pageSize === "function" ? input.pageSize(table) : (input.pageSize ?? DEFAULT_PAGE_SIZE);
+    for await (const rows of input.source.pages(table, size)) {
+      if (rows.length === 0) continue;
+      const plain = new Uint8Array(gzipSync(new TextEncoder().encode(serialise({ table, rows }))));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, plain));
+      const key = partKey(today, parts.length + 1, prefix);
+      const ciphertextSha256 = sha256(cipher);
+      await input.store.upload(key, cipher, { contentType: "application/octet-stream" });
+      // READ BACK — this part's bytes fetched again before the next page is read.
+      const back = await input.store.get(key);
+      if (back === null || sha256(back.bytes) !== ciphertextSha256) {
+        readBackMatches = false;
+        break outer;
+      }
+      parts.push({
+        key,
+        table,
+        rows: rows.length,
+        iv: Buffer.from(iv).toString("base64"),
+        plaintextSha256: sha256(plain),
+        plaintextBytes: plain.length,
+        ciphertextSha256,
+        ciphertextBytes: cipher.length,
+      });
+      counts[table] += rows.length;
+      plaintextBytes += plain.length;
+    }
+  }
+
+  const ciphertextSha256 = sha256(new TextEncoder().encode(parts.map((p) => p.ciphertextSha256).join("\n")));
+  const result: BackupPartsResult = {
+    object: dir,
+    manifest,
+    tables: counts,
+    plaintextBytes,
+    ciphertextSha256,
+    readBackMatches,
+    deleted: 0,
+    pruneSkipped: [],
+    parts: parts.length,
+  };
+  // An unproven part: no manifest. The copy does not exist, and the probe says so.
+  if (!readBackMatches) return result;
+
+  const m: BackupPartsManifest = {
+    version: 2,
+    what: input.what,
+    createdAt: new Date(now).toISOString(),
+    format: "parts: gzip(JSON {table,rows}) → AES-256-GCM, own IV per part; one key wrapped RSA-OAEP/SHA-256",
+    wrappedKey: Buffer.from(wrappedKey).toString("base64"),
+    parts,
+    tables: counts,
+    ciphertextSha256,
+    plaintextBytes,
+  };
+  await input.store.upload(manifest, new TextEncoder().encode(JSON.stringify(m, null, 2)), { contentType: "application/json" });
+
+  // Retention: days 31-40 back, under THIS prefix only, only after a proven copy.
+  // A day in parts is deleted through its manifest; a single-file day as before.
+  if (input.prune !== false) {
+    for (let d = KEEP_DAYS + 1; d <= KEEP_DAYS + 10; d++) {
+      const old = day(now - d * 86_400_000);
+      const skippedBefore = result.pruneSkipped.length;
+      const del = async (key: string) => {
+        try {
+          await input.store.delete(key);
+        } catch (e) {
+          result.pruneSkipped.push({ key, reason: e instanceof Error ? e.message : String(e) });
+        }
+      };
+      let oldManifest: BackupPartsManifest | null = null;
+      try {
+        const got = await input.store.get(manifestKey(old, prefix));
+        oldManifest = got ? readManifest(got.bytes) : null;
+      } catch (e) {
+        result.pruneSkipped.push({ key: manifestKey(old, prefix), reason: e instanceof Error ? e.message : String(e) });
+        continue;
+      }
+      if (oldManifest) {
+        for (const part of oldManifest.parts) if (part.key.startsWith(`${prefix}/${old}/`)) await del(part.key);
+      } else {
+        await del(objectKey(old, prefix));
+      }
+      // The manifest last: while a part is still there, the manifest is what finds it next night.
+      if (result.pruneSkipped.length === skippedBefore) await del(manifestKey(old, prefix));
+      if (result.pruneSkipped.length === skippedBefore) result.deleted++;
+    }
+  }
+  return result;
+}
+
+/**
+ * Open a backup in parts again, one part at a time — the restore drill on a
+ * large database. Needs the PRIVATE key. Each part is sha-checked against the
+ * manifest before it is decrypted; a missing or changed part throws. Writes
+ * nothing: putting rows back is the caller's step.
+ */
+export async function* openDbBackupParts(input: {
+  store: Pick<BackupStore, "get">;
+  manifest: Pick<BackupPartsManifest, "wrappedKey" | "parts">;
+  privateKeyPem: string;
+}): AsyncGenerator<{ table: string; rows: Record<string, unknown>[] }> {
+  const privateKey = await crypto.subtle.importKey("pkcs8", der(input.privateKeyPem), { name: "RSA-OAEP", hash: "SHA-256" }, false, [
+    "decrypt",
+  ]);
+  const rawAes = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, Buffer.from(input.manifest.wrappedKey, "base64"));
+  const aesKey = await crypto.subtle.importKey("raw", rawAes, { name: "AES-GCM" }, false, ["decrypt"]);
+  for (const part of input.manifest.parts) {
+    const got = await input.store.get(part.key);
+    if (!got) throw new Error(`backup part missing: ${part.key}`);
+    if (sha256(got.bytes) !== part.ciphertextSha256) throw new Error(`backup part does not match its manifest: ${part.key}`);
+    const plain = new Uint8Array(
+      await crypto.subtle.decrypt({ name: "AES-GCM", iv: Buffer.from(part.iv, "base64") }, aesKey, new Uint8Array(got.bytes)),
+    );
+    yield JSON.parse(new TextDecoder().decode(gunzipSync(plain)));
+  }
 }

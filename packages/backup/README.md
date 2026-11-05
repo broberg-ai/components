@@ -29,6 +29,46 @@ const f = await backupFreshness(store, Date.now(), "myapp"); // { ok, newest, re
 const contents = await openDbBackup({ cipher, manifest, privateKeyPem });
 ```
 
+## A large database — backup in parts (0.3.0)
+
+`runDbBackup` builds the whole database as one string in memory. That is fine for a few MB; at hundreds of MB it is an out-of-memory on a small machine. `runDbBackupParts` takes rows **a page at a time** and writes each page as its own encrypted part, so the most it holds is one page.
+
+- `<prefix>/<day>/part-00001.json.gz.enc` … one part per page: `gzip(JSON {table, rows})` → AES-256-GCM with its own IV, all under the one wrapped key.
+- `<prefix>/<day>.manifest.json` (`version: 2`) lists every part with its sha256 and row count. It is written **only after every part has been read back and matched** — a night that broke half-way has no manifest, and the probe goes red.
+- One copy per day, 30 days, `prune: false` and `pruneSkipped` work as above; an old day's parts are deleted through that day's manifest, and an old single-file day is removed too, so switching leaves nothing behind.
+- `backupFreshness()` understands both formats and checks every part, one at a time.
+
+```ts
+import { runDbBackupParts, openDbBackupParts } from "@broberg/backup";
+
+// Postgres, keyset pagination (stable and cheap on a big table — not OFFSET)
+const source = {
+  listTables: async () => (await sql`select tablename from pg_tables where schemaname = 'public'`).map((r) => r.tablename),
+  async *pages(table: string, pageSize: number) {
+    let after: string | null = null;
+    for (;;) {
+      const rows = after === null
+        ? await sql`select * from ${sql(table)} order by ctid limit ${pageSize}`
+        : await sql`select * from ${sql(table)} where ctid > ${after}::tid order by ctid limit ${pageSize}`;
+      if (rows.length === 0) return;
+      yield rows;
+      after = rows.at(-1).ctid;   // select ctid, * … if your driver does not return it
+    }
+  },
+};
+
+const r = await runDbBackupParts({
+  source, store, publicKeyPem, what: "myapp, Postgres", prefix: "myapp",
+  pageSize: (t) => (t === "audit_log" ? 5000 : 2000), // a number, or one per table (default 2000)
+});
+if (!r.readBackMatches) throw new Error("backup not proven");
+
+// restore drill, one part at a time
+for await (const { table, rows } of openDbBackupParts({ store, manifest, privateKeyPem })) { /* … */ }
+```
+
+Order the pages by a key that does not change while the backup runs (a primary key, or `ctid` for a table without one). A logical dump across many pages is not one transaction: rows written during the backup may or may not be in it. Run it in a `REPEATABLE READ` transaction if you need one consistent snapshot.
+
 Restoring rows into a database is your step. Restoring over a **live** database is destructive and needs the owner's own words.
 
 Runs on Node ≥ 20 and Bun. No runtime dependencies (node:crypto, node:zlib, Web Crypto).
