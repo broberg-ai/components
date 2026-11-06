@@ -235,8 +235,8 @@
  },
  "@broberg/lens-daemon": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-daemon",
-  "version": "0.1.76",
-  "publishedAt": "2026-11-02T11:01:29.261Z",
+  "version": "0.1.77",
+  "publishedAt": "2026-11-06T13:53:52.585Z",
   "provenance": "yes"
  },
  "@broberg/lens-measure": {
@@ -307,8 +307,8 @@
  },
  "@broberg/sso": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/sso",
-  "version": "0.25.0",
-  "publishedAt": "2026-10-31T16:28:41.247Z",
+  "version": "0.26.0",
+  "publishedAt": "2026-11-06T15:23:52.231Z",
   "provenance": "yes"
  },
  "@broberg/seal": {
