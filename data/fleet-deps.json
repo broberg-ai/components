@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-05T12:28:50.583Z",
- "repos_scanned": 83,
+ "scanned_at": "2026-11-06T12:14:31.282Z",
+ "repos_scanned": 84,
  "repos_failed": 0,
- "manifests_read": 319,
+ "manifests_read": 321,
  "manifests_unreadable": 0,
- "edges": 454,
+ "edges": 458,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -617,6 +617,14 @@
       "installed": "0.1.0"
      }
     ],
+    "@broberg/data-table": [
+     {
+      "range": "0.5.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.5.0"
+     }
+    ],
     "@broberg/gravatar": [
      {
       "range": "^0.2.1",
@@ -794,6 +802,12 @@
       "field": "dependencies",
       "at": "apps/admin/package.json",
       "installed": "0.4.0"
+     },
+     {
+      "range": "0.7.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json",
+      "installed": "0.7.0"
      }
     ],
     "@broberg/notifications": [
@@ -914,6 +928,14 @@
       "installed": "0.3.1"
      }
     ],
+    "@broberg/backup": [
+     {
+      "range": "0.1.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json",
+      "installed": "0.1.0"
+     }
+    ],
     "@broberg/config": [
      {
       "range": "0.3.1",
@@ -994,16 +1016,16 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.68.0",
+      "range": "0.72.0",
       "field": "dependencies",
       "at": "apps/agent/package.json",
-      "installed": "0.68.0"
+      "installed": "0.72.0"
      },
      {
-      "range": "0.68.0",
+      "range": "0.72.0",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed": "0.68.0"
+      "installed": "0.72.0"
      },
      {
       "range": "0.66.0",
@@ -1018,10 +1040,10 @@
       "installed_unknown": "manifest not an importer in pnpm-lock.yaml"
      },
      {
-      "range": "0.68.0",
+      "range": "0.72.0",
       "field": "dependencies",
       "at": "packages/mcp-tools/package.json",
-      "installed": "0.68.0"
+      "installed": "0.72.0"
      }
     ],
     "@broberg/lens-daemon": [
@@ -1106,6 +1128,14 @@
       "field": "dependencies",
       "at": "apps/server/package.json",
       "installed": "0.1.0"
+     }
+    ],
+    "@broberg/backup": [
+     {
+      "range": "0.4.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed": "0.4.0"
      }
     ],
     "@broberg/deploy-core": [
@@ -2282,11 +2312,45 @@
     ]
    }
   },
+  "broberg-ai/fysio-work-sdk": {
+   "branch": "main",
+   "manifests": 1,
+   "unreadable": 0,
+   "deps": {}
+  },
   "broberg-ai/fysio.work": {
    "branch": "main",
-   "manifests": 2,
+   "manifests": 3,
    "unreadable": 0,
    "deps": {
+    "@broberg/lens": [
+     {
+      "range": "0.3.3",
+      "field": "dependencies",
+      "at": "apps/app/package.json",
+      "installed": "0.3.3"
+     },
+     {
+      "range": "0.3.3",
+      "field": "dependencies",
+      "at": "apps/landing/package.json",
+      "installed": "0.3.3"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.25.0",
+      "field": "dependencies",
+      "at": "apps/app/package.json",
+      "installed": "0.25.0"
+     },
+     {
+      "range": "0.25.0",
+      "field": "dependencies",
+      "at": "apps/landing/package.json",
+      "installed": "0.25.0"
+     }
+    ],
     "@broberg/legal": [
      {
       "range": "0.7.0",
@@ -2309,14 +2373,6 @@
       "field": "dependencies",
       "at": "apps/landing/package.json",
       "installed": "0.2.0"
-     }
-    ],
-    "@broberg/sso": [
-     {
-      "range": "0.25.0",
-      "field": "dependencies",
-      "at": "apps/landing/package.json",
-      "installed": "0.25.0"
      }
     ],
     "@upmetrics/sdk": [
