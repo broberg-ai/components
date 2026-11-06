@@ -299,6 +299,42 @@ const terms = await client.embedded.terms("da");                                
 - **The app's name on the terms (0.20.0, BID F084.177).** `terms(lang)` sends your `client_id`, so BID's consent text
   can say «hos <your app>».
 
+## Passkey login inside YOUR page — `@broberg/sso/embedded-passkey` (0.26.0, F084.186)
+
+BID runs the passkey ceremony in a frame on id.broberg.ai, and accepts its `/embedded/passkey/*`
+calls only from your page's Origin (the origin must be on your client's list in BID — bid sets it).
+So the ceremony runs in the browser. **The PKCE verifier and the nonce do not**: your server makes
+them and keeps them in a sealed cookie, the browser gets only the challenge, and hands back only
+the code. A browser that held the verifier could be fed an attacker's code + verifier and sign the
+user in to the attacker's account (login CSRF).
+
+```ts
+// server — route 1: begin
+const { browser, flow } = await sso.embeddedPasskey.begin();
+setCookie(c, "pk_flow", await sealEmbeddedPasskeyFlow(flow, env.SSO_COOKIE_SECRET), { httpOnly: true, secure: true, sameSite: "Lax", maxAge: 600 });
+return c.json(browser); // { issuer, clientId, redirectUri, codeChallenge, nonce } — no verifier
+
+// browser
+import { loginWithEmbeddedPasskey, EmbeddedPasskeyError } from "@broberg/sso/embedded-passkey";
+try {
+  const { code } = await loginWithEmbeddedPasskey(await (await fetch("/auth/passkey/begin", { method: "POST" })).json(), { container });
+  await fetch("/auth/passkey/complete", { method: "POST", body: JSON.stringify({ code }) });
+} catch (e) {
+  if (e instanceof EmbeddedPasskeyError) show(e.reason); // not_found · cancelled · failed · refused · unavailable · timeout · aborted
+}
+
+// server — route 2: complete
+const opened = await openEmbeddedPasskeyFlow(getCookie(c, "pk_flow"), env.SSO_COOKIE_SECRET);
+if (!opened.ok) return c.json({ error: opened.reason }, 400);
+const result = await sso.embeddedPasskey.complete({ code, flow: opened.flow }); // same LoginResult as completeLogin; works with clientAuth "fly"
+// → sign your session exactly as after completeLogin, and delete pk_flow
+```
+
+- Messages are accepted only from the issuer's origin and only for this flow; anything else is ignored.
+- It always settles: a code, or an `EmbeddedPasskeyError` — never a promise that hangs (the flow's 10-minute life is the cap).
+- The frame gets `data-testid="embedded-passkey-frame"`; your button and messages are yours.
+- **Not live-verified in components** — built against BID's contract as measured by broberg-id (6 Nov 2026).
+
 ## Face ID / fingerprint login from a native app — `@broberg/sso/native` (0.22.0, F084.185)
 
 A Capacitor app (iOS or Android) logs in with the phone's passkey through BID's embedded passkey flow. This entry runs **on the device** as a public client — PKCE, no client secret, no dependencies (only `fetch` and Web Crypto) — so it does not pull the server client into the app.

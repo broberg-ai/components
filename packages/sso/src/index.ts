@@ -42,6 +42,11 @@ export {
 export {
   sealEmbeddedFlow,
   openEmbeddedFlow,
+  sealEmbeddedPasskeyFlow,
+  openEmbeddedPasskeyFlow,
+  type EmbeddedPasskeyFlow,
+  type EmbeddedPasskeyBrowserStart,
+  type EmbeddedPasskeyServer,
   EMBEDDED_FLOW_MAX_AGE,
   type EmbeddedClient,
   type EmbeddedError,

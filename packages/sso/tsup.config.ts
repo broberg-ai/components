@@ -13,7 +13,8 @@ export default defineConfig({
   // NO `clean` here — dist is cleaned ONCE by the `build` script, and
   // verify-exports.mjs refuses to ship an incomplete one (F061).
   // F084.185 — /native runs on the DEVICE (public client, PKCE, no jose); its own entry.
-  entry: { index: "src/index.ts", hono: "src/hono.ts", native: "src/native.ts" },
+  // F084.186 — /embedded-passkey runs in the BROWSER (no Node, no jose); its own entry.
+  entry: { index: "src/index.ts", hono: "src/hono.ts", native: "src/native.ts", "embedded-passkey": "src/embedded-passkey.ts" },
   format: ["esm", "cjs"],
   splitting: true,
   dts: true,

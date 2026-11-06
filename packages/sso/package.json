@@ -1,6 +1,6 @@
 {
   "name": "@broberg/sso",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "The thin client for BrobergID — send a user to central login, verify the ID token against JWKS, keep a local session. Public client + PKCE only: no passwords, no passkeys, no client secret can live in an app.",
   "type": "module",
   "license": "MIT",
@@ -27,6 +27,11 @@
       "types": "./dist/native.d.ts",
       "import": "./dist/native.js",
       "require": "./dist/native.cjs"
+    },
+    "./embedded-passkey": {
+      "types": "./dist/embedded-passkey.d.ts",
+      "import": "./dist/embedded-passkey.js",
+      "require": "./dist/embedded-passkey.cjs"
     },
     "./package.json": "./package.json"
   },

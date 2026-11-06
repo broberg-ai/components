@@ -21,7 +21,7 @@
  * client somebody eventually uses to do it — and then the identity rules exist
  * in two places and drift.
  */
-import { embeddedError, type EmbeddedClient, type EmbeddedFlow, type EmbeddedPasskeySetup, type EmbeddedStep } from "./embedded.js";
+import { embeddedError, type EmbeddedClient, type EmbeddedFlow, type EmbeddedPasskeyServer, type EmbeddedPasskeySetup, type EmbeddedStep } from "./embedded.js";
 import { decodeProtectedHeader, jwtVerify, type JWTPayload } from "jose";
 import { SsoConfigError, type SsoConfig } from "./config.js";
 import { createJwksCache, type JwksCache } from "./jwks.js";
@@ -279,6 +279,13 @@ export interface SsoClient {
    * LoginResult as completeLogin. Keep the returned flow in a cookie with sealEmbeddedFlow.
    */
   embedded: EmbeddedClient;
+  /**
+   * components-F084.186 — the embedded PASSKEY login. The ceremony runs in the browser
+   * (@broberg/sso/embedded-passkey); the verifier and nonce stay HERE. begin() → seal `flow`
+   * with sealEmbeddedPasskeyFlow into an httpOnly cookie and give `browser` to the page;
+   * complete({ code, flow }) swaps the browser's code with this client's own auth (fly too).
+   */
+  embeddedPasskey: EmbeddedPasskeyServer;
   logoutUrl(options?: { idTokenHint?: string; postLogoutRedirectUri?: string }): Promise<string>;
   /**
    * Does this address belong to the signed-in user's BID account, and is it
@@ -1100,10 +1107,28 @@ export function createSsoClient(
     },
   };
 
+  const embeddedPasskey: EmbeddedPasskeyServer = {
+    async begin() {
+      const codeVerifier = randomToken();
+      const nonce = randomToken(16);
+      return {
+        browser: { issuer: config.issuer, clientId: config.clientId, redirectUri: config.redirectUri, codeChallenge: await challengeFor(codeVerifier), nonce },
+        flow: { codeVerifier, nonce },
+      };
+    },
+    async complete({ code, flow }) {
+      if (typeof code !== "string" || !code) throw new SsoError("embeddedPasskey.complete: no code from the browser");
+      // The verifier and nonce come from THIS server's cookie, never from the browser: a code
+      // minted for another flow fails PKCE at BID, and a foreign id_token fails the nonce check.
+      return exchangeCode(code, flow.codeVerifier, flow.nonce);
+    },
+  };
+
   return {
     discovery,
     introspectToken,
     embedded,
+    embeddedPasskey,
     get jwks() {
       if (!jwksCache) throw new SsoError("the key cache is created on first verification");
       return jwksCache;

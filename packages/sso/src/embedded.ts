@@ -98,6 +98,62 @@ export async function openEmbeddedFlow(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// components-F084.186 — the EMBEDDED PASSKEY login (BID /embedded/passkey/*, measured by
+// broberg-id #48995). BID accepts start/complete only from the browser (Origin on the client's
+// list) or with Basic client_secret — never fly — so the ceremony runs in the browser
+// (@broberg/sso/embedded-passkey). What must NOT move to the browser is the PKCE verifier and
+// the nonce: a browser that makes its own pair can be handed an ATTACKER's code + verifier and
+// end up signed in to the attacker's account (login CSRF). So the server makes both, keeps them
+// in a sealed httpOnly cookie, hands the browser only the challenge, and swaps the code itself.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Server-side state of one passkey login: seal it into an httpOnly cookie (sealEmbeddedPasskeyFlow). */
+export interface EmbeddedPasskeyFlow {
+  codeVerifier: string;
+  nonce: string;
+}
+
+/** What the BROWSER gets — hand it to loginWithEmbeddedPasskey. No verifier in it, by design. */
+export interface EmbeddedPasskeyBrowserStart {
+  issuer: string;
+  clientId: string;
+  /** The redirect the code is bound to — the same one the server's token exchange sends. */
+  redirectUri: string;
+  codeChallenge: string;
+  nonce: string;
+}
+
+export interface EmbeddedPasskeyServer {
+  /** Make the verifier + nonce. Seal `flow` into a cookie; send `browser` to the page. */
+  begin(): Promise<{ browser: EmbeddedPasskeyBrowserStart; flow: EmbeddedPasskeyFlow }>;
+  /** The browser's code + the flow from YOUR cookie → the same LoginResult as completeLogin. */
+  complete(input: { code: string; flow: EmbeddedPasskeyFlow }): Promise<LoginResult>;
+}
+
+export function sealEmbeddedPasskeyFlow(flow: EmbeddedPasskeyFlow, secret: string, options: { now?: () => number } = {}): Promise<string> {
+  return signValue(JSON.stringify({ k: "passkey", v: flow.codeVerifier, n: flow.nonce }), secret, { maxAgeSeconds: EMBEDDED_FLOW_MAX_AGE, ...options });
+}
+
+/** The flow, or why not — "absent", "expired" or "unreadable" (not ours, tampered, or another kind of flow). */
+export async function openEmbeddedPasskeyFlow(
+  raw: string | undefined | null,
+  secret: string,
+  options: { now?: () => number } = {},
+): Promise<{ ok: true; flow: EmbeddedPasskeyFlow } | { ok: false; reason: "absent" | "expired" | "unreadable" }> {
+  if (!raw) return { ok: false, reason: "absent" };
+  if ((await verifyValue(raw, secret)) === null) return { ok: false, reason: "unreadable" };
+  const fresh = await verifyValue(raw, secret, { maxAgeSeconds: EMBEDDED_FLOW_MAX_AGE, ...options });
+  if (fresh === null) return { ok: false, reason: "expired" };
+  try {
+    const f = JSON.parse(fresh) as { k?: unknown; v?: unknown; n?: unknown };
+    if (f.k !== "passkey" || typeof f.v !== "string" || typeof f.n !== "string") return { ok: false, reason: "unreadable" };
+    return { ok: true, flow: { codeVerifier: f.v, nonce: f.n } };
+  } catch {
+    return { ok: false, reason: "unreadable" };
+  }
+}
+
 /** Map a non-2xx /embedded answer to the contract's error table. */
 export function embeddedError(status: number, body: Record<string, unknown>): EmbeddedError {
   const code = typeof body.error === "string" ? body.error : "";
