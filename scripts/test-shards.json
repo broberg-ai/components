@@ -164,6 +164,7 @@
         "@broberg/stripe",
         "@broberg/webpush",
         "@broberg/backup",
+        "@broberg/provider-usage",
         "@broberg/legal",
         "@broberg/s3",
         "@broberg/mollie"
@@ -181,6 +182,7 @@
         "@broberg/stripe": 38,
         "@broberg/webpush": 38,
         "@broberg/backup": 7,
+        "@broberg/provider-usage": 5,
         "@broberg/legal": 7,
         "@broberg/s3": 8,
         "@broberg/mollie": 14
