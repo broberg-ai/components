@@ -41,6 +41,12 @@
   "publishedAt": "2026-11-05T16:30:34.666Z",
   "provenance": "yes"
  },
+ "@broberg/provider-usage": {
+  "npmUrl": "https://www.npmjs.com/package/@broberg/provider-usage",
+  "version": "0.1.0",
+  "publishedAt": "2026-11-07T11:08:33.379Z",
+  "provenance": "no"
+ },
  "@broberg/mail-core": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail-core",
   "version": "0.10.1",
