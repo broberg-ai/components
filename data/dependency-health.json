@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-07T07:44:01.005Z",
+ "checked_at": "2026-11-07T10:29:07.296Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -1376,6 +1376,43 @@
   },
   "@broberg/phone": {
    "version": "0.1.1",
+   "status": "ok",
+   "prod": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "peer": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "dev": {
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0
+   },
+   "outdated": {
+    "total": 4,
+    "shipped": 0,
+    "deprecated": 0
+   },
+   "osv": {
+    "status": "ok",
+    "critical": 0,
+    "high": 0,
+    "moderate": 0,
+    "low": 0,
+    "unrated": 0,
+    "findings": []
+   },
+   "verdict": "OK"
+  },
+  "@broberg/provider-usage": {
+   "version": "0.1.0",
    "status": "ok",
    "prod": {
     "critical": 0,
