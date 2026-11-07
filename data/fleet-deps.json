@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-06T12:14:31.282Z",
+ "scanned_at": "2026-11-07T11:09:33.499Z",
  "repos_scanned": 84,
  "repos_failed": 0,
- "manifests_read": 321,
+ "manifests_read": 324,
  "manifests_unreadable": 0,
- "edges": 458,
+ "edges": 460,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1048,10 +1048,10 @@
     ],
     "@broberg/lens-daemon": [
      {
-      "range": "0.1.76",
+      "range": "0.1.77",
       "field": "dependencies",
       "at": "apps/agent/package.json",
-      "installed": "0.1.76"
+      "installed": "0.1.77"
      }
     ],
     "@broberg/lens-engine": [
@@ -1330,7 +1330,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 68,
+   "manifests": 69,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -2314,13 +2314,13 @@
   },
   "broberg-ai/fysio-work-sdk": {
    "branch": "main",
-   "manifests": 1,
+   "manifests": 2,
    "unreadable": 0,
    "deps": {}
   },
   "broberg-ai/fysio.work": {
    "branch": "main",
-   "manifests": 3,
+   "manifests": 4,
    "unreadable": 0,
    "deps": {
     "@broberg/lens": [
@@ -2339,16 +2339,38 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.25.0",
+      "range": "0.26.0",
       "field": "dependencies",
       "at": "apps/app/package.json",
-      "installed": "0.25.0"
+      "installed": "0.26.0"
+     },
+     {
+      "range": "0.26.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json",
+      "installed": "0.26.0"
      },
      {
       "range": "0.25.0",
       "field": "dependencies",
       "at": "apps/landing/package.json",
       "installed": "0.25.0"
+     }
+    ],
+    "@broberg/db-sdk": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/core/package.json",
+      "installed": "0.2.0"
+     }
+    ],
+    "@broberg/tenant": [
+     {
+      "range": "0.2.1",
+      "field": "dependencies",
+      "at": "apps/core/package.json",
+      "installed": "0.2.1"
      }
     ],
     "@broberg/legal": [
@@ -2998,10 +3020,10 @@
     ],
     "@broberg/legal": [
      {
-      "range": "0.4.0",
+      "range": "0.8.0",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed": "0.4.0"
+      "installed": "0.8.0"
      }
     ],
     "@broberg/lens": [
