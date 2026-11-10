@@ -1,7 +1,7 @@
 // An in-memory S3 that speaks just enough of the protocol: multipart + GET + HEAD.
 // It checks what a real bucket checks that matters here: the signature is present,
 // a presigned URL does not outlive MAX_EXPIRES, and parts are completed in order.
-export interface FakeS3 { fetch: typeof fetch; objects: Map<string, Uint8Array>; meta: Map<string, { headers: Record<string, string>; type: string; at: string }>; uploads: Map<string, { key: string; parts: Map<number, Uint8Array>; headers: Record<string, string>; type: string; at: string }>; requests: string[]; failNextPut: number; pageSize: number }
+export interface FakeS3 { fetch: typeof fetch; objects: Map<string, Uint8Array>; meta: Map<string, { headers: Record<string, string>; type: string; at: string }>; uploads: Map<string, { key: string; parts: Map<number, Uint8Array>; headers: Record<string, string>; type: string; at: string }>; requests: string[]; failNextPut: number; pageSize: number; cloudflareCompress: boolean; noRange: boolean }
 
 export function fakeS3(origin = "https://acct.eu.r2.cloudflarestorage.com"): FakeS3 {
   const objects = new Map<string, Uint8Array>();
@@ -13,7 +13,7 @@ export function fakeS3(origin = "https://acct.eu.r2.cloudflarestorage.com"): Fak
   let n = 0;
   const etagOf = (b: Uint8Array) => `"etag-${b.length}-${b[0] ?? 0}-${b[b.length - 1] ?? 0}"`;
   const s3: FakeS3 = {
-    objects, meta, uploads, requests, failNextPut: 0, pageSize: 1000,
+    objects, meta, uploads, requests, failNextPut: 0, pageSize: 1000, cloudflareCompress: false, noRange: false,
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       const req = input instanceof Request ? input : new Request(input, init);
       const url = new URL(req.url);
@@ -81,6 +81,16 @@ export function fakeS3(origin = "https://acct.eu.r2.cloudflarestorage.com"): Fak
         const o = objects.get(key);
         if (!o) return new Response("<Error><Code>NoSuchKey</Code></Error>", { status: 404 });
         const m = meta.get(key);
+        // F111.4 — what Cloudflare does (measured by drive on R2 EU, 10 Nov 2026): a compressible
+        // object over ~50 B, asked for without accept-encoding: identity, comes back compressed
+        // and WITHOUT Content-Length — on HEAD too.
+        const compressed = s3.cloudflareCompress && (m?.type ?? "").startsWith("text/") && o.length > 50 && req.headers.get("accept-encoding") !== "identity";
+        if (req.method === "HEAD" && compressed) return new Response(null, { headers: { "content-type": m!.type, "content-encoding": "gzip" } });
+        const range = req.headers.get("range");
+        if (req.method === "GET" && range && !s3.noRange) {
+          if (o.length === 0) return new Response(null, { status: 416, headers: { "content-range": "bytes */0" } });
+          return new Response(o.slice(0, 1) as unknown as BodyInit, { status: 206, headers: { "content-range": `bytes 0-0/${o.length}`, "content-length": "1" } });
+        }
         return new Response(req.method === "HEAD" ? null : (o as unknown as BodyInit), { headers: { "content-length": String(o.length), ...(m ? { "content-type": m.type, "last-modified": new Date(m.at).toUTCString(), ...m.headers } : {}) } });
       }
       return new Response("<Error><Code>NotImplemented</Code></Error>", { status: 501 });

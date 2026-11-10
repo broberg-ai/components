@@ -146,6 +146,28 @@ export function createS3Signer(cfg: S3Config): S3Signer {
   const objectUrl = (key: string) => new URL(`${origin}/${encodeURIComponent(cfg.bucket)}/${encodeKey(key)}`);
   const clampExpiry = (s?: number) => Math.max(1, Math.min(s ?? MAX_EXPIRES_SECONDS, MAX_EXPIRES_SECONDS));
 
+  // F111.4 — the size of an object, never a guess. drive measured on R2 EU (10 Nov 2026): for a
+  // compressible object over ~50 B Cloudflare answers HEAD compressed and WITHOUT Content-Length,
+  // and Number(null) is 0 — an answer that reads as an empty object. So: ask for identity; if the
+  // header is still missing, read the total from a one-byte ranged GET; if that fails too, throw.
+  async function headRequest(key: string): Promise<Response | null> {
+    const signed = await aws.sign(objectUrl(key).toString(), { method: "HEAD", headers: { "accept-encoding": "identity" } });
+    const res = await doFetch(signed);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new S3Error(`@broberg/s3: HEAD → ${res.status}`, res.status);
+    return res;
+  }
+  async function sizeOf(key: string, head: Response): Promise<number> {
+    const len = head.headers.get("content-length");
+    if (len !== null && /^\d+$/.test(len.trim())) return Number(len);
+    const signed = await aws.sign(objectUrl(key).toString(), { method: "GET", headers: { range: "bytes=0-0", "accept-encoding": "identity" } });
+    const res = await doFetch(signed);
+    await res.body?.cancel().catch(() => undefined);
+    const total = /\/(\d+)\s*$/.exec(res.headers.get("content-range") ?? "")?.[1];
+    if ((res.status === 206 || res.status === 416) && total !== undefined) return Number(total);
+    throw new S3Error(`@broberg/s3: the store did not say how big ${key} is (HEAD had no Content-Length; ranged GET → ${res.status})`, res.status);
+  }
+
   async function call(method: string, url: URL, body?: string, headers?: Record<string, string>): Promise<string> {
     const signed = await aws.sign(url.toString(), { method, body, headers });
     const res = await doFetch(signed);
@@ -226,19 +248,15 @@ export function createS3Signer(cfg: S3Config): S3Signer {
       return presign("GET", url, expiresIn);
     },
     async head(key) {
-      const signed = await aws.sign(objectUrl(key).toString(), { method: "HEAD" });
-      const res = await doFetch(signed);
-      if (res.status === 404) return null;
-      if (!res.ok) throw new S3Error(`@broberg/s3: HEAD → ${res.status}`, res.status);
-      return Number(res.headers.get("content-length"));
+      const res = await headRequest(key);
+      if (!res) return null;
+      return sizeOf(key, res);
     },
     async headObject(key) {
-      const signed = await aws.sign(objectUrl(key).toString(), { method: "HEAD" });
-      const res = await doFetch(signed);
-      if (res.status === 404) return null;
-      if (!res.ok) throw new S3Error(`@broberg/s3: HEAD → ${res.status}`, res.status);
+      const res = await headRequest(key);
+      if (!res) return null;
       return {
-        size: Number(res.headers.get("content-length")),
+        size: await sizeOf(key, res),
         lastModified: new Date(res.headers.get("last-modified") ?? 0).toISOString(),
         contentType: res.headers.get("content-type"),
         metadata: readMeta(res.headers),
