@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-07T11:09:33.499Z",
- "repos_scanned": 84,
+ "scanned_at": "2026-11-10T12:45:51.830Z",
+ "repos_scanned": 85,
  "repos_failed": 0,
- "manifests_read": 324,
+ "manifests_read": 333,
  "manifests_unreadable": 0,
- "edges": 460,
+ "edges": 462,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1236,10 +1236,16 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.19.1",
+      "range": "0.26.0",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed": "0.19.1"
+      "installed": "0.26.0"
+     },
+     {
+      "range": "0.26.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json",
+      "installed": "0.26.0"
      },
      {
       "range": "0.14.1",
@@ -1810,6 +1816,29 @@
    "manifests": 1,
    "unreadable": 0,
    "deps": {}
+  },
+  "broberg-ai/drive": {
+   "branch": "main",
+   "manifests": 9,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/sso": [
+     {
+      "range": "0.26.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@upmetrics/sdk": [
+     {
+      "range": "0.11.2",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ]
+   }
   },
   "broberg-ai/echo": {
    "branch": "main",
