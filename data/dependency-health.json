@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-09T08:38:10.437Z",
+ "checked_at": "2026-11-10T08:47:58.886Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -878,8 +878,8 @@
     "low": 0
    },
    "outdated": {
-    "total": 4,
-    "shipped": 0,
+    "total": 5,
+    "shipped": 1,
     "deprecated": 0
    },
    "osv": {
