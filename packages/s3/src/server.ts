@@ -281,7 +281,10 @@ export function createS3Signer(cfg: S3Config): S3Signer {
         if (!token) break;
         token = xmlUnescape(token);
       }
-      if (includeMetadata) for (const o of out) o.metadata = (await api.headObject(o.key))?.metadata ?? {};
+      // Metadata only — the size already came from the listing XML. Going through headObject would
+      // run its size fallback per object (an extra request each) and could THROW where the listing
+      // itself was fine (F111.4).
+      if (includeMetadata) for (const o of out) { const r = await headRequest(o.key); o.metadata = r ? readMeta(r.headers) : {}; }
       return out;
     },
     async listUploads({ prefix }) {

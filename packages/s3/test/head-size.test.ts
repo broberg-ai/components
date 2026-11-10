@@ -68,4 +68,13 @@ describe("F111.4 — the size of an object, never a guess", () => {
     expect(await signer.headObject("t/none.txt")).toBeNull();
     expect(s3.requests.slice(before)).toStrictEqual(["HEAD /b/t/none.txt", "HEAD /b/t/none.txt"]);
   });
+
+  it("listObjects({ includeMetadata }) reads metadata from ONE HEAD per object — no size fallback, no throw, size from the listing", async () => {
+    const { s3, signer } = rig({ stripAcceptEncoding: true, noRange: true });
+    await signer.putObject({ key: "l/a.txt", body: "x".repeat(200), contentType: "text/plain" });
+    const before = s3.requests.length;
+    const list = await signer.listObjects({ prefix: "l/", includeMetadata: true });
+    expect(list.map((o) => [o.key, o.size, o.metadata])).toStrictEqual([["l/a.txt", 200, {}]]);
+    expect(s3.requests.slice(before).filter((r) => r.startsWith("GET /b/l/") || r.startsWith("HEAD"))).toStrictEqual(["HEAD /b/l/a.txt"]);
+  });
 });

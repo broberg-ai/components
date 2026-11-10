@@ -1,6 +1,6 @@
 {
   "name": "@broberg/s3",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Upload and download files of any size DIRECTLY between the browser and S3-compatible storage (Cloudflare R2 in the EU by default; Tigris, AWS, MinIO by endpoint) — the site's server only issues short-lived, one-object signatures, so bytes never pass through it. Multipart upload with parallel parts, retry, progress (%, speed, time left) and resume after a dropped connection; presigned download links. One fetch handler (Request → Response) for Hono/Bun and Next, guarded by the site's own authorize() hook and a per-user object prefix. Preact hook, no visual component.",
   "type": "module",
   "license": "MIT",
