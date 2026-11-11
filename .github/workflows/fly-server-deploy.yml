@@ -466,12 +466,35 @@ jobs:
           # version shipped. 7 chars, matching `git rev-parse --short HEAD`, so a CI deploy
           # and a local ship of the same commit produce ONE id, not two rows for one release.
           SHA="${GITHUB_SHA:0:7}"
+          # F033.29 — on a failed deploy, put the lines BEFORE the failure where a reader
+          # finds them. sanneandersen 11/11 2026 (runs 42213736860, 42938726227): the only
+          # readable lines were «Build failed because of webpack errors» + «ELIFECYCLE»; the
+          # webpack error itself sat above them and reached no error extract (cardmem_ci_log
+          # keeps error-shaped lines). So: a log group, ::error:: lines, and the step summary.
+          show_build_failure() {
+            local log="$1" at start
+            at=$(grep -nE 'Build failed|failed to solve|ERROR|exit code' "$log" | head -1 | cut -d: -f1)
+            [ -z "$at" ] && at=$(wc -l < "$log" | tr -d ' ')
+            [ "$at" -lt 1 ] && return 0
+            start=$(( at > 40 ? at - 40 : 1 ))
+            echo "::group::Build output before the failure (log lines $start-$at)"
+            sed -n "${start},${at}p" "$log"
+            echo "::endgroup::"
+            sed -n "${start},${at}p" "$log" | tr -d '\r' | grep -v '^[[:space:]]*$' | sed -e 's/%/%25/g' | while IFS= read -r l; do echo "::error::$l"; done
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              { echo "**Deploy failed — build output before the failure:**"; echo '```'; sed -n "${start},${at}p" "$log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
           if [ -z "$ONLY_ARG" ]; then
+            LOG="$(mktemp)"
             set -x
             # EXTRA_DEPLOY_ARGS is deliberately unquoted so multiple arguments split
             # into separate words rather than arriving as one blob.
-            flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS
-            exit $?
+            flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS 2>&1 | tee "$LOG"
+            RC=${PIPESTATUS[0]}
+            { set +x; } 2>/dev/null
+            [ "$RC" -ne 0 ] && show_build_failure "$LOG"
+            exit "$RC"
           fi
           # F033.23 — measured on jam 1/11 2026 (run 41312647489): handed the ids
           # with --only-machines, flyctl could still not SEE them in Fly's flaky
@@ -485,7 +508,7 @@ jobs:
             flyctl deploy --remote-only --config "$CONFIG" $APP_ARG $DF_ARG $HA_ARG $ONLY_ARG --build-arg GIT_SHA="$SHA" $EXTRA_DEPLOY_ARGS 2>&1 | tee "$LOG"
             RC=${PIPESTATUS[0]}
             { set +x; } 2>/dev/null
-            [ "$RC" -ne 0 ] && exit "$RC"
+            if [ "$RC" -ne 0 ]; then show_build_failure "$LOG"; exit "$RC"; fi
             if ! grep -Eq 'create [0-9]+ "[^"]+" machine' "$LOG"; then
               exit 0
             fi

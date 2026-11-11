@@ -464,6 +464,39 @@ if [ "$n" -lt 2 ]; then printf 'This deployment will:\n * create 2 "app" machine
 }
 
 // ---------------------------------------------------------------------------
+// F033.29 — a failed deploy shows the build error, not only «Build failed»
+// ---------------------------------------------------------------------------
+
+console.log("F033.29 build failure context");
+{
+  const failingBuild = `#!/bin/sh
+printf '%s\n' "$*" >> /dev/null
+cat <<'OUT'
+==> Building image with Depot
+#19 [builder 6/6] RUN pnpm build
+#19 12.01 > next build --webpack
+#19 27.90 Failed to compile.
+#19 27.91 ./app/page.tsx
+#19 27.92 Module not found: Can't resolve 'some-missing-module' (100% sure)
+#19 28.26 > Build failed because of webpack errors
+#19 28.46  ELIFECYCLE  Command failed with exit code 1.
+OUT
+exit 1
+`;
+  const base = { GITHUB_SHA: "abc1234def", CONFIG: "fly.toml", APP: "", DOCKERFILE: "", HA: "true", EXTRA_DEPLOY_ARGS: "" };
+  for (const [label, extra] of [["without --only-machines", {}], ["with --only-machines", { ONLY_MACHINES: "m1" }]]) {
+    const r = runStep(DEPLOY, { env: { ...base, ...extra }, stubs: { flyctl: failingBuild } });
+    check(`F033.29 (${label}): a failed build still exits non-zero`, r.status === 1, `exit ${r.status}`);
+    check(`F033.29 (${label}): the webpack error itself is an ::error:: line`, /::error::.*Module not found: Can't resolve 'some-missing-module'/.test(r.out), r.out);
+    check(`F033.29 (${label}): % is escaped in ::error:: lines (GitHub command syntax)`, r.out.includes("(100%25 sure)"), r.out);
+    check(`F033.29 (${label}): the lines AFTER the first marker are not repeated as errors`, !/::error::.*ELIFECYCLE/.test(r.out), r.out);
+    check(`F033.29 (${label}): the build output is also a log group`, r.out.includes("::group::Build output before the failure"), r.out);
+  }
+  const green = runStep(DEPLOY, { env: base });
+  check("F033.29: a green deploy writes no ::error:: and no failure group", green.status === 0 && !green.out.includes("::error::") && !green.out.includes("Build output before the failure"), green.out);
+}
+
+// ---------------------------------------------------------------------------
 
 console.log("");
 if (failures) {
