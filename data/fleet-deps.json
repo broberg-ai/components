@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-10T12:45:51.830Z",
+ "scanned_at": "2026-11-11T11:58:13.324Z",
  "repos_scanned": 85,
  "repos_failed": 0,
  "manifests_read": 333,
  "manifests_unreadable": 0,
- "edges": 462,
+ "edges": 464,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1822,6 +1822,14 @@
    "manifests": 9,
    "unreadable": 0,
    "deps": {
+    "@broberg/legal": [
+     {
+      "range": "0.8.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
     "@broberg/sso": [
      {
       "range": "0.26.0",
@@ -1835,6 +1843,14 @@
       "range": "0.11.2",
       "field": "dependencies",
       "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/s3": [
+     {
+      "range": "0.2.2",
+      "field": "dependencies",
+      "at": "packages/storage/package.json",
       "installed_unknown": "pnpm-lock.yaml unreadable"
      }
     ]
