@@ -313,8 +313,8 @@
  },
  "@broberg/sso": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/sso",
-  "version": "0.26.0",
-  "publishedAt": "2026-11-06T15:23:52.231Z",
+  "version": "0.26.1",
+  "publishedAt": "2026-11-12T15:49:51.893Z",
   "provenance": "yes"
  },
  "@broberg/seal": {
