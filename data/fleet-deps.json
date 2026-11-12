@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-11T11:58:13.324Z",
+ "scanned_at": "2026-11-12T12:52:07.912Z",
  "repos_scanned": 85,
  "repos_failed": 0,
  "manifests_read": 333,
  "manifests_unreadable": 0,
- "edges": 464,
+ "edges": 465,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -3041,10 +3041,10 @@
     ],
     "@broberg/call": [
      {
-      "range": "0.2.1",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed": "0.2.1"
+      "installed": "0.6.0"
      }
     ],
     "@broberg/cron": [
@@ -3315,6 +3315,14 @@
       "field": "dependencies",
       "at": "package.json",
       "installed": "0.4.0"
+     }
+    ],
+    "@broberg/tenant": [
+     {
+      "range": "0.2.1",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.2.1"
      }
     ],
     "@broberg/theme": [
