@@ -1,6 +1,6 @@
 // F104.9.3 — broberg-voice-control. See control.ts for the decisions; this file
 // is only the wiring: HTTP routes, LiveKit's Twirp API, Fly's Machines API.
-import { countActive, createController, isLayout, parseKeys, signJwt, verifyAppToken, type Deps, type EgressInfo } from "./control";
+import { countActive, createController, isLayout, parseKeys, signJwt, verifyAppToken, type Deps, type EgressInfo, playbackUrl, type PlaybackStore } from "./control";
 
 const env = (k: string) => {
   const v = process.env[k];
@@ -101,6 +101,13 @@ const view = (r: ReturnType<typeof control.recordings.get> & {}) => ({
   recordingId: r.id, egressId: r.egressId, room: r.room, state: r.state, layout: r.layout, live: !!r.live, attempts: r.attempts, error: r.error, files: r.files,
 });
 
+// F104.9.11 — read-only R2 access for playback URLs. Ship dark: unset → the route answers 503.
+function playbackStore(): PlaybackStore | null {
+  const endpoint = process.env.R2_READ_ENDPOINT, accessKeyId = process.env.R2_READ_ACCESS_KEY_ID, secretAccessKey = process.env.R2_READ_SECRET_ACCESS_KEY;
+  if (!endpoint || !accessKeyId || !secretAccessKey) return null;
+  return { endpoint, accessKeyId, secretAccessKey, bucket: process.env.R2_READ_BUCKET ?? "broberg-call-recordings", region: "auto" };
+}
+
 Bun.serve({
   port: Number(process.env.PORT ?? 8080),
   async fetch(req) {
@@ -124,6 +131,12 @@ Bun.serve({
         const body = (await req.json().catch(() => ({}))) as { room?: string };
         if (body.room !== auth.room) return json(403, { error: "room_not_in_token" });
         return json(202, control.prewarm());
+      }
+      // F104.9.11 — a short-lived playback URL for ONE file of the ticket's room. Not from
+      // the in-memory map: it must still work after a restart and for the file's whole life.
+      if (req.method === "POST" && url.pathname === "/v1/recordings/url") {
+        const r = playbackUrl(auth.room, (await req.json().catch(() => ({}))) as Record<string, unknown>, playbackStore());
+        return json(r.status, r.body);
       }
       const m = url.pathname.match(/^\/v1\/recordings\/(rec_[\w-]+)(\/stop)?$/);
       if (m) {

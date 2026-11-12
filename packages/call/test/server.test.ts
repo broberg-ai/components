@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccessToken, TokenVerifier } from "livekit-server-sdk";
-import { createRoomToken, getRecording, prewarmRecording, startRecording, stopRecording, verifyWebhook, VoiceError } from "../src/server";
+import { createRoomToken, getRecording, prewarmRecording, recordingUrl, startRecording, stopRecording, verifyWebhook, VoiceError } from "../src/server";
 // The recording service's OWN verifier — so the test proves the ticket we sign is one it accepts.
 import { parseKeys, verifyAppToken } from "../../../apps/voice-control/control";
 
@@ -162,6 +162,23 @@ describe("startRecording / stopRecording / getRecording (F104.9.5)", () => {
     expect(JSON.parse(calls[0]!.body!)).toEqual({ room: "jam:42" });
     expect(verifyAppToken(calls[0]!.auth, keys)).toEqual({ ok: true, key: creds.apiKey, room: "jam:42" });
     expect(verifyAppToken(calls[0]!.auth, parseKeys(`${creds.apiKey}: another-secret-of-adequate-length-000000000`)).ok).toBe(false);
+  });
+
+  it("F104.9.11 recordingUrl: POSTs room + file (+ expiresIn) with the room-bound ticket and returns { url, expiresAt }", async () => {
+    serve(200, { url: "https://acct.eu.r2.cloudflarestorage.com/broberg-call-recordings/jam:42/a.mp4?X-Amz-Signature=x", expiresAt: "2026-11-12T10:10:00.000Z" });
+    expect(await recordingUrl({ room: "jam:42", file: "a.mp4" }, opts, { expiresIn: 300 })).toEqual({ url: "https://acct.eu.r2.cloudflarestorage.com/broberg-call-recordings/jam:42/a.mp4?X-Amz-Signature=x", expiresAt: "2026-11-12T10:10:00.000Z" });
+    expect(calls[0]!.url).toBe("https://control.test/v1/recordings/url");
+    expect(calls[0]!.method).toBe("POST");
+    expect(JSON.parse(calls[0]!.body!)).toStrictEqual({ room: "jam:42", file: "a.mp4", expiresIn: 300 });
+    expect(verifyAppToken(calls[0]!.auth, keys)).toEqual({ ok: true, key: creds.apiKey, room: "jam:42" });
+  });
+
+  it("F104.9.11 recordingUrl: the service without a read key (503 not_configured) → VoiceError recording_failed naming it", async () => {
+    serve(503, { error: "not_configured" });
+    const e = await recordingUrl({ room: "jam:42", file: "a.mp4" }, opts).catch((x) => x);
+    expect(e).toBeInstanceOf(VoiceError);
+    expect(e.code).toBe("recording_failed");
+    expect(e.message).toMatch(/503: not_configured/);
   });
 
   it("F104.9.8 prewarm: POSTs /v1/prewarm for the room with the same room-bound ticket, and returns the warmth", async () => {

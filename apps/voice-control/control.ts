@@ -4,7 +4,7 @@
 // Zero dependencies: HS256 JWTs, LiveKit's Twirp JSON API and Fly's Machines
 // API are all plain fetch. Everything that touches the network is injected, so
 // the decisions in this file are tested without one.
-import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual, randomBytes } from "node:crypto";
 
 // ---------- JWT (HS256), the same tokens LiveKit itself uses ----------
 
@@ -291,4 +291,86 @@ export function createController(d: Deps) {
       return true;
     },
   };
+}
+
+// ---------- F104.9.11 — a short-lived playback URL for a recording ----------
+//
+// jam (12 Nov 2026) has to PLAY a recording that lies in broberg-call-recordings,
+// which it holds no key for. This signs a presigned GET (AWS SigV4, query auth)
+// for ONE file under the room the app's ticket names. It does not use the
+// in-memory recordings map, so it still works after this service restarts.
+
+export const PLAYBACK_DEFAULT_SECONDS = 600;
+export const PLAYBACK_MAX_SECONDS = 900;
+
+/** The object key for a file of a room, or null when the name could leave the room. */
+export function playbackKey(room: string, file: unknown): string | null {
+  if (typeof file !== "string") return null;
+  // getRecording's files[].name is the key in the bucket — "<room>/<time>.mp4" — so accept the
+  // name with THIS room in front, or the bare file name. Never another room's.
+  const bare = file.startsWith(`${room}/`) ? file.slice(room.length + 1) : file;
+  if (!/^[A-Za-z0-9._-]+\.mp4$/.test(bare) || bare.includes("..")) return null;
+  return `${room}/${bare}`;
+}
+
+const sha256hex = (s: string) => createHash("sha256").update(s).digest("hex");
+const hmac = (key: Buffer | string, s: string) => createHmac("sha256", key).update(s).digest();
+// RFC 3986, as SigV4 wants it: everything but A-Z a-z 0-9 - _ . ~ is percent-encoded.
+const enc = (s: string) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+
+export interface PresignInput {
+  endpoint: string; // e.g. https://<account>.eu.r2.cloudflarestorage.com
+  bucket: string;
+  key: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region?: string; // R2: "auto"
+  expiresIn: number;
+  now?: Date;
+  /** Virtual-host style (bucket in the host) — AWS's own test vector uses it; R2 uses path style. */
+  virtualHost?: boolean;
+}
+
+/** A presigned GET URL (SigV4 query auth, UNSIGNED-PAYLOAD), checked against AWS's published example. */
+export function presignGet(p: PresignInput): string {
+  const now = p.now ?? new Date();
+  const amzDate = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); // YYYYMMDDTHHMMSSZ
+  const date = amzDate.slice(0, 8);
+  const region = p.region ?? "auto";
+  const scope = `${date}/${region}/s3/aws4_request`;
+  const base = new URL(p.endpoint);
+  const host = p.virtualHost ? `${p.bucket}.${base.host}` : base.host;
+  const path = (p.virtualHost ? "" : `/${enc(p.bucket)}`) + "/" + p.key.split("/").map(enc).join("/");
+  const q: [string, string][] = [
+    ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
+    ["X-Amz-Credential", `${p.accessKeyId}/${scope}`],
+    ["X-Amz-Date", amzDate],
+    ["X-Amz-Expires", String(p.expiresIn)],
+    ["X-Amz-SignedHeaders", "host"],
+  ];
+  const query = q.map(([k, v]) => [enc(k), enc(v)] as const).sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join("&");
+  const canonical = ["GET", path, query, `host:${host}\n`, "host", "UNSIGNED-PAYLOAD"].join("\n");
+  const toSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256hex(canonical)].join("\n");
+  const kDate = hmac(`AWS4${p.secretAccessKey}`, date);
+  const kSigning = hmac(hmac(hmac(kDate, region), "s3"), "aws4_request");
+  const sig = createHmac("sha256", kSigning).update(toSign).digest("hex");
+  return `${base.protocol}//${host}${path}?${query}&X-Amz-Signature=${sig}`;
+}
+
+export type PlaybackStore = Omit<PresignInput, "key" | "expiresIn" | "now">;
+
+/** The whole playback decision, pure: who may sign what, for how long. */
+export function playbackUrl(
+  authRoom: string,
+  body: { room?: unknown; file?: unknown; expiresIn?: unknown },
+  store: PlaybackStore | null,
+  now = new Date(),
+): { status: number; body: Record<string, unknown> } {
+  if (body.room !== authRoom) return { status: 403, body: { error: "room_not_in_token" } };
+  const key = playbackKey(authRoom, body.file);
+  if (!key) return { status: 400, body: { error: "invalid_file" } };
+  if (!store) return { status: 503, body: { error: "not_configured" } };
+  const want = typeof body.expiresIn === "number" && Number.isFinite(body.expiresIn) ? Math.floor(body.expiresIn) : PLAYBACK_DEFAULT_SECONDS;
+  const expiresIn = Math.min(Math.max(want, 1), PLAYBACK_MAX_SECONDS);
+  return { status: 200, body: { url: presignGet({ ...store, key, expiresIn, now }), expiresAt: new Date(now.getTime() + expiresIn * 1000).toISOString() } };
 }

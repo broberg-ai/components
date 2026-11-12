@@ -335,3 +335,54 @@ describe("controller", () => {
     expect(lines.find(([m]) => m === "recording started")![1]).toMatchObject({ warmth: "warm", layout: "grid" });
   });
 });
+
+// ---------- F104.9.11 — playback URL ----------
+import { playbackUrl, playbackKey, presignGet, PLAYBACK_MAX_SECONDS } from "./control";
+
+const GOLDEN = "https://examplebucket.s3.amazonaws.com/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=test-access-key%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=c1f30c581346dfe353e385985eade68ee8fb9ee06f1e31a9e6ecf3e4477932fd";
+describe("F104.9.11 presignGet — SigV4 query auth", () => {
+  // The algorithm was checked against AWS's own published query-auth example on 12 Nov 2026
+  // (byte-identical signature; evidence on F104.9.11). That example's keys are not kept here:
+  // the repo's secret gate rightly refuses AWS-shaped keys in any file, tests included. This
+  // pins the same algorithm with neutral test values so a change to it goes red.
+  test("signs exactly as verified against AWS's published example (pinned with neutral test keys)", () => {
+    const url = presignGet({ endpoint: "https://s3.amazonaws.com", bucket: "examplebucket", key: "test.txt", accessKeyId: "test-access-key", secretAccessKey: "SK", region: "us-east-1", expiresIn: 86400, now: new Date("2013-05-24T00:00:00Z"), virtualHost: true });
+    expect(url).toBe(GOLDEN);
+  });
+});
+
+describe("F104.9.11 playbackUrl — who may sign what", () => {
+  const store = { endpoint: "https://acct.eu.r2.cloudflarestorage.com", bucket: "broberg-call-recordings", accessKeyId: "AK", secretAccessKey: "SK", region: "auto" };
+  const now = new Date("2026-11-12T10:00:00Z");
+  test("the ticket's room + a file name → a path-style R2 URL for exactly <room>/<file>, 600 s by default", () => {
+    const r = playbackUrl("jam-room-1", { room: "jam-room-1", file: "2026-11-12T095501.mp4" }, store, now);
+    expect(r.status).toBe(200);
+    const u = new URL(r.body.url as string);
+    expect(u.origin + u.pathname).toBe("https://acct.eu.r2.cloudflarestorage.com/broberg-call-recordings/jam-room-1/2026-11-12T095501.mp4");
+    expect(u.searchParams.get("X-Amz-Expires")).toBe("600");
+    expect(r.body.expiresAt).toBe("2026-11-12T10:10:00.000Z");
+  });
+  test("a ticket for room A cannot get a URL for room B (403)", () => {
+    expect(playbackUrl("room-a", { room: "room-b", file: "x.mp4" }, store, now)).toStrictEqual({ status: 403, body: { error: "room_not_in_token" } });
+  });
+  test("a file name that could leave the room is refused (400), before anything is signed", () => {
+    for (const file of ["../room-b/x.mp4", "a/b.mp4", "..mp4", "x.webm", "", 7, undefined]) {
+      expect(playbackUrl("room-a", { room: "room-a", file }, store, now)).toStrictEqual({ status: 400, body: { error: "invalid_file" } });
+    }
+    expect(playbackKey("room-a", "ok.mp4")).toBe("room-a/ok.mp4");
+    // files[].name from getRecording is the bucket key: "<room>/<time>.mp4" — accepted for THIS room only
+    expect(playbackKey("jam:42", "jam:42/2026-11-12T095501.mp4")).toBe("jam:42/2026-11-12T095501.mp4");
+    expect(playbackKey("jam:42", "jam:43/2026-11-12T095501.mp4")).toBeNull();
+    expect(playbackKey("jam:42", "jam:42/../jam:43/x.mp4")).toBeNull();
+  });
+  test(`expiresIn is capped at ${PLAYBACK_MAX_SECONDS} s and floored at 1`, () => {
+    const big = new URL(playbackUrl("r", { room: "r", file: "a.mp4", expiresIn: 86400 }, store, now).body.url as string);
+    expect(big.searchParams.get("X-Amz-Expires")).toBe(String(PLAYBACK_MAX_SECONDS));
+    const small = new URL(playbackUrl("r", { room: "r", file: "a.mp4", expiresIn: -5 }, store, now).body.url as string);
+    expect(small.searchParams.get("X-Amz-Expires")).toBe("1");
+  });
+  test("SHIP DARK: no R2 read key → 503 not_configured (and the room/file checks still run first)", () => {
+    expect(playbackUrl("r", { room: "r", file: "a.mp4" }, null, now)).toStrictEqual({ status: 503, body: { error: "not_configured" } });
+    expect(playbackUrl("r", { room: "x", file: "a.mp4" }, null, now).status).toBe(403);
+  });
+});

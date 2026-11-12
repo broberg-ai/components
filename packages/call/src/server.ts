@@ -241,3 +241,22 @@ export async function prewarmRecording(room: string, opts: RecordingOptions): Pr
 export function getRecording(recordingId: string, room: string, opts: RecordingOptions): Promise<Recording> {
   return control(`/v1/recordings/${encodeURIComponent(recordingId)}`, room, opts, { method: "GET" });
 }
+
+/**
+ * F104.9.11 — a short-lived URL to PLAY one recorded file, for an app that holds no key to the
+ * recordings bucket. Pass the room and the file name (`files[].name` from getRecording or the
+ * egress_ended webhook) — store THOSE, not only the recordingId: the recording service keeps
+ * recordings in memory, so after a restart it no longer knows the id, while the file stays
+ * under `<room>/` for its whole 365-day life. The URL is a presigned GET bound to that room's
+ * folder: default 10 minutes, at most 15. Fetch a fresh one each time the video is shown.
+ * Throws VoiceError("recording_failed") while the service has no read key ("not_configured").
+ */
+export async function recordingUrl(
+  input: { room: string; file: string },
+  opts: RecordingOptions,
+  options: { expiresIn?: number } = {},
+): Promise<{ url: string; expiresAt: string }> {
+  const body: { room: string; file: string; expiresIn?: number } = { room: input.room, file: input.file };
+  if (options.expiresIn !== undefined) body.expiresIn = options.expiresIn;
+  return (await control("/v1/recordings/url", input.room, opts, { method: "POST", body: JSON.stringify(body) })) as unknown as { url: string; expiresAt: string };
+}

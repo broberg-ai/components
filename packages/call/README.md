@@ -91,6 +91,18 @@ const done = await getRecording(rec.recordingId, "jam:42", opts); // poll until 
 done.files;                                              // [{ name, size, durationSec }] — name is the key in the bucket
 ```
 
+**Play it back (0.6.0, F104.9.11).** Your app holds no key to the recordings bucket, so ask for a short-lived URL each time the video is shown:
+
+```ts
+import { recordingUrl } from "@broberg/call/server";
+const { url, expiresAt } = await recordingUrl({ room: "jam:42", file: done.files![0]!.name }, opts); // default 10 min, { expiresIn } up to 15
+// <video src={url}> — fetch a fresh URL next time; do not store it
+```
+
+- **Store the room and the file name, not only the `recordingId`.** The recording service keeps recordings in memory; after a restart it no longer knows the id. The file stays under `<room>/` for its whole 365-day life, and the URL is built from that.
+- The URL is a presigned GET for ONE file in the room your ticket names. Another room's file, or a name with `/` or `..` outside the room, is refused.
+- Until the service has a read key it answers `not_configured`, which arrives as `VoiceError` `recording_failed` with that reason.
+
 - **Layout (0.5.0, F104.9.9):** by default only the person speaking fills the picture and the video switches when someone else talks — like Google Meet. `{ layout: "grid" }` shows everyone at once.
 - **Consent first.** It records every participant. Get each person's consent (BID purpose `call-recording`) BEFORE calling `startRecording`.
 - **Start time, measured 3/11 2026:** from a cold recording machine ~36 s until the recording runs; from a warm one ~5 s. Tell people recording is starting, not that it has — the service reports `live: true` once it really runs.
