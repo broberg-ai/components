@@ -154,7 +154,11 @@ function isSecure(c: Context): boolean {
   // localhost over http is the one case where a Secure cookie would simply
   // never be stored, making local development impossible for a reason no error
   // would explain.
-  return new URL(c.req.url).protocol === "https:";
+  if (new URL(c.req.url).protocol === "https:") return true;
+  // Behind a TLS-terminating proxy (Fly) the app sees http and the public scheme only
+  // here. The FIRST hop is the one the browser spoke. Trusting it cannot weaken a
+  // cookie: a forged "https" only adds Secure, and the honest http case is untouched.
+  return c.req.header("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase() === "https";
 }
 
 /**

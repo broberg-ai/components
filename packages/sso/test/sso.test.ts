@@ -2375,3 +2375,32 @@ describe("F084.163 — one knob, the owner's numbers, renewed on use, checked ho
     expect((await raw.get(sid))!.refreshToken!.startsWith("enc:v1:")).toBe(true);
   });
 });
+
+/**
+ * F084.187 — behind Fly's proxy the app sees http://<host>/…, and the public
+ * scheme only in X-Forwarded-Proto. Reported by mailworker (#50018, measured live):
+ * bid_session and bid_session_tx were set WITHOUT Secure in production.
+ */
+describe("cookies are Secure behind a TLS-terminating proxy", () => {
+  async function loginCookie(url: string, headers: Record<string, string> = {}) {
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+    const res = await app.request(url, { headers });
+    const h = res.headers.get("set-cookie");
+    if (!h) throw new Error("/login set no cookie");
+    return h;
+  }
+  test("http inside, X-Forwarded-Proto: https outside → Secure", async () => {
+    expect(await loginCookie("http://app.example/login", { "x-forwarded-proto": "https" })).toMatch(/;\s*Secure(;|$)/);
+  });
+  test("a proxy chain «https, http» is read by its FIRST (client-facing) hop → Secure", async () => {
+    expect(await loginCookie("http://app.example/login", { "x-forwarded-proto": "https, http" })).toMatch(/;\s*Secure(;|$)/);
+  });
+  test("plain https → Secure", async () => {
+    expect(await loginCookie("https://app.example/login")).toMatch(/;\s*Secure(;|$)/);
+  });
+  test("negative control: localhost over plain http stays without Secure (local dev must still work)", async () => {
+    expect(await loginCookie("http://localhost:3000/login")).not.toMatch(/Secure/);
+  });
+});
