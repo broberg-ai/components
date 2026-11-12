@@ -178,13 +178,14 @@ export function createLibrary(sources: DocumentSource[], products: ProductFacts[
   const byProduct = new Map(products.map((p) => [p.id, p]));
   if (byKey.size !== sources.length) throw new Error("two sources share a doc + locale");
 
-  function getDocument(opts: { doc: DocId; locale: Locale; product: string }): LegalDocument {
+  /** `stale` overrides the computed value — for a template whose master is not in this library (F110.19). */
+  function getDocument(opts: { doc: DocId; locale: Locale; product: string; stale?: boolean }): LegalDocument {
     const product = byProduct.get(opts.product);
     if (!product) throw new Error(`unknown product "${opts.product}" — add it to the product registry`);
     const src = byKey.get(`${opts.doc}:${opts.locale}`) ?? byKey.get(`${opts.doc}:${MASTER_LOCALE}`);
     if (!src) throw new Error(`no document "${opts.doc}"`);
     const master = byKey.get(`${opts.doc}:${MASTER_LOCALE}`);
-    const stale = src.locale !== MASTER_LOCALE && (!src.translationOf || !master || src.translationOf.sourceHash !== sourceHash(master));
+    const stale = opts.stale ?? (src.locale !== MASTER_LOCALE && (!src.translationOf || !master || src.translationOf.sourceHash !== sourceHash(master)));
 
     const sections = src.sections.map((s) => ({
       id: s.id,

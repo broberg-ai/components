@@ -43,6 +43,20 @@ describe("F110.14 — templates from the API, facts from the product", () => {
     expect(viaApi.contentHash).toBe(viaNpm.contentHash);
     expect(viaApi.product).toBe("other");
   });
+  // F110.19 — the test above checked ONE Danish document. mailworker (#50075) measured terms/en:
+  // resolveTemplate saw no master, called the translation stale, and stale is inside the hash.
+  it("…for EVERY document and locale: same contentHash and same stale (F110.19)", () => {
+    for (const doc of DOC_IDS) for (const locale of ["da", "en"] as const) {
+      const viaApi = resolveTemplate(JSON.parse(JSON.stringify(getTemplate({ doc, locale }))), OTHER);
+      const viaNpm = getDocument({ doc, locale, facts: OTHER });
+      expect([doc, locale, viaApi.stale, viaApi.contentHash]).toEqual([doc, locale, viaNpm.stale, viaNpm.contentHash]);
+    }
+  });
+  it("negative control: a template the API marked stale stays stale through resolveTemplate (F110.19)", () => {
+    const t = JSON.parse(JSON.stringify(getTemplate({ doc: "terms", locale: "en" })));
+    t.stale = true;
+    expect(resolveTemplate(t, OTHER).stale).toBe(true);
+  });
   it("a product's own facts reach its document — and only its own", () => {
     const txt = (f: ProductFacts) => JSON.stringify(getDocument({ doc: "trust", locale: "da", facts: f }).sections);
     expect(txt(OTHER)).toContain("Cloudflare");

@@ -79,3 +79,16 @@ describe("createLegalCache", () => {
     expect(cache.get("trust", "da").product).toBe(EXAMPLE_FACTS.id);
   });
 });
+
+// F110.19 — mailworker (#50075): the cache stamped a different contentHash than getDocument for
+// terms/en, and said stale:true on a translation that is not stale.
+describe("createLegalCache agrees with getDocument (F110.19)", () => {
+  it("every document and locale: same contentHash and stale, served from the bundled copy", async () => {
+    const { getDocument, DOC_IDS } = await import("../src/index");
+    const cache = createLegalCache({ facts: EXAMPLE_FACTS, now: () => 0, onKeepOld: () => {}, fetch: (async () => new Response(null, { status: 304 })) as typeof fetch });
+    for (const doc of DOC_IDS) for (const locale of ["da", "en"] as const) {
+      const a = cache.get(doc, locale), b = getDocument({ doc, locale, facts: EXAMPLE_FACTS });
+      expect([doc, locale, a.stale, a.contentHash]).toEqual([doc, locale, b.stale, b.contentHash]);
+    }
+  });
+});

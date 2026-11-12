@@ -15,9 +15,17 @@ const PKG = join(REPO, "packages", "legal");
 const CORE = join(PKG, "src", "core.ts");
 const TERMS_EN = join(PKG, "src", "content", "terms.en.ts");
 const PSEUDO = join(PKG, "src", "pseudonymise.ts");
-const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8"), [PSEUDO]: readFileSync(PSEUDO, "utf8") };
+const INDEX = join(PKG, "src", "index.ts");
+const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8"), [PSEUDO]: readFileSync(PSEUDO, "utf8"), [INDEX]: readFileSync(INDEX, "utf8") };
 
 const MUTATIONS = [
+  {
+    name: "F110.19 — resolveTemplate ignores the API's stale and guesses without a master",
+    file: INDEX,
+    find: "getDocument({ doc, locale, product: facts.id, stale })",
+    replace: "getDocument({ doc, locale, product: facts.id })",
+    expect: ["same contentHash and same stale (F110.19)", "same contentHash and stale, served from the bundled copy"],
+  },
   {
     name: "translations are never compared with their master",
     file: CORE,

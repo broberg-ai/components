@@ -69,7 +69,15 @@ export function getDocument(opts: { doc: DocId; locale: Locale; facts: ProductFa
 }
 
 /** A finished document from a template you fetched from the API + your own facts. */
-export function resolveTemplate(template: DocumentSource, facts: ProductFacts): LegalDocument {
+export function resolveTemplate(template: DocumentSource | LegalTemplate, facts: ProductFacts): LegalDocument {
   const { doc, locale, title, version, effectiveFrom, material, draft, translationOf, sections } = template;
-  return createLibrary([{ doc, locale, title, version, effectiveFrom, material, draft, translationOf, sections }], [facts]).getDocument({ doc, locale, product: facts.id });
+  // F110.19 — the library below holds ONLY this template, so it cannot see the Danish master
+  // and would call every translation stale; stale is inside contentHash, so the hash differed
+  // from getDocument's (measured by mailworker on terms/en). The API's own answer wins; a bare
+  // template's OWN translationOf is judged against the bundled master, as getTemplate would.
+  const master = SOURCES.find((s) => s.doc === doc && s.locale === MASTER_LOCALE);
+  const stale = "stale" in template && typeof template.stale === "boolean"
+    ? template.stale
+    : locale !== MASTER_LOCALE && (!master || translationOf?.sourceHash !== sourceHash(master));
+  return createLibrary([{ doc, locale, title, version, effectiveFrom, material, draft, translationOf, sections }], [facts]).getDocument({ doc, locale, product: facts.id, stale });
 }
