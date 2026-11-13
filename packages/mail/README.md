@@ -322,6 +322,40 @@ classic defects that reach a real inbox:
 **If you run `integrity: "enforcing"`,** a mail carrying one of these is now refused where 0.22 sent it.
 That is the point — each is a broken mail — but read the report in report-only mode first.
 
+## `gmailTransport()` (F005.20) — send AS the user, from their own Gmail
+
+Resend sends from a service domain. Some mail must leave as the person: in their
+Sent folder, in the right conversation, signed by their own domain. A transport
+does that **behind the same chokepoint** — kill-switch, allowlist and integrity
+all run first, so a new transport is never a way around them.
+
+```ts
+import { createMailer, gmailTransport } from "@broberg/mail";
+
+const mailer = createMailer({
+  transport: gmailTransport({ getAccessToken: () => myTokenFor(account) }),
+  live: true,
+  from: "Ejer <ejer@example.com>",
+});
+const r = await mailer.send({
+  to: "kunde@example.com", subject: "Re: Møde", text: "Fredag passer fint.",
+  threadId, inReplyTo: sourceMessageId, references: sourceReferences,
+});
+// r → { ok: true, id: "<gmail message id>", threadId }
+```
+
+- **Omitted `transport` ⇒ Resend, byte-identical** to before (tested). `threadId`,
+  `inReplyTo` and `references` are ignored on the Resend path.
+- **A transport is the credential**: no `apiKey` needed, so `mode` is not `no-key`.
+- **The package never signs or stores a token.** `getAccessToken` is yours (a user's
+  OAuth token with `gmail.send`/`gmail.compose`/`gmail.modify`, or a delegated one).
+  The token never appears in `error`, in a log line or in the result — an error
+  body that echoes it is redacted (tested), and a provider that throws reports
+  only its error type.
+- **A CR/LF in a raw header value is refused**, never stripped. Non-ASCII names and
+  subjects are RFC 2047-encoded.
+- **Not yet:** attachments (refused with a reason) and drafts (a separate decision).
+
 ## `checkSendingPermission()` (0.25.0, F005.14) — may I send from this domain?
 
 Correct DNS records are **necessary, not sufficient**: a domain can have SPF, DKIM and MX right and still sit at

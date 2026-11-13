@@ -32,6 +32,7 @@ const FILES = {
   webhook: join(PKG, "src", "webhook.ts"),
   webhookAdmin: join(PKG, "src", "webhook-admin.ts"),
   delivery: join(PKG, "src", "delivery.ts"),
+  gmail: join(PKG, "src", "gmail.ts"),
 };
 
 // A mutant left on disk by a killed run is indistinguishable from real source.
@@ -533,6 +534,46 @@ const MUTATIONS = [
     from: "  return { domain: dns.domain, dns, resend, maySend: resend.maySend };",
     to: "  return { domain: dns.domain, dns, resend, maySend: dns.ok ? 'yes' : resend.maySend };",
     expect: ["DNS all ok + Resend pending"],
+  },
+  {
+    // F005.20 — a transport is a credential: without this the mailer reads no-key.
+    name: "a transport does not count as a credential",
+    file: "index",
+    from: "const hasCredential = !!config.transport || !!config.apiKey;",
+    to: "const hasCredential = !!config.apiKey;",
+    expect: ["a transport makes the mailer live without a Resend key"],
+  },
+  {
+    // F005.20 — the gates stand IN FRONT of the transport: move it above the allowlist.
+    name: "the transport is reached before the allowlist gate",
+    file: "index",
+    from: "      if (!mailAllowed(message.to, { live, allowlist: config.allowlist })) {",
+    to: "      if (!config.transport && !mailAllowed(message.to, { live, allowlist: config.allowlist })) {",
+    expect: ["not live and not allowlisted"],
+  },
+  {
+    // F005.20 — the token must never reach an error string.
+    name: "the Gmail error is not redacted",
+    file: "gmail",
+    from: 'const redact = (s: string) => s.split(token).join("[redacted]");',
+    to: "const redact = (s: string) => s;",
+    expect: ["an error body that echoes the token is redacted"],
+  },
+  {
+    // F005.20 — a CR/LF in a raw header value must be refused, not passed through.
+    name: "header line breaks pass through",
+    file: "gmail",
+    from: "if (/[\\r\\n]/.test(value) || /[\\r\\n:]/.test(name)) throw new HeaderInjection(name);",
+    to: "",
+    expect: ["a line break in a raw header value is refused"],
+  },
+  {
+    // F005.20 — In-Reply-To is what threads the reply for the recipient.
+    name: "In-Reply-To is dropped",
+    file: "gmail",
+    from: '  if (m.inReplyTo) lines.push(header("In-Reply-To", m.inReplyTo));\n',
+    to: "",
+    expect: ["threads: In-Reply-To + References"],
   },
 ];
 

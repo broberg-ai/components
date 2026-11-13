@@ -41,6 +41,7 @@ export type {
 
 export type { MailEventType, MailVerdict } from "./events";
 export { MAIL_EVENT_TYPES, verdictForEvent } from "./events";
+export { gmailTransport, type GmailTransportOptions } from "./gmail.js";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
@@ -98,7 +99,40 @@ export interface MailMessage {
    * send again without sending twice. Read verbatim; never generated here.
    */
   idempotencyKey?: string;
+  /**
+   * F005.20 — reply threading, honoured by a transport that sends AS the user
+   * (`gmailTransport`): `threadId` puts the mail in that conversation, and
+   * `inReplyTo`/`references` become the RFC 5322 headers that thread it for the
+   * recipient. The default Resend path ignores all three — unchanged behaviour.
+   */
+  threadId?: string;
+  inReplyTo?: string;
+  references?: string | string[];
 }
+
+/**
+ * F005.20 — where a delivered mail actually goes. Omitted ⇒ Resend, exactly as
+ * before. A transport sits BEHIND every gate in `send()`: kill-switch,
+ * allowlist and integrity run first, so a new transport cannot be a way round
+ * them. It receives the finished message (Ref footer already stamped).
+ */
+export interface MailTransport {
+  /** Shown in logs and on the result, e.g. "gmail". */
+  readonly name: string;
+  send(request: MailTransportRequest): Promise<MailTransportResult>;
+}
+
+export interface MailTransportRequest {
+  from: string;
+  message: MailMessage;
+  /** The bodies as they will be sent — the Ref footer is already in them. */
+  html?: string;
+  text?: string;
+}
+
+export type MailTransportResult =
+  | { ok: true; id?: string; threadId?: string }
+  | { ok: false; error: string };
 
 /**
  * WHY a send was not delivered (F005.18).
@@ -119,8 +153,10 @@ export type MailSkipReason = "disabled" | "no-key" | "not-live";
 
 export interface MailResult {
   ok: boolean;
-  /** Resend message id on a real send. */
+  /** Provider message id on a real send (Resend's, or Gmail's with a transport). */
   id?: string;
+  /** F005.20 — the conversation the mail landed in, when the transport reports one (Gmail). */
+  threadId?: string;
   error?: string;
   /** True when the send was intentionally NOT delivered (disabled / no key / not allowlisted). */
   skipped?: boolean;
@@ -162,6 +198,13 @@ export interface MailerConfig {
   onResult?: (entry: MailOutcomeEntry) => void | Promise<void>;
   /** Resend API key. Absent ⇒ ship-dark: every send is a logged no-op ({ ok: true, skipped: true }). */
   apiKey?: string;
+  /**
+   * F005.20 — deliver through something other than Resend (e.g.
+   * `gmailTransport`). Omitted ⇒ Resend with `apiKey`, byte-identical to before.
+   * With a transport, `apiKey` is not needed: the transport owns its credential,
+   * so the mailer is not "no-key". Every gate still applies.
+   */
+  transport?: MailTransport;
   /** Default sender — "Name <email>" or a bare address (composed with fromName). */
   from?: string;
   /** Display name used when `from` is a bare address. */
@@ -414,7 +457,7 @@ export function createMailer(config: MailerConfig = {}): Mailer {
   const live = config.live === true;
   // Surface the behaviour change exactly where it bites: a key is present but
   // `live` was never set, so real recipients are now being held back.
-  if (config.apiKey && config.live === undefined && !config.disabled) {
+  if ((config.apiKey || config.transport) && config.live === undefined && !config.disabled) {
     log(
       "live not set — delivering ONLY to the allowlist + fleet admins. Set live:true / MAIL_LIVE=true to send to real recipients.",
     );
@@ -422,9 +465,10 @@ export function createMailer(config: MailerConfig = {}): Mailer {
 
   // Resolved ONCE, here, in the same order send() short-circuits in — so the
   // readback describes the observable outcome rather than restating the config.
+  const hasCredential = !!config.transport || !!config.apiKey;
   const mode: DeliveryMode = config.disabled
     ? "disabled"
-    : !config.apiKey
+    : !hasCredential
       ? "no-key"
       : live
         ? "live"
@@ -601,7 +645,7 @@ export function createMailer(config: MailerConfig = {}): Mailer {
       const integrityReport = checkMailIntegrity(message);
 
       // Dev kill-switch / ship-dark: never crash a flow when mail is off.
-      if (config.disabled || !config.apiKey) {
+      if (config.disabled || !hasCredential) {
         const reason: MailSkipReason = config.disabled ? "disabled" : "no-key";
         log(`send skipped (${config.disabled ? "disabled" : "no RESEND key"})`, {
           to: message.to,
@@ -640,7 +684,7 @@ export function createMailer(config: MailerConfig = {}): Mailer {
 
       const from = resolveFrom(config, message);
       if (!from) return { ok: false, error: "no_from (set MailerConfig.from or message.from)", integrity: integrityReport };
-      if (!doFetch) return { ok: false, error: "no_fetch (no global fetch; pass MailerConfig.fetch)", integrity: integrityReport };
+      if (!doFetch && !config.transport) return { ok: false, error: "no_fetch (no global fetch; pass MailerConfig.fetch)", integrity: integrityReport };
 
       const payload: Record<string, unknown> = {
         from,
@@ -653,6 +697,20 @@ export function createMailer(config: MailerConfig = {}): Mailer {
       const mailId = message.mailId ?? config.mailId;
       const html = mailId && message.html != null ? appendRefHtml(message.html, mailId) : message.html;
       const text = mailId && message.text != null ? appendRefText(message.text, mailId) : message.text;
+      if (config.transport) {
+        // F005.20 — every gate above has already run; the transport only delivers.
+        // A transport that throws is a failed send, never an exception into the caller.
+        try {
+          const r = await config.transport.send({ from, message, ...(html != null ? { html } : {}), ...(text != null ? { text } : {}) });
+          if (!r.ok) {
+            log(`send failed (${config.transport.name}): ${r.error}`);
+            return { ok: false, error: r.error, integrity: integrityReport };
+          }
+          return { ok: true, ...(r.id ? { id: r.id } : {}), ...(r.threadId ? { threadId: r.threadId } : {}), integrity: integrityReport };
+        } catch (err) {
+          return { ok: false, error: `${config.transport.name}: transport threw (${err instanceof Error ? err.name : "error"})`, integrity: integrityReport };
+        }
+      }
       if (html != null) payload.html = html;
       if (text != null) payload.text = text;
       if (message.replyTo != null) payload.reply_to = message.replyTo;
