@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-12T08:47:27.321Z",
+ "checked_at": "2026-11-13T08:42:40.794Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -191,7 +191,7 @@
    "verdict": "OK"
   },
   "@broberg/call": {
-   "version": "0.5.0",
+   "version": "0.6.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -820,7 +820,7 @@
    "verdict": "OK"
   },
   "@broberg/legal": {
-   "version": "0.8.0",
+   "version": "0.8.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -968,7 +968,7 @@
    "verdict": "OK"
   },
   "@broberg/mail": {
-   "version": "0.25.0",
+   "version": "0.26.0",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1133,7 +1133,7 @@
    "dev": {
     "critical": 1,
     "high": 13,
-    "moderate": 16,
+    "moderate": 17,
     "low": 2
    },
    "outdated": {
@@ -1856,7 +1856,7 @@
    "verdict": "OK"
   },
   "@broberg/sso": {
-   "version": "0.26.0",
+   "version": "0.26.1",
    "status": "ok",
    "prod": {
     "critical": 0,
