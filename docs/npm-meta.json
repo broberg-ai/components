@@ -13,8 +13,8 @@
  },
  "@broberg/mail": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail",
-  "version": "0.25.0",
-  "publishedAt": "2026-11-02T22:31:32.109Z",
+  "version": "0.26.0",
+  "publishedAt": "2026-11-13T00:41:18.892Z",
   "provenance": "yes"
  },
  "@broberg/media": {
@@ -397,8 +397,8 @@
  },
  "@broberg/ai-sdk": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/ai-sdk",
-  "version": "0.73.0",
-  "publishedAt": "2026-11-12T11:50:33.381Z",
+  "version": "0.74.0",
+  "publishedAt": "2026-11-12T17:20:25.470Z",
   "provenance": "yes"
  },
  "@broberg/fleet-client": {
