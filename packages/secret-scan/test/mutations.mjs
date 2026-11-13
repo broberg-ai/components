@@ -37,6 +37,12 @@ const SRC_FOR_GUARD = 'src';
 const fileOf = (m) => (m.file ? join(HERE, m.file) : SRC);
 
 const MUTATIONS = [
+  // F035.23 — the left boundary removed: "klassisk-…" in a URL is an OpenAI key again.
+  {
+    name: 'openai sk- matches in the middle of a word (F035.23, restored)',
+    from: '    regex: /\\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/g,',
+    to: '    regex: /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g,',
+  },
   // The whole defect, restored: every candidate is plausible again.
   {
     name: 'the plausibility test always says yes (the 0.5.1 defect, restored)',

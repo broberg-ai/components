@@ -79,7 +79,9 @@ const PATTERNS: SecretPattern[] = [
   {
     label: 'openai-api-key',
     description: 'OpenAI API key (sk-… / sk-proj-…)',
-    regex: /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g,
+    // F035.23 — \b: "sk-" must start a word. Without it "klassisk-ansigtsbehandling-…"
+    // in an ordinary URL was an OpenAI key (house-of-wellness, a blocked commit).
+    regex: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/g,
   },
   {
     // ElevenLabs — sk_ with UNDERSCORE (vs OpenAI sk-), 48 hex.
