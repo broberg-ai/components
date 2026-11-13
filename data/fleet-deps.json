@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-12T12:52:07.912Z",
+ "scanned_at": "2026-11-13T12:20:37.532Z",
  "repos_scanned": 85,
  "repos_failed": 0,
  "manifests_read": 333,
  "manifests_unreadable": 0,
- "edges": 465,
+ "edges": 474,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1236,16 +1236,16 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.26.0",
+      "range": "0.26.1",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed": "0.26.0"
+      "installed": "0.26.1"
      },
      {
-      "range": "0.26.0",
+      "range": "0.26.1",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed": "0.26.0"
+      "installed": "0.26.1"
      },
      {
       "range": "0.14.1",
@@ -1830,9 +1830,41 @@
       "installed_unknown": "pnpm-lock.yaml unreadable"
      }
     ],
+    "@broberg/mail": [
+     {
+      "range": "0.26.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/realtime": [
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/seal": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
     "@broberg/sso": [
      {
       "range": "0.26.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/tenant": [
+     {
+      "range": "0.2.1",
       "field": "dependencies",
       "at": "apps/server/package.json",
       "installed_unknown": "pnpm-lock.yaml unreadable"
@@ -3065,10 +3097,10 @@
     ],
     "@broberg/legal": [
      {
-      "range": "0.8.0",
+      "range": "0.8.1",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed": "0.8.0"
+      "installed": "0.8.1"
      }
     ],
     "@broberg/lens": [
@@ -3271,10 +3303,10 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.49.0",
+      "range": "0.74.0",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.49.0"
+      "installed": "0.74.0"
      }
     ],
     "@broberg/apikey": [
@@ -3293,12 +3325,44 @@
       "installed": "0.1.0"
      }
     ],
+    "@broberg/consent-cookie": [
+     {
+      "range": "0.7.1",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.7.1"
+     }
+    ],
     "@broberg/event-log": [
      {
       "range": "0.1.0",
       "field": "dependencies",
       "at": "package.json",
       "installed": "0.1.0"
+     }
+    ],
+    "@broberg/legal": [
+     {
+      "range": "0.8.1",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.8.1"
+     }
+    ],
+    "@broberg/lens": [
+     {
+      "range": "0.3.3",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.3.3"
+     }
+    ],
+    "@broberg/mail": [
+     {
+      "range": "0.26.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.26.0"
      }
     ],
     "@broberg/notifications": [
@@ -3311,10 +3375,10 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.4.0",
+      "range": "0.26.1",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.4.0"
+      "installed": "0.26.1"
      }
     ],
     "@broberg/tenant": [
@@ -3327,10 +3391,18 @@
     ],
     "@broberg/theme": [
      {
-      "range": "0.8.0",
+      "range": "0.14.0",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.8.0"
+      "installed": "0.14.0"
+     }
+    ],
+    "@broberg/webpush": [
+     {
+      "range": "0.9.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.9.0"
      }
     ],
     "@upmetrics/sdk": [
