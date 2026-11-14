@@ -135,7 +135,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.2.0 — The typed fleet-comms client. `npm i @broberg/fleet-client` · https://www.npmjs.com/package/@broberg/fleet-client · udgivet 24.10.2026 kl. 17.40 (dansk tid) · Trusted Publisher ✓
 - **@broberg/fleet-contracts** v0.2.0 — The fleet-comms contracts. `npm i @broberg/fleet-contracts` · https://www.npmjs.com/package/@broberg/fleet-contracts · udgivet 24.10.2026 kl. 17.16 (dansk tid) · Trusted Publisher ✓
-- **@broberg/complimenta-sdk** v0.4.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk` · https://www.npmjs.com/package/@broberg/complimenta-sdk · udgivet 13.11.2026 kl. 15.27 (dansk tid) · Trusted Publisher ✓
+- **@broberg/complimenta-sdk** v0.5.0 — Typed client SDK for the Complimenta booking API. `npm i @broberg/complimenta-sdk` · https://www.npmjs.com/package/@broberg/complimenta-sdk · udgivet 13.11.2026 kl. 15.27 (dansk tid) · Trusted Publisher ✓
 - **@broberg/cms-inline-edit** v0.13.0 — Inline editing on live @webhouse/cms-sites including structural LIST editing (add/remove items), plus self-healing page links. `npm i @broberg/cms-inline-edit` · https://www.npmjs.com/package/@broberg/cms-inline-edit · udgivet 22.10.2026 kl. 11.59 (dansk tid) · Trusted Publisher ✓
 - **@webhouse/cms** v0.4.27 — @webhouse/cms/enrich. `npm i @webhouse/cms`
 - **@broberg/cms-chat-client** v0.4.20 — Shared quick-action cache-client for the CMS chat surface. `npm i @broberg/cms-chat-client` · https://www.npmjs.com/package/@broberg/cms-chat-client · udgivet 12.07.2026 kl. 14.14 (dansk tid) · Trusted Publisher ✓
