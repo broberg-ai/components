@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-13T08:42:40.794Z",
+ "checked_at": "2026-11-14T07:58:12.412Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -1597,7 +1597,7 @@
    "verdict": "OK"
   },
   "@broberg/secret-scan": {
-   "version": "0.16.1",
+   "version": "0.16.2",
    "status": "ok",
    "prod": {
     "critical": 0,
