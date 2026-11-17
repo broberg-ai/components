@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-13T12:20:37.532Z",
+ "scanned_at": "2026-11-17T13:34:35.665Z",
  "repos_scanned": 85,
  "repos_failed": 0,
  "manifests_read": 333,
  "manifests_unreadable": 0,
- "edges": 474,
+ "edges": 477,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -4494,10 +4494,10 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.6.0",
+      "range": "0.26.1",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.6.0"
+      "installed": "0.26.1"
      }
     ],
     "@broberg/secret-scan": [
@@ -5037,6 +5037,14 @@
       "installed": "0.7.1"
      }
     ],
+    "@broberg/db-sdk": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.2.0"
+     }
+    ],
     "@broberg/i18n": [
      {
       "range": "0.1.0",
@@ -5061,12 +5069,28 @@
       "installed": "0.7.0"
      }
     ],
+    "@broberg/media-transform": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.2.0"
+     }
+    ],
     "@broberg/pwa": [
      {
       "range": "0.6.0",
       "field": "dependencies",
       "at": "package.json",
       "installed": "0.6.0"
+     }
+    ],
+    "@broberg/s3": [
+     {
+      "range": "0.2.2",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.2.2"
      }
     ],
     "@broberg/theme": [
