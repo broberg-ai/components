@@ -56,6 +56,11 @@ function moduleFacts(p: ProductFacts) {
   return m;
 }
 
+/** F110.18 — Google's Limited Use statement. Google's wording, so it stays English in every locale. */
+const GOOGLE_USER_DATA_POLICY = "https://developers.google.com/terms/api-services-user-data-policy";
+const googleLimitedUse = (name: string) =>
+  `${name}'s use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy (${GOOGLE_USER_DATA_POLICY}), including the Limited Use requirements.`;
+
 /** Fixed per-locale templates that turn a product fact into blocks. The only route from data to text. */
 const FACT_TEMPLATES: Record<Locale, Record<FactKey, (p: ProductFacts, id: string) => ResolvedBlock[]>> = {
   da: {
@@ -73,6 +78,13 @@ const FACT_TEMPLATES: Record<Locale, Record<FactKey, (p: ProductFacts, id: strin
           : `${p.name} er ikke omfattet af afsnittet om analyse af samtaler.`,
       },
     ],
+    googleApiLimitedUse: (p, id) =>
+      p.googleApiLimitedUse
+        ? [
+            { id, type: "p", text: `${p.name} henter oplysninger fra Googles API'er. Googles egen erklæring om brugen gælder og står her ordret:` },
+            { id: `${id}.statement`, type: "p", text: googleLimitedUse(p.name) },
+          ]
+        : [],
     moduleTerms: (p, id) => {
       const m = moduleFacts(p);
       return [{
@@ -107,6 +119,13 @@ const FACT_TEMPLATES: Record<Locale, Record<FactKey, (p: ProductFacts, id: strin
           : `${p.name} is not covered by the section on conversation analysis.`,
       },
     ],
+    googleApiLimitedUse: (p, id) =>
+      p.googleApiLimitedUse
+        ? [
+            { id, type: "p", text: `${p.name} receives information from Google APIs. Google's own statement on that use applies, verbatim:` },
+            { id: `${id}.statement`, type: "p", text: googleLimitedUse(p.name) },
+          ]
+        : [],
     moduleTerms: (p, id) => {
       const m = moduleFacts(p);
       return [{

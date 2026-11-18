@@ -9,7 +9,7 @@ export const PRIVACY_EN: DocumentSource = {
   effectiveFrom: "2026-11-02",
   material: false,
   draft: false,
-  translationOf: { version: "2026-11-02", sourceHash: "28f73420bd8c7fa77d22b17063746e4b71c03e4395be78fdb69100bc6282c4fe" },
+  translationOf: { version: "2026-11-02", sourceHash: "c30a33c005888cd3dbbe62c462235fa31487f2b51821450ecb52e462578ddac6" },
   sections: [
     {
       id: "dataansvarlig",
@@ -92,6 +92,7 @@ export const PRIVACY_EN: DocumentSource = {
       blocks: [
         { id: "deling.p1", type: "p", text: "We never sell data. We use these processors, which may only process the information on our instructions:" },
         { id: "deling.facts", type: "facts", fact: "subprocessors" },
+        { id: "deling.google", type: "facts", fact: "googleApiLimitedUse" },
         { id: "deling.p2", type: "p", text: "Transfers outside the EU only take place with a valid transfer mechanism, e.g. the European Commission's standard contractual clauses or the EU-US Data Privacy Framework." },
       ],
     },

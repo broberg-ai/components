@@ -90,6 +90,7 @@ export const PRIVACY_DA: DocumentSource = {
       blocks: [
         { id: "deling.p1", type: "p", text: "Vi sælger aldrig data. Vi bruger disse databehandlere, som kun må behandle oplysningerne efter vores instruks:" },
         { id: "deling.facts", type: "facts", fact: "subprocessors" },
+        { id: "deling.google", type: "facts", fact: "googleApiLimitedUse" },
         { id: "deling.p2", type: "p", text: "Overførsel uden for EU sker kun med et gyldigt overførselsgrundlag, fx EU-Kommissionens standardkontraktbestemmelser eller EU-US Data Privacy Framework." },
       ],
     },

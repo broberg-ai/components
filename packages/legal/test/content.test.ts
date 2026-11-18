@@ -25,7 +25,7 @@ describe("F110.14 — templates from the API, facts from the product", () => {
   it("getTemplate returns the authored template with its facts SLOTS left open, and its hash", () => {
     const t = getTemplate({ doc: "privacy", locale: "da" });
     const slots = t.sections.flatMap((s) => s.blocks).filter((b) => b.type === "facts").map((b) => (b as { fact: string }).fact);
-    expect(slots).toEqual(["dataCategories", "conversationAnalysis", "hosting", "subprocessors"]);
+    expect(slots).toEqual(["dataCategories", "conversationAnalysis", "hosting", "subprocessors", "googleApiLimitedUse"]);
     expect(t.hash).toBe(templateHash(SOURCES.find((s) => s.doc === "privacy")!));
     expect(t.stale).toBe(false);
   });

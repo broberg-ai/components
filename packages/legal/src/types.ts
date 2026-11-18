@@ -57,6 +57,12 @@ export interface ProductFacts {
   healthData: boolean;
   /** F110.17 — only a platform with third-party modules (an App Store) sets this; the "modules" document needs it. */
   modules?: ModuleTermsFacts;
+  /**
+   * F110.18 — the product reads Google user data through Google APIs (e.g. a gmail scope).
+   * Google's brand verification requires its Limited Use statement VERBATIM in the privacy
+   * policy; true renders it. Omitted/false: the document is unchanged (same contentHash).
+   */
+  googleApiLimitedUse?: boolean;
 }
 
 /** The numbers and channels in the module-owner terms. The PRODUCT decides them; the text never contains them. */
@@ -77,7 +83,7 @@ export interface ModuleTermsFacts {
   complaintsResponse: string;
   exportDays: number;
 }
-export type FactKey = "hosting" | "dataCategories" | "subprocessors" | "conversationAnalysis" | "moduleTerms";
+export type FactKey = "hosting" | "dataCategories" | "subprocessors" | "conversationAnalysis" | "moduleTerms" | "googleApiLimitedUse";
 
 /** The merge fields Contract Manager fills (contract-manager #5608, 31 Oct 2026). */
 export const PLACEHOLDERS = [

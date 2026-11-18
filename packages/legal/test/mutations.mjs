@@ -20,6 +20,13 @@ const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync
 
 const MUTATIONS = [
   {
+    name: "F110.18 — the Google statement is rendered for every product, flag or not",
+    file: CORE,
+    find: "    googleApiLimitedUse: (p, id) =>\n      p.googleApiLimitedUse\n        ? [\n            { id, type: \"p\", text: `${p.name} henter",
+    replace: "    googleApiLimitedUse: (p, id) =>\n      true\n        ? [\n            { id, type: \"p\", text: `${p.name} henter",
+    expect: ["da: omitted or false → NO Google text"],
+  },
+  {
     name: "F110.19 — resolveTemplate ignores the API's stale and guesses without a master",
     file: INDEX,
     find: "getDocument({ doc, locale, product: facts.id, stale })",
