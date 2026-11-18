@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-17T09:42:50.331Z",
+ "checked_at": "2026-11-18T09:02:17.656Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -91,7 +91,7 @@
    "peer": {
     "critical": 5,
     "high": 14,
-    "moderate": 11,
+    "moderate": 12,
     "low": 1
    },
    "dev": {
