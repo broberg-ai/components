@@ -208,6 +208,23 @@ export function cookieHeader(
   return parts.join("; ");
 }
 
+/**
+ * F084.188 — EVERY value sent under `name`, in header order. A sibling subdomain can
+ * set a cookie of the same name with Domain=<parent>, and the browser sends both;
+ * readCookie (the first) is then whichever the browser happened to put first. Callers
+ * that verify a signature should try each and keep the one that verifies.
+ */
+export function readCookies(header: string | null | undefined, name: string): string[] {
+  if (!header) return [];
+  const out: string[] = [];
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) out.push(part.slice(eq + 1).trim());
+  }
+  return out;
+}
+
 export function readCookie(header: string | null | undefined, name: string): string | undefined {
   if (!header) return undefined;
   for (const part of header.split(";")) {

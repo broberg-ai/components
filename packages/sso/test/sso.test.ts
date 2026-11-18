@@ -2404,3 +2404,48 @@ describe("cookies are Secure behind a TLS-terminating proxy", () => {
     expect(await loginCookie("http://localhost:3000/login")).not.toMatch(/Secure/);
   });
 });
+
+/**
+ * F084.188 — cookie tossing (mailworker #50018, N1). A sibling subdomain can set
+ * bid_session_tx / bid_session with Domain=.broberg.ai; the browser sends BOTH, and the
+ * planted one may come first. It cannot carry our signature, so it gives no access —
+ * but readCookie took the FIRST value, so login and the session failed. Owner 18/11:
+ * «tag den der verificerer».
+ */
+describe("a planted cookie of the same name cannot shadow ours (F084.188)", () => {
+  async function setup() {
+    const idp = await makeIdp();
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl, minRefetchIntervalMs: 0 });
+    const { app } = ssoRoutes({ config: loadSsoConfig(ENV), client });
+    return { idp, app };
+  }
+  test("/callback succeeds when a forged bid_session_tx is sent BEFORE the real one", async () => {
+    const { idp, app } = await setup();
+    const login = await app.request("https://app.example/login");
+    const real = login.headers.get("set-cookie")!.split(";")[0]!;
+    const authorize = new URL(login.headers.get("location")!);
+    idp.echo(authorize.searchParams.get("nonce")!);
+    const cb = await app.request("https://app.example/callback?" + new URLSearchParams({ code: "the-code", state: authorize.searchParams.get("state")! }), {
+      headers: { cookie: `bid_session_tx=planted.by-a-sibling; ${real}` },
+    });
+    expect(cb.status).toBe(302);
+    expect(cb.headers.getSetCookie().some((c) => c.startsWith("bid_session=") && !c.startsWith("bid_session=;"))).toBe(true);
+  });
+  test("a session: a forged bid_session BEFORE the real one does not log the user out", async () => {
+    const { idp } = await setup();
+    const client = createSsoClient(loadSsoConfig(ENV), { fetchImpl: idp.fetchImpl, minRefetchIntervalMs: 0 });
+    const sso = ssoRoutes({ config: loadSsoConfig(ENV), client });
+    const app = new Hono();
+    app.get("/me", sso.attach, (c) => c.json({ sub: getSession(c)?.sub ?? null }));
+    const now = Math.floor(Date.now() / 1000);
+    const real = await signSession({ sub: "user-real", iat: now, exp: now + 3600 } as never, ENV.SSO_COOKIE_SECRET!);
+    const me = async (cookie: string) => ((await (await app.request("https://app.example/me", { headers: { cookie } })).json()) as { sub: string | null }).sub;
+    expect(await me(`bid_session=planted.by-a-sibling; bid_session=${real}`)).toBe("user-real");
+    expect(await me("bid_session=planted.by-a-sibling")).toBe(null);
+  });
+  test("negative control: ONLY a forged bid_session_tx is still refused", async () => {
+    const { app } = await setup();
+    const cb = await app.request("https://app.example/callback?code=x&state=y", { headers: { cookie: "bid_session_tx=planted.by-a-sibling" } });
+    expect(cb.headers.getSetCookie().some((c) => c.startsWith("bid_session=") && !c.startsWith("bid_session=;"))).toBe(false);
+  });
+});

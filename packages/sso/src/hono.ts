@@ -23,6 +23,7 @@ import { expiresAtFrom, newSid, sealedTokenStore, type TokenSet, type TokenStore
 import {
   cookieHeader,
   readCookie,
+  readCookies,
   signSession,
   signValue,
   verifySession,
@@ -266,7 +267,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
 
   /** A verified session, or null — also null when «Log ud overalt» has ended it. */
   async function liveSession(c: Context): Promise<SessionPayload | null> {
-    const session = await verifySession(readCookie(c.req.header("cookie"), config.cookieName), config.cookieSecret);
+    const session = await sessionFrom(c.req.header("cookie"), config.cookieName, config.cookieSecret);
     // components-F084.163 — "sensitive" ends 12 h after LOGIN however active.
     // The cookie's exp carries the 30-minute idle window; this is the ceiling it
     // can never be renewed past. A session with no iat (minted before 0.6.0)
@@ -309,7 +310,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     const next: SessionPayload = { ...session, exp };
     const maxAge = exp - now;
     c.header("Set-Cookie", cookieHeader(config.cookieName, await signSession(next, config.cookieSecret), { maxAge, secure: isSecure(c) }), { append: true });
-    const idt = readCookie(c.req.header("cookie"), idTokenCookie);
+    const idt = await signedCookie(c.req.header("cookie"), idTokenCookie, config.cookieSecret);
     if (idt) c.header("Set-Cookie", cookieHeader(idTokenCookie, idt, { maxAge, secure: isSecure(c) }), { append: true });
     c.set(SESSION_KEY, next);
   }
@@ -453,10 +454,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
   });
 
   app.get("/callback", async (c) => {
-    const parsed = await parseTransaction(
-      readCookie(c.req.header("cookie"), txCookie),
-      config.cookieSecret,
-    );
+    const parsed = await transactionFrom(c.req.header("cookie"), txCookie, config.cookieSecret);
     if (!parsed.ok) {
       /**
        * THREE CAUSES, THREE ANSWERS (components-F084.54).
@@ -605,12 +603,12 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     // the old behaviour (the issuer asks) rather than throwing. The upgrade path
     // is the one that fails in production; it gets its own test.
     const idTokenHint = await verifyValue(
-      readCookie(c.req.header("cookie"), idTokenCookie),
+      await signedCookie(c.req.header("cookie"), idTokenCookie, config.cookieSecret),
       config.cookieSecret,
     );
     // F095.1 — the tokens die with the session. Read the sid before the cookie goes.
     if (tokenStore) {
-      const leaving = await verifySession(readCookie(c.req.header("cookie"), config.cookieName), config.cookieSecret);
+      const leaving = await sessionFrom(c.req.header("cookie"), config.cookieName, config.cookieSecret);
       if (leaving?.sid) await tokenStore.delete(leaving.sid);
     }
 
@@ -668,7 +666,7 @@ export function ssoRoutes(options: SsoRoutesOptions = {}) {
     if (!tokenStore) {
       throw new SsoError("getAccessToken needs ssoRoutes({ tokenStore }) — without one the login's tokens are not kept.");
     }
-    const raw = await verifySession(readCookie(c.req.header("cookie"), config.cookieName), config.cookieSecret);
+    const raw = await sessionFrom(c.req.header("cookie"), config.cookieName, config.cookieSecret);
     const live = await liveSession(c);
     if (!live) {
       if (raw?.sid) await tokenStore.delete(raw.sid);
@@ -780,6 +778,38 @@ type TransactionResult =
  * second app instance whose clock is a few seconds behind starts rejecting
  * perfectly good logins. That trades a theoretical gain for a real outage.
  */
+/** F084.188 — the first session cookie under `name` that carries OUR signature (a sibling's cannot). */
+async function sessionFrom(header: string | null | undefined, name: string, secret: string): Promise<SessionPayload | null> {
+  for (const v of readCookies(header, name)) {
+    const s = await verifySession(v, secret);
+    if (s) return s;
+  }
+  return null;
+}
+
+/** F084.188 — the first value under `name` whose signature holds (the raw value, for re-setting). */
+async function signedCookie(header: string | null | undefined, name: string, secret: string): Promise<string | undefined> {
+  for (const v of readCookies(header, name)) if ((await verifyValue(v, secret)) !== null) return v;
+  return undefined;
+}
+
+/**
+ * F084.188 — the transaction among every bid_session_tx sent. A planted one cannot be
+ * ours, so the first that parses wins; with none, the most specific honest cause:
+ * expired beats unreadable (a real-but-late cookie next to a forged one is "expired").
+ */
+async function transactionFrom(header: string | null | undefined, name: string, secret: string): Promise<TransactionResult> {
+  const values = readCookies(header, name);
+  if (values.length === 0) return parseTransaction(undefined, secret);
+  let worst: TransactionResult | null = null;
+  for (const v of values) {
+    const r = await parseTransaction(v, secret);
+    if (r.ok) return r;
+    if (!worst || (!worst.ok && worst.reason !== "expired" && r.reason === "expired")) worst = r;
+  }
+  return worst!;
+}
+
 async function parseTransaction(raw: string | undefined, secret: string): Promise<TransactionResult> {
   if (raw === undefined) return { ok: false, reason: "absent" };
 

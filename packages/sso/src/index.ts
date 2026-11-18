@@ -123,6 +123,7 @@ export {
   verifyValue,
   cookieHeader,
   readCookie,
+  readCookies,
   type SessionPayload,
 } from "./session.js";
 
