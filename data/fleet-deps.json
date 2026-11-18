@@ -1,6 +1,6 @@
 {
- "scanned_at": "2026-11-17T13:34:35.665Z",
- "repos_scanned": 85,
+ "scanned_at": "2026-11-18T13:11:52.666Z",
+ "repos_scanned": 86,
  "repos_failed": 0,
  "manifests_read": 333,
  "manifests_unreadable": 0,
@@ -611,10 +611,10 @@
     ],
     "@broberg/backup": [
      {
-      "range": "0.1.0",
+      "range": "0.4.0",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.1.0"
+      "installed": "0.4.0"
      }
     ],
     "@broberg/data-table": [
@@ -2053,10 +2053,10 @@
     ],
     "@broberg/complimenta-sdk": [
      {
-      "range": "0.3.0",
+      "range": "0.6.1",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed": "0.3.0"
+      "installed": "0.6.1"
      }
     ],
     "@broberg/consent-cookie": [
@@ -3419,6 +3419,13 @@
    "branch": "main",
    "manifests": 4,
    "unreadable": 0,
+   "deps": {}
+  },
+  "broberg-ai/odeum-dev": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
    "deps": {}
   },
   "broberg-ai/openbuddy": {
