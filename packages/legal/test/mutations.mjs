@@ -16,9 +16,17 @@ const CORE = join(PKG, "src", "core.ts");
 const TERMS_EN = join(PKG, "src", "content", "terms.en.ts");
 const PSEUDO = join(PKG, "src", "pseudonymise.ts");
 const INDEX = join(PKG, "src", "index.ts");
-const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8"), [PSEUDO]: readFileSync(PSEUDO, "utf8"), [INDEX]: readFileSync(INDEX, "utf8") };
+const BID = join(PKG, "src", "bid.ts");
+const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8"), [PSEUDO]: readFileSync(PSEUDO, "utf8"), [INDEX]: readFileSync(INDEX, "utf8"), [BID]: readFileSync(BID, "utf8") };
 
 const MUTATIONS = [
+  {
+    name: "F110.20 — the accepted text never reaches BID",
+    file: BID,
+    find: "    sent.text = a.text;",
+    replace: "    void a.text;",
+    expect: ["sends text + authorityConfirmed and a contentHash over that text"],
+  },
   {
     name: "F110.18 — the Google statement is rendered for every product, flag or not",
     file: CORE,

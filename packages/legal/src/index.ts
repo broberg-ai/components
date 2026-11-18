@@ -14,13 +14,14 @@ import { MASTER_LOCALE, type DocId, type DocumentSource, type LegalDocument, typ
 
 export { createLibrary, canonicalJson, sourceHash, templateHash, placeholdersIn, parityProblems } from "./core.js";
 export { renderHtml } from "./render.js";
+export { fillPlaceholders, renderText, textHash } from "./fill.js";
 export { sha256Hex } from "./sha256.js";
 export * from "./types.js";
 export { SOURCES } from "./content/index.js";
 export { EXAMPLE_FACTS } from "./content/example.js";
 export { createLegalCache, LEGAL_API_URL, DEFAULT_REFRESH_MS, type LegalCacheOptions } from "./cache.js";
 export {
-  BID_URL, BidConsentError, getAcceptance, getConsent, needsReaccept, recordAcceptance, recordConsent, toBidHash,
+  BID_URL, MAX_ACCEPTED_TEXT, BidConsentError, getAcceptance, getConsent, needsReaccept, recordAcceptance, recordConsent, toBidHash,
   type AcceptanceRecord, type AcceptedDoc, type BidCallOptions, type ConsentRecord,
 } from "./bid.js";
 

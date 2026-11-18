@@ -6,6 +6,7 @@
  * BID derives the user (sub) and the product from that token; nothing you send can
  * point at another user or another product.
  */
+import { textHash } from "./fill.js";
 
 /** The one place BID's address lives in this package. */
 export const BID_URL = "https://id.broberg.ai";
@@ -21,7 +22,14 @@ export interface AcceptanceRecord {
   /** Epoch ms, set by BID. */
   acceptedAt: number;
   clientId: string;
+  /** F110.20 — the person confirmed they may accept on the customer's behalf (required for "dpa"). */
+  authorityConfirmed?: boolean;
+  /** F110.20 — whether BID mailed the accepting person a copy of the text. */
+  copy?: "sent" | "skipped" | "failed";
 }
+
+/** BID's ceiling for an accepted text (F084.243). */
+export const MAX_ACCEPTED_TEXT = 200_000;
 
 export interface ConsentRecord {
   sub: string;
@@ -71,11 +79,30 @@ async function call<T>(opts: BidCallOptions, method: "GET" | "POST", path: strin
 }
 
 /** Record that the user accepted this version of a document. Returns the row BID stored (read back). */
-export async function recordAcceptance(opts: BidCallOptions, a: { doc: AcceptedDoc; version: string; contentHash: string }): Promise<AcceptanceRecord> {
-  const sent = { doc: a.doc, version: a.version, contentHash: toBidHash(a.contentHash) };
+export async function recordAcceptance(
+  opts: BidCallOptions,
+  a: {
+    doc: AcceptedDoc;
+    version: string;
+    contentHash: string;
+    /** F110.20 — the FILLED text the person accepted (renderText of fillPlaceholders). BID requires it for "dpa"; contentHash must then be textHash(text). */
+    text?: string;
+    /** F110.20 — the person confirmed they may bind the customer. BID requires true for "dpa". */
+    authorityConfirmed?: boolean;
+  },
+): Promise<AcceptanceRecord> {
+  const sent: Record<string, unknown> = { doc: a.doc, version: a.version, contentHash: toBidHash(a.contentHash) };
+  if (a.text !== undefined) {
+    // Refused HERE, before the call: BID would answer 400, but a local error names the cause.
+    if (a.text.length > MAX_ACCEPTED_TEXT) throw new BidConsentError(0, "text_too_long", `the accepted text is ${a.text.length} characters; BID takes at most ${MAX_ACCEPTED_TEXT}`);
+    if (textHash(a.text) !== sent.contentHash) throw new BidConsentError(0, "hash_mismatch", "contentHash is not textHash(text) — the hash must be over exactly the text the person saw");
+    sent.text = a.text;
+  }
+  if (a.authorityConfirmed !== undefined) sent.authorityConfirmed = a.authorityConfirmed;
   const row = await call<AcceptanceRecord>(opts, "POST", "/api/app/terms-acceptance", sent);
   // A save is only proven when the stored row says what we sent.
-  if (row?.doc !== sent.doc || row?.version !== sent.version || row?.contentHash !== sent.contentHash) {
+  if (row?.doc !== sent.doc || row?.version !== sent.version || row?.contentHash !== sent.contentHash
+    || (a.authorityConfirmed !== undefined && row?.authorityConfirmed !== a.authorityConfirmed)) {
     throw new BidConsentError(200, "not_echoed", "BID's stored acceptance does not match what was sent");
   }
   return row;
