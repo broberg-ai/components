@@ -177,6 +177,26 @@ export interface OAuthRoutes {
 
 const JSON_HEADERS = { "content-type": "application/json" } as const;
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * F007.19 — is `requested` one of the client's registered redirects? Exact match, except
+ * for an http LOOPBACK redirect, where the PORT is ignored (RFC 8252 §7.3): a native app
+ * (Claude Code) listens on a port it picks at runtime, so its metadata lists
+ * http://localhost/callback with no port. Scheme, host, path and query must still match.
+ */
+export function redirectRegistered(registered: readonly string[], requested: string): boolean {
+  if (registered.includes(requested)) return true;
+  let r: URL;
+  try { r = new URL(requested); } catch { return false; }
+  if (r.protocol !== "http:" || !LOOPBACK_HOSTS.has(r.hostname)) return false;
+  return registered.some((reg) => {
+    let g: URL;
+    try { g = new URL(reg); } catch { return false; }
+    return g.protocol === r.protocol && g.hostname === r.hostname && g.pathname === r.pathname && g.search === r.search && !r.hash;
+  });
+}
+
 export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
   const core = createOAuthCore(config);
   const allowedHosts = config.allowedRedirectHosts ?? DEFAULT_REDIRECT_HOSTS;
@@ -357,7 +377,7 @@ export function createOAuthRoutes(config: OAuthWebConfig): OAuthRoutes {
 
     // Validate client + redirect_uri BEFORE any redirect (open-redirect guard).
     if (!client) return json(400, { error: "invalid_client", error_description: "unknown client_id" });
-    if (!redirectUri || !client.redirect_uris.includes(redirectUri)) {
+    if (!redirectUri || !redirectRegistered(client.redirect_uris, redirectUri)) {
       return json(400, { error: "invalid_request", error_description: "redirect_uri not registered for this client" });
     }
     // Defence in depth: a client registered before 0.7.0 may carry any redirect.
