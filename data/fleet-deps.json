@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-18T13:11:52.666Z",
+ "scanned_at": "2026-11-19T13:21:48.025Z",
  "repos_scanned": 86,
  "repos_failed": 0,
- "manifests_read": 333,
+ "manifests_read": 334,
  "manifests_unreadable": 0,
- "edges": 477,
+ "edges": 480,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1146,6 +1146,20 @@
       "installed": "0.8.2"
      }
     ],
+    "@broberg/legal": [
+     {
+      "range": "0.10.0",
+      "field": "dependencies",
+      "at": "apps/server/package.json",
+      "installed": "0.10.0"
+     },
+     {
+      "range": "0.10.0",
+      "field": "dependencies",
+      "at": "packages/mcp-tools/package.json",
+      "installed": "0.10.0"
+     }
+    ],
     "@broberg/lens": [
      {
       "range": "0.1.1",
@@ -1819,7 +1833,7 @@
   },
   "broberg-ai/drive": {
    "branch": "main",
-   "manifests": 9,
+   "manifests": 10,
    "unreadable": 0,
    "deps": {
     "@broberg/legal": [
@@ -4380,6 +4394,20 @@
    "manifests": 2,
    "unreadable": 0,
    "deps": {
+    "@broberg/ai-sdk": [
+     {
+      "range": "^0.75.0",
+      "field": "dependencies",
+      "at": "cloud/package.json",
+      "installed": "0.75.0"
+     },
+     {
+      "range": "0.75.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.75.0"
+     }
+    ],
     "@broberg/apikey": [
      {
       "range": "0.3.1",
@@ -4390,10 +4418,10 @@
     ],
     "@broberg/auth": [
      {
-      "range": "0.2.0",
+      "range": "0.7.1",
       "field": "dependencies",
       "at": "cloud/package.json",
-      "installed": "0.2.0"
+      "installed": "0.7.1"
      }
     ],
     "@broberg/gravatar": [
@@ -4406,7 +4434,15 @@
     ],
     "@broberg/mail": [
      {
-      "range": "0.7.0",
+      "range": "0.26.0",
+      "field": "dependencies",
+      "at": "cloud/package.json",
+      "installed": "0.26.0"
+     }
+    ],
+    "@broberg/media": [
+     {
+      "range": "^0.7.0",
       "field": "dependencies",
       "at": "cloud/package.json",
       "installed": "0.7.0"
@@ -4414,34 +4450,34 @@
     ],
     "@broberg/notifications": [
      {
-      "range": "0.2.0",
+      "range": "0.6.0",
       "field": "dependencies",
       "at": "cloud/package.json",
-      "installed": "0.2.0"
+      "installed": "0.6.0"
      }
     ],
     "@broberg/pwa": [
      {
-      "range": "^0.2.2",
+      "range": "0.9.0",
       "field": "dependencies",
       "at": "cloud/package.json",
-      "installed": "0.2.2"
+      "installed": "0.9.0"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "^0.27.0",
+      "field": "dependencies",
+      "at": "cloud/package.json",
+      "installed": "0.27.0"
      }
     ],
     "@broberg/webpush": [
      {
-      "range": "0.5.0",
+      "range": "0.9.0",
       "field": "dependencies",
       "at": "cloud/package.json",
-      "installed": "0.5.0"
-     }
-    ],
-    "@broberg/ai-sdk": [
-     {
-      "range": "^0.28.0",
-      "field": "dependencies",
-      "at": "package.json",
-      "installed": "0.28.0"
+      "installed": "0.9.0"
      }
     ]
    }
