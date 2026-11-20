@@ -12,6 +12,11 @@ import { readFileSync } from "node:fs";
 
 export const BLOCKING = new Set(["critical", "high"]);
 
+/** Has CodeQL finished analysing THIS commit? `analyses` = the API's list (newest first). */
+export function analysisFor(analyses, sha) {
+  return Array.isArray(analyses) && analyses.some((a) => a?.commit_sha === sha && !a?.error);
+}
+
 /** alerts: the API's list → { blocking, status } */
 export function decideAlerts(alerts) {
   if (!Array.isArray(alerts)) return { status: "error", blocking: [], why: "the alerts list is not an array" };
@@ -23,6 +28,24 @@ export function decideAlerts(alerts) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const repo = process.argv[2]?.startsWith("--") ? process.env.GITHUB_REPOSITORY : (process.argv[2] ?? process.env.GITHUB_REPOSITORY);
   if (!repo) { console.log("::error::no repository given"); process.exit(1); }
+  // The alerts of main are only TRUE once CodeQL has analysed the commit being judged — reading them while that analysis
+  // is still running judges the PREVIOUS commit (found 20/11 2026: a fix for an alert went red on itself, because the
+  // alert it fixed was still open when the job looked). --sha waits for the analysis of that commit, up to --wait seconds,
+  // and is RED if it never appears: «not analysed» is not «no alerts».
+  const shaI = process.argv.indexOf("--sha");
+  const sha = shaI > 0 ? process.argv[shaI + 1] : "";
+  const waitI = process.argv.indexOf("--wait");
+  const waitMs = (waitI > 0 ? Number(process.argv[waitI + 1]) : 0) * 1000;
+  if (sha) {
+    const deadline = Date.now() + waitMs;
+    for (;;) {
+      let analyses = null;
+      try { analyses = JSON.parse(execFileSync("gh", ["api", `repos/${repo}/code-scanning/analyses?per_page=30`], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64e6 })); } catch { /* retried until the deadline */ }
+      if (analysisFor(analyses, sha)) { console.log(`codeql: analysis of ${sha.slice(0, 8)} is in`); break; }
+      if (Date.now() >= deadline) { console.log(`::error::CodeQL has no analysis of ${sha.slice(0, 8)} for ${repo} after ${waitMs / 1000}s — "not analysed" is not "no alerts"`); process.exit(1); }
+      await new Promise((r) => setTimeout(r, 15_000));
+    }
+  }
   const fi = process.argv.indexOf("--alerts-file");   // offline: the tests feed a recorded API answer
   let alerts;
   try {

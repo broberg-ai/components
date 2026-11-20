@@ -126,7 +126,7 @@ jobs:
   codeql-alerts:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20 # waits up to 15 min for CodeQL to finish analysing this very commit
     permissions:
       contents: read
       security-events: read
@@ -139,7 +139,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash # pipefail: the tee must not turn a red gate green (scripts/check-workflow-pipes.mjs)
-        run: node scripts/check-codeql-alerts.mjs "$GITHUB_REPOSITORY" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node scripts/check-codeql-alerts.mjs "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --wait 900 | tee -a "$GITHUB_STEP_SUMMARY"
 
   # ── the 24 root scripts ────────────────────────────────────────────────
   # Not package-specific, ~84 s, and independent of every package suite — so they

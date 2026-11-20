@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decideAlerts } from "./check-codeql-alerts.mjs";
+import { decideAlerts, analysisFor } from "./check-codeql-alerts.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ✓ ${name}`); };
@@ -27,6 +27,12 @@ t("the CLI is red without a repo and when the API cannot be read", () => {
   const run = (env, ...args) => { try { execFileSync("node", ["scripts/check-codeql-alerts.mjs", ...args], { stdio: "pipe", env: { ...process.env, GITHUB_REPOSITORY: "", ...env } }); return 0; } catch (e) { return e.status; } };
   assert.equal(run({}), 1);
   assert.equal(run({ GH_TOKEN: "invalid" }, "broberg-ai/__no_such_repo__"), 1);
+});
+t("analysisFor: only an analysis OF THAT COMMIT counts, and one that errored does not", () => {
+  assert.equal(analysisFor([{ commit_sha: "aaa" }, { commit_sha: "bbb" }], "bbb"), true);
+  assert.equal(analysisFor([{ commit_sha: "aaa" }], "bbb"), false);
+  assert.equal(analysisFor([{ commit_sha: "bbb", error: "boom" }], "bbb"), false);
+  assert.equal(analysisFor(undefined, "bbb"), false); assert.equal(analysisFor([], "bbb"), false);
 });
 t("the CLI exits 1 on a recorded high alert and 0 on a recorded clean answer", () => {
   const d = mkdtempSync(join(tmpdir(), "cql-"));

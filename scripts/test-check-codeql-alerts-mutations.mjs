@@ -16,6 +16,8 @@ const MUTATIONS = [
   { name: "critical is not blocking", find: "new Set([\"critical\", \"high\"])", replace: "new Set([\"high\"])" },
   { name: "dismissed alerts still block", find: "a.state === \"open\"", replace: "true" },
   { name: "an API error body reads as clean", find: "if (!Array.isArray(alerts)) return", replace: "if (false) return" },
+  { name: "an analysis of ANOTHER commit counts", find: "a?.commit_sha === sha", replace: "true" },
+  { name: "an errored analysis counts", find: "&& !a?.error", replace: "" },
   { name: "the CLI always exits 0", find: "process.exit(r.status === \"clean\" ? 0 : 1)", replace: "process.exit(0)" },
 ];
 
