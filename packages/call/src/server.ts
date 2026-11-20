@@ -5,7 +5,7 @@
 // signed webhook when people join and leave. Built on LiveKit's own SDK so the
 // ticket format and the webhook signature are LiveKit's, not ours.
 
-import { AccessToken, TrackSource, WebhookReceiver } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, TrackSource, WebhookReceiver } from "livekit-server-sdk";
 import type { WebhookEvent } from "livekit-server-sdk";
 
 export type { WebhookEvent };
@@ -18,7 +18,8 @@ export type VoiceErrorCode =
   | "invalid_sources"
   | "invalid_webhook"
   | "invalid_control_url"
-  | "recording_failed";
+  | "recording_failed"
+  | "room_service_failed";
 
 export class VoiceError extends Error {
   constructor(
@@ -259,4 +260,48 @@ export async function recordingUrl(
   const body: { room: string; file: string; expiresIn?: number } = { room: input.room, file: input.file };
   if (options.expiresIn !== undefined) body.expiresIn = options.expiresIn;
   return (await control("/v1/recordings/url", input.room, opts, { method: "POST", body: JSON.stringify(body) })) as unknown as { url: string; expiresAt: string };
+}
+
+/** The media server itself, e.g. `https://voice.broberg.ai` (not the recording service). */
+export interface RoomServiceOptions extends Credentials {
+  url: string;
+}
+
+export interface RoomParticipant {
+  identity: string;
+  name?: string;
+  /** Epoch milliseconds (UTC) when they joined. */
+  joinedAt?: number;
+}
+
+/**
+ * F104.9.12 — who is REALLY in a room, asked of the media server (LiveKit
+ * RoomService.ListParticipants) rather than any browser's own list, which can be
+ * forged. Built for «recording needs a yes from everyone in the room» (jam W47).
+ *
+ * An unknown room is an empty room (`[]`). Every other failure THROWS — an empty list
+ * on an error would read as «nobody left to ask» and let a recording start.
+ */
+export async function listParticipants(room: string, opts: RoomServiceOptions): Promise<RoomParticipant[]> {
+  requireCredentials(opts);
+  if (!room?.trim()) throw new VoiceError("invalid_room", "room is required");
+  let u: URL;
+  try { u = new URL(opts.url); } catch { throw new VoiceError("invalid_control_url", "url must be the media server's https URL"); }
+  const local = u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]";
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) throw new VoiceError("invalid_control_url", "url must be https (http only for localhost)");
+  let raw: Awaited<ReturnType<RoomServiceClient["listParticipants"]>>;
+  try {
+    raw = await new RoomServiceClient(u.origin, opts.apiKey, opts.apiSecret).listParticipants(room);
+  } catch (e) {
+    const err = e as { status?: number; code?: string };
+    if (err?.status === 404 || err?.code === "not_found") return [];
+    throw new VoiceError("room_service_failed", `the media server refused ListParticipants: ${err?.code ?? err?.status ?? "unknown"}`);
+  }
+  return raw.map((p) => {
+    const out: RoomParticipant = { identity: p.identity };
+    if (p.name) out.name = p.name;
+    const sec = Number(p.joinedAt ?? 0);
+    if (sec > 0) out.joinedAt = sec * 1000;
+    return out;
+  });
 }

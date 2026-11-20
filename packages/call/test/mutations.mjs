@@ -28,6 +28,13 @@ const originals = { [SERVER]: readFileSync(SERVER, "utf8"), [CLIENT]: readFileSy
 
 const MUTATIONS = [
   {
+    name: "F104.9.12 — a media-server failure reads as an empty room (recording could start without everyone's yes)",
+    file: SERVER,
+    find: '    if (err?.status === 404 || err?.code === "not_found") return [];',
+    replace: '    return [];',
+    expect: ["any other failure THROWS VoiceError"],
+  },
+  {
     name: "canPublish:false still grants publishing",
     file: SERVER,
     find: "const speak = opts.canPublish !== false;",
