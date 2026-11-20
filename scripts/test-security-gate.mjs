@@ -9,7 +9,8 @@ import { fileURLToPath } from "node:url";
 import {
   CHECKS, MAX_ACK_DAYS, validateAcks, acked, isMalicious, decideDeps, decideSast, decideWorkflows, decideInstall, overall, render,
 } from "./security-gate/decide.mjs";
-import { parsePnpm, parseNpm, parseBun, parseJsonc, findLockfiles } from "./security-gate/lockfiles.mjs";
+import { parsePnpm, parseNpm, parseBun, parseJsonc, findLockfiles, readLockfile } from "./security-gate/lockfiles.mjs";
+import { parseGateConfig } from "./security-gate/config.mjs";
 import { runZizmor, runSemgrep } from "./security-gate/run-check.mjs";
 
 let n = 0;
@@ -282,4 +283,72 @@ t("run-check `workflows`: the same step with pipefail, or no pipe at all, is gre
   assert.equal(runWorkflows(workflowDir("set -o pipefail; node check.mjs | tee out")).code, 0);
   assert.equal(runWorkflows(workflowDir("node check.mjs")).code, 0);
 });
+
+// ---------------------------------------------------------------- per-repo config: an exception, never an off switch
+t("config: a path with a real reason is accepted and is PRINTED (notes); no file means no exclusions", () => {
+  const c = parseGateConfig({ exclude: [{ path: "vendor/", reason: "vendored upstream code" }], skipImporters: [{ path: "examples", reason: "demo apps no one installs" }], sastExclude: [{ path: "docs/", reason: "generated documentation" }] });
+  assert.deepEqual([c.exclude, c.skipImporters, c.sastExclude, c.errors], [["vendor/"], ["examples"], ["docs/"], []]);
+  assert.equal(c.notes.length, 3); assert.match(c.notes[0], /exclude: vendor\/ — vendored upstream code/);
+  assert.deepEqual(parseGateConfig(undefined), { exclude: [], skipImporters: [], sastExclude: [], notes: [], errors: [] });
+});
+t("config: no reason, a short reason, a missing path: each refused", () => {
+  for (const e of [{ path: "vendor/" }, { path: "vendor/", reason: "short" }, { reason: "a perfectly fine reason" }, { path: "  ", reason: "a perfectly fine reason" }])
+    assert.equal(parseGateConfig({ exclude: [e] }).errors.length, 1, JSON.stringify(e));
+});
+t("config: the repo root, the workflows, globs and paths outside the repo can NEVER be excluded", () => {
+  for (const path of ["", ".", "./", "/", ".github", ".github/workflows", "*", "**", "src/*", "../up", "/abs/path"])
+    assert.ok(parseGateConfig({ exclude: [{ path, reason: "a perfectly fine reason" }] }).errors.some((m) => /can never be excluded/.test(m)), path);
+});
+t("config: an unknown key (a typo that would silently exclude nothing) and a non-object are refused", () => {
+  assert.match(parseGateConfig({ excludes: [] }).errors[0], /unknown key «excludes»/);
+  assert.equal(parseGateConfig([]).errors.length, 1); assert.equal(parseGateConfig("x").errors.length, 1);
+  assert.equal(parseGateConfig({ exclude: "vendor" }).errors.length, 1);
+});
+t("run-check: a bad .github/security-gate.json makes the run RED by name [config], before any tool starts", () => {
+  const d = mkdtempSync(join(tmpdir(), "cfg-")); mkdirSync(join(d, ".github"), { recursive: true });
+  writeFileSync(join(d, ".github", "security-gate.json"), JSON.stringify({ exclude: [{ path: ".github", reason: "switch the workflows off" }] }));
+  const r = spawnSync("node", [RUN_CHECK, "install", "--dir", d], { encoding: "utf8" });
+  assert.equal(r.status, 1); assert.match(r.stdout, /::error::\[config\] .*can never be excluded/);
+  writeFileSync(join(d, ".github", "security-gate.json"), "{not json");
+  assert.match(spawnSync("node", [RUN_CHECK, "install", "--dir", d], { encoding: "utf8" }).stdout, /::error::\[config\] .* is not JSON/);
+});
+t("run-check: the config's exclusion REACHES the checks (a vendored project with no lockfile is red — until it is excluded with a reason)", () => {
+  const d = mkdtempSync(join(tmpdir(), "cfg-ex-")); mkdirSync(join(d, "vendor"), { recursive: true }); mkdirSync(join(d, ".github"), { recursive: true });
+  writeFileSync(join(d, "vendor", "package.json"), '{"name":"v","version":"1.0.0"}');
+  const run = () => spawnSync("node", [RUN_CHECK, "install", "--dir", d], { encoding: "utf8" });
+  assert.equal(run().status, 1);
+  writeFileSync(join(d, ".github", "security-gate.json"), JSON.stringify({ exclude: [{ path: "vendor/", reason: "vendored code, reviewed on import" }] }));
+  const r = run();
+  assert.equal(r.status, 0); assert.match(r.stdout, /::notice::\[config\] excluded from the gate — exclude: vendor\//);
+});
+t("Semgrep: only bare names go to --exclude; path-style exclusions filter the FINDINGS by relative path — even when the checkout's own absolute path contains the excluded prefix", () => {
+  // The trap: Semgrep matches --exclude against the ABSOLUTE path, so `security-gate/fixtures` excluded the selftest's own target.
+  const root = mkdtempSync(join(tmpdir(), "sgf-")); const target = join(root, "security-gate", "fixtures", "app"); mkdirSync(target, { recursive: true });
+  const f = join(root, "tool");
+  writeFileSync(f, `#!/bin/sh\nprintf '{"results":[{"check_id":"r","path":"server.js","extra":{"severity":"ERROR"}},{"check_id":"r","path":"vendor/x.js","extra":{"severity":"ERROR"}},{"check_id":"r","path":"security-gate/fixtures/c/y.js","extra":{"severity":"ERROR"}}],"errors":[{"level":"error","path":"vendor/z.js","message":"m"}],"args":"%s"}' "$*"\n`); chmodSync(f, 0o755);
+  process.env.SEMGREP_BIN = f;
+  const out = runSemgrep(target, ["security-gate/fixtures", "vendor/"]).json;
+  assert.match(out.args, /--exclude node_modules --exclude \.git \.$/); assert.doesNotMatch(out.args, /vendor|fixtures/);
+  assert.deepEqual(out.results.map((r) => r.path), ["server.js"]); assert.equal(out.errors.length, 0);
+});
+t("Semgrep: dist/build/coverage are filtered by path COMPONENT, not by substring (a file named distinct.js is kept)", () => {
+  const root = mkdtempSync(join(tmpdir(), "sgd-")); const f = join(root, "tool");
+  writeFileSync(f, `#!/bin/sh\nprintf '{"results":[{"check_id":"r","path":"dist/a.js","extra":{"severity":"ERROR"}},{"check_id":"r","path":"src/distinct.js","extra":{"severity":"ERROR"}},{"check_id":"r","path":"src/dist/b.js","extra":{"severity":"ERROR"}}],"errors":[]}'\n`); chmodSync(f, 0o755);
+  process.env.SEMGREP_BIN = f;
+  assert.deepEqual(runSemgrep(root, []).json.results.map((r) => r.path), ["src/distinct.js"]);
+  assert.deepEqual(runSemgrep(root, ["src/dist"]).json.results.length, 1); // a configured exclusion is a PREFIX from the root: «vendor» does not hide src/vendor/x.js
+});
+t("pnpm 11/12 lockfile: TWO YAML documents are both read (parse() refuses them: «Source contains multiple documents»)", () => {
+  const d = mkdtempSync(join(tmpdir(), "pn2-")); writeFileSync(join(d, "pnpm-lock.yaml"), "x");
+  const docs = [
+    { importers: { ".": { dependencies: { a: { version: "1.0.0" } } } }, snapshots: { "a@1.0.0": {} } },
+    { importers: { ".": { devDependencies: { b: { version: "2.0.0" } } } }, snapshots: { "b@2.0.0": {} } },
+  ];
+  const r = readLockfile(d, { path: "pnpm-lock.yaml", kind: "pnpm" }, () => docs);
+  assert.deepEqual([...r.shipped], ["a@1.0.0"]); assert.deepEqual([...r.all].sort(), ["a@1.0.0", "b@2.0.0"]);
+  assert.throws(() => readLockfile(d, { path: "pnpm-lock.yaml", kind: "pnpm" }, () => []), /no readable YAML document/);
+  assert.deepEqual([...readLockfile(d, { path: "pnpm-lock.yaml", kind: "pnpm" }, () => docs[0]).shipped], ["a@1.0.0"]); // a single document still works
+});
+
+
 console.log(`\n${n} passed`);

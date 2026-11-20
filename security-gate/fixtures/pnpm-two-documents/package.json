@@ -1,0 +1,1 @@
+{ "name": "gate-fixture-pnpm-two-documents", "version": "1.0.0", "private": true, "packageManager": "pnpm@12.0.0", "dependencies": { "ms": "2.1.3" } }

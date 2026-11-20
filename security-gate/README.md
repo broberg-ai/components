@@ -59,6 +59,23 @@ A FILE in the repo — `.github/security-ack.json`:
 - needs a written `reason` (≥ 10 characters) and an `expires` date **at most 180 days out**;
 - an expired or malformed ack silences nothing and is printed as `[ack] … does not count`.
 
+## Per-repo exceptions: `.github/security-gate.json`
+
+cardmem writes every repo's caller workflow, so a repo-specific exception lives in the repo itself — committed, reviewed like
+code, and **never silent**:
+
+```json
+{ "exclude":       [ { "path": "vendor/",  "reason": "vendored upstream code, reviewed on import" } ],
+  "skipImporters": [ { "path": "examples", "reason": "demo apps no consumer installs" } ],
+  "sastExclude":   [ { "path": "docs/",    "reason": "generated documentation" } ] }
+```
+
+Every path needs a reason (≥ 10 characters) and every exclusion is **printed** on each run (`::notice::[config] excluded from
+the gate — …`). The repo root, `.github`, `.github/workflows`, globs and paths outside the repo can never be excluded; an unknown key
+(a typo that would silently exclude nothing) or a missing reason is **red** by name `[config]`. `security-gate/fixtures` (the
+engine's own planted findings) is always skipped. `skipImporters` makes a workspace directory's dependencies *reported, not
+blocking* (it does not ship); `exclude` removes a path from every check; `sastExclude` only from Semgrep.
+
 ## Not covered (named, not hidden)
 
 A lockfile this gate has no parser for (`yarn.lock`, `Cargo.lock`, `go.sum`, Python …) is **red** on `deps-vuln` as

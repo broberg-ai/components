@@ -164,7 +164,17 @@ export function readLockfile(root, lf, yamlParse, skipImporters = []) {
   if (lf.kind === "pnpm") {
     const base = join(root, lf.path, "..");
     const readPkg = (dir) => { try { return JSON.parse(readFileSync(join(base, dir, "package.json"), "utf8")); } catch { return null; } };
-    return parsePnpm(yamlParse(text), skipImporters, readPkg);
+    // `yamlParse` returns every YAML document of the file (pnpm 11/12 writes two); a single parsed value is accepted too.
+    const docs = [].concat(yamlParse(text)).filter((d) => d && typeof d === "object");
+    if (docs.length === 0) throw new Error("pnpm-lock.yaml holds no readable YAML document");
+    const merged = { shipped: new Set(), all: new Set(), nonRegistry: [] };
+    for (const doc of docs) {
+      const r = parsePnpm(doc, skipImporters, readPkg);
+      for (const x of r.shipped) merged.shipped.add(x);
+      for (const x of r.all) merged.all.add(x);
+      merged.nonRegistry.push(...r.nonRegistry);
+    }
+    return merged;
   }
   if (lf.kind === "npm") return parseNpm(JSON.parse(text));
   if (lf.kind === "bun") return parseBun(parseJsonc(text), skipImporters);

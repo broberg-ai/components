@@ -46,6 +46,10 @@ const CASES = [
   { name: "sast: an unreachable rule pack must not turn the PLANTED error fixture green either", go: () => run("sast", join(FIX, "sast-error"), [], { SECURITY_GATE_PACKS: "p/security-audit,p/this-pack-does-not-exist-xyz" }), red: "sast" },
   { name: "deps: a lockfile with no parser (Cargo.lock) is RED — its dependencies were not checked", go: () => run("deps", join(FIX, "unsupported-lock")), red: "deps-vuln", also: /unsupported-lockfile Cargo\.lock/ },
   { name: "deps: a dated ack for that lockfile lets a human accept it", go: () => run("deps", join(FIX, "unsupported-lock"), ["--ack", withAck([{ id: "unsupported-lockfile", path: "Cargo.lock", reason: "selftest: a fixture with no real dependencies", expires: future(30) }])]), green: true },
+  { name: "config: a documented exclusion keeps a vulnerable vendored lockfile out of the gate — and the exclusion is PRINTED", go: () => run("deps", join(FIX, "config-excluded")), green: true, also: /::notice::\[config\] excluded from the gate — exclude: vendor\/ — selftest/ },
+  { name: "config: the same tree WITHOUT the config file is red (the vendored lockfile really is vulnerable)", go: () => run("deps", join(FIX, "config-excluded", "vendor")), red: "deps-vuln" },
+  { name: "config: excluding the workflows, a too-short reason and a misspelt key are each RED by name [config]", go: () => run("deps", join(FIX, "config-bad")), red: "config", also: /can never be excluded/, alsoToo: [/needs a reason/, /unknown key/] },
+  { name: "deps: a pnpm lockfile written as TWO YAML documents (pnpm 11/12) is READ, not «could not check»", go: () => run("deps", join(FIX, "pnpm-two-documents")), green: true, notAlso: /could not check/ },
   { name: "install (pnpm): a clean frozen install is green", go: () => run("install", join(FIX, "pnpm-clean")), green: true },
   { name: "install (pnpm): a drifted lockfile goes red", go: () => run("install", join(FIX, "pnpm-drift")), red: "install" },
   { name: "install (bun): a clean frozen install is green", go: () => run("install", join(FIX, "bun-clean")), green: true },
@@ -94,6 +98,8 @@ for (const c of CASES) {
   if (c.green) { ok = r.code === 0; if (!ok) why = "expected green, got exit " + r.code; }
   else { ok = r.code === 1 && named; if (!ok) why = r.code !== 1 ? `expected red (exit 1), got exit ${r.code}` : `went red but not by the name [${c.red}]`; }
   if (ok && c.also && !c.also.test(r.out)) { ok = false; why = `output lacks ${c.also}`; }
+  if (ok && c.notAlso && c.notAlso.test(r.out)) { ok = false; why = `output contains ${c.notAlso}`; }
+  for (const re of c.alsoToo ?? []) if (ok && !re.test(r.out)) { ok = false; why = `output lacks ${re}`; }
   console.log(`  ${ok ? "✓" : "✗"} ${c.name}${ok ? "" : `  — ${why}`}`);
   if (!ok) { failed++; console.log(r.out.split("\n").slice(0, 25).map((l) => `      ${l}`).join("\n")); }
 }

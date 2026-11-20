@@ -39,6 +39,22 @@ const MUTATIONS = [
   { file: "run-check.mjs", name: "runSemgrep drops Semgrep's exit status", find: "status: r.status }", replace: "status: 0 }" },
   { file: "run-check.mjs", name: "zizmor ignores --exclude", find: "filter((f) => !ex.some(", replace: "filter((f) => true || !ex.some(" },
   { file: "run-check.mjs", name: "SECURITY_GATE_PACKS is ignored", find: "const packs = process.env.SECURITY_GATE_PACKS ?", replace: "const packs = false ?" },
+  // --- per-repo config: an exception, never an off switch
+  { file: "config.mjs", name: "an exclusion needs no reason", find: "e.reason.trim().length < MIN_REASON", replace: "false" },
+  { file: "config.mjs", name: "the workflows directory can be excluded", find: '".github/workflows", "*", "**"]', replace: '"*", "**"]' },
+  { file: "config.mjs", name: "the repo root can be excluded", find: 'const FORBIDDEN = new Set(["", ".", "./", "/",', replace: 'const FORBIDDEN = new Set(["/",' },
+  { file: "config.mjs", name: "a glob can be excluded", find: "|| /\\*/.test(path)", replace: "" },
+  { file: "config.mjs", name: "a path outside the repo can be excluded", find: 'path.startsWith("../") || ', replace: "" },
+  { file: "config.mjs", name: "an unknown key is accepted silently", find: "if (!KEYS.includes(k)) out.errors.push(", replace: "if (false) out.errors.push(" },
+  { file: "config.mjs", name: "the exclusion is not printed", find: "out.notes.push(", replace: "void (" },
+  { file: "run-check.mjs", name: "a config error does not stop the run", find: "if (cfg.errors.length) process.exit(1);", replace: "" },
+  { file: "run-check.mjs", name: "the config's exclusions are not applied", find: "...cfg.exclude, \"security-gate/fixtures\"]", replace: "\"security-gate/fixtures\"]" },
+  // --- Semgrep scan scope + pnpm multi-document
+  { file: "run-check.mjs", name: "path exclusions go back to Semgrep's --exclude (the absolute-path trap)", find: 'for (const e of ["node_modules", ".git"]) args.push("--exclude", e);', replace: 'for (const e of ["node_modules", ".git", ...extraExclude]) args.push("--exclude", e);' },
+  { file: "run-check.mjs", name: "excluded paths are no longer filtered out of the findings", find: "return !hasComponent(p, names) && !underPrefix(p, prefixes);", replace: "return true;" },
+  { file: "run-check.mjs", name: "a configured exclusion matches any path component, not a prefix", find: "&& !underPrefix(p, prefixes);", replace: "&& !hasComponent(p, prefixes);" },
+  { file: "lockfiles.mjs", name: "only the first YAML document of a pnpm lockfile is read", find: "for (const doc of docs) {", replace: "for (const doc of docs.slice(0, 1)) {" },
+  { file: "lockfiles.mjs", name: "a lockfile with no readable document reads as empty", find: 'if (docs.length === 0) throw new Error("pnpm-lock.yaml holds no readable YAML document");', replace: "" },
   // --- could-not-check must be RED, never green
   { file: "decide.mjs", name: "an OSV failure reads as green", find: "if (!deps || (deps.errors ?? []).length) {", replace: "if (!deps) {" },
   { file: "decide.mjs", name: "no Semgrep result reads as green", find: 'if (!semgrep || !Array.isArray(semgrep.results)) return errored("sast"', replace: 'if (!semgrep || !Array.isArray(semgrep.results)) return verdict("sast", [], acks); void (0, errored("sast"' },

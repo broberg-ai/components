@@ -8,10 +8,11 @@
 // a copy of it. Exit: 0 every requested check green · 1 any check red or could-not-check · 2 bad usage.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join, relative, dirname, sep } from "node:path";
+import { join, relative, dirname, sep, resolve } from "node:path";
 import { measureDeps } from "./deps.mjs";
 import { SUPPORTED } from "./lockfiles.mjs";
 import { swallowing } from "./pipes.mjs";
+import { parseGateConfig } from "./config.mjs";
 import { decideDeps, decideSast, decideWorkflows, decideInstall, validateAcks, overall, render } from "./decide.mjs";
 
 // ONE source for the rule packs — change a pack here and every repo in the fleet follows at the next engine tag.
@@ -28,16 +29,30 @@ function runTool(bin, args, opts = {}) {
 }
 
 // ------------------------------------------------------------------ sast
+const underPrefix = (path, prefixes) => prefixes.some((e) => path === e || path.startsWith(e + "/"));
+const hasComponent = (path, names) => path.split("/").some((c) => names.includes(c));
 export function runSemgrep(dir, extraExclude) {
   const bin = process.env.SEMGREP_BIN ?? "semgrep";
   const packs = process.env.SECURITY_GATE_PACKS ? process.env.SECURITY_GATE_PACKS.split(",").map((x) => x.trim()).filter(Boolean) : RULE_PACKS;
   const args = ["scan", "--json", "--metrics=off", "--quiet", "--disable-version-check", "--timeout", "30"];
   for (const p of packs) args.push("--config", p);
-  for (const e of [...ALWAYS_EXCLUDE, ...extraExclude]) args.push("--exclude", e);
-  args.push(dir);
-  const r = runTool(bin, args);
+  // Semgrep matches --exclude against the ABSOLUTE path, so a prefix that merely appears in a parent directory of the checkout
+  // (`security-gate/fixtures` in the selftest's own target) excluded the WHOLE scan — a scan of nothing that read as clean. Only
+  // two bare names, which cost real time to descend into, are handed to Semgrep; every path-style exclusion (and dist, build …)
+  // is applied to the FINDINGS by their path relative to the scanned directory, which cannot be fooled by where it is checked out.
+  for (const e of ["node_modules", ".git"]) args.push("--exclude", e);
+  args.push(".");
+  const r = runTool(bin, args, { cwd: resolve(dir) });
   if (r.error) return null; // it could not even be started
-  try { return { json: JSON.parse(r.stdout), status: r.status }; } catch { return null; } // no JSON = it did not produce a result = «could not check»
+  let json;
+  try { json = JSON.parse(r.stdout); } catch { return null; } // no JSON = it did not produce a result = «could not check»
+  // Build-output directory NAMES match anywhere in the tree; a configured exclusion is a PATH PREFIX from the repo root.
+  const names = ALWAYS_EXCLUDE.filter((x) => !["node_modules", ".git"].includes(x));
+  const prefixes = extraExclude.filter(Boolean).map((x) => x.replace(/\/+$/, ""));
+  const keep = (path) => { if (!path) return true; const p = String(path).replace(/^\.\//, ""); return !hasComponent(p, names) && !underPrefix(p, prefixes); };
+  if (Array.isArray(json.results)) json.results = json.results.filter((x) => keep(x.path));
+  if (Array.isArray(json.errors)) json.errors = json.errors.filter((e) => keep(e.path ?? e.spans?.[0]?.file));
+  return { json, status: r.status };
 }
 
 // ------------------------------------------------------------------ workflows
@@ -136,7 +151,18 @@ async function main() {
   if (!valid.includes(which)) { console.error(`usage: run-check.mjs <${valid.join("|")}> [--dir .] [--ack file] …`); process.exit(2); }
   const dir = arg("dir", ".");
   const ackPath = arg("ack", join(dir, ".github", "security-ack.json"));
-  const exclude = list(arg("exclude", "security-gate/fixtures/"));
+  // Per-repo exceptions live IN the repo (.github/security-gate.json), each with a written reason, and are printed below.
+  const cfgPath = join(dir, ".github", "security-gate.json");
+  let cfgRaw;
+  if (existsSync(cfgPath)) {
+    try { cfgRaw = JSON.parse(readFileSync(cfgPath, "utf8")); } catch (e) { console.log(`::error::[config] ${cfgPath} is not JSON: ${e.message}`); process.exit(1); }
+  }
+  const cfg = parseGateConfig(cfgRaw);
+  for (const e of cfg.errors) console.log(`::error::[config] ${e}`);
+  if (cfg.errors.length) process.exit(1);
+  for (const n of cfg.notes) console.log(`::notice::[config] excluded from the gate — ${n}`);
+  // security-gate/fixtures holds the engine's OWN planted findings; no consumer repo has that path, so it is always skipped.
+  const exclude = [...list(arg("exclude", "")), ...cfg.exclude, "security-gate/fixtures"];
   const today = arg("today", new Date().toISOString().slice(0, 10));
   let ackRaw;
   if (existsSync(ackPath)) {
@@ -146,10 +172,12 @@ async function main() {
   const verdicts = [];
   const want = (n) => which === "all" || which === n;
   if (want("deps")) {
-    const { parse } = await import("yaml");
-    verdicts.push(...decideDeps(await measureDeps(dir, { exclude, skipImporters: list(arg("skip-importers")), yamlParse: parse }), acks));
+    const { parseAllDocuments } = await import("yaml");
+    // pnpm 11/12 writes pnpm-lock.yaml as TWO YAML documents (`---`); `parse` refuses that, so every document is read.
+    const yamlParse = (text) => parseAllDocuments(text).map((d) => { if (d.errors.length) throw new Error(d.errors[0].message); return d.toJS(); });
+    verdicts.push(...decideDeps(await measureDeps(dir, { exclude, skipImporters: [...list(arg("skip-importers")), ...cfg.skipImporters], yamlParse }), acks));
   }
-  if (want("sast")) verdicts.push(decideSast(runSemgrep(dir, [...exclude, ...list(arg("sast-exclude"))]), acks));
+  if (want("sast")) verdicts.push(decideSast(runSemgrep(dir, [...exclude, ...list(arg("sast-exclude")), ...cfg.sastExclude]), acks));
   if (want("workflows")) verdicts.push(decideWorkflows(runZizmor(dir, exclude), acks, await runPipes(dir, exclude)));
   if (want("install")) verdicts.push(decideInstall(runInstallCheck(dir, exclude), acks));
   const text = render(verdicts, rejected);

@@ -1,0 +1,1 @@
+{ "skipImporters": [ { "path": "examples", "reason": "demo apps no consumer installs (components ships packages, not examples)" } ] }

@@ -1,0 +1,1 @@
+{ "exclude": [ { "path": ".github/workflows", "reason": "selftest: trying to switch the workflow check off" }, { "path": "vendor", "reason": "short" } ], "excludes": [] }

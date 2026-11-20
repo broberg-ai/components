@@ -1,0 +1,1 @@
+{ "exclude": [ { "path": "vendor/", "reason": "selftest: a vendored tree with a known-vulnerable lockfile, excluded on purpose" } ] }
