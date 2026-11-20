@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-19T13:21:48.025Z",
- "repos_scanned": 86,
+ "scanned_at": "2026-11-20T07:18:11.734Z",
+ "repos_scanned": 87,
  "repos_failed": 0,
- "manifests_read": 334,
+ "manifests_read": 348,
  "manifests_unreadable": 0,
- "edges": 480,
+ "edges": 488,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1896,6 +1896,12 @@
      {
       "range": "0.2.2",
       "field": "dependencies",
+      "at": "apps/web/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     },
+     {
+      "range": "0.2.2",
+      "field": "dependencies",
       "at": "packages/storage/package.json",
       "installed_unknown": "pnpm-lock.yaml unreadable"
      }
@@ -3087,10 +3093,10 @@
     ],
     "@broberg/call": [
      {
-      "range": "0.6.0",
+      "range": "0.7.0",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed": "0.6.0"
+      "installed": "0.7.0"
      }
     ],
     "@broberg/cron": [
@@ -3183,10 +3189,10 @@
     ],
     "@broberg/sso": [
      {
-      "range": "0.21.1",
+      "range": "0.27.0",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed": "0.21.1"
+      "installed": "0.27.0"
      }
     ],
     "@broberg/stripe": [
@@ -3309,6 +3315,53 @@
    "unreadable": 0,
    "no_manifests": true,
    "deps": {}
+  },
+  "broberg-ai/mail": {
+   "branch": "main",
+   "manifests": 6,
+   "unreadable": 0,
+   "deps": {
+    "@broberg/db-sdk": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/api/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/seal": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "apps/api/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/sso": [
+     {
+      "range": "0.27.0",
+      "field": "dependencies",
+      "at": "apps/api/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/tenant": [
+     {
+      "range": "0.2.1",
+      "field": "dependencies",
+      "at": "apps/api/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/mail-identity": [
+     {
+      "range": "0.1.1",
+      "field": "dependencies",
+      "at": "packages/rules/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ]
+   }
   },
   "broberg-ai/mailworker": {
    "branch": "main",
@@ -3437,10 +3490,26 @@
   },
   "broberg-ai/odeum-dev": {
    "branch": "main",
-   "manifests": 0,
+   "manifests": 8,
    "unreadable": 0,
-   "no_manifests": true,
-   "deps": {}
+   "deps": {
+    "@broberg/secret-scan": [
+     {
+      "range": "0.16.2",
+      "field": "dependencies",
+      "at": "packages/records/package.json",
+      "installed": "0.16.2"
+     }
+    ],
+    "@broberg/ai-sdk": [
+     {
+      "range": "0.75.0",
+      "field": "dependencies",
+      "at": "packages/router/package.json",
+      "installed": "0.75.0"
+     }
+    ]
+   }
   },
   "broberg-ai/openbuddy": {
    "branch": "main",
@@ -4932,10 +5001,10 @@
     ],
     "@broberg/mcp": [
      {
-      "range": "0.10.0",
+      "range": "0.11.2",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.10.0"
+      "installed": "0.11.2"
      }
     ],
     "@broberg/sso": [
@@ -5094,6 +5163,14 @@
       "field": "dependencies",
       "at": "package.json",
       "installed": "0.1.0"
+     }
+    ],
+    "@broberg/legal": [
+     {
+      "range": "0.9.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.9.0"
      }
     ],
     "@broberg/mail": [
