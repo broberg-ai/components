@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-20T07:18:11.734Z",
- "repos_scanned": 87,
+ "scanned_at": "2026-11-20T13:02:01.665Z",
+ "repos_scanned": 88,
  "repos_failed": 0,
- "manifests_read": 348,
+ "manifests_read": 359,
  "manifests_unreadable": 0,
- "edges": 488,
+ "edges": 493,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1350,7 +1350,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 69,
+   "manifests": 80,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -1903,6 +1903,14 @@
       "range": "0.2.2",
       "field": "dependencies",
       "at": "packages/storage/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/event-log": [
+     {
+      "range": "0.3.0",
+      "field": "dependencies",
+      "at": "packages/sync-protocol/package.json",
       "installed_unknown": "pnpm-lock.yaml unreadable"
      }
     ]
@@ -3353,6 +3361,38 @@
       "installed_unknown": "pnpm-lock.yaml unreadable"
      }
     ],
+    "@broberg/app-shell": [
+     {
+      "range": "0.26.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/i18n": [
+     {
+      "range": "0.4.1",
+      "field": "dependencies",
+      "at": "apps/web/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/notifications": [
+     {
+      "range": "0.6.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
+    "@broberg/theme": [
+     {
+      "range": "0.14.0",
+      "field": "dependencies",
+      "at": "apps/web/package.json",
+      "installed_unknown": "pnpm-lock.yaml unreadable"
+     }
+    ],
     "@broberg/mail-identity": [
      {
       "range": "0.1.1",
@@ -3481,6 +3521,13 @@
      }
     ]
    }
+  },
+  "broberg-ai/messages": {
+   "branch": "main",
+   "manifests": 0,
+   "unreadable": 0,
+   "no_manifests": true,
+   "deps": {}
   },
   "broberg-ai/notesmem": {
    "branch": "main",
