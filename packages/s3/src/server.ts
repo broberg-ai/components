@@ -126,7 +126,7 @@ export class S3Error extends Error {
 }
 
 function originOf(cfg: S3Config): string {
-  if (cfg.endpoint) return cfg.endpoint.replace(/\/+$/, "");
+  if (cfg.endpoint) return trimSlashes(cfg.endpoint);
   if (!cfg.accountId) throw new Error("@broberg/s3: set accountId (R2) or endpoint (other S3-compatible storage)");
   const j = cfg.jurisdiction ?? "eu";
   return j === "eu" ? `https://${cfg.accountId}.eu.r2.cloudflarestorage.com` : `https://${cfg.accountId}.r2.cloudflarestorage.com`;
@@ -376,4 +376,11 @@ export function createS3SignerFromEnv(env: Env = (globalThis as { process?: { en
     endpoint: env.S3_ENDPOINT, accessKeyId: env.S3_ACCESS_KEY_ID!, secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
     bucket: env.S3_BUCKET!, region: env.S3_REGION,
   });
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of "/" — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === "/") e--;
+  return s.slice(0, e);
 }

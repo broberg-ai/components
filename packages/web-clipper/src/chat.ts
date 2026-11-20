@@ -929,7 +929,7 @@ export function createGeminiReader(o: ChatReaderOptions = {}): Extractor {
     async extract(doc, url) {
       const f = o.fetch ?? fetch.bind(globalThis);
       const id = geminiIds(url).conversation!;
-      const title = doc.title.replace(/\s*[-–|]\s*Gemini.*$/i, "").trim() || "Gemini";
+      const title = stripTitleSuffix(doc.title, "Gemini") || "Gemini";
       return dataOrScreen(
         async () => {
           const s = geminiSession(doc);
@@ -1354,7 +1354,7 @@ export function createNotebookLMReader(): Extractor {
       const cover = (doc.querySelector(".cover-title")?.textContent ?? "").trim();
       return {
         url: url.href,
-        title: cover || doc.title.replace(/\s*[-–|]\s*NotebookLM.*$/i, "").trim() || "NotebookLM",
+        title: cover || stripTitleSuffix(doc.title, "NotebookLM") || "NotebookLM",
         anchor: notebooklmIds(url).notebook!,
         units,
         completeness: { complete: false, source: "dom", missing: "turns", reason: "Kun det der er på skærmen blev klippet — NotebookLMs samtaledata kan endnu ikke hentes, og notesbogens kilder er ikke med." },
@@ -1373,3 +1373,11 @@ export const deepseekReader: Extractor = createDeepSeekReader();
 export const notebooklmReader: Extractor = createNotebookLMReader();
 /** Every chat reader, ready for runContentScript(chatReaders). */
 export const chatReaders: readonly Extractor[] = [chatgptReader, claudeReader, geminiReader, perplexityReader, copilotReader, lechatReader, deepseekReader, notebooklmReader];
+
+/** "Chat - Gemini" → "Chat": cut from the first "-", "–" or "|" that is followed (after optional spaces) by `brand`.
+ *  The regex it replaces, /\s*[-–|]\s*Brand.*$/i, is quadratic on a page title with a long run of spaces —
+ *  and a page title is page-controlled (CodeQL js/polynomial-redos). document.title never holds a line break. */
+function stripTitleSuffix(title: string, brand: string): string {
+  const m = new RegExp(`[-–|]\\s*${brand}`, "i").exec(title);
+  return (m ? title.slice(0, m.index) : title).trim();
+}

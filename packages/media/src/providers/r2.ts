@@ -59,7 +59,7 @@ const r2Origin = (accountId: string, jurisdiction?: string) => `https://${r2Host
 
 /** F059.4 — Tigris (Fly's object storage). S3-compatible, region "auto". */
 export const TIGRIS_ENDPOINT = "https://fly.storage.tigris.dev";
-const tigrisOrigin = (endpoint?: string) => (endpoint ?? TIGRIS_ENDPOINT).replace(/\/+$/, "");
+const tigrisOrigin = (endpoint?: string) => trimSlashes(endpoint ?? TIGRIS_ENDPOINT);
 
 /** One object in a {@link ListResult}: its logical key, byte size and last-modified time (ISO). */
 const readObjects = (xml: string, strip: number): ListObject[] =>
@@ -106,8 +106,8 @@ export async function listBuckets(cfg: BucketAccountConfig): Promise<BucketInfo[
 function createS3Store(cfg: R2Config | TigrisConfig, account: S3Account): MediaStore {
   const name = account.name;
   const base = `${account.origin}/${cfg.bucket}`;
-  const prefix = cfg.keyPrefix ? `${cfg.keyPrefix.replace(/\/+$/, "")}/` : "";
-  const publicBase = cfg.publicBaseUrl ? cfg.publicBaseUrl.replace(/\/+$/, "") : undefined;
+  const prefix = cfg.keyPrefix ? `${trimSlashes(cfg.keyPrefix)}/` : "";
+  const publicBase = cfg.publicBaseUrl ? trimSlashes(cfg.publicBaseUrl) : undefined;
   const aws = s3Client(account);
 
   // Strip a leading slash so callers can pass "/logo.png" or "logo.png" alike,
@@ -246,4 +246,11 @@ function createS3Store(cfg: R2Config | TigrisConfig, account: S3Account): MediaS
       return `${publicBase}/${encodeKey(fullKey(key))}`;
     },
   };
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of "/" — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === "/") e--;
+  return s.slice(0, e);
 }

@@ -107,7 +107,7 @@ export function smsdk(config: SmsDkConfig): SmsProvider {
     );
   }
 
-  const root = (baseUrl ?? DEFAULT_BASE).replace(/\/+$/, '');
+  const root = trimSlashes(baseUrl ?? DEFAULT_BASE);
   const url = `${root}/v1/sms/send`;
 
   return {
@@ -221,4 +221,11 @@ export function smsdk(config: SmsDkConfig): SmsProvider {
         : gatewayRefusal(res.status, detail, res.headers);
     },
   };
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of '/' — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === '/') e--;
+  return s.slice(0, e);
 }

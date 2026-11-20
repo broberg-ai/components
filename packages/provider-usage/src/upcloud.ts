@@ -42,7 +42,7 @@ const num = (v: unknown): v is number => typeof v === "number" && Number.isFinit
 
 export function createUpcloudUsage(options: UpcloudUsageOptions) {
   const f = options.fetch ?? fetch;
-  const base = (options.baseUrl ?? "https://api.upcloud.com").replace(/\/+$/, "");
+  const base = trimSlashes(options.baseUrl ?? "https://api.upcloud.com");
   const now = options.now ?? (() => new Date());
 
   async function get(path: string): Promise<{ ok: true; body: unknown } | Fail> {
@@ -142,4 +142,11 @@ export function createUpcloudUsage(options: UpcloudUsageOptions) {
       return { ok: true, provider: "upcloud", lines, total: { amount: body.total_amount, currency } };
     },
   };
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of "/" — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === "/") e--;
+  return s.slice(0, e);
 }

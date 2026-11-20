@@ -71,7 +71,7 @@ const REGISTRY = process.env.NPM_REGISTRY ?? "https://registry.npmjs.org";
 /** null means COULD NOT ASK — deliberately distinct from any version string. */
 async function latestOnNpm(pkg) {
   try {
-    const res = await fetch(`${REGISTRY}/${pkg.replace("/", "%2F")}`, {
+    const res = await fetch(`${REGISTRY}/${pkg.replaceAll("/", "%2F")}`, {
       signal: AbortSignal.timeout(15_000),
     });
     // A 404 is not "could not ask" — the registry answered, and its answer is

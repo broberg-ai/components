@@ -149,7 +149,7 @@ const TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange";
 const ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
 
 export function createBidAuth(opts: BidAuthOptions): BidAuth {
-  const issuer = opts.issuer.replace(/\/+$/, "");
+  const issuer = trimSlashes(opts.issuer);
   const scopes = opts.scopes ?? DEFAULT_SCOPES;
   const identity = opts.identity ?? chromeIdentity();
   const storage = opts.storage ?? extensionStorage();
@@ -672,4 +672,11 @@ export function extensionStorage(): KeyValueStorage {
     set: (k, v) => local.set({ [k]: v }),
     remove: (k) => local.remove(k),
   };
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of "/" — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === "/") e--;
+  return s.slice(0, e);
 }

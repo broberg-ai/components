@@ -146,7 +146,7 @@ async function readTicketResponse(res: Response, issuer: string, target: string,
 }
 
 export function createTicketClient(options: TicketClientOptions = {}): TicketClient {
-  const issuer = (options.issuer ?? DEFAULT_ISSUER).replace(/\/+$/, "");
+  const issuer = trimSlashes(options.issuer ?? DEFAULT_ISSUER);
   const renewBeforeSec = options.renewBeforeSec ?? 30;
   const env = options.env ?? process.env;
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -267,7 +267,7 @@ export interface ExchangeUserTokenOptions {
  * `client_mismatch` (the token belongs to another app), `no_rule_for_audience`.
  */
 export async function exchangeUserToken(opts: ExchangeUserTokenOptions): Promise<{ token: string; exp: number }> {
-  const issuer = (opts.issuer ?? DEFAULT_ISSUER).replace(/\/+$/, "");
+  const issuer = trimSlashes(opts.issuer ?? DEFAULT_ISSUER);
   const target = opts.resource ?? opts.audience;
   if (!target) throw new TicketExchangeError("exchangeUserToken needs a receiver: resource (its URL) or audience (BID's name for it)", "malformed_request", 0);
   const fetchImpl = opts.fetchImpl ?? fetch;
@@ -296,4 +296,11 @@ export async function exchangeUserToken(opts: ExchangeUserTokenOptions): Promise
     throw new TicketUnavailableError(`${issuer} unreachable: ${e instanceof Error ? e.message : String(e)}`);
   }
   return readTicketResponse(res, issuer, target, now);
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of "/" — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === "/") e--;
+  return s.slice(0, e);
 }

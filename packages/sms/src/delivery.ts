@@ -362,7 +362,7 @@ export async function fetchInMobileReports(opts: FetchOptions): Promise<Delivery
   const { apiKey, baseUrl = 'https://api.inmobile.com', limit = 250, timeoutMs = 15_000 } = opts;
   if (limit < 1 || limit > 250) throw new Error(`fetchInMobileReports: limit must be 1..250, got ${limit}.`);
   const body = await getJson(
-    `${baseUrl.replace(/\/+$/, '')}/v4/sms/outgoing/reports?limit=${limit}`,
+    `${trimSlashes(baseUrl)}/v4/sms/outgoing/reports?limit=${limit}`,
     { Authorization: `Basic ${btoa(`api:${apiKey}`)}`, Accept: 'application/json' },
     timeoutMs,
   );
@@ -374,10 +374,17 @@ export async function fetchSmsDkLog(opts: FetchOptions & { batchId?: string }): 
   const { apiKey, baseUrl = 'https://api.sms.dk', limit = 100, timeoutMs = 15_000, batchId } = opts;
   if (limit < 1 || limit > 1000) throw new Error(`fetchSmsDkLog: limit must be 1..1000, got ${limit}.`);
   const body = await getJson(
-    `${baseUrl.replace(/\/+$/, '')}/v1/sms/listlog`,
+    `${trimSlashes(baseUrl)}/v1/sms/listlog`,
     { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json' },
     timeoutMs,
     { method: 'POST', body: JSON.stringify({ limit, ...(batchId ? { batchId } : {}) }) },
   );
   return parseSmsDkLog(body);
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of '/' — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === '/') e--;
+  return s.slice(0, e);
 }

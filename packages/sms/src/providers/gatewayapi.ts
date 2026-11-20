@@ -93,7 +93,7 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
     );
   }
 
-  const root = (baseUrl ?? HOSTS[region]).replace(/\/+$/, '');
+  const root = trimSlashes(baseUrl ?? HOSTS[region]);
   const url = `${root}/mobile/single`;
   const multiUrl = `${root}/mobile/multi`;
 
@@ -336,4 +336,11 @@ export function gatewayapi(config: GatewayApiConfig): SmsProvider {
       return outcomes;
     },
   };
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of '/' — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === '/') e--;
+  return s.slice(0, e);
 }

@@ -79,7 +79,7 @@ function readTitle(doc: Document, videoId: string): string | undefined {
     if (m) return m;
   }
   // document.title follows in-page navigation: "(3) Title - YouTube".
-  const t = doc.title.replace(/^\(\d+\)\s*/, "").replace(/\s+-\s+YouTube(?: Music)?$/, "").trim();
+  const t = stripYouTubeSuffix(doc.title.replace(/^\(\d+\)\s*/, "")).trim();
   return t && t !== "YouTube" ? t : undefined;
 }
 
@@ -92,7 +92,7 @@ function readChannel(doc: Document, videoId: string): string | undefined {
 
 /** The markdown the unit carries — deterministic, start time left out on purpose (see the file header). */
 export function videoMarkdown(v: Pick<VideoRef, "url" | "title" | "channel">): string {
-  return `[${v.title.replace(/[[\]]/g, "\\$&")}](${v.url})${v.channel ? `\n\n${v.channel}` : ""}`;
+  return `[${v.title.replace(/[\\[\]]/g, "\\$&")}](${v.url})${v.channel ? `\n\n${v.channel}` : ""}`;
 }
 
 /** The YouTube reader. List it BEFORE the article extractor (which matches every page). */
@@ -123,3 +123,12 @@ export function createYoutubeReader(): Extractor {
 }
 
 export const youtubeReader: Extractor = createYoutubeReader();
+
+/** "Title - YouTube" / "Title - YouTube Music" → "Title", in a linear pass: the "-" before the suffix is found with a
+ *  pattern that starts AT the dash, so a long run of spaces is not re-scanned (the \s+-\s+ regex was quadratic —
+ *  CodeQL js/polynomial-redos; the title is page-controlled). */
+function stripYouTubeSuffix(title: string): string {
+  const m = /-\s+YouTube(?: Music)?$/.exec(title);
+  if (!m || m.index === 0 || !/\s/.test(title[m.index - 1]!)) return title;
+  return title.slice(0, m.index).trimEnd();
+}

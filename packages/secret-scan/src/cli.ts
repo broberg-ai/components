@@ -38,7 +38,7 @@ async function main(argv: string[]): Promise<number> {
   return hits.length ? 1 : 0;
 }
 
-const isMain = process.argv[1] && /secret-scan|cli\.(c?js|ts)$/.test(process.argv[1]);
+const isMain = process.argv[1] && /(?:secret-scan)|(?:cli\.(?:c?js|ts)$)/.test(process.argv[1]);
 if (isMain) {
   main(process.argv.slice(2)).then(
     (code) => process.exit(code),

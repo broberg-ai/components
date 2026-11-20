@@ -339,15 +339,23 @@ const OPT_OUT_KEYWORDS = new Set([
 ]);
 
 export function parseOptOutKeyword(text: string): boolean {
-  const normalised = (text ?? '')
-    .trim()
-    .toLowerCase()
+  const normalised = stripPunctuation((text ?? '').trim().toLowerCase())
     // Trailing punctuation only — "STOP." and "Stop!" are opt-outs. Stripping
     // anything more would start turning sentences into keywords.
-    .replace(/^[\s.,!?:;'"]+|[\s.,!?:;'"]+$/g, '')
     .replace(/\s+/g, ' ');
   return OPT_OUT_KEYWORDS.has(normalised);
 }
 
 /** The keywords recognised, exported so a consumer can show them to a recipient. */
 export const OPT_OUT_WORDS: readonly string[] = [...OPT_OUT_KEYWORDS];
+
+/** Trim whitespace and ". , ! ? : ; ' \"" from BOTH ends in one linear pass (the alternation regex it replaces,
+ *  /^[\s.,!?:;'"]+|[\s.,!?:;'"]+$/g, is quadratic on a long run — CodeQL js/polynomial-redos). */
+function stripPunctuation(s: string): string {
+  const strip = /[\s.,!?:;'"]/;
+  let b = 0;
+  let e = s.length;
+  while (b < e && strip.test(s[b]!)) b++;
+  while (e > b && strip.test(s[e - 1]!)) e--;
+  return s.slice(b, e);
+}

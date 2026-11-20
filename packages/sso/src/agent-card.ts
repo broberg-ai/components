@@ -35,7 +35,7 @@ export type AgentCardResult =
 
 /** The only key-set URL an agent card may name: derived from the issuer, never read from the card. */
 export function agentCardJwksUri(issuer: string): string {
-  return `${issuer.replace(/\/+$/, "")}/.well-known/agent-card-jwks.json`;
+  return `${trimSlashes(issuer)}/.well-known/agent-card-jwks.json`;
 }
 
 /**
@@ -147,7 +147,7 @@ export interface A2APrincipal extends TicketPrincipal {
  */
 export function createA2AVerifier(options: TicketVerifierOptions) {
   const tickets = createTicketVerifier(options);
-  const base = options.issuer.replace(/\/+$/, "");
+  const base = trimSlashes(options.issuer);
   return {
     async verify(token: string, opts?: Parameters<typeof tickets.verify>[1]): Promise<A2APrincipal> {
       const principal = await tickets.verify(token, opts);
@@ -161,4 +161,11 @@ export function createA2AVerifier(options: TicketVerifierOptions) {
       return { ...principal, agentCard: raw };
     },
   };
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of "/" — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === "/") e--;
+  return s.slice(0, e);
 }

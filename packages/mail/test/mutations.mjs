@@ -361,7 +361,7 @@ const MUTATIONS = [
     file: "integrity",
     from: "else i = e + 1;",
     to: "else i = s + 1;",
-    expect: ["answered immediately"],
+    expect: ["no rescan per start"],
   },
   {
     // F005.21 — replaying an event the provider already delivered, or is still

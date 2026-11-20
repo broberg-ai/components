@@ -35,7 +35,7 @@ function substantial(line: string): boolean {
 export function splitFooter(lines: string[]): { body: string[]; footer: string[] } {
   let inp = -1;
   for (let i = lines.length - 1; i >= 0 && i >= lines.length - 8; i--) {
-    const t = lines[i].replace(/\s+$/, "");
+    const t = lines[i].trimEnd();
     if (t.charCodeAt(0) === 0x276f || t[0] === ">") {
       inp = i;
       break;
@@ -57,7 +57,7 @@ export function splitFooter(lines: string[]): { body: string[]; footer: string[]
  * then REFRESHES them with the new frame's text.
  */
 function norm(line: string): string {
-  const t = line.replace(/\s+$/, "");
+  const t = line.trimEnd();
   // Only status lines (spinner-prefixed) get digit masking — masking digits in
   // ordinary output would make e.g. "line 1" equal "line 2" and eat real lines.
   if (/^[✻✶✳✢✽·•]/.test(t)) return `•${t.slice(1).replace(/\d+/g, "#")}`;
@@ -123,7 +123,7 @@ export class FrameAccumulator {
 
   /** Feed a full frame snapshot; returns the updated view. */
   feed(content: string): FrameView {
-    const lines = content.replace(/\s+$/, "").split("\n");
+    const lines = content.trimEnd().split("\n");
     const { body, footer } = splitFooter(lines);
     this.history = mergeOverlap(this.history, body);
     if (this.history.length > this.maxHistory) {

@@ -106,7 +106,7 @@ export function inmobile(config: InMobileConfig): SmsProvider {
     );
   }
 
-  const root = (baseUrl ?? DEFAULT_BASE).replace(/\/+$/, '');
+  const root = trimSlashes(baseUrl ?? DEFAULT_BASE);
   const url = `${root}/v4/sms/outgoing`;
   // "Provide Basic Authentication with an arbitrary username and your api key as
   // password" — their words. The username is genuinely ignored.
@@ -323,4 +323,11 @@ export function inmobile(config: InMobileConfig): SmsProvider {
       return outcomes;
     },
   };
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of '/' — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === '/') e--;
+  return s.slice(0, e);
 }

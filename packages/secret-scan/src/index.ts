@@ -951,7 +951,16 @@ const ANNOUNCED_SECRET =
  * character of a real secret, so the list only grows on evidence.
  */
 const LEADING_DELIMS = /^[([{"'`]+/;
-const TRAILING_DELIMS = /[)\]},;"'`]+$/;
+/** The run of closing delimiters at the END of a value (one linear pass; the /[)\]},;"'`]+$/ it replaces
+ *  is quadratic on a long run followed by another character — CodeQL js/polynomial-redos). */
+const TRAILING_DELIM_CHARS = ")]},;\"'`";
+const TRAILING_DELIMS = {
+  exec(s: string): [string] | null {
+    let b = s.length;
+    while (b > 0 && TRAILING_DELIM_CHARS.includes(s[b - 1]!)) b--;
+    return b === s.length ? null : [s.slice(b)];
+  },
+};
 
 /**
  * Is this candidate plausibly a secret VALUE, or just the next word in a

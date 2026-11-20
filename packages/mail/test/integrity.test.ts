@@ -106,11 +106,18 @@ describe("BOTH DIRECTIONS — the links that must pass, by name", () => {
 });
 
 describe('the placeholder scan terminates on a body it cannot close', () => {
-  it('100k "{{" and a single stray "}" is answered immediately (no rescan per start)', () => {
-    const body = '{{ '.repeat(100_000) + '} ';
-    const t = Date.now();
-    checkMailIntegrity({ subject: 'x', html: body });
-    expect(Date.now() - t).toBeLessThan(500);
+  it('20k "{{" and a single stray "}" costs a handful of scans, not one per "{{" (no rescan per start)', () => {
+    // COUNTED, NOT TIMED: a stopwatch is a fact about the machine (CI is faster than a laptop and let a
+    // quadratic mutant through). The scan resumes after the "}" it ran into, so this body needs a few
+    // indexOf calls; resuming one character on would need one per "{{" — 40 000.
+    const body = '{{ '.repeat(20_000) + '} ';
+    const spy = vi.spyOn(String.prototype, 'indexOf');
+    try {
+      checkMailIntegrity({ subject: 'x', html: body });
+      expect(spy.mock.calls.length).toBeLessThan(1000);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('an unclosed {{ followed by 100k spaces is answered immediately, not in a quarter of a minute', () => {

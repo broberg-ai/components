@@ -37,7 +37,7 @@ class Unreachable extends Error {}
 
 /** One package's published truth. Throws — never returns a partial answer. */
 async function fetchOne(pkg) {
-  const url = `${REGISTRY}/${pkg.replace("/", "%2F")}`;
+  const url = `${REGISTRY}/${pkg.replaceAll("/", "%2F")}`;
   let res;
   try {
     res = await fetch(url, { signal: AbortSignal.timeout(15_000) });

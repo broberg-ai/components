@@ -42,8 +42,14 @@ const asError = (e: unknown) => (e instanceof Error ? e : new Error(String(e)));
 
 /** Word / Google Docs paste: keep the structure, drop their styling (cms paste-sanitizer, measured). */
 export function sanitizePastedHTML(html: string): string {
-  return stripComments(html)
-    .replace(/<(style|xml|script|title)\b[\s\S]*?<\/\1\s*>/gi, "")
+  // Repeat until stable: removing one <script> block must not let its neighbours join into a new one
+  // (CodeQL js/incomplete-multi-character-sanitization). Each pass strictly shortens, so it terminates.
+  let out = stripComments(html);
+  for (let prev = ""; prev !== out; ) {
+    prev = out;
+    out = stripComments(out).replace(/<(style|xml|script|title)\b[\s\S]*?<\/\1\s*>/gi, "");
+  }
+  return out
     .replace(/<(meta|link)\b[^>]*>/gi, "")
     .replace(/<\/?o:[^>]*>/gi, "")
     .replace(/\s(style|class|lang|align|id|dir|data-[\w-]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")

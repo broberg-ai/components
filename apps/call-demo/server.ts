@@ -18,7 +18,7 @@ const CONTROL_URL = process.env.CONTROL_URL ?? "https://broberg-voice-control.fl
 // Recordings live in R2 (EU). Read through @broberg/media, the fleet's storage facade —
 // the account id and jurisdiction come from the one endpoint secret, never a second copy.
 const R2_ENDPOINT = env("R2_ENDPOINT");
-const r2Host = R2_ENDPOINT.match(/^https:\/\/([^.]+)(\.eu)?\.r2\.cloudflarestorage\.com/);
+const r2Host = R2_ENDPOINT.match(/^https:\/\/([^.]+)(\.eu)?\.r2\.cloudflarestorage\.com(?:\/|$)/);
 if (!r2Host) throw new Error("R2_ENDPOINT must be https://<account>[.eu].r2.cloudflarestorage.com");
 const media = createMedia({
   provider: "r2",

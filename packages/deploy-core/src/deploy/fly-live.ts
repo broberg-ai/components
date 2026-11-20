@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -474,8 +474,9 @@ export async function flyLiveRebuildInfra(
 ): Promise<string> {
   assertRequiredConfig(config);
   assertFlyctl();
-  const tmpDir = join(tmpdir(), `fly-live-infra-${Date.now()}`);
-  await mkdir(tmpDir, { recursive: true });
+  // mkdtemp: a fresh 0700 directory with an unguessable name. A predictable /tmp/fly-live-infra-<ms> can be
+  // pre-created (or symlinked) by another local user (CodeQL js/insecure-temporary-file).
+  const tmpDir = await mkdtemp(join(tmpdir(), "fly-live-infra-"));
   try {
     assertAppExists(config.appName, tmpDir);
 

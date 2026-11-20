@@ -121,7 +121,7 @@ class Step extends Error {
  */
 export async function nativePasskeyLogin(input: NativePasskeyLoginInput): Promise<NativePasskeyResult> {
   const f = input.fetch ?? fetch;
-  const base = input.baseUrl.replace(/\/+$/, "");
+  const base = trimSlashes(input.baseUrl);
 
   const call = async (method: "GET" | "POST", path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> => {
     let res: Response;
@@ -197,4 +197,11 @@ export async function nativePasskeyLogin(input: NativePasskeyLoginInput): Promis
     if (e instanceof Step) return { ok: false, reason: e.reason, message: e.message };
     return { ok: false, reason: "unavailable", message: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/** Strip trailing slashes in one linear pass (a /\/+$/ regex is quadratic on a long run of "/" — CodeQL js/polynomial-redos). */
+function trimSlashes(s: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === "/") e--;
+  return s.slice(0, e);
 }
