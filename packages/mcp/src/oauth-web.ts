@@ -605,7 +605,9 @@ function redirectErr(base: URL, error: string, state?: string): Response {
 }
 
 function trimSlash(u: string): string {
-  return u.replace(/\/+$/, "");
+  let e = u.length;
+  while (e > 0 && u[e - 1] === "/") e--; // linear; /\/+$/ is quadratic on a long run of "/" (CodeQL js/polynomial-redos)
+  return u.slice(0, e);
 }
 
 function errorCode(err: unknown): string {

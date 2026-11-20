@@ -106,6 +106,13 @@ describe("BOTH DIRECTIONS — the links that must pass, by name", () => {
 });
 
 describe('the placeholder scan terminates on a body it cannot close', () => {
+  it('100k "{{" and a single stray "}" is answered immediately (no rescan per start)', () => {
+    const body = '{{ '.repeat(100_000) + '} ';
+    const t = Date.now();
+    checkMailIntegrity({ subject: 'x', html: body });
+    expect(Date.now() - t).toBeLessThan(500);
+  });
+
   it('an unclosed {{ followed by 100k spaces is answered immediately, not in a quarter of a minute', () => {
     // A TIMING ASSERTION ON PURPOSE, because the property IS "it terminates".
     // The first version of PLACEHOLDER had `\s*` before `[^}]*`, and `\s` is a

@@ -353,15 +353,14 @@ const MUTATIONS = [
     expect: ["NOT PERFORMED"],
   },
   {
-    // The `\s*` back. `\s` is a subset of `[^}]`, so the engine gets two ways
-    // to split the same whitespace run and tries all of them when the closing
-    // braces never come — 583 ms at 20k characters, quadratic from there. The
-    // suite's assertion is a TIME, because the property is "it terminates";
-    // this mutation is what proves that assertion can actually fail.
-    name: "the redundant \\s* is back (an unclosed {{ hangs the send path)",
+    // F115.2 — the placeholder scan is a linear indexOf loop now (the regex was polynomial:
+    // CodeQL js/polynomial-redos). A failed "{{" must resume AFTER the "}" it ran into; resuming one
+    // character on rescans the same stretch for every "{{" — quadratic. The suite's assertion is a
+    // TIME, because the property is "it terminates"; this mutation proves it can fail.
+    name: "a failed {{ restarts the scan one character on, so many {{ and one stray } is quadratic again",
     file: "integrity",
-    from: "const PLACEHOLDER = /\\{\\{[^}]*\\}\\}/g;",
-    to: "const PLACEHOLDER = /\\{\\{\\s*[^}]*\\}\\}/g;",
+    from: "else i = e + 1;",
+    to: "else i = s + 1;",
     expect: ["answered immediately"],
   },
   {

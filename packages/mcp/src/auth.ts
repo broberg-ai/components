@@ -23,10 +23,10 @@ export function validateBearerKey(
   keys: ApiKeyConfig[],
 ): AuthResult {
   if (!authHeader) return { authenticated: false, error: "missing Authorization header" };
-  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
-  if (!match) return { authenticated: false, error: "malformed Authorization header" };
+  const token = bearerToken(authHeader);
+  if (token === null) return { authenticated: false, error: "malformed Authorization header" };
 
-  const presented = Buffer.from(match[1]);
+  const presented = Buffer.from(token);
   for (const k of keys) {
     const expected = Buffer.from(k.key);
     if (expected.length === presented.length && timingSafeEqual(expected, presented)) {
@@ -44,6 +44,16 @@ export function hasScope(userScopes: string[], required: string[]): boolean {
 /** Extract the token from a `Bearer <token>` header, or null if absent/malformed. */
 export function parseBearer(authHeader: string | null | undefined): string | null {
   if (!authHeader) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
-  return match ? match[1] : null;
+  return bearerToken(authHeader);
+}
+
+/** The token of a `Bearer <token>` header, or null. One linear pass: the /^Bearer\s+(.+)$/i it
+ *  replaces overlaps `\s+` with `.+` and is polynomial on a long run of spaces (CodeQL
+ *  js/polynomial-redos); same answer — the scheme is case-insensitive, at least one whitespace
+ *  follows it, and the token is the rest with no line break in it. */
+function bearerToken(header: string): string | null {
+  const t = header.trim();
+  if (t.length < 8 || t.slice(0, 6).toLowerCase() !== "bearer" || !/\s/.test(t[6]!)) return null;
+  const token = t.slice(6).trimStart();
+  return token !== "" && !/[\n\r\u2028\u2029]/.test(token) ? token : null;
 }

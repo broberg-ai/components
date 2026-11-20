@@ -54,10 +54,10 @@ const encodeKey = (key: string) => key.split("/").map(encodeURIComponent).join("
 const safeSegments = (key: string): string[] => assertSafeKey(key, "volume");
 
 export function createVolumeStore(cfg: VolumeConfig): MediaStore {
-  const root = cfg.root.replace(/[\\/]+$/, "");
+  const root = stripEnd(cfg.root, "\\/");
   if (root === "") throw new Error("media(volume): root is required");
-  const prefix = cfg.keyPrefix ? `${cfg.keyPrefix.replace(/^\/+|\/+$/g, "")}/` : "";
-  const publicBase = cfg.publicBaseUrl ? cfg.publicBaseUrl.replace(/\/+$/, "") : undefined;
+  const prefix = cfg.keyPrefix ? `${stripBoth(cfg.keyPrefix, "/")}/` : "";
+  const publicBase = cfg.publicBaseUrl ? stripEnd(cfg.publicBaseUrl, "/") : undefined;
 
   /** The LOGICAL key a caller passed, prefix-free — what upload() returns. */
   const logical = (key: string) => safeSegments(key).join("/");
@@ -181,3 +181,17 @@ async function toBytes(body: MediaBody): Promise<Uint8Array | string> {
  *  this module, so it is reachable on its own rather than only through a write. */
 export const __unsafeKeyCheck = safeSegments;
 export const __pathSeparator = sep;
+
+/** Strip a trailing / both-end run of characters from `set` in one linear pass. The regexes these
+ *  replace (/[\\/]+$/, /^\/+|\/+$/g) are quadratic on a long run followed by another character
+ *  (CodeQL js/polynomial-redos); the input is operator config, but linear costs nothing. */
+function stripEnd(s: string, set: string): string {
+  let e = s.length;
+  while (e > 0 && set.includes(s[e - 1]!)) e--;
+  return s.slice(0, e);
+}
+function stripBoth(s: string, set: string): string {
+  let b = 0;
+  while (b < s.length && set.includes(s[b]!)) b++;
+  return stripEnd(s.slice(b), set);
+}

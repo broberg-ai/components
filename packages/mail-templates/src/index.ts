@@ -354,9 +354,9 @@ export function renderTemplate(
   // Brace text that is NOT a token ("{{brevets brødtekst indsættes her}}") matches
   // neither `missing` nor anything else — fd-sundhed shipped one for two days.
   // Checked BEFORE filling, where a filled token is not yet gone.
-  for (const m of rendered.html.matchAll(/\{\{([^}]*)\}\}/g)) {
-    if (/^\s*[a-zA-Z0-9_.]+\s*$/.test(m[1] ?? "")) continue;
-    rendered.notes.push(`"${m[0]}" looks like a placeholder but is not one — it will be delivered to the recipient verbatim. A placeholder is a single key, e.g. {{body}}.`);
+  for (const found of braceGroups(rendered.html)) {
+    if (/^\s*[a-zA-Z0-9_.]+\s*$/.test(found.slice(2, -2))) continue;
+    rendered.notes.push(`"${found}" looks like a placeholder but is not one — it will be delivered to the recipient verbatim. A placeholder is a single key, e.g. {{body}}.`);
   }
   const body = fillPlaceholders(rendered.html, values, opts.rawValueKeys ?? []);
   const subject = fillPlaceholdersRaw(template.subject, values);
@@ -441,4 +441,20 @@ export function canonicalContent(t: MailTemplate & Record<string, unknown>): str
 export async function hashContent(canonical: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Every "{{…}}" with no "}" inside, in one linear scan (the /\{\{([^}]*)\}\}/g it replaces is
+ *  quadratic on a long run of "{{": CodeQL js/polynomial-redos). A start that fails at a "}" fails
+ *  for every start before that same "}", so the scan resumes after it. */
+function braceGroups(html: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  for (;;) {
+    const s = html.indexOf("{{", i);
+    if (s < 0) break;
+    const e = html.indexOf("}", s + 2);
+    if (e < 0) break;
+    if (html[e + 1] === "}") { out.push(html.slice(s, e + 2)); i = e + 2; } else i = e + 1;
+  }
+  return out;
 }
