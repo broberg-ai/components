@@ -115,6 +115,29 @@ jobs:
       - name: Gate
         run: node scripts/check-release-advisories.mjs --in "$RUNNER_TEMP/dependency-health.json" | tee -a "$GITHUB_STEP_SUMMARY"
 
+  # ── F115.2: no open high/critical CodeQL alert on main ─────────────────
+  # CodeQL (codeql.yml) reports into the Security tab and stops nothing by itself. This turns an open
+  # high/critical alert into a red job, and publish.yml's `needs: gate` waits for it. Fail-closed: an API
+  # error or a repo with code scanning off is red, never clean (scripts/check-codeql-alerts.mjs). A finding
+  # is fixed, or dismissed on GitHub WITH a written reason — never silenced here. Not on pull_request: a
+  # fork's token cannot read alerts, and the PR is not main.
+  codeql-alerts:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: No open high/critical CodeQL alert on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-codeql-alerts.mjs "$GITHUB_REPOSITORY" | tee -a "$GITHUB_STEP_SUMMARY"
+
   # ── the 24 root scripts ────────────────────────────────────────────────
   # Not package-specific, ~84 s, and independent of every package suite — so they
   # run beside the shards instead of in front of them.

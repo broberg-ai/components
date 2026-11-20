@@ -78,7 +78,9 @@ if (dupJobs.length) {
     `job name(s) defined more than once — GitHub rejects the whole workflow:\n` + dupJobs.map((n) => `    ${n}`).join("\n"),
   );
 }
-if (!/^  gate:\n    uses: \.\/\.github\/workflows\/test\.yml$/m.test(src)) {
+// The gate job may carry comments and a `permissions:` block (F115.2 grants security-events: read so test.yml's
+// codeql-alerts job can read the alerts) — but its `uses:` must still be the workspace suite, nothing else.
+if (!/^  gate:\n(?:    #.*\n)*(?:    permissions:\n(?:      .+\n)+)?(?:    #.*\n)*    uses: \.\/\.github\/workflows\/test\.yml$/m.test(src)) {
   problems.push(
     `publish.yml has no \`gate\` job calling ./.github/workflows/test.yml.\n` +
       `  Every needs: gate above would then point at nothing, and GitHub rejects the workflow —\n` +
