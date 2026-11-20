@@ -99,7 +99,7 @@ const FROZEN = {
 };
 
 /** The lines of a failed install that say WHY (not the «complete log is at …» boilerplate). */
-const errorLines = (text) => text.split("\n").filter((l) => /err|frozen|lockfile|sync|outdated/i.test(l) && !/complete log|debug-0|\.log$/i.test(l)).slice(0, 2).join(" | ").trim() || text.trim().split("\n").slice(-1)[0];
+const errorLines = (text) => text.split("\n").filter((l) => /err|frozen|lockfile|sync|outdated/i.test(l) && !/(?:complete log)|(?:debug-0)|(?:\.log$)/i.test(l)).slice(0, 2).join(" | ").trim() || text.trim().split("\n").slice(-1)[0];
 
 export function runInstallCheck(root, exclude) {
   const dirs = packageJsonDirs(root, exclude).sort();
