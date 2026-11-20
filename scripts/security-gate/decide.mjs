@@ -97,14 +97,16 @@ export function decideSast(semgrep, acks) {
 // ------------------------------------------------------------------ zizmor (workflows)
 
 /** `zizmor` = the JSON array of `zizmor --format json`, or null. */
-export function decideWorkflows(zizmor, acks) {
+export function decideWorkflows(zizmor, acks, pipes = []) {
   if (!Array.isArray(zizmor)) return errored("workflows", "zizmor produced no result — it did not run, so nothing was checked");
+  if (!Array.isArray(pipes)) return errored("workflows", "the workflow files could not be read for the pipe check — nothing was checked");
   const sev = (z) => String(z.determinations?.severity ?? "").toLowerCase();
   const where = (z) => {
     const loc = z.locations?.[0];
     return { path: loc?.symbolic?.key?.Local?.given_path ?? loc?.symbolic?.key?.Local?.verbatim_path, line: (loc?.concrete?.location?.start_point?.row ?? -1) + 1 };
   };
-  const findings = zizmor.filter((z) => BLOCKING_SEVERITY.has(sev(z))).map((z) => ({ id: z.ident, ...where(z), summary: String(z.desc ?? "") }));
+  // `pipes`: steps that pipe a check into tee without pipefail — a red check would exit green (scripts/check-workflow-pipes.mjs).
+  const findings = [...zizmor.filter((z) => BLOCKING_SEVERITY.has(sev(z))).map((z) => ({ id: z.ident, ...where(z), summary: String(z.desc ?? "") })), ...pipes];
   const v = verdict("workflows", findings, acks);
   const lower = zizmor.length - zizmor.filter((z) => BLOCKING_SEVERITY.has(sev(z))).length;
   if (lower) v.warnings.push(`${lower} lower-severity zizmor finding(s) — reported, not blocking`);

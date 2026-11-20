@@ -29,6 +29,9 @@ const MUTATIONS = [
   { file: "decide.mjs", name: "a MAL- id is not recognised", find: 'String(v?.id ?? "").startsWith("MAL-")', replace: "false" },
   { file: "decide.mjs", name: "only Semgrep ERROR blocks → WARNING blocks too", find: '.filter((r) => String(r.extra?.severity ?? "").toUpperCase() === "ERROR")\n    .map(', replace: '.filter((r) => ["ERROR","WARNING"].includes(String(r.extra?.severity ?? "").toUpperCase()))\n    .map(' },
   { file: "decide.mjs", name: "zizmor Medium blocks too (or High stops blocking)", find: "BLOCKING_SEVERITY.has(sev(z))).map((z)", replace: 'sev(z) !== "informational").map((z)' },
+  { file: "decide.mjs", name: "pipe findings are dropped from the workflows check", find: "...pipes];", replace: "];" },
+  { file: "decide.mjs", name: "unreadable workflow files read as clean", find: 'if (!Array.isArray(pipes)) return errored("workflows"', replace: 'if (!Array.isArray(pipes)) return verdict("workflows", [], acks); void (0, errored("workflows"' },
+  { file: "run-check.mjs", name: "the pipe check is not wired into the workflows check", find: "decideWorkflows(runZizmor(dir), acks, await runPipes(dir))", replace: "decideWorkflows(runZizmor(dir), acks, [])" },
   // --- could-not-check must be RED, never green
   { file: "decide.mjs", name: "an OSV failure reads as green", find: "if (!deps || (deps.errors ?? []).length) {", replace: "if (!deps) {" },
   { file: "decide.mjs", name: "no Semgrep result reads as green", find: 'if (!semgrep || !Array.isArray(semgrep.results)) return errored("sast"', replace: 'if (!semgrep || !Array.isArray(semgrep.results)) return verdict("sast", [], acks); void (0, errored("sast"' },

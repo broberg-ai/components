@@ -1,3 +1,6 @@
+> **v1.0.0 is WITHDRAWN — do not use it.** Its workflow steps piped the check into `tee` without `pipefail`, so a red
+> check exited green (found by the first end-to-end run, 20/11 2026). Use **v1.0.1** or later.
+
 # security-gate — the fleet's deterministic security check (F427)
 
 One reusable workflow, `.github/workflows/security-gate.yml`. Every cardmem repo calls it, so the rules, the tool
@@ -18,8 +21,8 @@ permissions: {}
 jobs:
   security:
     permissions: { contents: read }
-    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.0
-    with: { engine-ref: security-gate-v1.0.0 }
+    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.1
+    with: { engine-ref: security-gate-v1.0.1 }
 ```
 
 Make the deploy job `needs: security`. Inputs (all optional): `ack-file`, `exclude`, `skip-importers`, `sast-exclude`.

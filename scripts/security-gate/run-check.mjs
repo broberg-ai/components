@@ -11,6 +11,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "
 import { join, relative, dirname, sep } from "node:path";
 import { measureDeps } from "./deps.mjs";
 import { SUPPORTED } from "./lockfiles.mjs";
+import { swallowing } from "./pipes.mjs";
 import { decideDeps, decideSast, decideWorkflows, decideInstall, validateAcks, overall, render } from "./decide.mjs";
 
 // ONE source for the rule packs — change a pack here and every repo in the fleet follows at the next engine tag.
@@ -53,6 +54,22 @@ export function runZizmor(dir) {
   // never «clean» (the selftest caught this: an empty answer was read as an empty finding list).
   if (r.error || !r.stdout.trim()) return null;
   try { const j = JSON.parse(r.stdout); return Array.isArray(j) ? j : null; } catch { return null; }
+}
+
+/** Steps that pipe a check into `tee` without pipefail — they turn a red check green. null = could not read the workflows. */
+export async function runPipes(dir, exclude = []) {
+  const wf = join(dir, ".github", "workflows");
+  if (!existsSync(wf)) return [];
+  const { parse } = await import("yaml");
+  const out = [];
+  try {
+    for (const f of readdirSync(wf).filter((x) => /\.ya?ml$/.test(x))) {
+      const rel = `.github/workflows/${f}`;
+      if (exclude.some((e) => rel.startsWith(e.replace(/\/+$/, "")))) continue;
+      for (const b of swallowing(parse(readFileSync(join(wf, f), "utf8")))) out.push({ id: "pipe-swallows-failure", path: rel, summary: `${b.job} › ${b.step}: ${b.why}` });
+    }
+  } catch { return null; }
+  return out;
 }
 
 // ------------------------------------------------------------------ install
@@ -123,7 +140,7 @@ async function main() {
     verdicts.push(...decideDeps(await measureDeps(dir, { exclude, skipImporters: list(arg("skip-importers")), yamlParse: parse }), acks));
   }
   if (want("sast")) verdicts.push(decideSast(runSemgrep(dir, [...exclude, ...list(arg("sast-exclude"))]), acks));
-  if (want("workflows")) verdicts.push(decideWorkflows(runZizmor(dir), acks));
+  if (want("workflows")) verdicts.push(decideWorkflows(runZizmor(dir), acks, await runPipes(dir)));
   if (want("install")) verdicts.push(decideInstall(runInstallCheck(dir, exclude), acks));
   const text = render(verdicts, rejected);
   console.log(text);

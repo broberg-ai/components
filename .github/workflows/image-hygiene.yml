@@ -132,6 +132,7 @@ jobs:
       - name: Decide
         id: decide
         run: |
+          # pipe-ok: the decide script always exits 0; a crash leaves decision.json empty and the next line (require) fails the step
           node .image-hygiene-engine/scripts/image-hygiene-decide.mjs trivy.json | tee decision.json
           echo "deploy=$(node -p 'require("./decision.json").deploy')" >> "$GITHUB_OUTPUT"
 

@@ -111,8 +111,10 @@ jobs:
       - name: Measure what every package ships
         run: node scripts/dependency-health.mjs --out "$RUNNER_TEMP/dependency-health.json"
       - name: Tarball contents (every public package)
+        shell: bash # pipefail: the tee must not turn a red gate green (scripts/check-workflow-pipes.mjs)
         run: node scripts/check-tarball-contents.mjs --all | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Gate
+        shell: bash # pipefail: the tee must not turn a red gate green (scripts/check-workflow-pipes.mjs)
         run: node scripts/check-release-advisories.mjs --in "$RUNNER_TEMP/dependency-health.json" | tee -a "$GITHUB_STEP_SUMMARY"
 
   # ── F115.2: no open high/critical CodeQL alert on main ─────────────────
@@ -136,6 +138,7 @@ jobs:
       - name: No open high/critical CodeQL alert on main
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash # pipefail: the tee must not turn a red gate green (scripts/check-workflow-pipes.mjs)
         run: node scripts/check-codeql-alerts.mjs "$GITHUB_REPOSITORY" | tee -a "$GITHUB_STEP_SUMMARY"
 
   # ── the 24 root scripts ────────────────────────────────────────────────

@@ -39,6 +39,7 @@ const CASES = [
   { name: "deps-malicious: a malicious package goes red", go: () => run("deps", join(FIX, "mal-dep")), red: "deps-malicious" },
   { name: "sast: a Semgrep ERROR goes red", go: () => run("sast", join(FIX, "sast-error")), red: "sast" },
   { name: "workflows: a zizmor High goes red", go: () => run("workflows", join(FIX, "workflow-high")), red: "workflows" },
+  { name: "workflows: a gate piped into tee without pipefail goes red", go: () => run("workflows", join(FIX, "workflow-pipe")), red: "workflows", also: /pipe-swallows-failure/ },
   { name: "install: a drifted lockfile goes red", go: () => run("install", join(FIX, "lockfile-drift")), red: "install" },
   {
     name: "ack: a valid ack for every vulnerable id silences deps-vuln",

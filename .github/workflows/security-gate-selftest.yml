@@ -23,10 +23,28 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# `bash` (not the default `bash -e`) runs with -o pipefail: `check | tee summary` must FAIL when the check fails.
+defaults:
+  run:
+    shell: bash
 concurrency:
   group: security-gate-selftest-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  # The WORKFLOW itself, not just the engine script: the reusable security-gate.yml run on the clean fixture, through
+  # the same checkout / tool-install / run-check glue every repo gets, must come out green. (The first end-to-end run of
+  # the tagged workflow, 20/11 2026, came out green on a repo with findings because of a `| tee` — see
+  # scripts/check-workflow-pipes.mjs. This job proves the glue runs the real checks and passes a clean tree; the
+  # `security-gate-e2e-red` run on components itself proves it fails a dirty one.)
+  workflow-on-clean-fixture:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/security-gate.yml
+    with:
+      engine-ref: ${{ github.sha }}
+      directory: security-gate/fixtures/clean
+      exclude: ""
+
   selftest:
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -13,8 +13,8 @@ name: security-gate
 #   jobs:
 #     security:
 #       permissions: { contents: read }
-#       uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.0
-#       with: { engine-ref: security-gate-v1.0.0 }
+#       uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.1
+#       with: { engine-ref: security-gate-v1.0.1 }
 #
 # Make your deploy job `needs: security` (or require the checks in branch protection): a finding must BLOCK.
 #
@@ -36,7 +36,11 @@ on:
       engine-ref:
         description: Ref of broberg-ai/components the engine is read from. Keep it equal to the tag you pinned `uses:` to.
         type: string
-        default: security-gate-v1.0.0
+        default: security-gate-v1.0.1
+      directory:
+        description: Directory the checks run in, relative to the repo root. Default is the whole repo; the selftest points it at a fixture.
+        type: string
+        default: "."
       ack-file:
         type: string
         default: .github/security-ack.json
@@ -54,6 +58,10 @@ on:
         default: ""
 permissions:
   contents: read
+# `bash` (not the default `bash -e`) runs with -o pipefail: `check | tee summary` must FAIL when the check fails.
+defaults:
+  run:
+    shell: bash
 jobs:
   deps:
     runs-on: ubuntu-latest
@@ -78,10 +86,11 @@ jobs:
         run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
       - name: Vulnerable and malicious dependencies
         env:
+          DIR: ${{ inputs.directory }}
           ACK: ${{ inputs.ack-file }}
           EXCLUDE: ${{ inputs.exclude }}
           SKIP: ${{ inputs.skip-importers }}
-        run: node .security-gate-engine/scripts/security-gate/run-check.mjs deps --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" --skip-importers "$SKIP" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs deps --dir "$DIR" --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" --skip-importers "$SKIP" | tee -a "$GITHUB_STEP_SUMMARY"
 
   sast:
     runs-on: ubuntu-latest
@@ -110,10 +119,11 @@ jobs:
         run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
       - name: Static analysis
         env:
+          DIR: ${{ inputs.directory }}
           ACK: ${{ inputs.ack-file }}
           EXCLUDE: ${{ inputs.exclude }}
           SAST_EXCLUDE: ${{ inputs.sast-exclude }}
-        run: node .security-gate-engine/scripts/security-gate/run-check.mjs sast --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" --sast-exclude "$SAST_EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs sast --dir "$DIR" --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" --sast-exclude "$SAST_EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
 
   workflows:
     runs-on: ubuntu-latest
@@ -142,10 +152,11 @@ jobs:
         run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
       - name: Workflow hardening
         env:
+          DIR: ${{ inputs.directory }}
           ACK: ${{ inputs.ack-file }}
           EXCLUDE: ${{ inputs.exclude }}
           GH_TOKEN: ${{ github.token }}
-        run: node .security-gate-engine/scripts/security-gate/run-check.mjs workflows --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs workflows --dir "$DIR" --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
 
   install:
     runs-on: ubuntu-latest
@@ -174,9 +185,10 @@ jobs:
         run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
       - name: Lockfile present and frozen
         env:
+          DIR: ${{ inputs.directory }}
           ACK: ${{ inputs.ack-file }}
           EXCLUDE: ${{ inputs.exclude }}
-        run: node .security-gate-engine/scripts/security-gate/run-check.mjs install --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs install --dir "$DIR" --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
 
   sbom:
     runs-on: ubuntu-latest
@@ -191,7 +203,9 @@ jobs:
           echo "9c077a7d43029b3b13e98a8db720661e700c4d58db6352153a06395ae4a2a704  syft.tar.gz" | sha256sum -c -
           tar -xzf syft.tar.gz syft
       - name: CycloneDX SBOM
-        run: ./syft dir:. --exclude "./syft" --exclude "./syft.tar.gz" -o cyclonedx-json=sbom.cdx.json
+        env:
+          DIR: ${{ inputs.directory }}
+        run: ./syft "dir:$DIR" --exclude "./syft" --exclude "./syft.tar.gz" -o cyclonedx-json=sbom.cdx.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom-cyclonedx

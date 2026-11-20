@@ -114,6 +114,13 @@ t("a zizmor High blocks; Medium/Low/Informational are reported only", () => {
 t("zizmor with no result is red 'error'; an empty array is genuinely clean", () => {
   assert.equal(decideWorkflows(null, []).status, "error"); assert.equal(decideWorkflows([], []).status, "green");
 });
+t("a swallowing pipe step blocks `workflows` even when zizmor is clean; an ack by id+path silences it", () => {
+  const pipe = { id: "pipe-swallows-failure", path: ".github/workflows/ci.yml", summary: "test › gate: pipes into tee without pipefail" };
+  assert.equal(decideWorkflows([], [], [pipe]).status, "red");
+  assert.equal(decideWorkflows([], [ack({ id: "pipe-swallows-failure", path: ".github/workflows/ci.yml" })], [pipe]).status, "green");
+  assert.equal(decideWorkflows([], [ack({ id: "pipe-swallows-failure", path: ".github/workflows/other.yml" })], [pipe]).status, "red");
+});
+t("unreadable workflow files (pipes = null) are 'error', never clean", () => assert.equal(decideWorkflows([], [], null).status, "error"));
 t("the finding carries the file and the 1-based line", () => {
   const f = decideWorkflows(zz("High"), []).blocking[0];
   assert.equal(f.path, ".github/workflows/a.yml"); assert.equal(f.line, 5);
