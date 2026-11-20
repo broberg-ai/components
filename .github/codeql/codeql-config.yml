@@ -1,0 +1,6 @@
+# F427.1 — the fleet security gate's selftest fixtures contain PLANTED vulnerabilities on purpose (an eval of request
+# input, a shell command built from a query string). They must be found by the gate's own tools — and must NOT be
+# counted as our code's alerts, which block every release (F115.2).
+name: components codeql config
+paths-ignore:
+  - security-gate/fixtures

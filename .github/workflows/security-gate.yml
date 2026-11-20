@@ -1,0 +1,199 @@
+name: security-gate
+# F427.1 — THE FLEET'S SECURITY GATE. One reusable workflow; every repo calls it, so the rules, the tool versions and
+# the selftest live in exactly one place (the pattern of secret-gate and image-hygiene).
+#
+#   # .github/workflows/security.yml in YOUR repo
+#   name: security
+#   on:
+#     push: { branches: [main] }
+#     pull_request:
+#     schedule: [{ cron: "23 2 * * *" }]     # nightly: a dependency turns vulnerable on someone else's timetable
+#     workflow_dispatch:
+#   permissions: {}
+#   jobs:
+#     security:
+#       permissions: { contents: read }
+#       uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.0
+#       with: { engine-ref: security-gate-v1.0.0 }
+#
+# Make your deploy job `needs: security` (or require the checks in branch protection): a finding must BLOCK.
+#
+# FIVE CHECKS, each its own job so a red run names which one — and each deterministic, no LLM in the decision:
+#   deps       known-vulnerable (HIGH/CRITICAL, in what you SHIP) and malicious packages (anywhere), from OSV.dev
+#              over pnpm-lock.yaml / package-lock.json / bun.lock.
+#   sast       Semgrep OSS rule packs (scripts/security-gate/run-check.mjs RULE_PACKS) — blocks on ERROR.
+#   workflows  zizmor over .github/workflows — blocks on High.
+#   install    every package.json has a lockfile and the FROZEN install accepts it, with scripts disabled.
+#   sbom       CycloneDX SBOM (syft) uploaded as a run artifact. A record, never a gate.
+#
+# Acknowledging a finding is a FILE in YOUR repo — .github/security-ack.json:
+#   { "acks": [ { "id": "GHSA-…", "path": "optional/file", "reason": "why a user cannot be hit", "expires": "YYYY-MM-DD" } ] }
+# It silences that id (and that path, when named) until the date, at most 180 days out. After the date it is red again.
+# There is no input that switches a check off — that is deliberate.
+on:
+  workflow_call:
+    inputs:
+      engine-ref:
+        description: Ref of broberg-ai/components the engine is read from. Keep it equal to the tag you pinned `uses:` to.
+        type: string
+        default: security-gate-v1.0.0
+      ack-file:
+        type: string
+        default: .github/security-ack.json
+      exclude:
+        description: Comma-separated path prefixes no check looks at (vendored code, fixtures).
+        type: string
+        default: ""
+      skip-importers:
+        description: Comma-separated workspace directories that do not SHIP (examples, demos) — their dependencies are reported, not blocking.
+        type: string
+        default: ""
+      sast-exclude:
+        description: Comma-separated extra path prefixes Semgrep skips (generated code, test fixtures).
+        type: string
+        default: ""
+permissions:
+  contents: read
+jobs:
+  deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { persist-credentials: false }
+      - name: The engine
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: broberg-ai/components
+          ref: ${{ inputs.engine-ref }}
+          path: .security-gate-engine
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/security-gate/
+            scripts/dependency-health.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22 }
+      - name: The engine's one dependency (yaml, pinned, no install scripts)
+        run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
+      - name: Vulnerable and malicious dependencies
+        env:
+          ACK: ${{ inputs.ack-file }}
+          EXCLUDE: ${{ inputs.exclude }}
+          SKIP: ${{ inputs.skip-importers }}
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs deps --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" --skip-importers "$SKIP" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { persist-credentials: false }
+      - name: The engine
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: broberg-ai/components
+          ref: ${{ inputs.engine-ref }}
+          path: .security-gate-engine
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/security-gate/
+            scripts/dependency-health.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.12" }
+      - name: Semgrep (pinned)
+        run: pip install --no-cache-dir semgrep==1.182.0
+      - name: The engine's one dependency
+        run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
+      - name: Static analysis
+        env:
+          ACK: ${{ inputs.ack-file }}
+          EXCLUDE: ${{ inputs.exclude }}
+          SAST_EXCLUDE: ${{ inputs.sast-exclude }}
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs sast --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" --sast-exclude "$SAST_EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { persist-credentials: false }
+      - name: The engine
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: broberg-ai/components
+          ref: ${{ inputs.engine-ref }}
+          path: .security-gate-engine
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/security-gate/
+            scripts/dependency-health.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.12" }
+      - name: zizmor (pinned)
+        run: pip install --no-cache-dir zizmor==1.32.0
+      - name: The engine's one dependency
+        run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
+      - name: Workflow hardening
+        env:
+          ACK: ${{ inputs.ack-file }}
+          EXCLUDE: ${{ inputs.exclude }}
+          GH_TOKEN: ${{ github.token }}
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs workflows --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { persist-credentials: false }
+      - name: The engine
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: broberg-ai/components
+          ref: ${{ inputs.engine-ref }}
+          path: .security-gate-engine
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/security-gate/
+            scripts/dependency-health.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22 }
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with: { bun-version: "1.4.3" }
+      - name: pnpm (pinned, no install scripts)
+        run: npm install -g pnpm@10.30.3 --ignore-scripts --no-audit --no-fund
+      - name: The engine's one dependency
+        run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
+      - name: Lockfile present and frozen
+        env:
+          ACK: ${{ inputs.ack-file }}
+          EXCLUDE: ${{ inputs.exclude }}
+        run: node .security-gate-engine/scripts/security-gate/run-check.mjs install --dir . --ack "$ACK" --exclude ".security-gate-engine,$EXCLUDE" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { persist-credentials: false }
+      - name: syft v1.57.0 (checksum-verified)
+        run: |
+          set -euo pipefail
+          curl -fsSL -o syft.tar.gz https://github.com/anchore/syft/releases/download/v1.57.0/syft_1.57.0_linux_amd64.tar.gz
+          echo "9c077a7d43029b3b13e98a8db720661e700c4d58db6352153a06395ae4a2a704  syft.tar.gz" | sha256sum -c -
+          tar -xzf syft.tar.gz syft
+      - name: CycloneDX SBOM
+        run: ./syft dir:. --exclude "./syft" --exclude "./syft.tar.gz" -o cyclonedx-json=sbom.cdx.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          if-no-files-found: error

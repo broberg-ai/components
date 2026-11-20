@@ -12,6 +12,12 @@ updates:
         update-types: [minor, patch]
     cooldown:
       default-days: 3
+  # The security-gate selftest fixtures hold PLANTED vulnerable dependencies (lodash 4.17.15, flatmap-stream). Bumping
+  # them would break the selftest, so no Dependabot pull request — version or security — may be opened for them.
+  - package-ecosystem: npm
+    directories: ["/security-gate/fixtures/*"]
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: weekly, day: monday, time: "05:30", timezone: Europe/Copenhagen }

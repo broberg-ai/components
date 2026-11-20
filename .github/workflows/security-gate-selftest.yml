@@ -1,0 +1,49 @@
+name: security-gate-selftest
+# F427.1 — the fleet security gate must be able to FAIL. This runs the REAL engine (scripts/security-gate/run-check.mjs,
+# the same code path security-gate.yml runs) with the REAL pinned tools against fixtures with one planted finding per
+# check, and requires each to go red BY NAME; the clean fixture must be green; the ack rules must hold end to end.
+# A gate nobody has watched fail is not a gate. Runs on every change to the engine, and weekly (a tool update or a
+# changed rule pack must not quietly stop finding things).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/security-gate/**"
+      - "scripts/dependency-health.mjs"
+      - "security-gate/**"
+      - ".github/workflows/security-gate.yml"
+      - ".github/workflows/security-gate-selftest.yml"
+  pull_request:
+    paths:
+      - "scripts/security-gate/**"
+      - "security-gate/**"
+      - ".github/workflows/security-gate*.yml"
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: security-gate-selftest-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: { python-version: "3.12" }
+      - name: The tools, at the versions security-gate.yml pins
+        run: pip install --no-cache-dir semgrep==1.182.0 zizmor==1.32.0
+      - name: The engine's one dependency
+        run: npm install yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save --no-package-lock
+      - name: Pure decisions (unit tests)
+        run: node scripts/test-security-gate.mjs
+      - name: Every check goes red by name; the clean fixture is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/security-gate/selftest.mjs | tee -a "$GITHUB_STEP_SUMMARY"
