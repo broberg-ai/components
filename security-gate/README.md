@@ -21,8 +21,8 @@ permissions: {}
 jobs:
   security:
     permissions: { contents: read }
-    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.2
-    with: { engine-ref: security-gate-v1.0.2 }
+    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.3
+    with: { engine-ref: security-gate-v1.0.3 }
 ```
 
 Make the deploy job `needs: security`. Inputs (all optional): `ack-file`, `exclude`, `skip-importers`, `sast-exclude`.

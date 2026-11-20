@@ -299,6 +299,14 @@ t("config: the repo root, the workflows, globs and paths outside the repo can NE
   for (const path of ["", ".", "./", "/", ".github", ".github/workflows", "*", "**", "src/*", "../up", "/abs/path"])
     assert.ok(parseGateConfig({ exclude: [{ path, reason: "a perfectly fine reason" }] }).errors.some((m) => /can never be excluded/.test(m)), path);
 });
+t("config: every spelling of .github, a single workflow file or a lockfile is refused — trailing slash, ./, doubled slash, .., case, backslash", () => {
+  const variants = [".github/", "./.github/", ".github//", "./.github//", "src/../.github", "src/../.github/", ".GitHub", ".github/workflows/", ".github/workflows/publish.yml", "./.github/workflows/publish.yml", ".github/workflows/../workflows/x.yml", "pnpm-lock.yaml", "./pnpm-lock.yaml", "apps/web/package-lock.json", "bun.lock", "yarn.lock", "Pnpm-Lock.yaml", ".github\\workflows", "a/../../up", "./", "a/.."];
+  for (const path of variants)
+    for (const key of ["exclude", "skipImporters", "sastExclude"])
+      assert.ok(parseGateConfig({ [key]: [{ path, reason: "a perfectly fine reason" }] }).errors.some((m) => /can never be excluded/.test(m)), `${key}: ${path}`);
+  for (const path of ["vendor/", "examples", ".github/ISSUE_TEMPLATE", "docs/api/"])
+    assert.deepEqual(parseGateConfig({ exclude: [{ path, reason: "a perfectly fine reason" }] }).errors, [], path);
+});
 t("config: an unknown key (a typo that would silently exclude nothing) and a non-object are refused", () => {
   assert.match(parseGateConfig({ excludes: [] }).errors[0], /unknown key «excludes»/);
   assert.equal(parseGateConfig([]).errors.length, 1); assert.equal(parseGateConfig("x").errors.length, 1);
