@@ -4,4 +4,7 @@
 FROM livekit/livekit-server:v1.13.9
 COPY livekit.template.yaml /etc/livekit.template.yaml
 COPY entrypoint.sh /entrypoint.sh
+# F116 — never run as root. Every listener is above 1024 (7880/7881/7882), and the entrypoint only writes /tmp.
+# Numeric, because this vendor image has no passwd entry we can rely on.
+USER 65534:65534
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]

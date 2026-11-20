@@ -12,5 +12,7 @@ COPY apps/call-demo/package.json apps/call-demo/
 RUN cd apps/call-demo && bun install --production
 COPY apps/call-demo/server.ts apps/call-demo/page.ts apps/call-demo/
 ENV PORT=8080
+# F116 — never run as root: the bun image ships a non-root `bun` user (uid 1000); nothing here writes outside /tmp.
+USER bun
 EXPOSE 8080
 CMD ["bun", "run", "apps/call-demo/server.ts"]
