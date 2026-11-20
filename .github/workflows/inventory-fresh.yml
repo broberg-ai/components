@@ -71,7 +71,7 @@ jobs:
       # selector, which decides what a push could have affected by diffing
       # against a base commit. A shallow clone has none, so it would fail safe
       # and run everything while looking like it had chosen.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -222,7 +222,7 @@ jobs:
       # FULL HISTORY (F038.15). `fetch-depth: 2` cannot resolve
       # github.event.before on a push of MORE THAN ONE commit, and the failure
       # was silent — see the three-outcome block below for what that cost.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 0 }
       - id: f
         run: |
@@ -305,7 +305,7 @@ jobs:
       actions: read # F038.48 — list publish runs as evidence for PENDING
     timeout-minutes: 10 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: The live roster serves what the repo says
         run: bun scripts/check-live-fresh.mjs https://discovery.broberg.ai
