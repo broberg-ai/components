@@ -33,17 +33,27 @@ function b64(s: string): string {
   for (const byte of new TextEncoder().encode(s)) bin += String.fromCharCode(byte);
   return btoa(bin);
 }
-const b64url = (s: string) => b64(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const b64url = (s: string) => trimEnd(b64(s).replace(/\+/g, "-").replace(/\//g, "_"), "=");
 
 /** RFC 2047 for a header value that is not plain ASCII. */
 const encodeWord = (v: string) => (/^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${b64(v)}?=`);
 
 /** "Name <a@b>" with a non-ASCII name → encoded name, address untouched. */
 function encodeAddress(a: string): string {
-  const m = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(a);
-  if (!m) return a.trim();
-  const name = m[1]!.replace(/^"(.*)"$/, "$1");
-  return name ? `${encodeWord(name)} <${m[2]}>` : `<${m[2]}>`;
+  // Linear parse (the old /^\s*(.*?)\s*<([^>]+)>\s*$/ is polynomial on a long run of "<" — CodeQL
+  // js/polynomial-redos). Same result: the address is what sits between the LAST ">" and the
+  // first "<" after the previous ">", the name is whatever precedes that "<", trimmed.
+  const t = a.trimEnd();
+  const g = t.length - 1;
+  if (g < 0 || t[g] !== ">") return a.trim();
+  const p = t.lastIndexOf(">", g - 1);
+  const i = t.indexOf("<", p + 1);
+  if (i < 0 || i > g - 2) return a.trim();
+  const rawName = t.slice(0, i).trim();
+  if (/[\n\r\u2028\u2029]/.test(rawName)) return a.trim(); // `.` never matched a line break
+  const addr = t.slice(i + 1, g);
+  const name = rawName.replace(/^"(.*)"$/, "$1");
+  return name ? `${encodeWord(name)} <${addr}>` : `<${addr}>`;
 }
 
 class HeaderInjection extends Error {}
@@ -124,4 +134,12 @@ export function gmailTransport(options: GmailTransportOptions): MailTransport {
       }
     },
   };
+}
+
+/** Strip a trailing run of `ch` in one linear pass. (A `/x+$/` regex is quadratic on a long run
+ *  followed by another character — CodeQL js/polynomial-redos; the input here is caller-supplied.) */
+function trimEnd(s: string, ch: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === ch) e--;
+  return s.slice(0, e);
 }

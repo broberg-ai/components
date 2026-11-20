@@ -358,8 +358,10 @@ export function senderDomain(from: string): string {
   const trimmed = (from ?? '').trim();
   if (!trimmed) throw new Error('senderDomain: empty input — pass a domain, an address, or "Name <address>".');
 
-  const angle = /<([^>]*)>/.exec(trimmed);
-  const candidate = (angle ? angle[1] : trimmed).trim();
+  // First "<" that has a ">" after it (linear; /<([^>]*)>/ is quadratic on a long run of "<").
+  const lt = trimmed.indexOf('<');
+  const gt = lt >= 0 ? trimmed.indexOf('>', lt + 1) : -1;
+  const candidate = (gt >= 0 ? trimmed.slice(lt + 1, gt) : trimmed).trim();
   const at = candidate.lastIndexOf('@');
   const domain = (at >= 0 ? candidate.slice(at + 1) : candidate).trim().toLowerCase();
 

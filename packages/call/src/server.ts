@@ -188,7 +188,7 @@ async function control(path: string, room: string, opts: RecordingOptions, init:
   try { u = new URL(opts.controlUrl); } catch { throw new VoiceError("invalid_control_url", "controlUrl must be an https URL"); }
   const local = u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]";
   if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) throw new VoiceError("invalid_control_url", "controlUrl must be https (http only for localhost)");
-  const res = await fetch(opts.controlUrl.replace(/\/+$/, "") + path, {
+  const res = await fetch(trimEnd(opts.controlUrl, "/") + path, {
     ...init,
     headers: { authorization: `Bearer ${await recordingTicket(room, opts)}`, "content-type": "application/json" },
     signal: AbortSignal.timeout(90_000), // a cold recording machine takes ~20 s to start
@@ -304,4 +304,12 @@ export async function listParticipants(room: string, opts: RoomServiceOptions): 
     if (sec > 0) out.joinedAt = sec * 1000;
     return out;
   });
+}
+
+/** Strip a trailing run of `ch` in one linear pass. (A `/x+$/` regex is quadratic on a long run
+ *  followed by another character — CodeQL js/polynomial-redos; the input here is caller-supplied.) */
+function trimEnd(s: string, ch: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === ch) e--;
+  return s.slice(0, e);
 }

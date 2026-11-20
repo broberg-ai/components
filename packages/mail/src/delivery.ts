@@ -35,7 +35,18 @@ export type DeliveryLookup =
   | { ok: true; mails: DeliveryRecord[]; truncated: boolean }
   | { ok: false; reason: "read_not_permitted" | "could_not_ask"; detail: string };
 
-const addr = (s: string) => (/<([^>]+)>/.exec(s)?.[1] ?? s).trim().toLowerCase();
+/** The text of the first "<…>" with at least one character inside — one linear pass
+ *  (the /<([^>]+)>/ it replaces is quadratic on a long run of "<": CodeQL js/polynomial-redos). */
+function angleInner(s: string): string | undefined {
+  let i = -1;
+  while ((i = s.indexOf("<", i + 1)) >= 0) {
+    const j = s.indexOf(">", i + 1);
+    if (j < 0) return undefined; // no ">" after this "<" means none after any later one either
+    if (j - i - 1 >= 1) return s.slice(i + 1, j);
+  }
+  return undefined;
+}
+const addr = (s: string) => (angleInner(s) ?? s).trim().toLowerCase();
 /** Resend writes «2026-10-22 10:11:32.123+00»; Date wants a T and a full offset. */
 const when = (s: string) => new Date(s.replace(" ", "T").replace(/([+-]\d\d)$/, "$1:00")).getTime();
 

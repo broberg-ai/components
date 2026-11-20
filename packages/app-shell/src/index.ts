@@ -112,8 +112,8 @@ export interface NavGroup<Icon = unknown> {
  * item or below it ("/board/123" is on "/board", "/boardroom" is not).
  */
 export function isActivePath(href: string, currentPath: string): boolean {
-  const path = (currentPath.split(/[?#]/)[0] || "/").replace(/\/+$/, "") || "/";
-  const target = (href.split(/[?#]/)[0] || "/").replace(/\/+$/, "") || "/";
+  const path = trimEnd(currentPath.split(/[?#]/)[0] || "/", "/") || "/";
+  const target = trimEnd(href.split(/[?#]/)[0] || "/", "/") || "/";
   if (target === "/") return path === "/";
   return path === target || path.startsWith(target + "/");
 }
@@ -300,7 +300,7 @@ export function createFetchNotificationSource(opts: {
   pollMs?: number;
   credentials?: RequestCredentials;
 }): NotificationSource {
-  const base = opts.url.replace(/\/+$/, "");
+  const base = trimEnd(opts.url, "/");
   const doFetch = (input: string, init?: RequestInit) =>
     (opts.fetch ?? fetch)(input, { credentials: opts.credentials ?? "include", ...init });
   const get = async (): Promise<{ items: NotificationRow[]; unseen: number }> => {
@@ -470,7 +470,7 @@ export function accountErrorKind(err: unknown): "reauth" | "tooLarge" | "wrongTy
  * saved one.
  */
 export function createFetchAccountAdapter(opts: { url?: string; fetch?: typeof fetch; credentials?: RequestCredentials } = {}): AccountAdapter {
-  const base = (opts.url ?? "/api/account").replace(/\/+$/, "");
+  const base = trimEnd(opts.url ?? "/api/account", "/");
   const call = async (path: string, init?: RequestInit): Promise<AccountProfile> => {
     const res = await (opts.fetch ?? fetch)(`${base}${path}`, {
       credentials: opts.credentials ?? "same-origin",
@@ -792,3 +792,11 @@ export const TEXT = {
   },
 } as const;
 export type Lang = keyof typeof TEXT;
+
+/** Strip a trailing run of `ch` in one linear pass. (A `/x+$/` regex is quadratic on a long run
+ *  followed by another character — CodeQL js/polynomial-redos; the input here is caller-supplied.) */
+function trimEnd(s: string, ch: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === ch) e--;
+  return s.slice(0, e);
+}

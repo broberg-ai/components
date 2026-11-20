@@ -94,7 +94,21 @@ const HREF = /href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
  * exactly the same strings — verified over the whitespace, empty, multi-line
  * and unclosed cases — and runs in 0 ms on all of the above.
  */
-const PLACEHOLDER = /\{\{[^}]*\}\}/g;
+/** Every "{{…}}" (no "}" inside) — a linear scan; the /\{\{[^}]*\}\}/g it replaces is quadratic on a
+ *  long run of "{{" (CodeQL js/polynomial-redos). A start that fails at a "}" fails for every start
+ *  before that same "}", so the scan resumes after it. */
+function placeholders(body: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  for (;;) {
+    const s = body.indexOf("{{", i);
+    if (s < 0) break;
+    const e = body.indexOf("}", s + 2);
+    if (e < 0) break;
+    if (body[e + 1] === "}") { out.push(body.slice(s, e + 2)); i = e + 2; } else i = e + 1;
+  }
+  return out;
+}
 
 // ── F005.22 — deliberately NARROW: a guard that rejects ordinary mail gets switched off ──
 /** `${name}` — a template literal that was never evaluated (a quote mark in the wrong place). */
@@ -176,11 +190,11 @@ export function checkMailIntegrity(
       ["text", text],
     ] as const) {
       if (!body) continue;
-      for (const m of body.matchAll(PLACEHOLDER)) {
+      for (const found of placeholders(body)) {
         findings.push({
           check: "placeholders",
           where,
-          value: m[0],
+          value: found,
           consequence: "the recipient receives the placeholder itself — the caller never supplied the key",
         });
       }

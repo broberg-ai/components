@@ -79,7 +79,7 @@ const MUTED_LIGHT = "#4a4d63";
 const MUTED_DARK = "#c1c2d1";
 
 const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
-const FUNCTIONAL = /^(?:rgb|rgba|hsl|hsla)\(\s*[0-9a-z.%,\s/+-]+\)$/i;
+const FUNCTIONAL = /^(?:rgb|rgba|hsl|hsla)\([0-9a-z.%,\s/+-]+\)$/i; // no `\s*` before the class: it already allows whitespace, and the overlap was polynomial (CodeQL js/polynomial-redos)
 
 /** Reject a brand colour that is not a colour. **REJECT, never escape** — an
  *  escaped non-colour still leaves the building and still renders as literal

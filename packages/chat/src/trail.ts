@@ -268,7 +268,7 @@ export function trailRetriever<Ctx = unknown>(opts: TrailRetrieverOptions): Chat
     authorization: `Bearer ${token}`,
     ...(opts.tenant ? { "x-trail-tenant": opts.tenant } : {}),
   };
-  const url = `${baseUrl.replace(/\/+$/, "")}/api/v1/knowledge-bases/${encodeURIComponent(kbId)}/retrieve`;
+  const url = `${trimEnd(baseUrl, "/")}/api/v1/knowledge-bases/${encodeURIComponent(kbId)}/retrieve`;
 
   return defineTool<Ctx>({
     name,
@@ -412,4 +412,12 @@ function readTrailBody(body: unknown): TrailPassage[] | null {
   if (typeof b.hitCount === "number") return [];
 
   return null;
+}
+
+/** Strip a trailing run of `ch` in one linear pass. (A `/x+$/` regex is quadratic on a long run
+ *  followed by another character — CodeQL js/polynomial-redos; the input here is caller-supplied.) */
+function trimEnd(s: string, ch: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === ch) e--;
+  return s.slice(0, e);
 }

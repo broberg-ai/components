@@ -159,7 +159,7 @@ function parseError(status: number, body: unknown): CronError {
 export function createCron(config: CronClientConfig = {}): CronClient {
   const token =
     config.token ?? (typeof process !== "undefined" ? process.env?.CRONJOBS_API_TOKEN : undefined);
-  const baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+  const baseUrl = trimEnd(config.baseUrl ?? DEFAULT_BASE_URL, "/");
   const doFetch = config.fetch ?? globalThis.fetch?.bind(globalThis);
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -244,4 +244,12 @@ export function createCron(config: CronClientConfig = {}): CronClient {
     getStatus: (id) => request<JobStatus>("GET", `${jobPath(id)}/status`),
     mintKey: (input) => request<MintedKey>("POST", "/api/keys", input),
   };
+}
+
+/** Strip a trailing run of `ch` in one linear pass. (A `/x+$/` regex is quadratic on a long run
+ *  followed by another character — CodeQL js/polynomial-redos; the input here is caller-supplied.) */
+function trimEnd(s: string, ch: string): string {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === ch) e--;
+  return s.slice(0, e);
 }

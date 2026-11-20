@@ -42,8 +42,7 @@ const asError = (e: unknown) => (e instanceof Error ? e : new Error(String(e)));
 
 /** Word / Google Docs paste: keep the structure, drop their styling (cms paste-sanitizer, measured). */
 export function sanitizePastedHTML(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?-->/g, "")
+  return stripComments(html)
     .replace(/<(style|xml|script|title)\b[\s\S]*?<\/\1\s*>/gi, "")
     .replace(/<(meta|link)\b[^>]*>/gi, "")
     .replace(/<\/?o:[^>]*>/gi, "")
@@ -71,7 +70,7 @@ export function normalizeMarkdown(md: string): string {
     .split(/(^```[^\n]*\n[\s\S]*?^```[ \t]*$)/m)
     .map((part, i) => (i % 2 === 1 ? part : part.replace(/\n{3,}/g, "\n\n")))
     .join("")
-    .replace(/\s+$/, "");
+    .trimEnd();
 }
 
 /** Per editor: the markdown onChange last reported (or what was loaded) — the dirty guard. */
@@ -251,3 +250,19 @@ export { editorExtensions, type SchemaOptions } from "./schema";
 export { fromMarkdown, toMarkdown } from "./markdown";
 export { safeUrl } from "./server";
 export { defineBlock, insertBlock, escapeHTML, blockAttrs, type Block, type BlockDefinition } from "./blocks";
+
+/** Remove every "<!-- … -->" in one linear pass (an unclosed comment is kept). The lazy regex it
+ *  replaces is quadratic on a long run of "<!--" (CodeQL js/polynomial-redos). */
+function stripComments(h: string): string {
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const s = h.indexOf("<!--", i);
+    if (s < 0) { out += h.slice(i); break; }
+    const e = h.indexOf("-->", s + 4);
+    if (e < 0) { out += h.slice(i); break; }
+    out += h.slice(i, s);
+    i = e + 3;
+  }
+  return out;
+}
