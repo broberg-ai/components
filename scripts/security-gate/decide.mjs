@@ -71,26 +71,43 @@ export function decideDeps(deps, acks) {
   const vulns = deps.findings.filter((f) => !f.malicious && f.shipped && BLOCKING_SEVERITY.has(f.severity)).map(asFinding);
   const tooling = deps.findings.filter((f) => !f.malicious && !f.shipped && BLOCKING_SEVERITY.has(f.severity)).length;
   const unrated = deps.findings.filter((f) => !f.malicious && f.shipped && f.severity === "unrated").length;
+  // A lockfile this gate cannot read is a lockfile whose dependencies were NOT checked — that is «could not check», so it
+  // blocks (acknowledge by id `unsupported-lockfile` + path, with a date, when a human has judged it) instead of
+  // standing as a warning above a green result.
+  for (const lf of deps.unsupported ?? []) vulns.push({ id: "unsupported-lockfile", ids: ["unsupported-lockfile"], path: lf, summary: `${lf} has no parser in this gate — its dependencies were NOT checked` });
   const v = verdict("deps-vuln", vulns, acks);
   if (tooling) v.warnings.push(`${tooling} high/critical finding(s) only in build/test tooling — reported, not blocking (they never reach a user)`);
   if (unrated) v.warnings.push(`${unrated} shipped finding(s) OSV has not rated — read them, they do not block`);
-  for (const lf of deps.unsupported ?? []) v.warnings.push(`${lf} is not covered by this gate (no parser) — its dependencies were NOT checked`);
   return [v, verdict("deps-malicious", malicious, acks)];
 }
 
 // ------------------------------------------------------------------ Semgrep (sast)
 
-/** `semgrep` = the JSON of `semgrep scan --json`, or null when the tool did not produce one. */
-export function decideSast(semgrep, acks) {
+/** `run` = { json, status } from runSemgrep, or null when Semgrep could not even be started.
+ *  Semgrep exits 0 when it analysed everything it was given. ANY other exit means it did not: 7 = an invalid or
+ *  unreachable rule pack, 2 = a fatal error. In those cases `results` is EMPTY — and an empty result must never be
+ *  read as «nothing found» (cardmem's independent review, 20/11 2026: a rule pack that 404'd turned the planted-error
+ *  fixture GREEN, exit 0). So the exit status is judged first. */
+export function decideSast(run, acks) {
+  const semgrep = run?.json;
   if (!semgrep || !Array.isArray(semgrep.results)) return errored("sast", "Semgrep produced no result — it did not run, so nothing was checked");
-  const findings = semgrep.results
-    .filter((r) => String(r.extra?.severity ?? "").toUpperCase() === "ERROR")
+  if (run.status !== 0) {
+    const why = (semgrep.errors ?? []).filter((e) => String(e.level ?? "").toLowerCase() === "error").map((e) => String(e.message ?? e.type ?? "")).filter(Boolean).slice(0, 2).join(" · ");
+    return errored("sast", `Semgrep exited ${run.status}${why ? `: ${why}` : ""} — its results cannot be trusted (an unreachable or invalid rule pack looks exactly like a clean scan)`);
+  }
+  const isError = (r) => String(r.extra?.severity ?? "").toUpperCase() === "ERROR";
+  const findings = semgrep.results.filter(isError)
     .map((r) => ({ id: r.check_id, path: r.path, line: r.start?.line, summary: String(r.extra?.message ?? "").split("\n")[0].slice(0, 200) }));
+  // A file Semgrep could not read or parse was NOT analysed. That is a hole in the scan, so it blocks until it is fixed
+  // or acknowledged by id `semgrep-error` + path (never silently accepted).
+  for (const e of semgrep.errors ?? []) {
+    if (String(e.level ?? "").toLowerCase() !== "error") continue;
+    const path = e.path ?? e.spans?.[0]?.file;
+    findings.push({ id: "semgrep-error", path, line: e.spans?.[0]?.start?.line, summary: `${e.type ?? "error"}: ${String(e.message ?? "").split("\n")[0].slice(0, 160)} — this file was not analysed` });
+  }
   const v = verdict("sast", findings, acks);
-  const lower = semgrep.results.length - semgrep.results.filter((r) => String(r.extra?.severity ?? "").toUpperCase() === "ERROR").length;
+  const lower = semgrep.results.length - semgrep.results.filter(isError).length;
   if (lower) v.warnings.push(`${lower} lower-severity Semgrep finding(s) — reported, not blocking`);
-  const parse = (semgrep.errors ?? []).filter((e) => String(e.level ?? "").toLowerCase() === "error").length;
-  if (parse) v.warnings.push(`${parse} file(s) Semgrep could not parse — those files were not analysed`);
   return v;
 }
 

@@ -16,6 +16,7 @@ import { decideDeps, decideSast, decideWorkflows, decideInstall, validateAcks, o
 
 // ONE source for the rule packs — change a pack here and every repo in the fleet follows at the next engine tag.
 export const RULE_PACKS = ["p/security-audit", "p/owasp-top-ten", "p/javascript", "p/typescript", "p/nodejs"];
+// SECURITY_GATE_PACKS (comma list) replaces them — for the selftest, which must prove that an unreachable pack goes RED.
 const ALWAYS_EXCLUDE = ["node_modules", ".git", "dist", "build", ".next", ".turbo", ".claude", "coverage"];
 
 const arg = (name, d) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : d; };
@@ -29,16 +30,18 @@ function runTool(bin, args, opts = {}) {
 // ------------------------------------------------------------------ sast
 export function runSemgrep(dir, extraExclude) {
   const bin = process.env.SEMGREP_BIN ?? "semgrep";
+  const packs = process.env.SECURITY_GATE_PACKS ? process.env.SECURITY_GATE_PACKS.split(",").map((x) => x.trim()).filter(Boolean) : RULE_PACKS;
   const args = ["scan", "--json", "--metrics=off", "--quiet", "--disable-version-check", "--timeout", "30"];
-  for (const p of RULE_PACKS) args.push("--config", p);
+  for (const p of packs) args.push("--config", p);
   for (const e of [...ALWAYS_EXCLUDE, ...extraExclude]) args.push("--exclude", e);
   args.push(dir);
   const r = runTool(bin, args);
-  try { return JSON.parse(r.stdout); } catch { return null; } // null = it did not produce a result = «could not check»
+  if (r.error) return null; // it could not even be started
+  try { return { json: JSON.parse(r.stdout), status: r.status }; } catch { return null; } // no JSON = it did not produce a result = «could not check»
 }
 
 // ------------------------------------------------------------------ workflows
-export function runZizmor(dir) {
+export function runZizmor(dir, exclude = []) {
   const bin = process.env.ZIZMOR_BIN ?? "zizmor";
   const wf = join(dir, ".github", "workflows");
   if (!existsSync(wf)) return []; // no workflows → nothing to harden (a fact, not a failure)
@@ -48,7 +51,11 @@ export function runZizmor(dir) {
   const env = { ...process.env };
   delete env.GH_TOKEN; delete env.GITHUB_TOKEN;
   if (token) env.GH_TOKEN = token;
-  const args = ["--format", "json", "--no-progress", ...(token ? [] : ["--offline"]), wf];
+  // --exclude is honoured here too: only the workflow files that are NOT excluded are handed to zizmor.
+  const ex = exclude.map((e) => e.replace(/\/+$/, "")).filter(Boolean);
+  const files = readdirSync(wf).filter((f) => /\.ya?ml$/.test(f)).filter((f) => !ex.some((e) => `.github/workflows/${f}` === e || `.github/workflows/${f}`.startsWith(e + "/") || ".github/workflows" === e));
+  if (files.length === 0) return [];
+  const args = ["--format", "json", "--no-progress", ...(token ? [] : ["--offline"]), ...files.map((f) => join(wf, f))];
   const r = runTool(bin, args, { env });
   // zizmor prints `[]` when it found nothing. NO stdout at all means it did not run — that is «could not check»,
   // never «clean» (the selftest caught this: an empty answer was read as an empty finding list).
@@ -112,7 +119,10 @@ export function runInstallCheck(root, exclude) {
     const manager = Object.keys(FROZEN).find((k) => existsSync(join(root, d, FROZEN[k].lock)));
     if (!manager) { result.push({ dir: d, manager: null, lockfile: false, frozen: "skipped" }); continue; }
     const m = FROZEN[manager];
-    const r = runTool(m.bin, m.args, { cwd: join(root, d) });
+    // A pnpm project that is not itself a workspace root (no pnpm-workspace.yaml) is standalone: without --ignore-workspace
+    // pnpm walks UP, finds a parent workspace and judges the wrong lockfile (or none).
+    const args = manager === "pnpm" && !existsSync(join(root, d, "pnpm-workspace.yaml")) ? [...m.args, "--ignore-workspace"] : m.args;
+    const r = runTool(m.bin, args, { cwd: join(root, d) });
     const ok = r.status === 0 && !r.error;
     result.push({ dir: d, manager, lockfile: true, frozen: ok ? "ok" : "failed", detail: ok ? "" : (r.error ? `${m.bin} not runnable: ${r.error.code}` : errorLines(`${r.stderr}\n${r.stdout}`)) });
   }
@@ -140,7 +150,7 @@ async function main() {
     verdicts.push(...decideDeps(await measureDeps(dir, { exclude, skipImporters: list(arg("skip-importers")), yamlParse: parse }), acks));
   }
   if (want("sast")) verdicts.push(decideSast(runSemgrep(dir, [...exclude, ...list(arg("sast-exclude"))]), acks));
-  if (want("workflows")) verdicts.push(decideWorkflows(runZizmor(dir), acks, await runPipes(dir)));
+  if (want("workflows")) verdicts.push(decideWorkflows(runZizmor(dir, exclude), acks, await runPipes(dir, exclude)));
   if (want("install")) verdicts.push(decideInstall(runInstallCheck(dir, exclude), acks));
   const text = render(verdicts, rejected);
   console.log(text);

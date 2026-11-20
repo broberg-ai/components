@@ -1,0 +1,1 @@
+{ "name": "gate-fixture-pnpm-clean", "version": "1.0.0", "private": true, "packageManager": "pnpm@10.30.3", "dependencies": { "ms": "2.1.3" } }

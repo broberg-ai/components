@@ -83,13 +83,16 @@ t("an ack silences exactly the finding it names, and only while valid", () => {
   assert.equal(by(live, "deps-vuln").blocking.length, 1); assert.equal(by(live, "deps-vuln").acknowledged.length, 1);
   assert.equal(by(decideDeps(deps([F()]), validateAcks({ acks: [ack({ expires: "2026-11-01" })] }, TODAY).valid), "deps-vuln").status, "red");
 });
-t("a lockfile type with no parser is NAMED as not covered", () => {
+t("a lockfile with no parser BLOCKS deps-vuln (its dependencies were not checked); an ack by id+path with a date lets a human accept it", () => {
   const v = by(decideDeps(deps([], { unsupported: ["Cargo.lock"] }), []), "deps-vuln");
-  assert.match(v.warnings.join(" "), /Cargo\.lock is not covered/);
+  assert.equal(v.status, "red"); assert.equal(v.blocking[0].id, "unsupported-lockfile"); assert.equal(v.blocking[0].path, "Cargo.lock");
+  assert.equal(by(decideDeps(deps([], { unsupported: ["Cargo.lock"] }), [ack({ id: "unsupported-lockfile", path: "Cargo.lock" })]), "deps-vuln").status, "green");
+  assert.equal(by(decideDeps(deps([], { unsupported: ["Cargo.lock"] }), [ack({ id: "unsupported-lockfile", path: "go.sum" })]), "deps-vuln").status, "red");
 });
 
+
 // ---------------------------------------------------------------- sast
-const sg = (severity, extra = {}) => ({ results: [{ check_id: "rule.x", path: "a.js", start: { line: 3 }, extra: { severity, message: "bad" }, ...extra }], errors: [] });
+const sg = (severity, extra = {}) => ({ json: { results: [{ check_id: "rule.x", path: "a.js", start: { line: 3 }, extra: { severity, message: "bad" }, ...extra }], errors: [] }, status: 0 });
 t("a Semgrep ERROR blocks; WARNING and INFO are reported only", () => {
   assert.equal(decideSast(sg("ERROR"), []).status, "red");
   const w = decideSast(sg("WARNING"), []);
@@ -102,10 +105,21 @@ t("an ack with a path covers only that file's finding", () => {
   assert.equal(decideSast(sg("ERROR"), [ack({ id: "rule.x", path: "a.js" })]).status, "green");
   assert.equal(decideSast(sg("ERROR"), [ack({ id: "rule.x", path: "b.js" })]).status, "red");
 });
-t("files Semgrep could not parse are said out loud", () => {
-  const r = { results: [], errors: [{ level: "error", message: "Syntax error" }] };
-  assert.match(decideSast(r, []).warnings[0], /could not parse/);
+t("EXIT 7 (an unreachable or invalid rule pack) with EMPTY results is 'error', never green — cardmem's review found this fail-open", () => {
+  const bad = { json: { results: [], errors: [{ level: "error", type: "SemgrepError", code: 2, message: "Failed to download configuration from https://semgrep.dev/c/p/x HTTP 404." }, { level: "error", code: 7, message: "invalid configuration file found (1 configs were invalid)" }] }, status: 7 };
+  const v = decideSast(bad, []);
+  assert.equal(v.status, "error"); assert.match(v.errors[0], /exited 7.*HTTP 404/);
+  for (const status of [1, 2, 3, 7, 124]) assert.equal(decideSast({ json: { results: [], errors: [] }, status }, []).status, "error", `exit ${status}`);
 });
+t("a file Semgrep could not parse BLOCKS (it was not analysed); a warn-level note does not; an ack by id+path silences it", () => {
+  const err = (level) => ({ json: { results: [], errors: [{ level, type: "Syntax error", message: "Syntax error at line 3", path: "src/a.js", spans: [{ file: "src/a.js", start: { line: 3 } }] }] }, status: 0 });
+  const v = decideSast(err("error"), []);
+  assert.equal(v.status, "red"); assert.equal(v.blocking[0].id, "semgrep-error"); assert.equal(v.blocking[0].path, "src/a.js");
+  assert.equal(decideSast(err("warn"), []).status, "green");
+  assert.equal(decideSast(err("error"), [ack({ id: "semgrep-error", path: "src/a.js" })]).status, "green");
+  assert.equal(decideSast(err("error"), [ack({ id: "semgrep-error", path: "src/b.js" })]).status, "red");
+});
+
 
 // ---------------------------------------------------------------- workflows
 const zz = (severity, ident = "template-injection") => [{ ident, desc: "d", determinations: { severity }, locations: [{ symbolic: { key: { Local: { given_path: ".github/workflows/a.yml" } } }, concrete: { location: { start_point: { row: 4 } } } }] }];
@@ -196,14 +210,14 @@ t("findLockfiles: finds supported and NAMES unsupported ones, skips node_modules
 });
 
 // ---------------------------------------------------------------- a tool that did not run is NOT a clean result
-const fakeTool = (stdout) => {
+const fakeTool = (stdout, code = 0) => {
   const d = mkdtempSync(join(tmpdir(), "fake-tool-"));
   const f = join(d, "tool");
-  writeFileSync(f, `#!/bin/sh\nprintf '%s' '${stdout}'\n`);
+  writeFileSync(f, `#!/bin/sh\nprintf '%s' '${stdout}'\nexit ${code}\n`);
   chmodSync(f, 0o755);
   return f;
 };
-const withWorkflows = () => { const d = mkdtempSync(join(tmpdir(), "wf-")); mkdirSync(join(d, ".github", "workflows"), { recursive: true }); return d; };
+const withWorkflows = () => { const d = mkdtempSync(join(tmpdir(), "wf-")); mkdirSync(join(d, ".github", "workflows"), { recursive: true }); writeFileSync(join(d, ".github", "workflows", "ci.yml"), "name: ci\non: [push]\njobs: {}\n"); return d; };
 t("zizmor that prints NOTHING is null (could not check) — the selftest caught the engine reading it as zero findings", () => {
   process.env.ZIZMOR_BIN = fakeTool("");
   assert.equal(runZizmor(withWorkflows()), null);
@@ -218,6 +232,21 @@ t("zizmor that cannot even be started is null", () => {
   process.env.ZIZMOR_BIN = "/no/such/zizmor";
   assert.equal(runZizmor(withWorkflows()), null);
 });
+t("--exclude is honoured by zizmor: excluded workflow files are never handed to it, and nothing left means nothing to harden", () => {
+  process.env.ZIZMOR_BIN = "/no/such/zizmor"; // would make runZizmor null if it were called
+  const d = withWorkflows(); writeFileSync(join(d, ".github", "workflows", "old.yml"), "name: old\non: [push]\njobs: {}\n");
+  assert.equal(runZizmor(d, [".github/workflows/old.yml"]), null); // ci.yml is still handed over → the missing binary is «could not check»
+  assert.deepEqual(runZizmor(d, [".github/workflows/old.yml", ".github/workflows/ci.yml"]), []);
+  assert.equal(runZizmor(d, []), null); // not excluded → zizmor IS called → cannot start → null
+});
+t("SECURITY_GATE_PACKS replaces the rule packs handed to Semgrep (the selftest uses it to plant an invalid pack)", () => {
+  const d = mkdtempSync(join(tmpdir(), "args-"));
+  const f = join(d, "tool"); writeFileSync(f, `#!/bin/sh\nprintf '{"results":[],"errors":[],"args":"%s"}' "$*"\n`); chmodSync(f, 0o755);
+  process.env.SEMGREP_BIN = f; process.env.SECURITY_GATE_PACKS = "p/does-not-exist, p/second";
+  const args = runSemgrep(d, []).json.args;
+  delete process.env.SECURITY_GATE_PACKS;
+  assert.match(args, /--config p\/does-not-exist --config p\/second/); assert.doesNotMatch(args, /p\/security-audit/);
+});
 t("a repo without .github/workflows has nothing to harden: [] (a fact, not a failure)", () => {
   process.env.ZIZMOR_BIN = "/no/such/zizmor";
   assert.deepEqual(runZizmor(mkdtempSync(join(tmpdir(), "nowf-"))), []);
@@ -225,9 +254,12 @@ t("a repo without .github/workflows has nothing to harden: [] (a fact, not a fai
 t("Semgrep that prints nothing, garbage, or cannot start is null", () => {
   for (const bin of [fakeTool(""), fakeTool("not json"), "/no/such/semgrep"]) { process.env.SEMGREP_BIN = bin; assert.equal(runSemgrep(mkdtempSync(join(tmpdir(), "sg-")), []), null); }
 });
-t("Semgrep that prints a result object is passed through", () => {
+t("Semgrep that prints a result object is passed through WITH its exit status", () => {
   process.env.SEMGREP_BIN = fakeTool('{"results":[],"errors":[]}');
-  assert.deepEqual(runSemgrep(mkdtempSync(join(tmpdir(), "sg-")), []), { results: [], errors: [] });
+  assert.deepEqual(runSemgrep(mkdtempSync(join(tmpdir(), "sg-")), []), { json: { results: [], errors: [] }, status: 0 });
+  process.env.SEMGREP_BIN = fakeTool('{"results":[],"errors":[{"level":"error","code":7,"message":"invalid configuration file found"}]}', 7);
+  const r = runSemgrep(mkdtempSync(join(tmpdir(), "sg-")), []);
+  assert.equal(r.status, 7); assert.equal(decideSast(r, []).status, "error");
 });
 
 // ---------------------------------------------------------------- the runner's wiring (not just the pure decisions)

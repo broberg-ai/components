@@ -21,8 +21,8 @@ permissions: {}
 jobs:
   security:
     permissions: { contents: read }
-    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.1
-    with: { engine-ref: security-gate-v1.0.1 }
+    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.2
+    with: { engine-ref: security-gate-v1.0.2 }
 ```
 
 Make the deploy job `needs: security`. Inputs (all optional): `ack-file`, `exclude`, `skip-importers`, `sast-exclude`.
@@ -34,8 +34,8 @@ There is **no input that switches a check off**.
 |---|---|---|
 | `deps` → `deps-vuln` | HIGH/CRITICAL in what the repo **ships** | OSV.dev over pnpm-lock.yaml / package-lock.json / bun.lock |
 | `deps` → `deps-malicious` | any malicious package, **anywhere** in the tree | OSV (MAL-* ids + GitHub's malware advisories) |
-| `sast` | Semgrep `ERROR` | Semgrep 1.182.0, packs in `run-check.mjs` `RULE_PACKS` |
-| `workflows` | zizmor `High` in `.github/workflows` | zizmor 1.32.0 |
+| `sast` | Semgrep `ERROR`, or Semgrep not running to completion (unreachable pack, exit ≠ 0) | Semgrep 1.182.0 — every dependency hash-locked (`security-gate/requirements/`), packs in `run-check.mjs` `RULE_PACKS` |
+| `workflows` | zizmor `High` in `.github/workflows`, or a step that pipes a check into `tee` without pipefail | zizmor 1.32.0 (hash-locked) |
 | `install` | a `package.json` with no lockfile, or a lockfile the frozen install refuses | pnpm / bun / npm, scripts disabled |
 | `sbom` | never — a record | syft 1.57.0 (sha256-verified) → artifact `sbom-cyclonedx` |
 
@@ -61,9 +61,10 @@ A FILE in the repo — `.github/security-ack.json`:
 
 ## Not covered (named, not hidden)
 
-Lockfiles other than the three above (`yarn.lock`, `Cargo.lock`, `go.sum`, Python …) are listed as a warning on
-`deps-vuln` — their dependencies are **not** checked. Semgrep's rule packs come from the Semgrep registry at run time
-(the *tool* is pinned, the *rules* move). Container images are `image-hygiene`'s job; secrets are `secret-gate`'s.
+A lockfile this gate has no parser for (`yarn.lock`, `Cargo.lock`, `go.sum`, Python …) is **red** on `deps-vuln` as
+`unsupported-lockfile <path>` — its dependencies were not checked; a human can accept it with a dated ack (id
+`unsupported-lockfile`, that path). Semgrep's rule packs come from the Semgrep registry at run time (the *tool* and all its
+dependencies are hash-pinned, the *rules* move; vendoring them is not allowed by the Semgrep Rules License on a public repo). Container images are `image-hygiene`'s job; secrets are `secret-gate`'s.
 
 ## The selftest — proof the gate can fail
 
@@ -75,5 +76,6 @@ green, and the ack rules are exercised end to end. The fixtures are excluded fro
 
 ## Changing a pinned tool or a rule pack
 
-Edit the version in `security-gate.yml` **and** `security-gate-selftest.yml` (they must match), run the selftest, tag
-`security-gate-vX.Y.Z`. Every repo follows when cardmem moves the pinned tag.
+Regenerate the hash-locked requirements (`uv pip compile <name>.in --python-platform linux --python-version 3.12
+--generate-hashes -o security-gate/requirements/<name>.txt`), run the selftest, tag `security-gate-vX.Y.Z`. Every repo follows
+when cardmem moves the pinned tag.

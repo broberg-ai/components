@@ -13,8 +13,8 @@ name: security-gate
 #   jobs:
 #     security:
 #       permissions: { contents: read }
-#       uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.1
-#       with: { engine-ref: security-gate-v1.0.1 }
+#       uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.2
+#       with: { engine-ref: security-gate-v1.0.2 }
 #
 # Make your deploy job `needs: security` (or require the checks in branch protection): a finding must BLOCK.
 #
@@ -36,7 +36,7 @@ on:
       engine-ref:
         description: Ref of broberg-ai/components the engine is read from. Keep it equal to the tag you pinned `uses:` to.
         type: string
-        default: security-gate-v1.0.1
+        default: security-gate-v1.0.2
       directory:
         description: Directory the checks run in, relative to the repo root. Default is the whole repo; the selftest points it at a fixture.
         type: string
@@ -79,6 +79,7 @@ jobs:
           sparse-checkout: |
             scripts/security-gate/
             scripts/dependency-health.mjs
+            security-gate/requirements/
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }
@@ -108,13 +109,14 @@ jobs:
           sparse-checkout: |
             scripts/security-gate/
             scripts/dependency-health.mjs
+            security-gate/requirements/
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: { python-version: "3.12" }
-      - name: Semgrep (pinned)
-        run: pip install --no-cache-dir semgrep==1.182.0
+      - name: Semgrep 1.182.0 (every dependency hash-locked)
+        run: pip install --no-cache-dir --require-hashes --no-deps -r .security-gate-engine/security-gate/requirements/semgrep.txt
       - name: The engine's one dependency
         run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
       - name: Static analysis
@@ -141,13 +143,14 @@ jobs:
           sparse-checkout: |
             scripts/security-gate/
             scripts/dependency-health.mjs
+            security-gate/requirements/
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: { python-version: "3.12" }
-      - name: zizmor (pinned)
-        run: pip install --no-cache-dir zizmor==1.32.0
+      - name: zizmor 1.32.0 (hash-locked)
+        run: pip install --no-cache-dir --require-hashes --no-deps -r .security-gate-engine/security-gate/requirements/zizmor.txt
       - name: The engine's one dependency
         run: npm install --prefix .security-gate-engine yaml@2.8.1 --ignore-scripts --no-audit --no-fund --no-save
       - name: Workflow hardening
@@ -174,6 +177,7 @@ jobs:
           sparse-checkout: |
             scripts/security-gate/
             scripts/dependency-health.mjs
+            security-gate/requirements/
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }

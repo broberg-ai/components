@@ -27,11 +27,18 @@ const MUTATIONS = [
   { file: "decide.mjs", name: "a malicious package is only judged when shipped", find: "deps.findings.filter((f) => f.malicious).map(asFinding)", replace: "deps.findings.filter((f) => f.malicious && f.shipped).map(asFinding)" },
   { file: "decide.mjs", name: "GitHub's malware wording is not recognised", find: "/^(malicious package|malware) in\\b/i.test(", replace: "/^$/.test(" },
   { file: "decide.mjs", name: "a MAL- id is not recognised", find: 'String(v?.id ?? "").startsWith("MAL-")', replace: "false" },
-  { file: "decide.mjs", name: "only Semgrep ERROR blocks → WARNING blocks too", find: '.filter((r) => String(r.extra?.severity ?? "").toUpperCase() === "ERROR")\n    .map(', replace: '.filter((r) => ["ERROR","WARNING"].includes(String(r.extra?.severity ?? "").toUpperCase()))\n    .map(' },
+  { file: "decide.mjs", name: "only Semgrep ERROR blocks → WARNING blocks too", find: 'const isError = (r) => String(r.extra?.severity ?? "").toUpperCase() === "ERROR";', replace: 'const isError = (r) => ["ERROR", "WARNING"].includes(String(r.extra?.severity ?? "").toUpperCase());' },
   { file: "decide.mjs", name: "zizmor Medium blocks too (or High stops blocking)", find: "BLOCKING_SEVERITY.has(sev(z))).map((z)", replace: 'sev(z) !== "informational").map((z)' },
   { file: "decide.mjs", name: "pipe findings are dropped from the workflows check", find: "...pipes];", replace: "];" },
   { file: "decide.mjs", name: "unreadable workflow files read as clean", find: 'if (!Array.isArray(pipes)) return errored("workflows"', replace: 'if (!Array.isArray(pipes)) return verdict("workflows", [], acks); void (0, errored("workflows"' },
-  { file: "run-check.mjs", name: "the pipe check is not wired into the workflows check", find: "decideWorkflows(runZizmor(dir), acks, await runPipes(dir))", replace: "decideWorkflows(runZizmor(dir), acks, [])" },
+  { file: "run-check.mjs", name: "the pipe check is not wired into the workflows check", find: "decideWorkflows(runZizmor(dir, exclude), acks, await runPipes(dir, exclude))", replace: "decideWorkflows(runZizmor(dir, exclude), acks, [])" },
+  // --- cardmem's review of v1.0.1 (20/11): the fail-opens it found
+  { file: "decide.mjs", name: "Semgrep's exit status is not judged (exit 7 + empty results reads green)", find: "if (run.status !== 0) {", replace: "if (false) {" },
+  { file: "decide.mjs", name: "a file Semgrep could not parse is no longer a finding", find: 'if (String(e.level ?? "").toLowerCase() !== "error") continue;', replace: "continue;" },
+  { file: "decide.mjs", name: "a lockfile with no parser is only a warning again", find: 'for (const lf of deps.unsupported ?? []) vulns.push(', replace: "for (const lf of []) vulns.push(" },
+  { file: "run-check.mjs", name: "runSemgrep drops Semgrep's exit status", find: "status: r.status }", replace: "status: 0 }" },
+  { file: "run-check.mjs", name: "zizmor ignores --exclude", find: "filter((f) => !ex.some(", replace: "filter((f) => true || !ex.some(" },
+  { file: "run-check.mjs", name: "SECURITY_GATE_PACKS is ignored", find: "const packs = process.env.SECURITY_GATE_PACKS ?", replace: "const packs = false ?" },
   // --- could-not-check must be RED, never green
   { file: "decide.mjs", name: "an OSV failure reads as green", find: "if (!deps || (deps.errors ?? []).length) {", replace: "if (!deps) {" },
   { file: "decide.mjs", name: "no Semgrep result reads as green", find: 'if (!semgrep || !Array.isArray(semgrep.results)) return errored("sast"', replace: 'if (!semgrep || !Array.isArray(semgrep.results)) return verdict("sast", [], acks); void (0, errored("sast"' },
@@ -54,7 +61,7 @@ const MUTATIONS = [
   { file: "lockfiles.mjs", name: "node_modules is scanned", find: 'const SKIP_DIRS = new Set(["node_modules", ".git", ".claude",', replace: 'const SKIP_DIRS = new Set([".git", ".claude",' },
   // --- the tools: «it printed nothing» is not «it found nothing»
   { file: "run-check.mjs", name: "zizmor with no output reads as zero findings", find: "if (r.error || !r.stdout.trim()) return null;", replace: 'if (r.error) return null; if (!r.stdout.trim()) return [];' },
-  { file: "run-check.mjs", name: "a Semgrep crash reads as zero findings", find: "catch { return null; } // null = it did not produce a result", replace: "catch { return { results: [], errors: [] }; } // mutant" },
+  { file: "run-check.mjs", name: "a Semgrep crash reads as zero findings", find: "catch { return null; } // no JSON = it did not produce a result", replace: "catch { return { json: { results: [], errors: [] }, status: 0 }; } // mutant" },
 ];
 
 function sandbox(label, mutate) {

@@ -19,8 +19,8 @@ const RUN = join(HERE, "run-check.mjs");
 const FIX = join(ROOT, "security-gate", "fixtures");
 const only = process.argv[2]; // optional: run one case by its name
 
-const run = (check, dir, extra = []) => {
-  const r = spawnSync("node", [RUN, check, "--dir", dir, "--exclude", "", ...extra], { encoding: "utf8", cwd: ROOT, maxBuffer: 64e6 });
+const run = (check, dir, extra = [], env = {}) => {
+  const r = spawnSync("node", [RUN, check, "--dir", dir, "--exclude", "", ...extra], { encoding: "utf8", cwd: ROOT, maxBuffer: 64e6, env: { ...process.env, ...env } });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 };
 const withAck = (acks) => {
@@ -41,6 +41,15 @@ const CASES = [
   { name: "workflows: a zizmor High goes red", go: () => run("workflows", join(FIX, "workflow-high")), red: "workflows" },
   { name: "workflows: a gate piped into tee without pipefail goes red", go: () => run("workflows", join(FIX, "workflow-pipe")), red: "workflows", also: /pipe-swallows-failure/ },
   { name: "install: a drifted lockfile goes red", go: () => run("install", join(FIX, "lockfile-drift")), red: "install" },
+  // --- cardmem's independent review of v1.0.1 (20/11 2026): the cases a first selftest did not have
+  { name: "sast: an UNREACHABLE rule pack (Semgrep exit 7, empty results) is RED, not green — on a clean tree", go: () => run("sast", join(FIX, "clean"), [], { SECURITY_GATE_PACKS: "p/this-pack-does-not-exist-xyz" }), red: "sast", also: /could not check: Semgrep exited 7/ },
+  { name: "sast: an unreachable rule pack must not turn the PLANTED error fixture green either", go: () => run("sast", join(FIX, "sast-error"), [], { SECURITY_GATE_PACKS: "p/security-audit,p/this-pack-does-not-exist-xyz" }), red: "sast" },
+  { name: "deps: a lockfile with no parser (Cargo.lock) is RED — its dependencies were not checked", go: () => run("deps", join(FIX, "unsupported-lock")), red: "deps-vuln", also: /unsupported-lockfile Cargo\.lock/ },
+  { name: "deps: a dated ack for that lockfile lets a human accept it", go: () => run("deps", join(FIX, "unsupported-lock"), ["--ack", withAck([{ id: "unsupported-lockfile", path: "Cargo.lock", reason: "selftest: a fixture with no real dependencies", expires: future(30) }])]), green: true },
+  { name: "install (pnpm): a clean frozen install is green", go: () => run("install", join(FIX, "pnpm-clean")), green: true },
+  { name: "install (pnpm): a drifted lockfile goes red", go: () => run("install", join(FIX, "pnpm-drift")), red: "install" },
+  { name: "install (bun): a clean frozen install is green", go: () => run("install", join(FIX, "bun-clean")), green: true },
+  { name: "install (bun): a drifted lockfile goes red", go: () => run("install", join(FIX, "bun-drift")), red: "install" },
   {
     name: "ack: a valid ack for every vulnerable id silences deps-vuln",
     go: () => {
