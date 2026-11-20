@@ -42,18 +42,21 @@ const asError = (e: unknown) => (e instanceof Error ? e : new Error(String(e)));
 
 /** Word / Google Docs paste: keep the structure, drop their styling (cms paste-sanitizer, measured). */
 export function sanitizePastedHTML(html: string): string {
-  // Repeat until stable: removing one <script> block must not let its neighbours join into a new one
-  // (CodeQL js/incomplete-multi-character-sanitization). Each pass strictly shortens, so it terminates.
-  let out = stripComments(html);
+  // Repeat ALL the passes until nothing changes: removing a tag (a <span>, a comment, a block) can join the
+  // pieces around it into a NEW tag, e.g. "<scr<span>ipt>" → "<script>" (CodeQL
+  // js/incomplete-multi-character-sanitization). Every pass only removes text, so the length never grows and
+  // the loop ends.
+  let out = html;
   for (let prev = ""; prev !== out; ) {
     prev = out;
-    out = stripComments(out).replace(/<(style|xml|script|title)\b[\s\S]*?<\/\1\s*>/gi, "");
+    out = stripComments(out)
+      .replace(/<(style|xml|script|title)\b[\s\S]*?<\/\1\s*>/gi, "")
+      .replace(/<(meta|link)\b[^>]*>/gi, "")
+      .replace(/<\/?o:[^>]*>/gi, "")
+      .replace(/\s(style|class|lang|align|id|dir|data-[\w-]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/<\/?(font|span)\b[^>]*>/gi, "");
   }
-  return out
-    .replace(/<(meta|link)\b[^>]*>/gi, "")
-    .replace(/<\/?o:[^>]*>/gi, "")
-    .replace(/\s(style|class|lang|align|id|dir|data-[\w-]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/<\/?(font|span)\b[^>]*>/gi, "");
+  return out;
 }
 
 /**
