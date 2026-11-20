@@ -337,8 +337,8 @@
  },
  "@broberg/call": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/call",
-  "version": "0.6.0",
-  "publishedAt": "2026-11-12T10:43:26.177Z",
+  "version": "0.7.0",
+  "publishedAt": "2026-11-20T01:35:49.756Z",
   "provenance": "yes"
  },
  "@broberg/livesync": {
