@@ -2,8 +2,10 @@
 // F427.1 — the fleet security gate's decisions: every rule, both directions. Pure — no network, no tool.
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   CHECKS, MAX_ACK_DAYS, validateAcks, acked, isMalicious, decideDeps, decideSast, decideWorkflows, decideInstall, overall, render,
 } from "./security-gate/decide.mjs";
@@ -226,5 +228,26 @@ t("Semgrep that prints nothing, garbage, or cannot start is null", () => {
 t("Semgrep that prints a result object is passed through", () => {
   process.env.SEMGREP_BIN = fakeTool('{"results":[],"errors":[]}');
   assert.deepEqual(runSemgrep(mkdtempSync(join(tmpdir(), "sg-")), []), { results: [], errors: [] });
+});
+
+// ---------------------------------------------------------------- the runner's wiring (not just the pure decisions)
+const RUN_CHECK = join(dirname(fileURLToPath(import.meta.url)), "security-gate", "run-check.mjs");
+const workflowDir = (step) => {
+  const d = mkdtempSync(join(tmpdir(), "wf-run-"));
+  mkdirSync(join(d, ".github", "workflows"), { recursive: true });
+  writeFileSync(join(d, ".github", "workflows", "ci.yml"), `name: ci\non: [push]\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${step}\n`);
+  return d;
+};
+const runWorkflows = (dir) => {
+  const r = spawnSync("node", [RUN_CHECK, "workflows", "--dir", dir, "--exclude", ""], { encoding: "utf8", env: { ...process.env, ZIZMOR_BIN: fakeTool("[]") } });
+  return { code: r.status, out: `${r.stdout}${r.stderr}` };
+};
+t("run-check `workflows`: a step that pipes a check into tee is RED by name even when zizmor finds nothing", () => {
+  const r = runWorkflows(workflowDir("node check.mjs | tee out"));
+  assert.equal(r.code, 1); assert.match(r.out, /::error::\[workflows\] pipe-swallows-failure \.github\/workflows\/ci\.yml/);
+});
+t("run-check `workflows`: the same step with pipefail, or no pipe at all, is green", () => {
+  assert.equal(runWorkflows(workflowDir("set -o pipefail; node check.mjs | tee out")).code, 0);
+  assert.equal(runWorkflows(workflowDir("node check.mjs")).code, 0);
 });
 console.log(`\n${n} passed`);
