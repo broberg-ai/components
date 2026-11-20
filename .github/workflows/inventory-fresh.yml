@@ -63,7 +63,9 @@ on:
 jobs:
   check:
     # A publish that FAILED must not gate-and-deploy off the back of it.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # A workflow_run runs with this repo's token on the default branch, so it must only follow OUR OWN successful publish —
+    # never a run from a fork or a pull request.
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.event != 'pull_request')
     runs-on: ubuntu-latest
     timeout-minutes: 10 # F033.15 — ~3× measured max; GitHub would otherwise wait 360
     steps:

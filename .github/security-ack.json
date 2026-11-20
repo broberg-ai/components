@@ -1,0 +1,1 @@
+{ "acks": [ { "id": "dangerous-triggers", "path": ".github/workflows/inventory-fresh.yml", "reason": "workflow_run is the point of this file: refresh Discovery after OUR OWN successful publish; the job now refuses fork and pull_request runs (head_repository == this repo, event != pull_request)", "expires": "2027-05-15" } ] }

@@ -59,6 +59,13 @@ jobs:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       APP: ${{ inputs.app }}
       LABEL: hygiene-${{ github.sha }}-${{ github.run_id }}
+      # Every expression a script uses arrives as an ENVIRONMENT VARIABLE, never spliced into the shell text
+      # (zizmor template-injection / Semgrep run-shell-injection): the caller's inputs are quoted data, not code.
+      DOCKERFILE: ${{ inputs.dockerfile }}
+      CONTEXT: ${{ inputs.context }}
+      CONFIG: ${{ inputs.config }}
+      HA: ${{ inputs.ha }}
+      GIT_SHA: ${{ github.sha }}
     steps:
       # F105.8 — when this run started. A release created after this moment means newer
       # code was deployed while we built, and our image must NOT go on top of it.
@@ -90,10 +97,10 @@ jobs:
           # F105.1 (cardmem #4058): BUILD_SHA is the build marker the fleet's verification
           # reads from /health. deploy.yml passes it; a hygiene build without it shipped
           # build:null. Harmless for an image whose Dockerfile has no such ARG.
-          DF=""; [ -n "${{ inputs.dockerfile }}" ] && DF="--dockerfile ${{ inputs.dockerfile }}"
-          flyctl deploy "${{ inputs.context }}" -a "$APP" -c "${{ inputs.config }}" $DF \
+          DF=""; [ -n "$DOCKERFILE" ] && DF="--dockerfile $DOCKERFILE"
+          flyctl deploy "$CONTEXT" -a "$APP" -c "$CONFIG" $DF \
             --build-only --push --no-cache --remote-only --image-label "$LABEL" \
-            --build-arg BUILD_SHA="${{ github.sha }}" 2>&1 | tee build.log
+            --build-arg BUILD_SHA="$GIT_SHA" 2>&1 | tee build.log
           # Pin the image by DIGEST, not by tag: the same bytes are scanned and deployed.
           DIGEST=$(grep -oE "registry\.fly\.io/$APP:$LABEL@sha256:[0-9a-f]{64}" build.log | tail -1 | sed 's/.*@//')
           if [ -n "$DIGEST" ]; then echo "IMAGE=registry.fly.io/$APP@$DIGEST" >> "$GITHUB_ENV"
@@ -118,10 +125,10 @@ jobs:
             docker cp -L "$CID:/etc/os-release" os-release 2>/dev/null || docker cp -L "$CID:/usr/lib/os-release" os-release 2>/dev/null || true
             docker rm "$CID" >/dev/null 2>&1 || true
           fi
-          DFP="${{ inputs.dockerfile }}"
+          DFP="$DOCKERFILE"
           if [ -z "$DFP" ]; then
-            DFP=$(grep -E '^[[:space:]]*dockerfile[[:space:]]*=' "${{ inputs.config }}" 2>/dev/null | head -1 | sed -E 's/.*=[[:space:]]*"?([^"]*)"?.*/\1/' || true)
-            [ -n "$DFP" ] && DFP="$(dirname "${{ inputs.config }}")/$DFP" || DFP="${{ inputs.context }}/Dockerfile"
+            DFP=$(grep -E '^[[:space:]]*dockerfile[[:space:]]*=' "$CONFIG" 2>/dev/null | head -1 | sed -E 's/.*=[[:space:]]*"?([^"]*)"?.*/\1/' || true)
+            [ -n "$DFP" ] && DFP="$(dirname "$CONFIG")/$DFP" || DFP="$CONTEXT/Dockerfile"
           fi
           node .image-hygiene-engine/scripts/image-hygiene-base.mjs os-release "$DFP" > base.json 2>/dev/null || echo '{"base_os":null,"base_image":null,"base_image_exception":null}' > base.json
           cat base.json
@@ -151,7 +158,7 @@ jobs:
             ON_DEFAULT=1
             HEAD=$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | cut -f1 || true)
           fi
-          node .image-hygiene-engine/scripts/image-hygiene-superseded.mjs releases.json "$RUN_STARTED_MS" "${{ github.sha }}" "$HEAD" "$ON_DEFAULT" | tee superseded.json
+          node .image-hygiene-engine/scripts/image-hygiene-superseded.mjs releases.json "$RUN_STARTED_MS" "$GIT_SHA" "$HEAD" "$ON_DEFAULT" | tee superseded.json
           # Only an explicit, readable "false" lets the deploy through. Anything else is "true".
           echo "skip=$(node -p 'try { require("./superseded.json").skip === false ? "false" : "true" } catch { "true" }')" >> "$GITHUB_OUTPUT"
 
@@ -160,8 +167,8 @@ jobs:
         # F105.8 — fail CLOSED: deploy only on an explicit no, never on a missing answer.
         if: steps.decide.outputs.deploy == 'true' && steps.superseded.outputs.skip == 'false'
         run: |
-          HA_ARG=""; [ "${{ inputs.ha }}" = "false" ] && HA_ARG="--ha=false"
-          flyctl deploy -a "$APP" -c "${{ inputs.config }}" --image "$IMAGE" --remote-only $HA_ARG
+          HA_ARG=""; [ "$HA" = "false" ] && HA_ARG="--ha=false"
+          flyctl deploy -a "$APP" -c "$CONFIG" --image "$IMAGE" --remote-only $HA_ARG
           echo "release=$(flyctl releases -a "$APP" --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);console.log((r[0]&&(r[0].Version??r[0].version))??"")})')" >> "$GITHUB_OUTPUT"
 
       - name: Report (cardmem contract)

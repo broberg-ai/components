@@ -76,7 +76,9 @@ check("build-only first, then deploy THAT image (no second build)", () => {
 
 check("F033.22 — ha:false reaches the --image deploy (one machine), default true changes nothing; flyctl pinned", () => {
   if (!/ha: \{ type: boolean, required: false, default: true/.test(wf)) throw new Error("input ha (boolean, default true) missing");
-  if (!/HA_ARG=""; \[ "\$\{\{ inputs\.ha \}\}" = "false" \] && HA_ARG="--ha=false"/.test(wf)) throw new Error("ha:false is not turned into --ha=false");
+  // The input reaches the script as the HA environment variable (never spliced into shell text — zizmor template-injection).
+  if (!/HA: \$\{\{ inputs\.ha \}\}/.test(wf)) throw new Error("input ha is not handed to the job as the HA env variable");
+  if (!/HA_ARG=""; \[ "\$HA" = "false" \] && HA_ARG="--ha=false"/.test(wf)) throw new Error("ha:false is not turned into --ha=false");
   if (!/--image "\$IMAGE" --remote-only \$HA_ARG/.test(wf)) throw new Error("the --image deploy does not pass $HA_ARG");
   if (!/setup-flyctl@(?:master|[0-9a-f]{40} # master)\n\s+with:\n\s+version: "\d+\.\d+\.\d+"/.test(wf)) throw new Error("flyctl is not pinned to a version");
 });
@@ -101,7 +103,9 @@ check("F105.3: node_version is measured on the SAME digest, is null when absent,
 
 check("the hygiene build passes BUILD_SHA, so /health keeps its build marker", () => {
   const build = wf.slice(wf.indexOf("- name: Rebuild with no cache"), wf.indexOf("- name: Scan that image"));
-  if (!/--build-arg BUILD_SHA="\$\{\{ github\.sha \}\}"/.test(build)) throw new Error("build-only step must pass --build-arg BUILD_SHA=${{ github.sha }}");
+  // github.sha arrives as the GIT_SHA env variable, defined once at job level.
+  if (!/GIT_SHA: \$\{\{ github\.sha \}\}/.test(wf)) throw new Error("GIT_SHA is not defined from github.sha");
+  if (!/--build-arg BUILD_SHA="\$GIT_SHA"/.test(build)) throw new Error("build-only step must pass --build-arg BUILD_SHA=$GIT_SHA (= github.sha)");
 });
 
 check("F105.4: base_os comes out of the SAME digest without a shell, the script ships with the engine, and the report carries both fields", () => {
