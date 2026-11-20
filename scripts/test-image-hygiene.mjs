@@ -78,7 +78,7 @@ check("F033.22 — ha:false reaches the --image deploy (one machine), default tr
   if (!/ha: \{ type: boolean, required: false, default: true/.test(wf)) throw new Error("input ha (boolean, default true) missing");
   if (!/HA_ARG=""; \[ "\$\{\{ inputs\.ha \}\}" = "false" \] && HA_ARG="--ha=false"/.test(wf)) throw new Error("ha:false is not turned into --ha=false");
   if (!/--image "\$IMAGE" --remote-only \$HA_ARG/.test(wf)) throw new Error("the --image deploy does not pass $HA_ARG");
-  if (!/setup-flyctl@master\n\s+with:\n\s+version: "\d+\.\d+\.\d+"/.test(wf)) throw new Error("flyctl is not pinned to a version");
+  if (!/setup-flyctl@(?:master|[0-9a-f]{40} # master)\n\s+with:\n\s+version: "\d+\.\d+\.\d+"/.test(wf)) throw new Error("flyctl is not pinned to a version");
 });
 
 check("the scanned image is pinned by digest, the pull waits for the registry, and a failed build is not hidden by tee", () => {
