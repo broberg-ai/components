@@ -64,9 +64,9 @@ jobs:
       # code was deployed while we built, and our image must NOT go on top of it.
       - name: Mark the start
         run: echo "RUN_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: The engine's decision script
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: broberg-ai/components
           ref: ${{ inputs.engine-ref }}
@@ -78,10 +78,10 @@ jobs:
           sparse-checkout-cone-mode: false
       # F033.21 — pinned; must equal fly-server-deploy.yml's flyctl_version default
       # (scripts/test-fly-deploy-workflow.mjs checks they agree).
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@98172f70657cb3e15db199af139be99bd3e61200 # master
         with:
           version: "0.5.1"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }
 
       - name: Rebuild with no cache — build and push, do NOT deploy yet
@@ -226,11 +226,11 @@ jobs:
             echo "::warning::cardmem did not accept the report (HTTP $CODE): $(head -c 300 resp.txt)"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with: { name: image-hygiene-status, path: status.json }
       # F105.6 — the whole Trivy report, so a red app can be read in full afterwards.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with: { name: image-hygiene-trivy, path: trivy.json, retention-days: 14, if-no-files-found: ignore }
 

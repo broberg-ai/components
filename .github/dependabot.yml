@@ -1,0 +1,21 @@
+# F115.3 — automatic dependency updates. Dependabot opens PRs; nothing auto-merges.
+# Every PR runs test.yml and every gate (release-advisories, action pins, pnpm
+# hardening) like any other change. Security updates are on at repo level too.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories: ["/", "/packages/*", "/examples/*", "/apps/*"]
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Copenhagen }
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    cooldown:
+      default-days: 3
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: weekly, day: monday, time: "05:30", timezone: Europe/Copenhagen }
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]

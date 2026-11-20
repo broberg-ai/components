@@ -41,9 +41,9 @@ jobs:
       run:
         working-directory: ${{ inputs.working-directory }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: The engine
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: broberg-ai/components
           ref: ${{ inputs.engine-ref }}
@@ -53,7 +53,7 @@ jobs:
             scripts/advisory/watch.mjs
             scripts/dependency-health.mjs
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }
       - name: pnpm, when the repo uses it
         if: hashFiles(format('{0}/pnpm-lock.yaml', inputs.working-directory)) != ''
@@ -62,7 +62,7 @@ jobs:
           pnpm --version
       - name: bun, when the repo uses it
         if: hashFiles(format('{0}/bun.lock', inputs.working-directory)) != ''
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: bun install (bun audit reads the installed tree)
         if: hashFiles(format('{0}/bun.lock', inputs.working-directory)) != ''
         run: bun install --frozen-lockfile

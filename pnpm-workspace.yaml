@@ -1,3 +1,23 @@
 packages:
   - "packages/*"
   - "examples/*"
+
+# F115.5 — supply-chain settings. scripts/check-pnpm-hardening.mjs fails CI if
+# any of these is removed or weakened.
+#
+# No dependency runs an install script unless it is named here, WITH a reason on
+# the same line. Empty today: nothing in this workspace needs one (measured by the
+# suite passing with pnpm's default-deny). A new dependency that ships a
+# postinstall is a decision a human takes, not something that happens to us.
+onlyBuiltDependencies: []
+
+# A version younger than 3 days is not resolved: most malicious releases are
+# caught and pulled inside that window (the 2025 npm worm waves were all under
+# 48 h). Our own packages are exempt — we publish and consume them the same day.
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  - "@broberg/*"
+
+# A transitive dependency may not come from a git URL or a tarball URL: those
+# bypass the registry's provenance, audit and OSV coverage.
+blockExoticSubdeps: true

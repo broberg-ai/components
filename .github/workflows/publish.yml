@@ -139,11 +139,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -190,10 +190,30 @@ jobs:
           fi
           echo "Publishing @broberg/theme@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/theme
+          node scripts/gen-sbom.mjs packages/theme --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-theme
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/theme
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/theme/package.json').name")" "$(node -p "require('./packages/theme/package.json').version")"
 
   publish-secret-scan:
     needs: gate
@@ -204,11 +224,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -276,10 +296,30 @@ jobs:
           fi
           echo "Publishing @broberg/secret-scan@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/secret-scan
+          node scripts/gen-sbom.mjs packages/secret-scan --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-secret-scan
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/secret-scan
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/secret-scan/package.json').name")" "$(node -p "require('./packages/secret-scan/package.json').version")"
 
   publish-seti-client:
     needs: gate
@@ -290,11 +330,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -341,10 +381,30 @@ jobs:
           fi
           echo "Publishing @broberg/seti-client@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/seti-client
+          node scripts/gen-sbom.mjs packages/seti-client --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-seti-client
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/seti-client
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/seti-client/package.json').name")" "$(node -p "require('./packages/seti-client/package.json').version")"
 
   publish-greppable:
     needs: gate
@@ -355,11 +415,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -406,10 +466,30 @@ jobs:
           fi
           echo "Publishing @broberg/greppable@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/greppable
+          node scripts/gen-sbom.mjs packages/greppable --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-greppable
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/greppable
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/greppable/package.json').name")" "$(node -p "require('./packages/greppable/package.json').version")"
 
   sso-security:
     # A release must not ship past a red security gate. Separate from `gate` so
@@ -426,11 +506,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -477,10 +557,30 @@ jobs:
           fi
           echo "Publishing @broberg/seal@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/seal
+          node scripts/gen-sbom.mjs packages/seal --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-seal
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/seal
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/seal/package.json').name")" "$(node -p "require('./packages/seal/package.json').version")"
 
   publish-mail-identity:
     needs: gate
@@ -491,11 +591,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -542,10 +642,30 @@ jobs:
           fi
           echo "Publishing @broberg/mail-identity@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/mail-identity
+          node scripts/gen-sbom.mjs packages/mail-identity --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-mail-identity
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/mail-identity
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/mail-identity/package.json').name")" "$(node -p "require('./packages/mail-identity/package.json').version")"
 
   publish-legal:
     needs: gate
@@ -556,11 +676,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -607,10 +727,30 @@ jobs:
           fi
           echo "Publishing @broberg/legal@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/legal
+          node scripts/gen-sbom.mjs packages/legal --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-legal
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/legal
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/legal/package.json').name")" "$(node -p "require('./packages/legal/package.json').version")"
 
   publish-realtime:
     needs: gate
@@ -621,11 +761,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -672,10 +812,30 @@ jobs:
           fi
           echo "Publishing @broberg/realtime@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/realtime
+          node scripts/gen-sbom.mjs packages/realtime --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-realtime
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/realtime
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/realtime/package.json').name")" "$(node -p "require('./packages/realtime/package.json').version")"
 
   publish-call:
     needs: gate
@@ -686,11 +846,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -737,10 +897,30 @@ jobs:
           fi
           echo "Publishing @broberg/call@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/call
+          node scripts/gen-sbom.mjs packages/call --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-call
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/call
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/call/package.json').name")" "$(node -p "require('./packages/call/package.json').version")"
 
 
   publish-s3:
@@ -752,11 +932,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -803,10 +983,30 @@ jobs:
           fi
           echo "Publishing @broberg/s3@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/s3
+          node scripts/gen-sbom.mjs packages/s3 --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-s3
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/s3
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/s3/package.json').name")" "$(node -p "require('./packages/s3/package.json').version")"
 
   publish-mollie:
     needs: gate
@@ -817,11 +1017,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -868,10 +1068,30 @@ jobs:
           fi
           echo "Publishing @broberg/mollie@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/mollie
+          node scripts/gen-sbom.mjs packages/mollie --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-mollie
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/mollie
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/mollie/package.json').name")" "$(node -p "require('./packages/mollie/package.json').version")"
   publish-mail-templates:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mail-templates-v')
@@ -881,11 +1101,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -936,10 +1156,30 @@ jobs:
           fi
           echo "Publishing @broberg/mail-templates@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/mail-templates
+          node scripts/gen-sbom.mjs packages/mail-templates --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-mail-templates
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/mail-templates
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/mail-templates/package.json').name")" "$(node -p "require('./packages/mail-templates/package.json').version")"
 
   publish-sso:
     needs: [gate, sso-security]
@@ -950,11 +1190,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1001,10 +1241,30 @@ jobs:
           fi
           echo "Publishing @broberg/sso@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/sso
+          node scripts/gen-sbom.mjs packages/sso --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-sso
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/sso
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/sso/package.json').name")" "$(node -p "require('./packages/sso/package.json').version")"
 
   publish-forms-turnstile:
     needs: gate
@@ -1015,11 +1275,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1066,10 +1326,30 @@ jobs:
           fi
           echo "Publishing @broberg/forms-turnstile@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/forms-turnstile
+          node scripts/gen-sbom.mjs packages/forms-turnstile --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-forms-turnstile
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/forms-turnstile
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/forms-turnstile/package.json').name")" "$(node -p "require('./packages/forms-turnstile/package.json').version")"
 
   publish-sms:
     needs: gate
@@ -1080,11 +1360,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1131,10 +1411,30 @@ jobs:
           fi
           echo "Publishing @broberg/sms@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/sms
+          node scripts/gen-sbom.mjs packages/sms --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-sms
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/sms
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/sms/package.json').name")" "$(node -p "require('./packages/sms/package.json').version")"
 
   publish-device-stats:
     needs: gate
@@ -1145,11 +1445,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1196,10 +1496,30 @@ jobs:
           fi
           echo "Publishing @broberg/device-stats@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/device-stats
+          node scripts/gen-sbom.mjs packages/device-stats --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-device-stats
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/device-stats
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/device-stats/package.json').name")" "$(node -p "require('./packages/device-stats/package.json').version")"
 
 
   publish-feature-stats:
@@ -1211,11 +1531,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1262,10 +1582,30 @@ jobs:
           fi
           echo "Publishing @broberg/feature-stats@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/feature-stats
+          node scripts/gen-sbom.mjs packages/feature-stats --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-feature-stats
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/feature-stats
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/feature-stats/package.json').name")" "$(node -p "require('./packages/feature-stats/package.json').version")"
   publish-seti-server:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/seti-server-v')
@@ -1275,11 +1615,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1326,10 +1666,30 @@ jobs:
           fi
           echo "Publishing @broberg/seti-server@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/seti-server
+          node scripts/gen-sbom.mjs packages/seti-server --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-seti-server
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/seti-server
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/seti-server/package.json').name")" "$(node -p "require('./packages/seti-server/package.json').version")"
 
   publish-mail:
     needs: gate
@@ -1340,11 +1700,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1391,10 +1751,30 @@ jobs:
           fi
           echo "Publishing @broberg/mail@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/mail
+          node scripts/gen-sbom.mjs packages/mail --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-mail
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/mail
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/mail/package.json').name")" "$(node -p "require('./packages/mail/package.json').version")"
 
   publish-config:
     needs: gate
@@ -1405,11 +1785,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1456,10 +1836,30 @@ jobs:
           fi
           echo "Publishing @broberg/config@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/config
+          node scripts/gen-sbom.mjs packages/config --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-config
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/config
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/config/package.json').name")" "$(node -p "require('./packages/config/package.json').version")"
 
   publish-media:
     needs: gate
@@ -1470,11 +1870,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1521,10 +1921,30 @@ jobs:
           fi
           echo "Publishing @broberg/media@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/media
+          node scripts/gen-sbom.mjs packages/media --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-media
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/media
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/media/package.json').name")" "$(node -p "require('./packages/media/package.json').version")"
 
   publish-app-shell:
     needs: gate
@@ -1535,11 +1955,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1584,12 +2004,32 @@ jobs:
           fi
           echo "Publishing @broberg/app-shell@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/app-shell
+          node scripts/gen-sbom.mjs packages/app-shell --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-app-shell
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       # NOTE: 0.1.0 is the bootstrap publish, done locally (npm has no Trusted
       # Publisher for a name that does not exist yet); this job serves 0.1.1+.
       - name: Publish (OIDC)
         working-directory: packages/app-shell
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/app-shell/package.json').name")" "$(node -p "require('./packages/app-shell/package.json').version")"
 
   publish-apikey:
     needs: gate
@@ -1600,11 +2040,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1651,10 +2091,30 @@ jobs:
           fi
           echo "Publishing @broberg/apikey@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/apikey
+          node scripts/gen-sbom.mjs packages/apikey --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-apikey
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/apikey
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/apikey/package.json').name")" "$(node -p "require('./packages/apikey/package.json').version")"
 
   publish-webpush:
     needs: gate
@@ -1665,11 +2125,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1723,10 +2183,30 @@ jobs:
           fi
           echo "Publishing @broberg/webpush@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/webpush
+          node scripts/gen-sbom.mjs packages/webpush --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-webpush
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/webpush
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/webpush/package.json').name")" "$(node -p "require('./packages/webpush/package.json').version")"
 
   publish-nativepush:
     needs: gate
@@ -1737,11 +2217,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1795,10 +2275,30 @@ jobs:
           fi
           echo "Publishing @broberg/nativepush@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/nativepush
+          node scripts/gen-sbom.mjs packages/nativepush --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-nativepush
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/nativepush
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/nativepush/package.json').name")" "$(node -p "require('./packages/nativepush/package.json').version")"
   publish-phone:
     needs: gate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/phone-v')
@@ -1808,11 +2308,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1866,10 +2366,30 @@ jobs:
           fi
           echo "Publishing @broberg/phone@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/phone
+          node scripts/gen-sbom.mjs packages/phone --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-phone
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/phone
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/phone/package.json').name")" "$(node -p "require('./packages/phone/package.json').version")"
 
   publish-cron:
     needs: gate
@@ -1880,11 +2400,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1931,10 +2451,30 @@ jobs:
           fi
           echo "Publishing @broberg/cron@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/cron
+          node scripts/gen-sbom.mjs packages/cron --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-cron
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/cron
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/cron/package.json').name")" "$(node -p "require('./packages/cron/package.json').version")"
 
   publish-media-transform:
     needs: gate
@@ -1945,11 +2485,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -1996,10 +2536,30 @@ jobs:
           fi
           echo "Publishing @broberg/media-transform@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/media-transform
+          node scripts/gen-sbom.mjs packages/media-transform --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-media-transform
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/media-transform
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/media-transform/package.json').name")" "$(node -p "require('./packages/media-transform/package.json').version")"
 
   publish-auth:
     needs: gate
@@ -2010,11 +2570,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2073,10 +2633,30 @@ jobs:
           fi
           echo "Publishing @broberg/auth@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/auth
+          node scripts/gen-sbom.mjs packages/auth --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-auth
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/auth
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/auth/package.json').name")" "$(node -p "require('./packages/auth/package.json').version")"
 
   publish-deploy-core:
     needs: gate
@@ -2087,7 +2667,7 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # F033.12 — BUN, AND THIS JOB NEEDS ITS OWN COPY. F080.4 ALL OVER AGAIN:
       # the shared gate runs `turbo run test`, but every publish job re-runs the
@@ -2101,11 +2681,11 @@ jobs:
       # the one to remember: A FIX APPLIED TO THE GATE DOES NOT REACH THE
       # RELEASE, because the release does not run the gate — it re-runs the
       # tests.
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2152,10 +2732,30 @@ jobs:
           fi
           echo "Publishing @broberg/deploy-core@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/deploy-core
+          node scripts/gen-sbom.mjs packages/deploy-core --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-deploy-core
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/deploy-core
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/deploy-core/package.json').name")" "$(node -p "require('./packages/deploy-core/package.json').version")"
 
   publish-gravatar:
     needs: gate
@@ -2166,11 +2766,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2217,10 +2817,30 @@ jobs:
           fi
           echo "Publishing @broberg/gravatar@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/gravatar
+          node scripts/gen-sbom.mjs packages/gravatar --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-gravatar
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/gravatar
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/gravatar/package.json').name")" "$(node -p "require('./packages/gravatar/package.json').version")"
 
   publish-mail-core:
     needs: gate
@@ -2231,11 +2851,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2282,10 +2902,30 @@ jobs:
           fi
           echo "Publishing @broberg/mail-core@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/mail-core
+          node scripts/gen-sbom.mjs packages/mail-core --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-mail-core
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/mail-core
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/mail-core/package.json').name")" "$(node -p "require('./packages/mail-core/package.json').version")"
 
   publish-speech-dictionary:
     needs: gate
@@ -2296,11 +2936,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2347,10 +2987,30 @@ jobs:
           fi
           echo "Publishing @broberg/speech-dictionary@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/speech-dictionary
+          node scripts/gen-sbom.mjs packages/speech-dictionary --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-speech-dictionary
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/speech-dictionary
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/speech-dictionary/package.json').name")" "$(node -p "require('./packages/speech-dictionary/package.json').version")"
 
   publish-notify:
     needs: gate
@@ -2361,11 +3021,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2412,10 +3072,30 @@ jobs:
           fi
           echo "Publishing @broberg/notify@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/notify
+          node scripts/gen-sbom.mjs packages/notify --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-notify
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/notify
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/notify/package.json').name")" "$(node -p "require('./packages/notify/package.json').version")"
 
   publish-bodymap:
     needs: gate
@@ -2426,11 +3106,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2477,10 +3157,30 @@ jobs:
           fi
           echo "Publishing @broberg/bodymap@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/bodymap
+          node scripts/gen-sbom.mjs packages/bodymap --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-bodymap
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/bodymap
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/bodymap/package.json').name")" "$(node -p "require('./packages/bodymap/package.json').version")"
 
   publish-stripe:
     needs: gate
@@ -2491,11 +3191,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2542,10 +3242,30 @@ jobs:
           fi
           echo "Publishing @broberg/stripe@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/stripe
+          node scripts/gen-sbom.mjs packages/stripe --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-stripe
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/stripe
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/stripe/package.json').name")" "$(node -p "require('./packages/stripe/package.json').version")"
 
   publish-pwa:
     needs: gate
@@ -2556,11 +3276,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2607,10 +3327,30 @@ jobs:
           fi
           echo "Publishing @broberg/pwa@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/pwa
+          node scripts/gen-sbom.mjs packages/pwa --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-pwa
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/pwa
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/pwa/package.json').name")" "$(node -p "require('./packages/pwa/package.json').version")"
 
   publish-soundkit:
     needs: gate
@@ -2621,11 +3361,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2672,10 +3412,30 @@ jobs:
           fi
           echo "Publishing @broberg/soundkit@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/soundkit
+          node scripts/gen-sbom.mjs packages/soundkit --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-soundkit
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/soundkit
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/soundkit/package.json').name")" "$(node -p "require('./packages/soundkit/package.json').version")"
 
   publish-consent-cookie:
     needs: gate
@@ -2686,11 +3446,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2737,10 +3497,30 @@ jobs:
           fi
           echo "Publishing @broberg/consent-cookie@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/consent-cookie
+          node scripts/gen-sbom.mjs packages/consent-cookie --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-consent-cookie
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/consent-cookie
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/consent-cookie/package.json').name")" "$(node -p "require('./packages/consent-cookie/package.json').version")"
 
   publish-i18n:
     needs: gate
@@ -2751,11 +3531,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2802,10 +3582,30 @@ jobs:
           fi
           echo "Publishing @broberg/i18n@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/i18n
+          node scripts/gen-sbom.mjs packages/i18n --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-i18n
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/i18n
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/i18n/package.json').name")" "$(node -p "require('./packages/i18n/package.json').version")"
 
   publish-cmdk:
     needs: gate
@@ -2816,11 +3616,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2867,10 +3667,30 @@ jobs:
           fi
           echo "Publishing @broberg/cmdk@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/cmdk
+          node scripts/gen-sbom.mjs packages/cmdk --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-cmdk
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/cmdk
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/cmdk/package.json').name")" "$(node -p "require('./packages/cmdk/package.json').version")"
 
   publish-ui-controls-core:
     needs: gate
@@ -2881,11 +3701,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2932,10 +3752,30 @@ jobs:
           fi
           echo "Publishing @broberg/ui-controls-core@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/ui-controls-core
+          node scripts/gen-sbom.mjs packages/ui-controls-core --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-ui-controls-core
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/ui-controls-core
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/ui-controls-core/package.json').name")" "$(node -p "require('./packages/ui-controls-core/package.json').version")"
 
   publish-event-log:
     needs: gate
@@ -2946,11 +3786,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -2997,10 +3837,30 @@ jobs:
           fi
           echo "Publishing @broberg/event-log@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/event-log
+          node scripts/gen-sbom.mjs packages/event-log --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-event-log
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/event-log
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/event-log/package.json').name")" "$(node -p "require('./packages/event-log/package.json').version")"
 
   publish-http:
     needs: gate
@@ -3011,11 +3871,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3062,10 +3922,30 @@ jobs:
           fi
           echo "Publishing @broberg/http@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/http
+          node scripts/gen-sbom.mjs packages/http --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-http
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/http
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/http/package.json').name")" "$(node -p "require('./packages/http/package.json').version")"
 
   publish-local-guard:
     needs: gate
@@ -3076,11 +3956,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3127,10 +4007,30 @@ jobs:
           fi
           echo "Publishing @broberg/local-guard@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/local-guard
+          node scripts/gen-sbom.mjs packages/local-guard --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-local-guard
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/local-guard
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/local-guard/package.json').name")" "$(node -p "require('./packages/local-guard/package.json').version")"
 
   publish-chat:
     needs: gate
@@ -3141,11 +4041,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3192,10 +4092,30 @@ jobs:
           fi
           echo "Publishing @broberg/http@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/chat
+          node scripts/gen-sbom.mjs packages/chat --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-chat
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/chat
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/chat/package.json').name")" "$(node -p "require('./packages/chat/package.json').version")"
 
   publish-logger:
     needs: gate
@@ -3206,11 +4126,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3257,10 +4177,30 @@ jobs:
           fi
           echo "Publishing @broberg/logger@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/logger
+          node scripts/gen-sbom.mjs packages/logger --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-logger
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/logger
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/logger/package.json').name")" "$(node -p "require('./packages/logger/package.json').version")"
 
   publish-mcp:
     needs: gate
@@ -3271,11 +4211,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3321,10 +4261,30 @@ jobs:
           fi
           echo "Publishing @broberg/mcp@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/mcp
+          node scripts/gen-sbom.mjs packages/mcp --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-mcp
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/mcp
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/mcp/package.json').name")" "$(node -p "require('./packages/mcp/package.json').version")"
 
   publish-notifications:
     needs: gate
@@ -3335,11 +4295,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3397,10 +4357,30 @@ jobs:
           fi
           echo "Publishing @broberg/notifications@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/notifications
+          node scripts/gen-sbom.mjs packages/notifications --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-notifications
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/notifications
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/notifications/package.json').name")" "$(node -p "require('./packages/notifications/package.json').version")"
 
   publish-backup:
     needs: gate
@@ -3411,11 +4391,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3466,10 +4446,30 @@ jobs:
           fi
           echo "Publishing @broberg/backup@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/backup
+          node scripts/gen-sbom.mjs packages/backup --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-backup
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/backup
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/backup/package.json').name")" "$(node -p "require('./packages/backup/package.json').version")"
 
   publish-provider-usage:
     needs: gate
@@ -3480,11 +4480,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3535,10 +4535,30 @@ jobs:
           fi
           echo "Publishing @broberg/provider-usage@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/provider-usage
+          node scripts/gen-sbom.mjs packages/provider-usage --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-provider-usage
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/provider-usage
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/provider-usage/package.json').name")" "$(node -p "require('./packages/provider-usage/package.json').version")"
 
   publish-tenant:
     needs: gate
@@ -3549,11 +4569,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3600,10 +4620,30 @@ jobs:
           fi
           echo "Publishing @broberg/tenant@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/tenant
+          node scripts/gen-sbom.mjs packages/tenant --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-tenant
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/tenant
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/tenant/package.json').name")" "$(node -p "require('./packages/tenant/package.json').version")"
 
   publish-data-table:
     needs: gate
@@ -3614,11 +4654,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3665,10 +4705,30 @@ jobs:
           fi
           echo "Publishing @broberg/data-table@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/data-table
+          node scripts/gen-sbom.mjs packages/data-table --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-data-table
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/data-table
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/data-table/package.json').name")" "$(node -p "require('./packages/data-table/package.json').version")"
 
   # F038.16 — THE RELEASE CARRIES THE ROSTER BUMP.
   #
@@ -3703,11 +4763,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3754,10 +4814,30 @@ jobs:
           fi
           echo "Publishing @broberg/settings@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/settings
+          node scripts/gen-sbom.mjs packages/settings --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-settings
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/settings
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/settings/package.json').name")" "$(node -p "require('./packages/settings/package.json').version")"
 
   publish-web-clipper:
     needs: gate
@@ -3768,11 +4848,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3819,10 +4899,30 @@ jobs:
           fi
           echo "Publishing @broberg/web-clipper@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/web-clipper
+          node scripts/gen-sbom.mjs packages/web-clipper --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-web-clipper
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/web-clipper
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/web-clipper/package.json').name")" "$(node -p "require('./packages/web-clipper/package.json').version")"
 
   publish-livesync:
     needs: gate
@@ -3833,11 +4933,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3884,10 +4984,30 @@ jobs:
           fi
           echo "Publishing @broberg/livesync@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/livesync
+          node scripts/gen-sbom.mjs packages/livesync --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-livesync
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/livesync
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/livesync/package.json').name")" "$(node -p "require('./packages/livesync/package.json').version")"
 
   publish-editor:
     needs: gate
@@ -3898,11 +5018,11 @@ jobs:
       contents: read
       id-token: write # lets GitHub mint the OIDC token npm exchanges for publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4 # pnpm version comes from root package.json "packageManager"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22 # resolves to >=22.14, required by OIDC publishing
           registry-url: https://registry.npmjs.org
@@ -3949,10 +5069,30 @@ jobs:
           fi
           echo "Publishing @broberg/editor@$PKG"
 
+      # F115.4 / F115.8 — what is about to leave the house: the packed tarball is
+      # audited for files that must never ship, and an SBOM of exactly what this
+      # package ships is built from the lockfile and attached to the run.
+      - name: Supply chain — tarball contents + SBOM
+        run: |
+          node scripts/check-tarball-contents.mjs packages/editor
+          node scripts/gen-sbom.mjs packages/editor --out "$RUNNER_TEMP/sbom.cdx.json"
+
+      - name: Attach SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-editor
+          path: ${{ runner.temp }}/sbom.cdx.json
+
       # npm (not pnpm) does the OIDC token exchange + provenance. No NODE_AUTH_TOKEN.
       - name: Publish (OIDC)
         working-directory: packages/editor
         run: npm publish --access public --provenance
+
+      # F115.4 — prove it from the registry: SLSA provenance present and the
+      # registry signatures valid on a clean install (npm audit signatures).
+      # Red here means a version is live without proof — fix forward, never skip.
+      - name: Verify provenance + signatures on the registry
+        run: node scripts/verify-provenance.mjs "$(node -p "require('./packages/editor/package.json').name")" "$(node -p "require('./packages/editor/package.json').version")"
 
   # F038.16 — THE RELEASE CARRIES THE ROSTER BUMP.
   #
@@ -3985,12 +5125,12 @@ jobs:
     permissions:
       contents: write # the one job here that writes back to the repo
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main # the tag is a detached commit; the roster lives on the branch
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }
 
       # <slug>-v<semver>  ->  @broberg/<slug> and <semver>. One shape for all 39
