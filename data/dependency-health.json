@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-21T20:42:50.833Z",
+ "checked_at": "2026-11-21T21:42:55.281Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -95,10 +95,10 @@
     "low": 0
    },
    "dev": {
-    "critical": 1,
-    "high": 2,
+    "critical": 0,
+    "high": 0,
     "moderate": 0,
-    "low": 3
+    "low": 0
    },
    "outdated": {
     "total": 8,
