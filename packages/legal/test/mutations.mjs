@@ -17,7 +17,8 @@ const TERMS_EN = join(PKG, "src", "content", "terms.en.ts");
 const PSEUDO = join(PKG, "src", "pseudonymise.ts");
 const INDEX = join(PKG, "src", "index.ts");
 const BID = join(PKG, "src", "bid.ts");
-const originals = { [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8"), [PSEUDO]: readFileSync(PSEUDO, "utf8"), [INDEX]: readFileSync(INDEX, "utf8"), [BID]: readFileSync(BID, "utf8") };
+const RENDER = join(PKG, "src", "render.ts");
+const originals = { [RENDER]: readFileSync(RENDER, "utf8"), [CORE]: readFileSync(CORE, "utf8"), [TERMS_EN]: readFileSync(TERMS_EN, "utf8"), [PSEUDO]: readFileSync(PSEUDO, "utf8"), [INDEX]: readFileSync(INDEX, "utf8"), [BID]: readFileSync(BID, "utf8") };
 
 const MUTATIONS = [
   {
@@ -103,6 +104,27 @@ const MUTATIONS = [
     find: "months > MAX_RETENTION_MONTHS)",
     replace: "months > 120)",
     expect: ["keepUntil is at most 6 months after collection"],
+  },
+  {
+    name: "F110.21 — a table is drawn without overflow-wrap (it is 450 px wide on a 393 px phone again)",
+    file: RENDER,
+    find: 'const TABLE_STYLE = "overflow-wrap:anywhere;hyphens:auto";',
+    replace: 'const TABLE_STYLE = "hyphens:auto";',
+    expect: ["each <table> carries overflow-wrap:anywhere AND hyphens:auto"],
+  },
+  {
+    name: "F110.21 — a table breaks mid-word with no hyphen («Frankri/g»)",
+    file: RENDER,
+    find: 'const TABLE_STYLE = "overflow-wrap:anywhere;hyphens:auto";',
+    replace: 'const TABLE_STYLE = "overflow-wrap:anywhere";',
+    expect: ["each <table> carries overflow-wrap:anywhere AND hyphens:auto"],
+  },
+  {
+    name: "F110.21 — the table tag no longer carries the style at all",
+    file: RENDER,
+    find: 'return `<table${id} style="${TABLE_STYLE}"><thead>',
+    replace: 'return `<table${id}><thead>',
+    expect: ["each <table> carries overflow-wrap:anywhere AND hyphens:auto"],
   },
 ];
 

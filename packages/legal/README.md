@@ -61,6 +61,9 @@ import { FACTS } from "./legal/facts";
 const doc = getDocument({ doc: "privacy", locale: "da", facts: FACTS });
 doc.title; doc.version; doc.effectiveFrom; doc.draft; doc.contentHash;
 renderHtml(doc);   // semantic HTML with data-legal-id on every section and block; style it yourself
+// (0.10.1) every <table> carries style="overflow-wrap:anywhere;hyphens:auto" so a table can shrink to a 393 px phone however
+// much cell padding you add — measured: without it a 4-column table was 450 px wide and the page scrolled sideways.
+// Your own CSS can override it.
 ```
 
 **What every legal page MUST carry (checked daily, F110.11):** the element that holds the document

@@ -93,7 +93,7 @@ describe("AC3 — renderHtml: semantic HTML a site can style, every section and 
     }
     expect(html).toContain(`data-legal-hash="${d.contentHash}"`);
     expect(html).toContain("Tal &lt;b&gt;ikke&lt;/b&gt; &amp; så videre");
-    expect(html).toMatch(/<table data-legal-id="vendors.table"><thead><tr><th>Leverandør<\/th>/);
+    expect(html).toMatch(/<table data-legal-id="vendors.table" style="overflow-wrap:anywhere;hyphens:auto"><thead><tr><th>Leverandør<\/th>/);
   });
   it("a draft says so visibly", () => {
     const d = createLibrary([master()], [product()]).getDocument({ doc: "privacy", locale: "da", product: "jam" });
