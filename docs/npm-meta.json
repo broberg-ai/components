@@ -193,8 +193,8 @@
  },
  "@broberg/sms": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/sms",
-  "version": "0.12.0",
-  "publishedAt": "2026-08-29T15:44:30.537Z",
+  "version": "0.12.1",
+  "publishedAt": "2026-11-21T15:58:10.696Z",
   "provenance": "yes"
  },
  "@broberg/notifications": {
@@ -271,8 +271,8 @@
  },
  "@broberg/editor": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/editor",
-  "version": "0.1.0",
-  "publishedAt": "2026-10-13T21:47:20.278Z",
+  "version": "0.1.1",
+  "publishedAt": "2026-11-21T15:59:02.455Z",
   "provenance": "yes"
  },
  "@broberg/bodymap": {
