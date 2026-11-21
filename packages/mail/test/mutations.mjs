@@ -574,6 +574,56 @@ const MUTATIONS = [
     to: "",
     expect: ["threads: In-Reply-To + References"],
   },
+  // F005.29 — a diagnostic must never repeat the caller's input (mailworker measured an API key in `summary`).
+  {
+    name: "key-shaped strings are repeated unredacted",
+    file: "verify",
+    from: "const redacted = raw.slice(0, 2000).replace(KEY_SHAPED, '[redacted]');",
+    to: "const redacted = raw.slice(0, 2000);",
+    expect: ["a string that IS a key"],
+  },
+  {
+    name: "a long string is repeated in full (no cap)",
+    file: "verify",
+    from: "return redacted.length > ECHO_MAX ? `${redacted.slice(0, ECHO_MAX)}\u2026` : redacted;",
+    to: "return redacted;",
+    expect: ["a very long string"],
+  },
+  {
+    name: "a non-string is serialised back to the caller instead of named by its type",
+    file: "verify",
+    from: "if (typeof raw !== 'string') return `<${typeName(raw)}, not a string>`;",
+    to: "if (typeof raw !== 'string') return JSON.stringify(raw);",
+    expect: ["an object carrying an API key"],
+  },
+  {
+    name: "senderDomain no longer rejects a non-string with a typed error",
+    file: "verify",
+    from: "  if (from !== undefined && from !== null && typeof from !== 'string') {\n    throw new TypeError(`senderDomain: expected a string, got ${typeName(from)} \u2014 pass a domain, an address, or \"Name <address>\".`);\n  }\n",
+    to: "",
+    expect: ["a non-string is named by its TYPE"],
+  },
+  {
+    name: "verifySendingDomain echoes its raw input in domain",
+    file: "verify",
+    from: "      domain: echoSafe(rawFrom),\n      spf: 'unknown',",
+    to: "      domain: rawFrom as string,\n      spf: 'unknown',",
+    expect: ["verifySendingDomain: an object carrying an API key"],
+  },
+  {
+    name: "checkBrandReadiness echoes its raw input in domain",
+    file: "verify",
+    from: "return { domain: echoSafe(rawFrom), dmarc: 'unknown'",
+    to: "return { domain: rawFrom as string, dmarc: 'unknown'",
+    expect: ["checkBrandReadiness: an object carrying an API key"],
+  },
+  {
+    name: "checkResendDomain echoes its raw input in domain",
+    file: "verify",
+    from: "domain: echoSafe(rawFrom ?? ''), reason: 'could_not_ask'",
+    to: "domain: String(rawFrom ?? ''), reason: 'could_not_ask'",
+    expect: ["checkResendDomain: a string that IS a key"],
+  },
 ];
 
 

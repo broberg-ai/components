@@ -18,6 +18,8 @@ to send transactional mail across every `@broberg/*` app.
 | import | what |
 |---|---|
 | `@broberg/mail/verify` | `verifySendingDomain` (are the DNS records there?) · `checkSendingPermission` / `checkResendDomain` (does Resend say the domain may SEND? — DNS ok is not enough) · `checkBrandReadiness` (BIMI) |
+
+> **The verify functions never repeat what you pass them (0.26.1).** A wrong call — for example an options object where the domain string belongs — is answered with a message that names the TYPE (`expected a string, got object`), never the value; a string that is echoed is capped at 80 characters and anything key-shaped (`re_…`, `sk_…`, long tokens) becomes `[redacted]`. A mistaken call can no longer put an API key in a log.
 | `@broberg/mail/webhook` | verify + parse Resend's delivery webhooks |
 | `@broberg/mail/hono` · `@broberg/mail/next` | the webhook as a ready route |
 

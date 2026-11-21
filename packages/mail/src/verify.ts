@@ -340,6 +340,25 @@ async function probeHosts<T>(
 }
 
 /**
+ * F005.29 — what an error or summary may REPEAT of the caller's input. mailworker measured it in production: a call with
+ * `{apiKey, from}` (an object where a string belongs) came back with the whole object — key in clear text — in `domain` and
+ * `summary`, and a log line carried it. A diagnostic must say WHAT was wrong, never hand the value back:
+ *   - a non-string is described by its TYPE only;
+ *   - a string is capped, and anything key-shaped (`re_…`, `sk_…`, a long unbroken token) becomes `[redacted]`.
+ * Every place that echoes input goes through this one function.
+ */
+const KEY_SHAPED = /\b[A-Za-z]{2,5}_[A-Za-z0-9_-]{12,}\b|\b[A-Za-z0-9+/_=-]{32,}\b/g;
+const ECHO_MAX = 80;
+function typeName(raw: unknown): string {
+  return raw === null ? 'null' : Array.isArray(raw) ? 'array' : typeof raw;
+}
+function echoSafe(raw: unknown): string {
+  if (typeof raw !== 'string') return `<${typeName(raw)}, not a string>`;
+  const redacted = raw.slice(0, 2000).replace(KEY_SHAPED, '[redacted]');
+  return redacted.length > ECHO_MAX ? `${redacted.slice(0, ECHO_MAX)}…` : redacted;
+}
+
+/**
  * Pull the domain out of whatever a consumer keeps in `MAIL_FROM`.
  *
  * F005.10 — filed by moovyy the hour they adopted 0.6.0. `MAIL_FROM` is an
@@ -355,6 +374,9 @@ async function probeHosts<T>(
  * regenerate the exact defect this exists to remove. Guessing is the bug.
  */
 export function senderDomain(from: string): string {
+  if (from !== undefined && from !== null && typeof from !== 'string') {
+    throw new TypeError(`senderDomain: expected a string, got ${typeName(from)} — pass a domain, an address, or "Name <address>".`);
+  }
   const trimmed = (from ?? '').trim();
   if (!trimmed) throw new Error('senderDomain: empty input — pass a domain, an address, or "Name <address>".');
 
@@ -369,7 +391,7 @@ export function senderDomain(from: string): string {
   // spaces, no empty labels, and at least two labels.
   const looksLikeHost = /^(?!-)[a-z0-9-]+(?<!-)(\.(?!-)[a-z0-9-]+(?<!-))+$/.test(domain);
   if (!looksLikeHost) {
-    throw new Error(`senderDomain: cannot read a domain from ${JSON.stringify(from)} — pass a domain, an address, or "Name <address>".`);
+    throw new Error(`senderDomain: cannot read a domain from ${JSON.stringify(echoSafe(from))} — pass a domain, an address, or "Name <address>".`);
   }
   return domain;
 }
@@ -409,7 +431,7 @@ export async function verifySendingDomain(
   } catch {
     return {
       ok: false,
-      domain: rawFrom,
+      domain: echoSafe(rawFrom),
       spf: 'unknown',
       dkim: 'unknown',
       mx: 'unknown',
@@ -417,7 +439,7 @@ export async function verifySendingDomain(
       missing: [],
       unknown: ['SPF', 'DKIM', 'MX', 'DMARC'],
       foundAt: {},
-      summary: `${JSON.stringify(rawFrom)}: not a domain — pass a domain, an address, or "Name <address>". NOTHING was checked.`,
+      summary: `${JSON.stringify(echoSafe(rawFrom))}: not a domain — pass a domain, an address, or "Name <address>". NOTHING was checked.`,
     };
   }
 
@@ -661,7 +683,7 @@ export async function checkBrandReadiness(
   try {
     domain = senderDomain(rawFrom);
   } catch {
-    return { domain: rawFrom, dmarc: 'unknown', bimi: 'unknown', warnings: [`${JSON.stringify(rawFrom)} is not a domain or address — nothing was checked.`] };
+    return { domain: echoSafe(rawFrom), dmarc: 'unknown', bimi: 'unknown', warnings: [`${JSON.stringify(echoSafe(rawFrom))} is not a domain or address — nothing was checked.`] };
   }
 
   const [dm, bi] = await Promise.all([
@@ -821,7 +843,7 @@ export async function checkResendDomain(
   try {
     domain = senderDomain(rawFrom);
   } catch (e) {
-    return { ok: false, domain: String(rawFrom ?? ''), reason: 'could_not_ask', detail: (e as Error).message, maySend: 'unknown' };
+    return { ok: false, domain: echoSafe(rawFrom ?? ''), reason: 'could_not_ask', detail: (e as Error).message, maySend: 'unknown' };
   }
   const fail = (detail: string): ResendDomainVerdict => ({ ok: false, domain, reason: 'could_not_ask', detail, maySend: 'unknown' });
   const doFetch = config.fetch ?? (typeof fetch === 'function' ? fetch : undefined);
