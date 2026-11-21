@@ -325,8 +325,8 @@
  },
  "@broberg/mail-templates": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail-templates",
-  "version": "0.3.0",
-  "publishedAt": "2026-10-25T19:52:27.249Z",
+  "version": "0.3.1",
+  "publishedAt": "2026-11-21T15:44:34.230Z",
   "provenance": "yes"
  },
  "@broberg/realtime": {
