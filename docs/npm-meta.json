@@ -103,8 +103,8 @@
  },
  "@broberg/mcp": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mcp",
-  "version": "0.11.2",
-  "publishedAt": "2026-11-19T18:23:11.672Z",
+  "version": "0.11.3",
+  "publishedAt": "2026-11-21T16:02:13.308Z",
   "provenance": "yes"
  },
  "@broberg/secret-scan": {
