@@ -355,8 +355,8 @@
  },
  "@broberg/seti-client": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/seti-client",
-  "version": "0.4.0",
-  "publishedAt": "2026-08-11T16:55:36.747Z",
+  "version": "0.4.1",
+  "publishedAt": "2026-11-21T16:06:22.769Z",
   "provenance": "yes"
  },
  "@broberg/seti-server": {
