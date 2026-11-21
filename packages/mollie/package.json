@@ -22,7 +22,7 @@
     "@types/node": "^22.0.0",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.11"
   },
   "keywords": ["mollie", "payments", "split payments", "marketplace", "routing", "connect", "recurring", "subscription", "mandate", "dkk", "mobilepay", "betaling", "fordeling", "abonnement", "broberg"],
   "repository": { "type": "git", "url": "https://github.com/broberg-ai/components", "directory": "packages/mollie" },
