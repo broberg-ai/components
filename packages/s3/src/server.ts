@@ -66,6 +66,8 @@ export function choosePartSize(size: number, preferred = DEFAULT_PART_SIZE): num
   return Math.ceil(Math.max(preferred, MIN_PART_SIZE, need) / MiB) * MiB;
 }
 
+const sha256Hex = async (b: Uint8Array) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", b as BufferSource))].map((x) => x.toString(16).padStart(2, "0")).join("");
 const encodeKey = (key: string) => key.split("/").map(encodeURIComponent).join("/");
 const xmlText = (xml: string, tag: string) => xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))?.[1];
 const xmlEscape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -90,8 +92,11 @@ export interface S3Signer {
   listObjects(input: { prefix: string; includeMetadata?: boolean }): Promise<StoredObject[]>;
   /** Every unfinished upload under `prefix`, with how far it has got. */
   listUploads(input: { prefix: string }): Promise<PendingUpload[]>;
-  /** Small server-side write (markers, manifests). Not for user files — those go browser → bucket. */
-  putObject(input: { key: string; body: string; contentType?: string }): Promise<void>;
+  /**
+   * Small server-side write (markers, manifests, a resized image). Not for user uploads — those go browser → bucket.
+   * A string is sent as UTF-8, exactly as before; a Uint8Array is sent byte for byte, with its SHA-256 signed (F111.5).
+   */
+  putObject(input: { key: string; body: string | Uint8Array; contentType?: string }): Promise<void>;
   /** Read a small object as text, or null when it does not exist. */
   getText(key: string): Promise<string | null>;
   deleteObject(key: string): Promise<void>;
@@ -168,8 +173,10 @@ export function createS3Signer(cfg: S3Config): S3Signer {
     throw new S3Error(`@broberg/s3: the store did not say how big ${key} is (HEAD had no Content-Length; ranged GET → ${res.status})`, res.status);
   }
 
-  async function call(method: string, url: URL, body?: string, headers?: Record<string, string>): Promise<string> {
-    const signed = await aws.sign(url.toString(), { method, body, headers });
+  async function call(method: string, url: URL, body?: string | Uint8Array, headers?: Record<string, string>): Promise<string> {
+    // A Uint8Array over a SharedArrayBuffer-typed buffer (e.g. Node's Buffer) is still a valid
+    // fetch body at runtime; TS's BodyInit only names Uint8Array<ArrayBuffer>.
+    const signed = await aws.sign(url.toString(), { method, body: body as BodyInit | undefined, headers });
     const res = await doFetch(signed);
     const text = await res.text();
     // S3 can answer 200 with an <Error> body (CompleteMultipartUpload does).
@@ -329,7 +336,11 @@ export function createS3Signer(cfg: S3Config): S3Signer {
       return out;
     },
     async putObject({ key, body, contentType }) {
-      await call("PUT", objectUrl(key), body, { "content-type": contentType ?? "application/octet-stream" });
+      const headers: Record<string, string> = { "content-type": contentType ?? "application/octet-stream" };
+      // F111.5 — bytes: sign their hash, so the store rejects anything that arrives altered.
+      // A string keeps 0.2.x's request unchanged (aws4fetch's UNSIGNED-PAYLOAD for s3).
+      if (typeof body !== "string") headers["x-amz-content-sha256"] = await sha256Hex(body);
+      await call("PUT", objectUrl(key), body, headers);
     },
     async getText(key) {
       const signed = await aws.sign(objectUrl(key).toString(), { method: "GET" });

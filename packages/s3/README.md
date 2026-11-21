@@ -77,6 +77,17 @@ abort and never appears in `listObjects`.
 **Match an in-progress upload by `key`, not `uploadId`:** R2 lists a *different* (equally valid) uploadId than
 the one start returned — measured live.
 
+## Small server-side writes (v0.3.0)
+
+```ts
+// Text (a manifest) — sent as UTF-8, exactly as in 0.2.x:
+await signer.putObject({ key: "site/manifest.json", body: JSON.stringify(m), contentType: "application/json" });
+// Bytes (a resized image from @broberg/media-transform) — sent byte for byte, SHA-256 signed:
+await signer.putObject({ key: "products/w480/x.webp", body: webpBytes, contentType: "image/webp" });
+```
+
+For derivatives and small files the server itself produced. A user's upload still goes browser → bucket.
+
 ## Security — what is enforced
 
 | | |
