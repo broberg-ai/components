@@ -379,8 +379,8 @@
  },
  "@broberg/tenant": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/tenant",
-  "version": "0.2.1",
-  "publishedAt": "2026-10-12T23:34:05.402Z",
+  "version": "0.2.2",
+  "publishedAt": "2026-11-21T11:43:26.568Z",
   "provenance": "yes"
  },
  "@broberg/data-table": {
