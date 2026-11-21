@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-21T13:38:59.361Z",
+ "scanned_at": "2026-11-21T14:46:25.884Z",
  "repos_scanned": 88,
  "repos_failed": 0,
  "manifests_read": 367,
  "manifests_unreadable": 0,
- "edges": 498,
+ "edges": 499,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -3533,6 +3533,14 @@
       "field": "dependencies",
       "at": "package.json",
       "installed": "0.75.0"
+     }
+    ],
+    "@broberg/cmdk": [
+     {
+      "range": "0.2.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.2.0"
      }
     ],
     "@broberg/i18n": [
