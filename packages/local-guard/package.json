@@ -42,7 +42,7 @@
     "hono": "^4.6.0",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.11"
   },
   "keywords": ["localhost", "loopback", "dns-rebinding", "csrf", "host-header", "daemon", "local-server", "security", "hono", "bun", "broberg"],
   "repository": {

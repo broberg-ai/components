@@ -57,7 +57,7 @@
     "hono": "^4",
     "tsup": "^8",
     "typescript": "^5",
-    "vitest": "^3"
+    "vitest": "^4"
   },
   "publishConfig": {
     "access": "public"
