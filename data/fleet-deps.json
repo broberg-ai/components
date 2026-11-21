@@ -1,10 +1,10 @@
 {
- "scanned_at": "2026-11-21T12:45:36.003Z",
+ "scanned_at": "2026-11-21T13:38:59.361Z",
  "repos_scanned": 88,
  "repos_failed": 0,
- "manifests_read": 366,
+ "manifests_read": 367,
  "manifests_unreadable": 0,
- "edges": 497,
+ "edges": 498,
  "repos": {
   "broberg-ai/ai-sdk": {
    "branch": "main",
@@ -1350,7 +1350,7 @@
   },
   "broberg-ai/components": {
    "branch": "main",
-   "manifests": 85,
+   "manifests": 86,
    "unreadable": 0,
    "deps": {
     "@broberg/consent-cookie": [
@@ -1841,7 +1841,7 @@
       "range": "0.8.1",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.8.1"
      }
     ],
     "@broberg/mail": [
@@ -1849,7 +1849,7 @@
       "range": "0.26.0",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.26.0"
      }
     ],
     "@broberg/realtime": [
@@ -1857,7 +1857,7 @@
       "range": "0.3.0",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.3.0"
      }
     ],
     "@broberg/seal": [
@@ -1865,7 +1865,7 @@
       "range": "0.2.0",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.2.0"
      }
     ],
     "@broberg/sso": [
@@ -1873,7 +1873,7 @@
       "range": "0.26.1",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.26.1"
      }
     ],
     "@broberg/tenant": [
@@ -1881,7 +1881,7 @@
       "range": "0.2.2",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.2.2"
      }
     ],
     "@upmetrics/sdk": [
@@ -1889,7 +1889,7 @@
       "range": "0.11.2",
       "field": "dependencies",
       "at": "apps/server/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.11.2"
      }
     ],
     "@broberg/s3": [
@@ -1897,13 +1897,13 @@
       "range": "0.2.2",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.2.2"
      },
      {
       "range": "0.2.2",
       "field": "dependencies",
       "at": "packages/storage/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.2.2"
      }
     ],
     "@broberg/event-log": [
@@ -1911,7 +1911,7 @@
       "range": "0.3.0",
       "field": "dependencies",
       "at": "packages/sync-protocol/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.3.0"
      }
     ]
    }
@@ -3334,7 +3334,7 @@
       "range": "0.2.0",
       "field": "dependencies",
       "at": "apps/api/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.2.0"
      }
     ],
     "@broberg/seal": [
@@ -3342,7 +3342,7 @@
       "range": "0.2.0",
       "field": "dependencies",
       "at": "apps/api/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.2.0"
      }
     ],
     "@broberg/sso": [
@@ -3350,7 +3350,7 @@
       "range": "0.27.0",
       "field": "dependencies",
       "at": "apps/api/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.27.0"
      }
     ],
     "@broberg/tenant": [
@@ -3358,7 +3358,7 @@
       "range": "0.2.2",
       "field": "dependencies",
       "at": "apps/api/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.2.2"
      }
     ],
     "@broberg/app-shell": [
@@ -3366,7 +3366,7 @@
       "range": "0.26.0",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.26.0"
      }
     ],
     "@broberg/i18n": [
@@ -3374,7 +3374,7 @@
       "range": "0.4.1",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.4.1"
      }
     ],
     "@broberg/notifications": [
@@ -3382,7 +3382,7 @@
       "range": "0.6.0",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.6.0"
      }
     ],
     "@broberg/theme": [
@@ -3390,7 +3390,7 @@
       "range": "0.14.0",
       "field": "dependencies",
       "at": "apps/web/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.14.0"
      }
     ],
     "@broberg/mail-identity": [
@@ -3398,7 +3398,7 @@
       "range": "0.1.1",
       "field": "dependencies",
       "at": "packages/rules/package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.1.1"
      }
     ]
    }
@@ -3466,10 +3466,10 @@
     ],
     "@broberg/mail": [
      {
-      "range": "0.26.0",
+      "range": "0.26.1",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.26.0"
+      "installed": "0.26.1"
      }
     ],
     "@broberg/notifications": [
@@ -3532,7 +3532,7 @@
       "range": "0.75.0",
       "field": "dependencies",
       "at": "package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.75.0"
      }
     ],
     "@broberg/i18n": [
@@ -3540,7 +3540,15 @@
       "range": "^0.4.1",
       "field": "dependencies",
       "at": "package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.4.1"
+     }
+    ],
+    "@broberg/legal": [
+     {
+      "range": "0.10.0",
+      "field": "dependencies",
+      "at": "package.json",
+      "installed": "0.10.0"
      }
     ],
     "@broberg/theme": [
@@ -3548,7 +3556,7 @@
       "range": "^0.14.0",
       "field": "dependencies",
       "at": "package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.14.0"
      }
     ],
     "@upmetrics/sdk": [
@@ -3556,7 +3564,7 @@
       "range": "^0.11.2",
       "field": "dependencies",
       "at": "package.json",
-      "installed_unknown": "pnpm-lock.yaml unreadable"
+      "installed": "0.11.2"
      }
     ]
    }
