@@ -143,6 +143,27 @@ const session = await buildConnectCheckout(stripe, {
   No `reverse_transfer` — there is no transfer. Any other call on a direct
   charge takes the same option: `stripe.paymentIntents.retrieve(id, {}, { stripeAccount })`.
 
+## Platform checkout — the platform itself sells (0.6.0)
+
+When there is no connected account — the platform is the seller (e.g. jam's AI credits) — use
+`buildCheckout`, not a raw `stripe.checkout.sessions.create`:
+
+```ts
+import { buildCheckout } from "@broberg/stripe";
+
+const session = await buildCheckout(stripe, {
+  mode: "payment", // or "subscription"
+  lineItems: [{ quantity: 1, price_data: { currency: "dkk", unit_amount: 4900, product_data: { name: "100 AI-kreditter" } } }],
+  metadata: { kind: "credits", userId }, // same kind-routing as buildConnectCheckout → one webhook
+  successUrl, cancelUrl,
+  idempotencyKey: `credits-${orderId}`,  // sent as Stripe's Idempotency-Key; "" is refused
+});
+```
+
+No Connect field reaches Stripe: `on_behalf_of`, `transfer_data` or an application fee anywhere in
+the params (including `extra.payment_intent_data`) throws. Money that goes on to a connected account
+belongs in `buildConnectCheckout`.
+
 ## Webhook handler + `/next` route
 
 `createStripeWebhookHandler` verifies the signature against the **raw body**
@@ -377,6 +398,7 @@ watched happen is Stripe moving a field with this running.
 | `createStripeClient(opts?)` | `{ enabled, stripe, isTestMode }` — dark-ship, pinned apiVersion |
 | `createFeeCalculator(config)` | `{ calculateApplicationFee(øre, type), percentFor(type) }` |
 | `buildConnectCheckout(stripe, params)` | Connect destination-charge Checkout Session |
+| `buildCheckout(stripe, params)` | platform-sells Checkout Session — no Connect fields, optional `idempotencyKey` (0.6.0) |
 | `createStripeWebhookHandler(config)` | `(rawBody, signature) => { ok, status, event?, error? }` |
 | `createStripeWebhookRoute(handler)` | `@broberg/stripe/next` — `(Request) => Response` |
 | `readSubscriptionId(invoice)` | the subscription id, new location → any line → the removed field; `null`, never a throw |

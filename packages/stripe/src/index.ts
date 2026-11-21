@@ -13,6 +13,8 @@
  *  - `buildConnectCheckout()`      — a Connect destination-charge Checkout-Session
  *                                    builder (application_fee + on_behalf_of +
  *                                    transfer_data + metadata.kind).
+ *  - `buildCheckout()`             — the same, for a sale where the PLATFORM sells
+ *                                    (no Connect fields at all; F053.16).
  *  - `createStripeWebhookHandler()`— a raw-body webhook factory (constructEvent +
  *                                    dispatch-by-event.type to consumer handlers).
  *
@@ -221,6 +223,77 @@ export async function buildConnectCheckout(
   }
 
   return stripe.checkout.sessions.create(base);
+}
+
+// ── Platform checkout builder (F053.16) ─────────────────────────────────────
+
+/** Connect fields that have no place in a sale where the PLATFORM is the seller. */
+const CONNECT_FIELDS = ["on_behalf_of", "transfer_data", "application_fee_amount", "application_fee_percent"] as const;
+
+export interface CheckoutParams {
+  mode: "payment" | "subscription";
+  /** `price` (a Price id) or `price_data` (an inline amount) per line. */
+  lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
+  successUrl: string;
+  cancelUrl: string;
+  /** Session metadata — include the `kind` routing-signal, exactly as for buildConnectCheckout. */
+  metadata?: Stripe.MetadataParam;
+  customer?: string;
+  customerEmail?: string;
+  clientReferenceId?: string;
+  /** payment mode: extra PaymentIntent fields (description, receipt_email, own metadata). No Connect fields. */
+  paymentIntentData?: Partial<Stripe.Checkout.SessionCreateParams.PaymentIntentData>;
+  /** subscription mode: extra Subscription fields. No Connect fields. */
+  subscriptionData?: Partial<Stripe.Checkout.SessionCreateParams.SubscriptionData>;
+  /** Sent as Stripe's `Idempotency-Key` request option: a retried request creates no second session. */
+  idempotencyKey?: string;
+  /** Escape hatch for any other TOP-LEVEL Checkout Session param. */
+  extra?: Partial<Stripe.Checkout.SessionCreateParams>;
+}
+
+/**
+ * F053.16 — a Checkout Session where the PLATFORM itself sells (e.g. jam's AI
+ * credits): no connected account, no transfer, no application fee. Same
+ * `metadata.kind` contract as {@link buildConnectCheckout}, so one webhook routes
+ * both. A Connect field anywhere in the params is refused rather than sent —
+ * a sale that should be Connect belongs in buildConnectCheckout.
+ */
+export async function buildCheckout(
+  stripe: Stripe,
+  params: CheckoutParams,
+): Promise<Stripe.Checkout.Session> {
+  if (params.idempotencyKey !== undefined && params.idempotencyKey.trim() === "") {
+    throw new Error("@broberg/stripe: idempotencyKey is empty — omit it or give a real key");
+  }
+
+  const base: Stripe.Checkout.SessionCreateParams = {
+    mode: params.mode,
+    line_items: params.lineItems,
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+    ...(params.metadata ? { metadata: params.metadata } : {}),
+    ...(params.customer ? { customer: params.customer } : {}),
+    ...(params.customerEmail ? { customer_email: params.customerEmail } : {}),
+    ...(params.clientReferenceId ? { client_reference_id: params.clientReferenceId } : {}),
+    ...params.extra,
+  };
+  if (params.mode === "payment" && params.paymentIntentData) base.payment_intent_data = { ...params.paymentIntentData };
+  if (params.mode === "subscription" && params.subscriptionData) base.subscription_data = { ...params.subscriptionData };
+
+  // Checked on what would be SENT, so no route around it (extra.payment_intent_data included).
+  for (const [where, obj] of [
+    ["session", base],
+    ["payment_intent_data", base.payment_intent_data],
+    ["subscription_data", base.subscription_data],
+  ] as const) {
+    for (const f of CONNECT_FIELDS) {
+      if (obj && f in obj) throw new Error(`@broberg/stripe: buildCheckout refuses Connect field ${where}.${f} — use buildConnectCheckout`);
+    }
+  }
+
+  return params.idempotencyKey !== undefined
+    ? stripe.checkout.sessions.create(base, { idempotencyKey: params.idempotencyKey })
+    : stripe.checkout.sessions.create(base);
 }
 
 // ── Webhook handler factory ─────────────────────────────────────────────────

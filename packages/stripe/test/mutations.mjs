@@ -38,6 +38,31 @@ const relOf = (m) => m.file ?? DEFAULT_REL;
 const absOf = (m) => FILES[relOf(m)];
 
 const MUTATIONS = [
+  // ---- F053.16, buildCheckout (src/index.ts) --------------------------------
+  {
+    file: "src/index.ts",
+    name: "buildCheckout's Connect-field refusal is removed — a platform sale can carry a transfer",
+    from: "      if (obj && f in obj) throw new Error(`@broberg/stripe: buildCheckout refuses Connect field",
+    to: "      if (false) throw new Error(`@broberg/stripe: buildCheckout refuses Connect field",
+  },
+  {
+    file: "src/index.ts",
+    name: "buildCheckout no longer checks subscription_data — a subscription can carry a fee",
+    from: `    ["subscription_data", base.subscription_data],\n`,
+    to: ``,
+  },
+  {
+    file: "src/index.ts",
+    name: "an empty idempotencyKey is accepted",
+    from: `params.idempotencyKey.trim() === ""`,
+    to: `false`,
+  },
+  {
+    file: "src/index.ts",
+    name: "idempotencyKey is dropped instead of sent as the request option",
+    from: "stripe.checkout.sessions.create(base, { idempotencyKey: params.idempotencyKey })",
+    to: "stripe.checkout.sessions.create(base)",
+  },
   // ---- readSubscriptionId: each fallback branch, removed in turn ----------
   {
     name: "the parent.subscription_details branch is removed",
@@ -222,7 +247,7 @@ function redSet() {
     // was undefended by construction — four probe mutations came back UNCAUGHT
     // on their first run, and the harness was right to say so. A harness that
     // runs a subset of the tests reports on the subset.
-    execFileSync("npx", ["vitest", "run", "test/fields.test.ts", "test/probe.test.ts", "test/spec-drift.test.ts", "test/direct.test.ts", "test/webhook-worker-build.test.ts"], {
+    execFileSync("npx", ["vitest", "run", "test/fields.test.ts", "test/probe.test.ts", "test/spec-drift.test.ts", "test/direct.test.ts", "test/webhook-worker-build.test.ts", "test/f053-16.test.ts"], {
       cwd: PKG,
       stdio: "pipe",
     });
