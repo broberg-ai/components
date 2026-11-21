@@ -27,7 +27,9 @@ export function provenanceOk(json) {
 
 /** `npm audit signatures` exit + output → { ok, why }. Exit 0 means every signature verified. */
 export function signaturesOk(status, out) {
-  if (status === 0 && /verified registry signatures/i.test(out)) return { ok: true };
+  // npm says «3 packages have verified registry signatures» but «1 package has a verified registry signature» for a package with
+  // no dependencies (singular, an article, no -s) — 21 Nov 2026 that grammar turned 8 correct publishes red. Both forms pass.
+  if (status === 0 && /verified registry signatures?/i.test(out)) return { ok: true };
   return { ok: false, why: `npm audit signatures failed (exit ${status}): ${out.trim().split("\n").slice(-3).join(" | ")}` };
 }
 
