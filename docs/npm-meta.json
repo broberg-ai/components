@@ -25,8 +25,8 @@
  },
  "@broberg/s3": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/s3",
-  "version": "0.2.3",
-  "publishedAt": "2026-11-21T15:49:50.277Z",
+  "version": "0.3.0",
+  "publishedAt": "2026-11-21T18:28:37.725Z",
   "provenance": "yes"
  },
  "@broberg/mollie": {
