@@ -5,7 +5,7 @@ import { senderDomain, verifySendingDomain, checkBrandReadiness, checkResendDoma
 
 // Assembled at run time: a literal key-shaped string would (rightly) trip the commit-time secret gate. It is not a key.
 const KEY = ['re', 'TestKeyN', 'neverLeaksFakeXYZ0123456789'].join('_');
-const LONG = 'x'.repeat(400);
+const LONG = 'a long unreadable input '.repeat(20); // spaces: NOT key-shaped, so only the cap can keep it out
 const resolver: DnsResolver = {
   resolveTxt: async () => { throw Object.assign(new Error('ENODATA'), { code: 'ENODATA' }); },
   resolveMx: async () => { throw Object.assign(new Error('ENODATA'), { code: 'ENODATA' }); },
