@@ -25,7 +25,7 @@ const BAD: [string, unknown][] = [
 
 const leaks = (v: unknown) => {
   const text = JSON.stringify(v) ?? '';
-  return text.includes(KEY) || text.includes('TestKeyNeverLeaks') || text.includes(LONG);
+  return text.includes(KEY) || text.includes('neverLeaksFake') || text.includes(LONG);
 };
 
 describe('F005.29 — no entry point repeats its input', () => {
@@ -50,7 +50,7 @@ describe('F005.29 — no entry point repeats its input', () => {
       let msg = '';
       try { senderDomain(input as string); } catch (e) { msg = (e as Error).message; }
       if (input !== null) expect(msg).not.toBe(''); // null reads as empty input and throws too
-      expect(msg.includes(KEY) || msg.includes('TestKeyNeverLeaks') || msg.includes(LONG)).toBe(false);
+      expect(msg.includes(KEY) || msg.includes('neverLeaksFake') || msg.includes(LONG)).toBe(false);
     });
   }
 
