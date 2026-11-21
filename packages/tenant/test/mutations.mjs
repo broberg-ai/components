@@ -49,7 +49,7 @@ const MUTATIONS = [
     file: "index",
     from: '    if (current) return { ...membership, role: current.role };\n    throw new InviteRefused("used");',
     to: '    if (current) return { ...membership, role: current.role };\n    await store.addMembership(membership);\n    return membership;',
-    expect: ["later is refused 'used' and nothing is re-created"],
+    expect: ["LATER is refused 'used' and nothing is re-created"],
   },
   {
     name: "the heal window is one millisecond too long (boundary)",
