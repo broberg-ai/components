@@ -45,7 +45,7 @@ const membership = await acceptInvite({ store, token, user: { id, email }, invit
 - **The signed-in email must match** the invitation (case-insensitive).
 - **Expires** after 7 days by default (`ttlMs`).
 - **Cannot escalate.** A role outside `invitableRoles` is refused when the invitation is created and again when it is accepted.
-- Accepting again as the same user is safe and returns the same membership, so a half-finished earlier accept is repaired.
+- **A removed member stays removed (0.2.2).** Accepting again as the same user is safe while they are still a member (nothing is written). A used invitation never re-creates a membership an admin has removed: a retry inside `HEAL_WINDOW_MS` (5 minutes after the invitation was claimed) still repairs a half-finished accept — a crash between `markInviteUsed` and `addMembership` — and after that window the retry is refused with `used`. Expiry is checked first, so an expired link is dead for everyone. If your app removes members, the removal needs no extra step; if you need a stricter rule, revoke the member's used invitations on removal as well.
 
 Refusals are `InviteRefused` with `reason`: `not_found`, `expired`, `revoked`, `used`, `email_mismatch` or `role_not_invitable`.
 

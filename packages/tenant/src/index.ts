@@ -345,9 +345,17 @@ export interface AcceptInviteInput {
 }
 
 /**
+ * How long after an invitation was claimed a retry by the same user may still WRITE the membership — the window in which
+ * "claimed but never added" (a crash between the two store calls) is healed. After it, a used invitation can only be
+ * replayed read-only while the membership exists; a removed member stays removed (F029.15).
+ */
+export const HEAL_WINDOW_MS = 5 * 60 * 1000;
+
+/**
  * Accept an invitation: one use, before it expires, by the user it was sent
- * to. Repeating the accept as the SAME user is safe and returns the same
- * membership; anyone else gets `used`.
+ * to. Repeating the accept as the SAME user is safe while they are still a
+ * member (nothing is written); it never re-creates a removed membership, apart
+ * from healing a half-finished accept inside HEAL_WINDOW_MS. Anyone else gets `used`.
  */
 export async function acceptInvite(input: AcceptInviteInput): Promise<MembershipGrant> {
   const { store, user } = input;
@@ -364,12 +372,20 @@ export async function acceptInvite(input: AcceptInviteInput): Promise<Membership
     ...(invite.scope !== undefined ? { scope: invite.scope } : {}),
   };
 
+  if (now >= invite.expiresAt) throw new InviteRefused("expired"); // before the reuse branch: an old link is dead for everyone
   if (invite.usedAt !== undefined) {
     if (invite.usedBy !== user.id) throw new InviteRefused("used");
-    await store.addMembership(membership); // heals a half-finished earlier accept
-    return membership;
+    // F029.15 — reusing a used invitation must NEVER re-create a membership an admin has since removed.
+    // 1) Inside a short window a crash between "claimed" and "added" is healed (addMembership is idempotent).
+    if (now - invite.usedAt < HEAL_WINDOW_MS) {
+      await store.addMembership(membership);
+      return membership;
+    }
+    // 2) Later: idempotent only while the user is still a member — read-only, nothing is written.
+    const current = (await store.membershipsOf(user.id)).find((m) => m.tenantId === invite.tenantId);
+    if (current) return { ...membership, role: current.role };
+    throw new InviteRefused("used");
   }
-  if (now >= invite.expiresAt) throw new InviteRefused("expired");
   const tenant = await store.tenantById(invite.tenantId);
   if (!tenant) throw new TenantNotFound(invite.tenantId);
   if (tenant.status === "suspended") throw new TenantSuspended(tenant.slug);
@@ -438,6 +454,8 @@ export function memoryTenantStore(seed: { tenants?: Tenant[]; memberships?: Memb
   readonly invites: ReadonlyMap<string, StoredInvite>;
   /** Every scoped grant written by addMembership, in order. */
   readonly grants: readonly MembershipGrant[];
+  /** What an app's "remove member" does: drop the user's rows in that tenant. (Not part of TenantStore — the app owns removal.) */
+  removeMembership(userId: string, tenantId: string): void;
 } {
   const tenants = new Map((seed.tenants ?? []).map((t) => [t.id, { ...t }]));
   const memberships: Membership[] = (seed.memberships ?? []).map((m) => ({ ...m }));
@@ -446,6 +464,10 @@ export function memoryTenantStore(seed: { tenants?: Tenant[]; memberships?: Memb
   return {
     invites,
     grants,
+    removeMembership(userId, tenantId) {
+      for (let i = memberships.length - 1; i >= 0; i--) if (memberships[i]!.userId === userId && memberships[i]!.tenantId === tenantId) memberships.splice(i, 1);
+      for (let i = grants.length - 1; i >= 0; i--) if (grants[i]!.userId === userId && grants[i]!.tenantId === tenantId) grants.splice(i, 1);
+    },
     async tenantById(id) {
       return tenants.get(id) ?? null;
     },

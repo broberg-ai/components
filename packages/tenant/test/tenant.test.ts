@@ -5,6 +5,7 @@
 import { describe, expect, test, vi } from "vitest";
 import {
   acceptInvite,
+  HEAL_WINDOW_MS,
   createInvite,
   createPolicy,
   hashInviteToken,
@@ -369,5 +370,48 @@ describe("invitation scope (F029.12)", () => {
     await expect(
       createInvite({ store, tenantId: A.id, email: "ny@x.dk", role: "owner", scope: "unit-klinik-a", invitableRoles: ROLES }),
     ).rejects.toMatchObject({ reason: "role_not_invitable" });
+  });
+});
+
+// F029.15 — a removed member must not be able to re-join with the old, used invitation.
+describe("F029.15 — reuse of a used invitation never re-creates a removed membership", () => {
+  const fresh = () => memoryTenantStore({ tenants: [A, B, S], memberships: [{ userId: "boss", tenantId: A.id, role: "admin" }] });
+  const T0 = 1_800_000_000_000;
+  const MIN = 60_000;
+  async function accepted() {
+    const store = fresh();
+    const { token } = await createInvite({ store, tenantId: A.id, email: "ny@example.dk", role: "admin", invitableRoles: ["admin", ...ROLES], now: T0 });
+    const user = { id: "ny", email: "ny@example.dk" };
+    await acceptInvite({ store, token, user, invitableRoles: ["admin", ...ROLES], now: T0 + 1 });
+    return { store, token, user };
+  }
+  test("accept → admin removes the member → the same token LATER is refused 'used' and nothing is re-created", async () => {
+    const { store, token, user } = await accepted();
+    store.removeMembership("ny", A.id);
+    await expect(acceptInvite({ store, token, user, invitableRoles: ["admin", ...ROLES], now: T0 + 10 * MIN })).rejects.toMatchObject({ reason: "used" });
+    expect(await store.membershipsOf("ny")).toEqual([]);
+  });
+  test("later reuse while STILL a member is idempotent and read-only (current role, no write)", async () => {
+    const { store, token, user } = await accepted();
+    const before = JSON.stringify([await store.membershipsOf("ny"), store.grants]);
+    const m = await acceptInvite({ store, token, user, invitableRoles: ["admin", ...ROLES], now: T0 + 10 * MIN });
+    expect(m).toMatchObject({ userId: "ny", tenantId: A.id, role: "admin" });
+    expect(JSON.stringify([await store.membershipsOf("ny"), store.grants])).toBe(before);
+  });
+  test("a half-finished accept (claimed, never added) heals INSIDE the window and not after it", async () => {
+    const store = fresh();
+    const { token, invite } = await createInvite({ store, tenantId: A.id, email: "ny@example.dk", role: "member", invitableRoles: ROLES, now: T0 });
+    await store.markInviteUsed(invite.id, T0 + 1, "ny"); // the crash: claimed, addMembership never ran
+    const user = { id: "ny", email: "ny@example.dk" };
+    await expect(acceptInvite({ store, token, user, invitableRoles: ROLES, now: T0 + 1 + HEAL_WINDOW_MS })).rejects.toMatchObject({ reason: "used" });
+    expect(await store.membershipsOf("ny")).toEqual([]);
+    await acceptInvite({ store, token, user, invitableRoles: ROLES, now: T0 + 1 + HEAL_WINDOW_MS - 1 });
+    expect((await store.membershipsOf("ny")).length).toBe(1);
+  });
+  test("an expired token is refused 'expired' BEFORE the reuse branch — even for the user who used it", async () => {
+    const { store, token, user } = await accepted();
+    store.removeMembership("ny", A.id);
+    await expect(acceptInvite({ store, token, user, invitableRoles: ["admin", ...ROLES], now: T0 + 365 * 24 * 60 * MIN })).rejects.toMatchObject({ reason: "expired" });
+    expect(await store.membershipsOf("ny")).toEqual([]);
   });
 });

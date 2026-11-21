@@ -112,6 +112,22 @@ describe("tenantRoutes — invitations end to end, read back from the store", ()
     expect(await body(await t.req("/me/memberships", "ny"))).toEqual([200, null, [{ tenant: { id: A.id, slug: "alpha", name: "Alpha" }, role: "member" }]]);
   });
 
+  test("F029.15 — a removed member replaying the old, used invitation LATER gets 409 invite_used and is not re-created", async () => {
+    const t = setup();
+    await t.req("/t/alpha/api/invites", "boss", { method: "POST", body: JSON.stringify({ email: "Ny@X.dk", role: "member" }) });
+    const token = t.sent[0]!.token;
+    expect((await t.req("/me/invites/accept", "ny", { method: "POST", body: JSON.stringify({ token }) })).status).toBe(200);
+    t.store.removeMembership("ny", A.id);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+      expect(await body(await t.req("/me/invites/accept", "ny", { method: "POST", body: JSON.stringify({ token }) }))).toEqual([409, null, { error: "invite_used" }]);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await t.store.membershipsOf("ny")).toEqual([]);
+  });
+
   test("a member may not invite (403, nothing delivered); an admin may not invite as owner (403)", async () => {
     const t = setup();
     expect((await t.req("/t/alpha/api/invites", "mem", { method: "POST", body: JSON.stringify({ email: "a@b.dk", role: "member" }) })).status).toBe(403);
