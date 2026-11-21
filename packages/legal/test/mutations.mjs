@@ -110,21 +110,21 @@ const MUTATIONS = [
     file: RENDER,
     find: 'const TABLE_STYLE = "overflow-wrap:anywhere;hyphens:auto";',
     replace: 'const TABLE_STYLE = "hyphens:auto";',
-    expect: ["each <table> carries overflow-wrap:anywhere AND hyphens:auto"],
+    expect: ["each <table> can break inside a word (overflow-wrap:anywhere)"],
   },
   {
     name: "F110.21 — a table breaks mid-word with no hyphen («Frankri/g»)",
     file: RENDER,
     find: 'const TABLE_STYLE = "overflow-wrap:anywhere;hyphens:auto";',
     replace: 'const TABLE_STYLE = "overflow-wrap:anywhere";',
-    expect: ["each <table> carries overflow-wrap:anywhere AND hyphens:auto"],
+    expect: ["each <table> hyphenates where the browser can (hyphens:auto)"],
   },
   {
     name: "F110.21 — the table tag no longer carries the style at all",
     file: RENDER,
     find: 'return `<table${id} style="${TABLE_STYLE}"><thead>',
     replace: 'return `<table${id}><thead>',
-    expect: ["each <table> carries overflow-wrap:anywhere AND hyphens:auto"],
+    expect: ["can break inside a word (overflow-wrap:anywhere)", "hyphenates where the browser can (hyphens:auto)"],
   },
 ];
 

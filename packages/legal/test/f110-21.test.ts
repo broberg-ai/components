@@ -11,13 +11,12 @@ const LOCALES = ["da", "en"] as const;
 
 describe("F110.21 — every rendered table can shrink to the screen", () => {
   for (const doc of DOC_IDS) for (const locale of LOCALES) {
-    it(`${doc}/${locale}: each <table> carries overflow-wrap:anywhere AND hyphens:auto`, () => {
-      const html = renderHtml(getDocument({ doc, locale, facts: EXAMPLE_FACTS }));
-      const tables = html.match(/<table[^>]*>/g) ?? [];
-      for (const t of tables) {
-        expect(t, t).toMatch(/style="[^"]*overflow-wrap:anywhere/);
-        expect(t, t).toMatch(/style="[^"]*hyphens:auto/);
-      }
+    const tags = () => renderHtml(getDocument({ doc, locale, facts: EXAMPLE_FACTS })).match(/<table[^>]*>/g) ?? [];
+    it(`${doc}/${locale}: each <table> can break inside a word (overflow-wrap:anywhere)`, () => {
+      for (const t of tags()) expect(t, t).toMatch(/style="[^"]*overflow-wrap:anywhere/);
+    });
+    it(`${doc}/${locale}: each <table> hyphenates where the browser can (hyphens:auto)`, () => {
+      for (const t of tags()) expect(t, t).toMatch(/style="[^"]*hyphens:auto/);
     });
   }
 
