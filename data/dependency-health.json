@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-21T12:42:07.746Z",
+ "checked_at": "2026-11-21T15:45:17.895Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -43,7 +43,7 @@
    "verdict": "OK"
   },
   "@broberg/app-shell": {
-   "version": "0.26.0",
+   "version": "0.26.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -191,7 +191,7 @@
    "verdict": "OK"
   },
   "@broberg/call": {
-   "version": "0.7.0",
+   "version": "0.7.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -376,7 +376,7 @@
    "verdict": "OK"
   },
   "@broberg/cron": {
-   "version": "0.4.0",
+   "version": "0.4.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -450,7 +450,7 @@
    "verdict": "OK"
   },
   "@broberg/deploy-core": {
-   "version": "0.11.0",
+   "version": "0.11.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -524,7 +524,7 @@
    "verdict": "OK"
   },
   "@broberg/editor": {
-   "version": "0.1.0",
+   "version": "0.1.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -820,7 +820,7 @@
    "verdict": "OK"
   },
   "@broberg/legal": {
-   "version": "0.10.0",
+   "version": "0.10.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1005,7 +1005,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-core": {
-   "version": "0.10.1",
+   "version": "0.10.2",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1079,7 +1079,7 @@
    "verdict": "OK"
   },
   "@broberg/mail-templates": {
-   "version": "0.3.0",
+   "version": "0.3.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1116,7 +1116,7 @@
    "verdict": "OK"
   },
   "@broberg/mcp": {
-   "version": "0.11.2",
+   "version": "0.11.3",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1132,9 +1132,9 @@
    },
    "dev": {
     "critical": 1,
-    "high": 13,
-    "moderate": 17,
-    "low": 2
+    "high": 1,
+    "moderate": 3,
+    "low": 0
    },
    "outdated": {
     "total": 7,
@@ -1153,7 +1153,7 @@
    "verdict": "OK"
   },
   "@broberg/media": {
-   "version": "0.7.0",
+   "version": "0.7.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1412,7 +1412,7 @@
    "verdict": "OK"
   },
   "@broberg/provider-usage": {
-   "version": "0.1.0",
+   "version": "0.1.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1523,7 +1523,7 @@
    "verdict": "OK"
   },
   "@broberg/s3": {
-   "version": "0.2.2",
+   "version": "0.2.3",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1597,7 +1597,7 @@
    "verdict": "OK"
   },
   "@broberg/secret-scan": {
-   "version": "0.16.2",
+   "version": "0.16.3",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1634,7 +1634,7 @@
    "verdict": "OK"
   },
   "@broberg/seti-client": {
-   "version": "0.4.0",
+   "version": "0.4.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1745,7 +1745,7 @@
    "verdict": "OK"
   },
   "@broberg/sms": {
-   "version": "0.12.0",
+   "version": "0.12.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -1856,7 +1856,7 @@
    "verdict": "OK"
   },
   "@broberg/sso": {
-   "version": "0.27.0",
+   "version": "0.27.1",
    "status": "ok",
    "prod": {
     "critical": 0,
@@ -2041,7 +2041,7 @@
    "verdict": "OK"
   },
   "@broberg/web-clipper": {
-   "version": "0.27.1",
+   "version": "0.27.2",
    "status": "ok",
    "prod": {
     "critical": 0,
