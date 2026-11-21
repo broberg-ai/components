@@ -1,4 +1,0 @@
-# a Cargo lockfile this gate has no parser for: its dependencies are NOT checked, so deps-vuln must say so, in red
-[[package]]
-name = "left-pad"
-version = "0.0.0"

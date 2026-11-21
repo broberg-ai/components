@@ -13,8 +13,8 @@ name: security-gate
 #   jobs:
 #     security:
 #       permissions: { contents: read }
-#       uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.3
-#       with: { engine-ref: security-gate-v1.0.3 }
+#       uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.4
+#       with: { engine-ref: security-gate-v1.0.4 }
 #
 # Make your deploy job `needs: security` (or require the checks in branch protection): a finding must BLOCK.
 #
@@ -36,7 +36,7 @@ on:
       engine-ref:
         description: Ref of broberg-ai/components the engine is read from. Keep it equal to the tag you pinned `uses:` to.
         type: string
-        default: security-gate-v1.0.3
+        default: security-gate-v1.0.4
       directory:
         description: Directory the checks run in, relative to the repo root. Default is the whole repo; the selftest points it at a fixture.
         type: string

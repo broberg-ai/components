@@ -9,12 +9,14 @@ import { fileURLToPath } from "node:url";
 import {
   CHECKS, MAX_ACK_DAYS, validateAcks, acked, isMalicious, decideDeps, decideSast, decideWorkflows, decideInstall, overall, render,
 } from "./security-gate/decide.mjs";
-import { parsePnpm, parseNpm, parseBun, parseJsonc, findLockfiles, readLockfile } from "./security-gate/lockfiles.mjs";
+import { parsePnpm, parseNpm, parseBun, parseJsonc, parseCargo, parseSwiftPm, findLockfiles, readLockfile } from "./security-gate/lockfiles.mjs";
+import { queryOsv } from "./dependency-health.mjs";
 import { parseGateConfig } from "./security-gate/config.mjs";
 import { runZizmor, runSemgrep } from "./security-gate/run-check.mjs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ✓ ${name}`); };
+const ta = async (name, fn) => { await fn(); n++; console.log(`  ✓ ${name}`); }; // for tests that await (t() would not wait, and could never fail)
 const TODAY = "2026-11-20";
 const ack = (o = {}) => ({ id: "GHSA-aaaa", reason: "cannot reach a user: dev-only tool", expires: "2026-12-20", ...o });
 
@@ -93,10 +95,10 @@ t("an ack silences exactly the finding it names, and only while valid", () => {
   assert.equal(by(decideDeps(deps([F()]), validateAcks({ acks: [ack({ expires: "2026-11-01" })] }, TODAY).valid), "deps-vuln").status, "red");
 });
 t("a lockfile with no parser BLOCKS deps-vuln (its dependencies were not checked); an ack by id+path with a date lets a human accept it", () => {
-  const v = by(decideDeps(deps([], { unsupported: ["Cargo.lock"] }), []), "deps-vuln");
-  assert.equal(v.status, "red"); assert.equal(v.blocking[0].id, "unsupported-lockfile"); assert.equal(v.blocking[0].path, "Cargo.lock");
-  assert.equal(by(decideDeps(deps([], { unsupported: ["Cargo.lock"] }), [ack({ id: "unsupported-lockfile", path: "Cargo.lock" })]), "deps-vuln").status, "green");
-  assert.equal(by(decideDeps(deps([], { unsupported: ["Cargo.lock"] }), [ack({ id: "unsupported-lockfile", path: "go.sum" })]), "deps-vuln").status, "red");
+  const v = by(decideDeps(deps([], { unsupported: ["go.sum"] }), []), "deps-vuln");
+  assert.equal(v.status, "red"); assert.equal(v.blocking[0].id, "unsupported-lockfile"); assert.equal(v.blocking[0].path, "go.sum");
+  assert.equal(by(decideDeps(deps([], { unsupported: ["go.sum"] }), [ack({ id: "unsupported-lockfile", path: "go.sum" })]), "deps-vuln").status, "green");
+  assert.equal(by(decideDeps(deps([], { unsupported: ["go.sum"] }), [ack({ id: "unsupported-lockfile", path: "Gemfile.lock" })]), "deps-vuln").status, "red");
 });
 
 
@@ -211,11 +213,90 @@ t("JSONC: comments and trailing commas are read, a // inside a string is kept", 
   assert.deepEqual(parseJsonc('{ "a": "http://x", /* c */ "b": [1,2,], // t\n }'), { a: "http://x", b: [1, 2] }));
 t("findLockfiles: finds supported and NAMES unsupported ones, skips node_modules and excluded prefixes", () => {
   const d = mkdtempSync(join(tmpdir(), "lf-"));
-  for (const p of ["pnpm-lock.yaml", "sub/bun.lock", "sub/Cargo.lock", "node_modules/x/package-lock.json", "fx/yarn.lock", "security-gate/fixtures/c/package-lock.json"]) {
+  for (const p of ["pnpm-lock.yaml", "sub/bun.lock", "sub/Gemfile.lock", "sub/Cargo.lock", "sub/Package.resolved", "node_modules/x/package-lock.json", "fx/yarn.lock", "security-gate/fixtures/c/package-lock.json"]) {
     mkdirSync(join(d, p, ".."), { recursive: true }); writeFileSync(join(d, p), "");
   }
   const got = findLockfiles(d, ["security-gate/fixtures/"]).map((l) => `${l.path}:${l.supported}`);
-  assert.deepEqual(got, ["fx/yarn.lock:false", "pnpm-lock.yaml:true", "sub/bun.lock:true", "sub/Cargo.lock:false"]);
+  assert.deepEqual(got, ["fx/yarn.lock:false", "pnpm-lock.yaml:true", "sub/bun.lock:true", "sub/Cargo.lock:true", "sub/Gemfile.lock:false", "sub/Package.resolved:true"]);
+});
+
+// ---------------------------------------------------------------- F115.9 — Cargo.lock and Package.resolved
+const CARGO = `# comment
+version = 3
+
+[[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "smallvec",
+ "gitdep 0.2.0 (git+https://github.com/x/gitdep)",
+]
+
+[[package]]
+name = "smallvec"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4488ae950c49d403731982257768f48fada354a5203fe81f9bb6f43ca9002be"
+
+[[package]]
+name = "serde"
+version = "1.0.200"
+source = "sparse+https://index.crates.io/"
+
+[[package]]
+name = "gitdep"
+version = "0.2.0"
+source = "git+https://github.com/x/gitdep?rev=abc#abc"
+
+[[package]]
+name = "local-helper"
+version = "0.1.0"
+`;
+t("parseCargo: registry crates are keyed crates.io::name@version; a git crate is named nonRegistry; the project's own path crates are not dependencies", () => {
+  const r = parseCargo(CARGO);
+  assert.deepEqual([...r.all].sort(), ["crates.io::serde@1.0.200", "crates.io::smallvec@0.6.9"]);
+  assert.deepEqual([...r.shipped].sort(), [...r.all].sort()); // Cargo.lock does not say what is dev-only: every crate counts as shipped (the safe side)
+  assert.deepEqual(r.nonRegistry, ["gitdep@0.2.0"]);
+});
+t("parseCargo: a lockfile with no [[package]] at all is an ERROR, not an empty clean result", () => {
+  assert.throws(() => parseCargo("# nothing here\nversion = 3\n"), /no \[\[package\]\]/);
+});
+const SWIFT_V3 = JSON.stringify({ version: 3, pins: [
+  { identity: "swift-nio", kind: "remoteSourceControl", location: "https://github.com/apple/swift-nio.git", state: { revision: "a", version: "2.40.0" } },
+  { identity: "swift-log", kind: "remoteSourceControl", location: "git@github.com:apple/swift-log.git", state: { revision: "b", version: "1.5.4" } },
+  { identity: "on-a-branch", kind: "remoteSourceControl", location: "https://github.com/x/branchy.git", state: { revision: "c", branch: "main" } },
+  { identity: "local", kind: "localSourceControl", location: "/Users/someone/dev/local" },
+] });
+t("parseSwiftPm v2/v3: names are host/path (no scheme, no .git) — what OSV's SwiftURL ecosystem knows; a branch pin is nonRegistry; a local pin is skipped", () => {
+  const r = parseSwiftPm(JSON.parse(SWIFT_V3));
+  assert.deepEqual([...r.all].sort(), ["SwiftURL::github.com/apple/swift-log@1.5.4", "SwiftURL::github.com/apple/swift-nio@2.40.0"]);
+  assert.deepEqual([...r.shipped].sort(), [...r.all].sort());
+  assert.deepEqual(r.nonRegistry, ["github.com/x/branchy (no released version)"]);
+});
+t("parseSwiftPm v1: object.pins with repositoryURL and state.version", () => {
+  const r = parseSwiftPm({ version: 1, object: { pins: [{ package: "SwiftNIO", repositoryURL: "https://github.com/apple/swift-nio.git", state: { branch: null, revision: "a", version: "2.40.0" } }] } });
+  assert.deepEqual([...r.all], ["SwiftURL::github.com/apple/swift-nio@2.40.0"]);
+});
+t("parseSwiftPm: a file with no pins list is an ERROR, not an empty clean result", () => {
+  assert.throws(() => parseSwiftPm({ version: 3 }), /no pins/);
+});
+t("readLockfile dispatches Cargo.lock and Package.resolved (and findLockfiles marks them supported)", () => {
+  const d = mkdtempSync(join(tmpdir(), "lf2-"));
+  writeFileSync(join(d, "Cargo.lock"), CARGO); writeFileSync(join(d, "Package.resolved"), SWIFT_V3);
+  const lfs = findLockfiles(d);
+  assert.deepEqual(lfs.map((l) => [l.path, l.kind, l.supported]), [["Cargo.lock", "cargo", true], ["Package.resolved", "swiftpm", true]]);
+  assert.equal(readLockfile(d, lfs[0], null).all.size, 2); assert.equal(readLockfile(d, lfs[1], null).all.size, 2);
+});
+await ta("queryOsv asks each ecosystem by ITS name (crates.io, SwiftURL) and npm unchanged — a crate asked as npm would answer «no vulnerabilities»", async () => {
+  const asked = [];
+  const fake = async (url, init) => {
+    if (String(url).includes("querybatch")) { const q = JSON.parse(init.body).queries; asked.push(...q); return { ok: true, json: async () => ({ results: q.map(() => ({})) }) }; }
+    return { ok: true, json: async () => ({}) };
+  };
+  await queryOsv(new Set(["left-pad@1.3.0", "@scope/pkg@2.0.0", "crates.io::smallvec@0.6.9", "SwiftURL::github.com/apple/swift-nio@2.40.0"]), fake);
+  assert.deepEqual(asked.map((q) => [q.package.ecosystem, q.package.name, q.version]), [
+    ["npm", "left-pad", "1.3.0"], ["npm", "@scope/pkg", "2.0.0"], ["crates.io", "smallvec", "0.6.9"], ["SwiftURL", "github.com/apple/swift-nio", "2.40.0"],
+  ]);
 });
 
 // ---------------------------------------------------------------- a tool that did not run is NOT a clean result

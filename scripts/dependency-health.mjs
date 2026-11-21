@@ -166,7 +166,13 @@ export async function queryOsv(deps, fetchImpl = fetch) {
   const ids = new Map(); // dep → [ids]
   for (let i = 0; i < list.length; i += 1000) {
     const chunk = list.slice(i, i + 1000);
-    const queries = chunk.map((d) => { const at = d.lastIndexOf("@"); return { package: { ecosystem: "npm", name: d.slice(0, at) }, version: d.slice(at + 1) }; });
+    // npm keys are plain `name@version`; another ecosystem is `<OSV ecosystem>::name@version` (security-gate/lockfiles.mjs ecoKey).
+    const queries = chunk.map((d) => {
+      const eco = /^([A-Za-z.]+)::(.+)$/.exec(d);
+      const [ecosystem, spec] = eco ? [eco[1], eco[2]] : ["npm", d];
+      const at = spec.lastIndexOf("@");
+      return { package: { ecosystem, name: spec.slice(0, at) }, version: spec.slice(at + 1) };
+    });
     const r = await fetchImpl("https://api.osv.dev/v1/querybatch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ queries }) });
     if (!r.ok) throw new Error(`OSV querybatch HTTP ${r.status}`);
     const j = await r.json();

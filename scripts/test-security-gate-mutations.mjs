@@ -16,6 +16,15 @@ const dir = mkdtempSync(join(tmpdir(), "gate-mut-"));
 const MUTATIONS = [
   // --- acks: the rules that stop an exemption from becoming permanent
   { file: "decide.mjs", name: "a lockfile that cannot be parsed is read as zero findings (green)", find: "if (!deps || (deps.errors ?? []).length) {", replace: "if (!deps) {" },
+  // F115.9 — Cargo.lock / Package.resolved
+  { file: "lockfiles.mjs", name: "a crate is asked of OSV as an npm package (it would answer «no vulnerabilities»)", find: 'ecoKey("crates.io", p.name, p.version)', replace: '`${p.name}@${p.version}`' },
+  { file: "../dependency-health.mjs", name: "queryOsv ignores the ecosystem prefix and asks everything as npm", find: 'const [ecosystem, spec] = eco ? [eco[1], eco[2]] : ["npm", d];', replace: 'const [ecosystem, spec] = ["npm", d];' },
+  { file: "lockfiles.mjs", name: "a git crate is asked of OSV like a registry crate", find: 'if (/^(registry|sparse)\\+/.test(p.source)) all.add(', replace: 'if (true) all.add(' },
+  { file: "lockfiles.mjs", name: "an empty Cargo.lock reads as a clean result", find: 'if (pkgs.length === 0) throw new Error("Cargo.lock holds no [[package]] table");', replace: "" },
+  { file: "lockfiles.mjs", name: "a Package.resolved with no pins reads as a clean result", find: 'if (!pins) throw new Error("Package.resolved has no pins list");', replace: "if (!pins) return { shipped: new Set(), all: new Set(), nonRegistry: [] };" },
+  { file: "lockfiles.mjs", name: "a Swift package is asked of OSV by its full URL (OSV answers nothing for that form)", find: '.replace(/\\.git$/i, "").replace(/\\/+$/, "");', replace: ";" },
+  { file: "lockfiles.mjs", name: "a Swift pin on a branch is asked of OSV as if it had a version", find: 'if (typeof version === "string" && version) all.add(', replace: 'if (true) all.add(' },
+  { file: "lockfiles.mjs", name: "Cargo.lock is named «no parser» again", find: '"Cargo.lock": "cargo", "Package.resolved": "swiftpm" };', replace: '};' },
   { file: "decide.mjs", name: "an expired ack still counts", find: "if (left < 0) {", replace: "if (false) {" },
   { file: "decide.mjs", name: "an ack may expire any distance away", find: "if (left > MAX_ACK_DAYS) {", replace: "if (false) {" },
   { file: "decide.mjs", name: "an ack needs no real reason", find: "a.reason.trim().length < MIN_REASON", replace: "false" },

@@ -7,12 +7,13 @@
 // A malicious package is the exception and is judged over the WHOLE tree — it runs on the build machine too.
 //
 // Three lockfile families are understood: pnpm-lock.yaml (v9), package-lock.json (v2/v3), bun.lock (text).
-// Anything else (yarn.lock, Cargo.lock, go.sum, requirements.txt …) is NAMED as not covered — never silently skipped.
+// F115.9 adds two more: Cargo.lock (Rust, OSV ecosystem crates.io) and Package.resolved (SwiftPM, OSV ecosystem SwiftURL).
+// Anything else (yarn.lock, go.sum, requirements.txt …) is NAMED as not covered — never silently skipped.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-export const SUPPORTED = { "pnpm-lock.yaml": "pnpm", "package-lock.json": "npm", "bun.lock": "bun" };
-export const UNSUPPORTED = ["yarn.lock", "bun.lockb", "Cargo.lock", "go.sum", "poetry.lock", "Pipfile.lock", "requirements.txt", "Gemfile.lock", "composer.lock", "Package.resolved"];
+export const SUPPORTED = { "pnpm-lock.yaml": "pnpm", "package-lock.json": "npm", "bun.lock": "bun", "Cargo.lock": "cargo", "Package.resolved": "swiftpm" };
+export const UNSUPPORTED = ["yarn.lock", "bun.lockb", "go.sum", "poetry.lock", "Pipfile.lock", "requirements.txt", "Gemfile.lock", "composer.lock"];
 const SKIP_DIRS = new Set(["node_modules", ".git", ".claude", ".next", "dist", "build", ".turbo", ".venv", "venv"]);
 
 /** Every lockfile under `root`, as {path (relative, posix), kind, supported}. `exclude` = path prefixes to ignore. */
@@ -158,6 +159,61 @@ export function parseBun(lock, skipImporters = []) {
   return { shipped, all, nonRegistry };
 }
 
+// ---------------------------------------------------------------- Cargo.lock (F115.9)
+/** A dependency key for an ecosystem other than npm: `<OSV ecosystem>::name@version`. npm keeps plain `name@version`, so
+ *  every existing key, ack and test is unchanged; dependency-health.mjs's queryOsv reads the prefix back. */
+export const ecoKey = (eco, name, version) => `${eco}::${name}@${version}`;
+
+/**
+ * Cargo.lock is TOML, but only a flat, regular slice of it matters: every `[[package]]` table's `name`, `version` and `source`.
+ * A tiny line reader is enough and keeps the gate free of a TOML dependency. Cargo.lock does not say which crates are dev-only,
+ * so every registry crate counts as SHIPPED — the safe side: a vulnerable dev crate is reported rather than missed.
+ * A crate with no `source` is the project's own (a path/workspace member) and is not a dependency to check; a git crate has no
+ * registry version OSV can answer for, so it is named in `nonRegistry`, like the npm git/tarball cases.
+ */
+export function parseCargo(text) {
+  const pkgs = [];
+  let cur = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line === "[[package]]") { cur = {}; pkgs.push(cur); continue; }
+    if (line.startsWith("[")) { cur = null; continue; } // [metadata] and friends
+    if (!cur) continue;
+    const m = /^(name|version|source)\s*=\s*"([^"]*)"\s*$/.exec(line);
+    if (m) cur[m[1]] = m[2];
+  }
+  if (pkgs.length === 0) throw new Error("Cargo.lock holds no [[package]] table");
+  const all = new Set(), nonRegistry = [];
+  for (const p of pkgs) {
+    if (!p.name || !p.version || !p.source) continue; // incomplete table, or the project's own crate
+    if (/^(registry|sparse)\+/.test(p.source)) all.add(ecoKey("crates.io", p.name, p.version));
+    else nonRegistry.push(`${p.name}@${p.version}`);
+  }
+  return { shipped: new Set(all), all, nonRegistry };
+}
+
+// ---------------------------------------------------------------- Package.resolved (SwiftPM, F115.9)
+/** `https://github.com/apple/swift-nio.git` / `git@github.com:apple/swift-nio.git` → `github.com/apple/swift-nio`, the name OSV's
+ *  SwiftURL ecosystem uses. (Measured 21 Nov 2026: OSV answers for that form and returns nothing for the full URL.) */
+const swiftName = (location) =>
+  String(location).trim().replace(/^[a-z+]+:\/\//i, "").replace(/^[^@/]+@/, "").replace(/^([^/:]+):/, "$1/").replace(/\.git$/i, "").replace(/\/+$/, "");
+
+/** v2/v3 keep `pins[]` with `location` and `state.version`; v1 keeps `object.pins[]` with `repositoryURL`. All pins count as shipped. */
+export function parseSwiftPm(json) {
+  const pins = Array.isArray(json?.pins) ? json.pins : Array.isArray(json?.object?.pins) ? json.object.pins : null;
+  if (!pins) throw new Error("Package.resolved has no pins list");
+  const all = new Set(), nonRegistry = [];
+  for (const p of pins) {
+    if (p?.kind === "localSourceControl" || p?.kind === "fileSystem") continue; // a path on this machine: not a published dependency
+    const name = swiftName(p?.location ?? p?.repositoryURL ?? "");
+    if (!name) continue;
+    const version = p?.state?.version;
+    if (typeof version === "string" && version) all.add(ecoKey("SwiftURL", name, version));
+    else nonRegistry.push(`${name} (no released version)`); // pinned to a branch or revision: OSV has no version to answer for
+  }
+  return { shipped: new Set(all), all, nonRegistry };
+}
+
 /** Read and parse one lockfile. `yamlParse` is injected (the `yaml` package is installed by the workflow, not imported here). */
 export function readLockfile(root, lf, yamlParse, skipImporters = []) {
   const text = readFileSync(join(root, lf.path), "utf8");
@@ -178,5 +234,7 @@ export function readLockfile(root, lf, yamlParse, skipImporters = []) {
   }
   if (lf.kind === "npm") return parseNpm(JSON.parse(text));
   if (lf.kind === "bun") return parseBun(parseJsonc(text), skipImporters);
+  if (lf.kind === "cargo") return parseCargo(text);
+  if (lf.kind === "swiftpm") return parseSwiftPm(JSON.parse(text));
   throw new Error(`no parser for ${lf.kind}`);
 }

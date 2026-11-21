@@ -1,0 +1,2 @@
+# a Go checksum file this gate has no parser for: its dependencies are NOT checked, so deps-vuln must say so, in red
+github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

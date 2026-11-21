@@ -21,8 +21,8 @@ permissions: {}
 jobs:
   security:
     permissions: { contents: read }
-    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.3
-    with: { engine-ref: security-gate-v1.0.3 }
+    uses: broberg-ai/components/.github/workflows/security-gate.yml@security-gate-v1.0.4
+    with: { engine-ref: security-gate-v1.0.4 }
 ```
 
 Make the deploy job `needs: security`. Inputs (all optional): `ack-file`, `exclude`, `skip-importers`, `sast-exclude`.
@@ -76,9 +76,21 @@ the gate — …`). The repo root, `.github`, `.github/workflows`, globs and pat
 engine's own planted findings) is always skipped. `skipImporters` makes a workspace directory's dependencies *reported, not
 blocking* (it does not ship); `exclude` removes a path from every check; `sastExclude` only from Semgrep.
 
+## Lockfiles it reads
+
+| file | ecosystem asked of OSV | note |
+|---|---|---|
+| `pnpm-lock.yaml` (v9, also pnpm 11/12's two documents) | npm | shipped vs dev tooling are told apart |
+| `package-lock.json` (v2/v3) | npm | same |
+| `bun.lock` (text) | npm | same |
+| `Cargo.lock` | crates.io | every registry crate counts as shipped (the file does not say what is dev-only); git crates are named, not checked |
+| `Package.resolved` (SwiftPM v1/v2/v3) | SwiftURL (`github.com/owner/repo`) | every pin counts as shipped; a branch/revision pin has no version to ask for and is named, not checked |
+
+A lockfile that cannot be parsed is an **error** with the file and the parser's words — never green, never «unknown».
+
 ## Not covered (named, not hidden)
 
-A lockfile this gate has no parser for (`yarn.lock`, `Cargo.lock`, `go.sum`, Python …) is **red** on `deps-vuln` as
+A lockfile this gate has no parser for (`yarn.lock`, `go.sum`, Python, Ruby …) is **red** on `deps-vuln` as
 `unsupported-lockfile <path>` — its dependencies were not checked; a human can accept it with a dated ack (id
 `unsupported-lockfile`, that path). Semgrep's rule packs come from the Semgrep registry at run time (the *tool* and all its
 dependencies are hash-pinned, the *rules* move; vendoring them is not allowed by the Semgrep Rules License on a public repo). Container images are `image-hygiene`'s job; secrets are `secret-gate`'s.
