@@ -23,7 +23,7 @@
 // package.json reports ZERO for the fleet's heaviest consumers.
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { parse as parseYaml } from "yaml";
+import { parseAllDocuments } from "yaml";
 
 /** Only the shared inventory. Everything else is each repo's own business. */
 export const SHARED = /^@(broberg|upmetrics)\//;
@@ -131,23 +131,34 @@ const lockedRange = (deps, pkg, field) => deps?.[field]?.[pkg];
 
 export function lockResolver(kind, text) {
   if (kind === "pnpm-lock.yaml") {
-    const lock = parseYaml(text) || {};
-    const importers = lock.importers || { ".": lock };
+    // F115.10 — pnpm 11/12 writes TWO YAML documents (pnpm's own config entries first, the project second). A single-document
+    // parse threw on that and every manifest of the repo came back «unreadable». Every document is read; an importer is looked
+    // up in each in turn, so the project's entries are found wherever pnpm put them.
+    const docs = parseAllDocuments(text).map((d) => {
+      if (d.errors.length) throw new Error(d.errors[0].message);
+      return d.toJS();
+    }).filter((d) => d && typeof d === "object");
+    if (docs.length === 0) docs.push({});
+    const importerSets = docs.map((lock) => lock.importers || { ".": lock });
     return (dir, pkg, range, field) => {
-      const imp = importers[dir || "."];
-      if (!imp) return { unknown: "manifest not an importer in pnpm-lock.yaml" };
-      // Its own field first; a peer is satisfied by whichever copy is installed.
-      for (const f of [field, ...DEP_KINDS.filter((k) => k !== field)]) {
-        const v = imp[f]?.[pkg];
-        if (v === undefined) continue;
-        // v9/v6: { specifier, version }. v5: version string, specifier under `specifiers`.
-        const spec = typeof v === "object" ? v.specifier : imp.specifiers?.[pkg];
-        const old = f === field ? stale(spec, range, kind) : null;
-        if (old) return old;
-        const ver = String(typeof v === "object" ? v.version : v).replace(/\(.*$/, "");
-        return /^(link|file|workspace):/.test(ver) ? { unknown: `local ${ver.split(":")[0]} in pnpm-lock.yaml` } : ver;
+      let sawImporter = false;
+      for (const importers of importerSets) {
+        const imp = importers[dir || "."];
+        if (!imp) continue;
+        sawImporter = true;
+        // Its own field first; a peer is satisfied by whichever copy is installed.
+        for (const f of [field, ...DEP_KINDS.filter((k) => k !== field)]) {
+          const v = imp[f]?.[pkg];
+          if (v === undefined) continue;
+          // v9/v6: { specifier, version }. v5: version string, specifier under `specifiers`.
+          const spec = typeof v === "object" ? v.specifier : imp.specifiers?.[pkg];
+          const old = f === field ? stale(spec, range, kind) : null;
+          if (old) return old;
+          const ver = String(typeof v === "object" ? v.version : v).replace(/\(.*$/, "");
+          return /^(link|file|workspace):/.test(ver) ? { unknown: `local ${ver.split(":")[0]} in pnpm-lock.yaml` } : ver;
+        }
       }
-      return { unknown: "not in pnpm-lock.yaml" };
+      return { unknown: sawImporter ? "not in pnpm-lock.yaml" : "manifest not an importer in pnpm-lock.yaml" };
     };
   }
   if (kind === "package-lock.json") {

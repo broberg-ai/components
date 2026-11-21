@@ -50,6 +50,7 @@ const CASES = [
   { name: "config: the same tree WITHOUT the config file is red (the vendored lockfile really is vulnerable)", go: () => run("deps", join(FIX, "config-excluded", "vendor")), red: "deps-vuln" },
   { name: "config: .github/ with a trailing slash, one workflow file, a lockfile and a dot-dot path are each RED by name [config] — not a green scan of nothing", go: () => run("deps", join(FIX, "config-bad-variants")), red: "config", also: /can never be excluded/ },
   { name: "config: excluding the workflows, a too-short reason and a misspelt key are each RED by name [config]", go: () => run("deps", join(FIX, "config-bad")), red: "config", also: /can never be excluded/, alsoToo: [/needs a reason/, /unknown key/] },
+  { name: "deps: a pnpm lockfile that cannot be PARSED is RED by name with the file and the parser's words — never green, never unknown", go: () => run("deps", join(FIX, "pnpm-broken")), red: "deps-vuln", also: /could not check: pnpm-lock\.yaml: / },
   { name: "deps: a pnpm lockfile written as TWO YAML documents (pnpm 11/12) is READ, not «could not check»", go: () => run("deps", join(FIX, "pnpm-two-documents")), green: true, notAlso: /could not check/ },
   { name: "install (pnpm): a clean frozen install is green", go: () => run("install", join(FIX, "pnpm-clean")), green: true },
   { name: "install (pnpm): a drifted lockfile goes red", go: () => run("install", join(FIX, "pnpm-drift")), red: "install" },

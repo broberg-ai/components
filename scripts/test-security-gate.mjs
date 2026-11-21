@@ -51,6 +51,14 @@ const F = (o) => ({ id: "GHSA-aaaa", aliases: [], dep: "x@1.0.0", severity: "hig
 const deps = (findings, extra = {}) => ({ findings, errors: [], unsupported: [], ...extra });
 const by = (vs, name) => vs.find((v) => v.name === name);
 
+t("F115.10 — a lockfile that cannot be PARSED is an ERROR for both deps checks (never green), and the message names the file and the parser's words", () => {
+  const vs = decideDeps(deps([], { errors: ["pnpm-lock.yaml: Unexpected : in flow sequence at line 3, column 5"] }), []);
+  assert.deepEqual(vs.map((v) => [v.name, v.status]), [["deps-vuln", "error"], ["deps-malicious", "error"]]);
+  assert.match(vs[0].errors[0], /pnpm-lock\.yaml: Unexpected : in flow sequence/);
+  assert.equal(overall(vs), "error");
+  assert.equal(decideDeps(null, [])[0].status, "error"); // no result at all is the same refusal
+});
+
 t("a shipped high blocks deps-vuln; a shipped critical too; moderate does not", () => {
   assert.equal(by(decideDeps(deps([F()]), []), "deps-vuln").status, "red");
   assert.equal(by(decideDeps(deps([F({ severity: "critical" })]), []), "deps-vuln").status, "red");

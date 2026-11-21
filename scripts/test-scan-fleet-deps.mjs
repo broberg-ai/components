@@ -285,5 +285,54 @@ check("a workspace link and an unsupported lockfile both explain themselves", ()
   eq(scanRepo("o/r", yarn).deps["@broberg/a"][0].installed_unknown, "yarn.lock is not read", "yarn");
 });
 
+// F115.10 — pnpm 11/12 writes TWO YAML documents (the first carries pnpm's own config/packageManager entries, the second the
+// project). parseYaml() throws on that, the throw was caught, and every manifest of the repo read «pnpm-lock.yaml unreadable»:
+// measured 21 Nov 2026 on broberg-ai/mail and broberg-ai/drive. Same class as the security-gate fix in 1.0.2, in a second reader.
+const TWO_DOC_LOCK = [
+  "---",
+  "lockfileVersion: '9.0'",
+  "importers:",
+  "  .:",
+  "    configDependencies: {}",
+  "    packageManagerDependencies:",
+  "      pnpm:",
+  "        specifier: 12.18.0",
+  "        version: 12.18.0",
+  "---",
+  "lockfileVersion: '9.0'",
+  "importers:",
+  "  .:",
+  "    dependencies:",
+  "      '@broberg/tenant':",
+  "        specifier: 0.2.1",
+  "        version: 0.2.1",
+  "  apps/api:",
+  "    dependencies:",
+  "      '@broberg/mail':",
+  "        specifier: 0.25.0",
+  "        version: 0.25.0(zod@4.6.6)",
+  "",
+].join("\n");
+check("a pnpm 11/12 lockfile with TWO YAML documents is read, not reported «unreadable»", () => {
+  const api = fakeApi({ files: {
+    "package.json": { dependencies: { "@broberg/tenant": "0.2.1" } },
+    "apps/api/package.json": { dependencies: { "@broberg/mail": "0.25.0" } },
+    "pnpm-lock.yaml": TWO_DOC_LOCK,
+  }});
+  const r = scanRepo("o/r", api);
+  eq(r.deps["@broberg/tenant"][0].installed, "0.2.1", "root importer, found in the SECOND document");
+  eq(r.deps["@broberg/mail"][0].installed, "0.25.0", "workspace importer, peer suffix stripped");
+});
+check("two documents: a package in NEITHER is still «not in pnpm-lock.yaml», and an unknown importer still says so", () => {
+  const api = fakeApi({ files: {
+    "package.json": { dependencies: { "@broberg/ghost": "^1.0.0" } },
+    "apps/web/package.json": { dependencies: { "@broberg/tenant": "0.2.1" } },
+    "pnpm-lock.yaml": TWO_DOC_LOCK,
+  }});
+  const r = scanRepo("o/r", api);
+  eq(r.deps["@broberg/ghost"][0].installed_unknown, "not in pnpm-lock.yaml", "absent package");
+  eq(r.deps["@broberg/tenant"][0].installed_unknown, "manifest not an importer in pnpm-lock.yaml", "absent importer");
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nall green");
 process.exit(failures ? 1 : 0);

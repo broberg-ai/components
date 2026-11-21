@@ -15,6 +15,7 @@ const dir = mkdtempSync(join(tmpdir(), "gate-mut-"));
 
 const MUTATIONS = [
   // --- acks: the rules that stop an exemption from becoming permanent
+  { file: "decide.mjs", name: "a lockfile that cannot be parsed is read as zero findings (green)", find: "if (!deps || (deps.errors ?? []).length) {", replace: "if (!deps) {" },
   { file: "decide.mjs", name: "an expired ack still counts", find: "if (left < 0) {", replace: "if (false) {" },
   { file: "decide.mjs", name: "an ack may expire any distance away", find: "if (left > MAX_ACK_DAYS) {", replace: "if (false) {" },
   { file: "decide.mjs", name: "an ack needs no real reason", find: "a.reason.trim().length < MIN_REASON", replace: "false" },
