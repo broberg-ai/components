@@ -18,6 +18,16 @@ updates:
     directories: ["/security-gate/fixtures/*"]
     schedule: { interval: weekly }
     open-pull-requests-limit: 0
+  # F115.9 — the same for the Rust and Swift fixtures (smallvec 0.6.9, swift-nio 2.40.0 are PLANTED, like lodash above): the gate
+  # reads them as vulnerable on purpose, and a bump would turn the selftest green for the wrong reason.
+  - package-ecosystem: cargo
+    directories: ["/security-gate/fixtures/*"]
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
+  - package-ecosystem: swift
+    directories: ["/security-gate/fixtures/*"]
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: weekly, day: monday, time: "05:30", timezone: Europe/Copenhagen }
