@@ -13,8 +13,8 @@
  },
  "@broberg/mail": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/mail",
-  "version": "0.26.0",
-  "publishedAt": "2026-11-13T00:41:18.892Z",
+  "version": "0.26.1",
+  "publishedAt": "2026-11-21T12:49:11.623Z",
   "provenance": "yes"
  },
  "@broberg/media": {
