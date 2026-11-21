@@ -52,10 +52,10 @@ const MUTATIONS = [
     expect: ["later is refused 'used' and nothing is re-created"],
   },
   {
-    name: "the heal window never closes",
+    name: "the heal window is one millisecond too long (boundary)",
     file: "index",
     from: "if (now - invite.usedAt < HEAL_WINDOW_MS) {",
-    to: "if (true) {",
+    to: "if (now - invite.usedAt <= HEAL_WINDOW_MS) {",
     expect: ["heals INSIDE the window and not after it"],
   },
   {
