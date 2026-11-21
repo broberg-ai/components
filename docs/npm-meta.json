@@ -73,8 +73,8 @@
  },
  "@broberg/cron": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/cron",
-  "version": "0.4.0",
-  "publishedAt": "2026-10-30T18:06:57.036Z",
+  "version": "0.4.1",
+  "publishedAt": "2026-11-21T16:01:38.102Z",
   "provenance": "yes"
  },
  "@broberg/chat": {
@@ -313,8 +313,8 @@
  },
  "@broberg/sso": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/sso",
-  "version": "0.27.0",
-  "publishedAt": "2026-11-18T09:45:19.885Z",
+  "version": "0.27.1",
+  "publishedAt": "2026-11-21T16:01:35.778Z",
   "provenance": "yes"
  },
  "@broberg/seal": {
