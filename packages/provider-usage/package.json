@@ -1,6 +1,6 @@
 {
   "name": "@broberg/provider-usage",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "What each database, machine and bucket actually costs at the provider \u2014 one shape for UpCloud (billed per resource, today), with Scaleway, Cloudflare R2, Supabase and Fly to follow. Every line says whether it is billed or estimated; a key without billing rights answers no_billing_access, never an empty list. Cost price only; margins belong to the consumer.",
   "type": "module",
   "license": "MIT",
