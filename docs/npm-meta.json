@@ -205,8 +205,8 @@
  },
  "@broberg/app-shell": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/app-shell",
-  "version": "0.26.0",
-  "publishedAt": "2026-10-27T16:43:08.041Z",
+  "version": "0.26.1",
+  "publishedAt": "2026-11-21T16:07:56.106Z",
   "provenance": "yes"
  },
  "@broberg/notify": {
