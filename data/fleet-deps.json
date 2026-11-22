@@ -1,5 +1,5 @@
 {
- "scanned_at": "2026-11-21T14:46:25.884Z",
+ "scanned_at": "2026-11-22T12:41:17.501Z",
  "repos_scanned": 88,
  "repos_failed": 0,
  "manifests_read": 367,
@@ -3450,10 +3450,10 @@
     ],
     "@broberg/legal": [
      {
-      "range": "0.9.0",
+      "range": "0.10.1",
       "field": "dependencies",
       "at": "package.json",
-      "installed": "0.9.0"
+      "installed": "0.10.1"
      }
     ],
     "@broberg/lens": [
