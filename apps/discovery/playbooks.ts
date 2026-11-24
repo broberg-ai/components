@@ -243,15 +243,17 @@ const PAGE_CSS = `
 .pb-item{border:1px solid var(--border);border-radius:var(--radius,8px);padding:14px 16px;background:var(--card)}
 .pb-item a.pb-title{font-weight:600;font-size:1.05rem;color:var(--fg);text-decoration:none}
 .pb-item a.pb-title:hover{text-decoration:underline}
-.pb-meta{color:var(--muted-fg);font-size:.85rem;margin-top:4px}
+.pb-meta{color:var(--muted);font-size:.85rem;margin-top:4px}
 .pb-body{max-width:860px;line-height:1.6;overflow-wrap:anywhere}
 .pb-body pre{overflow-x:auto;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:6px}
 .pb-body code{font-size:.9em}
-.pb-body blockquote{margin:12px 0;padding:8px 14px;border-left:3px solid var(--border);color:var(--muted-fg)}
+.pb-body blockquote{margin:12px 0;padding:8px 14px;border-left:3px solid var(--border);color:var(--muted)}
 .pb-tw{overflow-x:auto;margin:12px 0}
 .pb-body table{border-collapse:collapse;font-size:.9rem}
 .pb-body th,.pb-body td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top}
-.pb-how{margin-top:28px;color:var(--muted-fg);font-size:.9rem}
+.pb-how{margin-top:28px;color:var(--muted);font-size:.9rem}
+.pb-body ul,.pb-body ol{padding-left:1.6em}
+[data-testid="playbooks-root"] article a,.pb-body a{color:var(--green)}
 `;
 
 const page = (title: string, body: string) => `<!doctype html><html lang="da" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
