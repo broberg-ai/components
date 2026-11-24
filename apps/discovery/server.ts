@@ -18,6 +18,8 @@ import { DATA, FLEET, MODEL, INFRA, SESSION_ALIASES, SESSION_REPOS, npmUrl, repo
 // refreshed by a daily job. The hand-written array survives only as role text
 // and `pub` (what a session publishes), which no manifest can tell us.
 import { fleetRows as buildFleetRows, scanAge, consumersOf } from "../../scripts/fleet-graph.mjs";
+// F038.50 — Playbooks: step-by-step recipes submitted by the repo sessions themselves.
+import { getPlaybookStore, validatePlaybook, matchPlaybook, metaOf, playbooksLlmsIndex, playbooksLlmsFull, renderPlaybookList, renderPlaybookPage } from "./playbooks";
 let fleetScan: any = { repos: {} };
 try {
   fleetScan = JSON.parse(readFileSync(new URL("../../data/fleet-deps.json", import.meta.url), "utf8"));
@@ -323,7 +325,9 @@ const manifest = () => ({
     { method: "GET", path: "/api/tickets", description: "who logs in with BID tickets (F087) — read live from Broberg ID; status ok | not_configured | error, never an empty list as success. Human page: /tickets", example: "/api/tickets" },
     { method: "GET", path: "/api/layers", description: "the inventory layers (L0 Rails … L4 Capstone, SDK)", example: "/api/layers" },
     { method: "GET", path: "/api/stats", description: "totals", example: "/api/stats" },
-    { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra in one call", example: "/api/search?q=deploy" },
+    { method: "GET", path: "/api/search", description: "search components + packages + fleet + infra + playbooks in one call", example: "/api/search?q=deploy" },
+    { method: "GET", path: "/api/playbooks", description: "F038.50 — step-by-step recipes submitted by fleet sessions (metadata); /api/playbooks/:slug gives the markdown, /playbooks the pages", example: "/api/playbooks" },
+    { method: "POST", path: "/api/playbooks", description: "submit or update YOUR OWN playbook. Auth = x-discovery-session + x-enroll-key (your registered key). Body {slug,title,summary,kw[],body(markdown, ≤200 KB),repo?}. A slug owned by another session → 403", example: "/api/playbooks" },
     { method: "GET", path: "/api/enrollments", description: "live enrollment roster — who has adopted which package@version (F039 auto-enrollment)", example: "/api/enrollments" },
     { method: "GET", path: "/api/sessions/:session", description: "a session's enrollment status: enrolled + newest versions + the gap (shipped packages not yet adopted)", example: "/api/sessions/trail" },
     { method: "POST", path: "/api/enroll", description: "self-report an enrollment. Auth = a BID ticket (Authorization: Bearer, scope discovery:enroll — the ticket's subject is the session), OR a registered session's key in header x-enroll-key (sessions are registered by components; no trust-on-first-use). Body {session,pkg,version,role?,commit?,notes?,repo?} — repo = 'owner/name' (F039.8: a session NAME is not unique; with repo, one name reporting for two repos stays two rows) — role 'uses' (default) | 'src' | 'not_relevant' (this package can never apply to THIS repo: taken out of its gap; version may be omitted)", example: "/api/enroll" },
@@ -393,7 +397,7 @@ app.use("/api/*", async (c, next) => {
 const OPEN_PATHS = new Set(["/health", "/robots.txt"]);
 // The two write routes authenticate themselves (registered session key in the
 // body + header), so the read gate does not double-check them.
-const OWN_AUTH = new Set(["POST /api/enroll", "POST /api/speech-dictionary/edit"]);
+const OWN_AUTH = new Set(["POST /api/enroll", "POST /api/speech-dictionary/edit", "POST /api/playbooks"]);
 // F098.1.1 — the ONE exception, Christian 11/10 («ja, genstart den»): the FICTIONAL
 // WebMCP test clinic must be reachable by outside AIs (Claude, ChatGPT) or F098.1
 // cannot be measured. Its page, its booking URL and its tool-call beacon are open;
@@ -524,9 +528,13 @@ app.get("/consent/:file", (c) => {
 // F038.30 — the BID ticket list is appended LIVE when served (never a static
 // copy in docs/llms.txt: it would be wrong from BID's next rule).
 app.get("/search-index.json", (c) => c.body(SEARCH_INDEX_JSON, 200, { "content-type": "application/json; charset=utf-8" }));
-app.get("/llms.txt", async (c) => c.text(LLMS + renderTicketRegistryMarkdown(await ticketRegistry.get())));
-app.get("/llms-full.txt", async (c) => c.text(LLMS_FULL + renderTicketRegistryMarkdown(await ticketRegistry.get())));
-app.get("/ai", async (c) => c.text(LLMS + renderTicketRegistryMarkdown(await ticketRegistry.get()))); // webhouse-style entry-point alias → the llms.txt map
+// F038.50 — playbooks ride along; a store that cannot answer adds nothing rather than failing the file.
+async function allPlaybooks() {
+  try { return (await (await getPlaybookStore())?.list()) ?? []; } catch (e) { log.warn("playbooks unreadable", { err: e }); return []; }
+}
+app.get("/llms.txt", async (c) => c.text(LLMS + playbooksLlmsIndex(await allPlaybooks()) + renderTicketRegistryMarkdown(await ticketRegistry.get())));
+app.get("/llms-full.txt", async (c) => c.text(LLMS_FULL + playbooksLlmsFull(await allPlaybooks()) + renderTicketRegistryMarkdown(await ticketRegistry.get())));
+app.get("/ai", async (c) => c.text(LLMS + playbooksLlmsIndex(await allPlaybooks()) + renderTicketRegistryMarkdown(await ticketRegistry.get()))); // webhouse-style entry-point alias → the llms.txt map
 
 app.get("/api", (c) => c.json(manifest()));
 
@@ -703,11 +711,13 @@ app.get("/api/layers", (c) => c.json({ count: layers.length, layers }));
 
 app.get("/api/stats", (c) => c.json(stats));
 
-app.get("/api/search", (c) => {
+app.get("/api/search", async (c) => {
   const q = c.req.query("q") ?? "";
   if (!q) return c.json({ error: "q_required" }, 400);
   const ql = q.toLowerCase();
+  const playbooks = (await allPlaybooks()).filter((p) => matchPlaybook(p, ql)).map((p) => ({ ...metaOf(p), url: `/playbooks/${p.slug}` }));
   return c.json({
+    playbooks,
     query: q,
     components: rankComponents(components, ql),
     packages: rankPackages(ql),
@@ -723,6 +733,40 @@ app.get("/api/search", (c) => {
       ),
     ),
   });
+});
+
+// ---- F038.50 Playbooks ----
+app.get("/playbooks", async (c) => c.html(withConsent(renderPlaybookList((await allPlaybooks()).map(metaOf)))));
+app.get("/playbooks/:slug", async (c) => {
+  const p = await (await getPlaybookStore())?.get(c.req.param("slug"));
+  return p ? c.html(withConsent(renderPlaybookPage(p))) : c.text("Ingen playbook med det navn.", 404);
+});
+app.get("/api/playbooks", async (c) => {
+  const list = (await allPlaybooks()).map((p) => ({ ...metaOf(p), url: `/playbooks/${p.slug}` }));
+  return c.json({ count: list.length, playbooks: list });
+});
+app.get("/api/playbooks/:slug", async (c) => {
+  const p = await (await getPlaybookStore())?.get(c.req.param("slug"));
+  return p ? c.json(p) : c.json({ error: "not_found" }, 404);
+});
+// Submit or update YOUR OWN playbook. Auth = the session's registered key, like enroll;
+// a slug another session owns is refused (403), never overwritten.
+app.post("/api/playbooks", async (c) => {
+  const [enroll, store] = await Promise.all([getEnrollStore(), getPlaybookStore()]);
+  if (!enroll || !store) return c.json({ error: "playbook_store_unavailable" }, 503);
+  const session = c.req.header("x-discovery-session") ?? "";
+  const key = c.req.header("x-enroll-key") ?? "";
+  const bound = session && key.length >= 32 ? await enroll.sessionKeyHash(session) : null;
+  if (!bound || bound !== createHash("sha256").update(key).digest("hex")) {
+    return c.json({ error: "session_key_required — send x-discovery-session + x-enroll-key (your registered Discovery key)" }, 401);
+  }
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: "invalid_json" }, 400); }
+  const v = validatePlaybook(body);
+  if (!v.ok) return c.json({ error: v.error }, 400);
+  const r = await store.save(session, v.value);
+  if (!r.ok) return c.json({ error: `not_owner — "${v.value.slug}" belongs to ${r.owner}; pick another slug or ask that session` }, 403);
+  return c.json({ ok: true, created: r.created, playbook: { ...metaOf(r.playbook), url: `/playbooks/${r.playbook.slug}` } }, r.created ? 201 : 200);
 });
 
 // ---- F039 auto-enrollment write-layer ----

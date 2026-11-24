@@ -19,8 +19,11 @@ import { writeMarker, clearMarker, assertRestored } from "../../scripts/mutation
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "../..");
-const SRC = join(HERE, "server.ts");
-const SRC_REL = "apps/discovery/server.ts";
+// F038.50 — a mutation may name its own `file` (default server.ts), so a decision
+// that lives in a module beside server.ts can be defended too.
+const FILES = ["server.ts", "playbooks.ts"];
+const DEFAULT_FILE = "server.ts";
+const fileOf = (m) => m.file ?? DEFAULT_FILE;
 const HARNESS = "@discovery apps/discovery/mutations.mjs";
 
 const MUTATIONS = [
@@ -73,6 +76,40 @@ const MUTATIONS = [
     from: "  try { reportError?.(err, { method: c.req.method, path: c.req.path }); } catch (e) {",
     to: "  try { void reportError; } catch (e) {",
   },
+  // ---- F038.50 Playbooks ---------------------------------------------------
+  {
+    file: "playbooks.ts",
+    name: "a playbook can be overwritten by a session that does not own it",
+    from: "      if (existing && existing.owner !== session) return",
+    to: "      if (false) return",
+  },
+  {
+    file: "playbooks.ts",
+    name: "markdown is no longer escaped (an injected <script> renders)",
+    from: "  s = esc(s);\n",
+    to: "",
+  },
+  {
+    file: "playbooks.ts",
+    name: "the body size ceiling is gone",
+    from: "  if (new TextEncoder().encode(body).length > PLAYBOOK_LIMITS.body) return",
+    to: "  if (false) return",
+  },
+  {
+    name: "POST /api/playbooks no longer checks the session key",
+    from: '  if (!bound || bound !== createHash("sha256").update(key).digest("hex")) {\n    return c.json({ error: "session_key_required',
+    to: '  if (false) {\n    return c.json({ error: "session_key_required',
+  },
+  {
+    name: "/api/search stops returning playbooks",
+    from: "  const playbooks = (await allPlaybooks()).filter((p) => matchPlaybook(p, ql))",
+    to: "  const playbooks = [].filter((p) => matchPlaybook(p, ql))",
+  },
+  {
+    name: "/llms-full.txt stops carrying the playbooks",
+    from: "c.text(LLMS_FULL + playbooksLlmsFull(await allPlaybooks())",
+    to: "c.text(LLMS_FULL + \"\"",
+  },
 ];
 
 // DELIBERATELY ABSENT, recorded rather than left as an uncaught line: "owns is
@@ -90,7 +127,7 @@ function redSet() {
   let out = "";
   let died = false;
   try {
-    out = execFileSync("npx", ["vitest", "run", "server.test.ts", "store-health.test.ts", "upmetrics-report.test.ts", "--reporter=verbose"], {
+    out = execFileSync("npx", ["vitest", "run", "server.test.ts", "store-health.test.ts", "upmetrics-report.test.ts", "playbooks.test.ts", "--reporter=verbose"], {
       cwd: HERE,
       encoding: "utf8",
       stdio: "pipe",
@@ -112,7 +149,7 @@ function redSet() {
 }
 
 {
-  const dirty = execFileSync("git", ["status", "--porcelain", "--", SRC_REL], {
+  const dirty = execFileSync("git", ["status", "--porcelain", "--", ...FILES.map((f) => `apps/discovery/${f}`)], {
     cwd: ROOT,
     encoding: "utf8",
   }).trim();
@@ -133,15 +170,16 @@ if (base.died) {
 }
 console.log("  0 failures — so every red below is the mutation\n");
 
-const original = readFileSync(SRC, "utf8");
 const seen = new Map();
 let problems = 0;
 
 // BEFORE the first mutation (F081.1). Written after it, the marker would leave
 // open the exact window it exists to close.
-writeMarker({ harness: HARNESS, file: SRC });
+writeMarker({ harness: HARNESS, file: join(HERE, DEFAULT_FILE) });
 try {
   for (const m of MUTATIONS) {
+    const SRC = join(HERE, fileOf(m));
+    const original = readFileSync(SRC, "utf8");
     if (!original.includes(m.from)) {
       console.log(`ANCHOR MISSING — ${m.name}\n            the substitution matched nothing, so it never applied`);
       problems++;

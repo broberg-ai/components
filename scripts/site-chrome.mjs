@@ -211,6 +211,7 @@ export const NAV = [
   { href: "/packages", label: "Packages", testid: "nav-packages", title: "Alle udgivne @broberg-pakker samlet: version, npm, udgivet, Trusted Publisher, forbrugere" },
   { href: "/images", label: "Images", testid: "nav-images", title: "Hvad hver Fly-app kører på: base-image, distro, runtime og slim-standarden — fra den natlige image-hygiejne" },
   { href: "/tickets", label: "BID-billetter", testid: "nav-tickets", title: "Hvilke apps og platforme logger ind med BID-billetter (WIF) — live fra BID" },
+  { href: "/playbooks", label: "Playbooks", testid: "nav-playbooks", title: "Trin-for-trin-opskrifter skrevet af den session, der lærte dem" },
 ];
 
 const escTag = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
