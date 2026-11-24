@@ -217,8 +217,8 @@
  },
  "@broberg/lens-engine": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/lens-engine",
-  "version": "0.14.1",
-  "publishedAt": "2026-10-23T00:09:13.014Z",
+  "version": "0.14.2",
+  "publishedAt": "2026-11-24T16:18:47.871Z",
   "provenance": "yes"
  },
  "@broberg/lens-client": {
