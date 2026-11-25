@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-24T11:34:42.789Z",
+ "checked_at": "2026-11-25T10:23:13.756Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -27,7 +27,7 @@
     "low": 2
    },
    "outdated": {
-    "total": 4,
+    "total": 5,
     "shipped": 0,
     "deprecated": 0
    },
@@ -101,7 +101,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 8,
+    "total": 9,
     "shipped": 0,
     "deprecated": 0
    },
@@ -508,7 +508,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 4,
+    "total": 5,
     "shipped": 0,
     "deprecated": 0
    },
@@ -619,7 +619,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 3,
+    "total": 4,
     "shipped": 0,
     "deprecated": 0
    },
@@ -656,7 +656,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 7,
+    "total": 8,
     "shipped": 0,
     "deprecated": 0
    },
@@ -915,7 +915,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 3,
+    "total": 4,
     "shipped": 0,
     "deprecated": 0
    },
@@ -952,7 +952,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 5,
+    "total": 6,
     "shipped": 1,
     "deprecated": 0
    },
@@ -1692,7 +1692,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 3,
+    "total": 4,
     "shipped": 0,
     "deprecated": 0
    },
