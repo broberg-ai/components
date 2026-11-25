@@ -1060,6 +1060,9 @@ export function createSsoClient(
 
   const embedded: EmbeddedClient = {
     async start(input) {
+      if (input.lang !== undefined && input.lang !== "da" && input.lang !== "en") {
+        throw new TypeError(`embedded.start: lang must be "da" or "en", got ${JSON.stringify(input.lang)}`);
+      }
       const codeVerifier = randomToken();
       const nonce = randomToken(16);
       const r = await embeddedCall("POST", "/start", {
@@ -1074,6 +1077,7 @@ export function createSsoClient(
         redirect_uri: config.redirectUri,
         ...(input.intent === "signup" ? { intent: "signup", name: input.name, terms_version: input.termsVersion } : {}),
         ...(input.endUserIp ? { end_user_ip: input.endUserIp } : {}),
+        ...(input.lang ? { lang: input.lang } : {}),
       });
       if (!r.ok) return { ok: false, error: toError(r) };
       if (typeof r.body.flow_id !== "string") return { ok: false, error: { kind: "unavailable", message: "BID's answer has no flow_id" } };

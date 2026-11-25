@@ -36,6 +36,11 @@ export interface EmbeddedStartInput {
   termsVersion?: string;
   /** The user's IP, for BID's per-IP limit. Without it, BID counts your server's IP. */
   endUserIp?: string;
+  /**
+   * F084.189 — the language of the code mail for an address that is not yet a BID user
+   * (a known user gets the language saved on their account). Omitted: BID's default, Danish.
+   */
+  lang?: "da" | "en";
 }
 
 export type EmbeddedStart = { ok: true; flow: EmbeddedFlow; expiresIn: number } | { ok: false; error: EmbeddedError };

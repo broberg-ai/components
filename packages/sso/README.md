@@ -276,7 +276,7 @@ Jam first). Runs on YOUR SERVER as a confidential client (`clientSecret` require
 so your `signSession` step does not change.
 
 ```ts
-const s = await client.embedded.start({ email, endUserIp, intent: "signup", name, termsVersion }); // intent/name/termsVersion only for signup
+const s = await client.embedded.start({ email, endUserIp, lang, intent: "signup", name, termsVersion }); // intent/name/termsVersion only for signup; lang "da"|"en" = the code mail's language for a new address (0.28.0)
 if (s.ok) setCookie("bid_flow", await sealEmbeddedFlow(s.flow, cookieSecret), { httpOnly: true, maxAge: EMBEDDED_FLOW_MAX_AGE });
 // later, with the code from the mail:
 const f = await openEmbeddedFlow(getCookie("bid_flow"), cookieSecret);           // { ok, flow } | { ok:false, reason: absent|expired|unreadable }

@@ -76,6 +76,21 @@ async function contractBid(o: { secondFactor?: boolean; signup?: boolean; nonceO
 const client = (bid: { fetchImpl: typeof fetch }, secret: string | null = SECRET) =>
   createSsoClient({ issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT, scopes: ["openid", "profile", "email"], cookieSecret: "c".repeat(64), ...(secret ? { clientSecret: secret } : {}) } as never, { fetchImpl: bid.fetchImpl });
 
+describe("components-F084.189 — the code mail's language", () => {
+  test("lang goes to BID's /embedded/start as body.lang", async () => {
+    const bid = await contractBid(); const sso = client(bid);
+    const s = await sso.embedded.start({ email: "anne@eksempel.dk", lang: "en" });
+    expect(s.ok).toBe(true);
+    expect(bid.log.find((c) => c.path === "/embedded/start")!.body.lang).toBe("en");
+  });
+
+  test("a value outside da|en is refused before BID is called", async () => {
+    const bid = await contractBid(); const sso = client(bid);
+    await expect(sso.embedded.start({ email: "anne@eksempel.dk", lang: "de" as never })).rejects.toThrow(/lang must be "da" or "en"/);
+    expect(bid.log.find((c) => c.path === "/embedded/start")).toBeUndefined();
+  });
+});
+
 describe("components-F084.165 — embedded login from the server", () => {
   test("start → verify → the same LoginResult shape as completeLogin; Basic client auth; PKCE + nonce checked end to end", async () => {
     const bid = await contractBid(); const sso = client(bid);
