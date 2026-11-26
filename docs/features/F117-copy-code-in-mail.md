@@ -20,7 +20,15 @@ The recognition is the mail clients' own and is not published as a spec. This pl
 | BID embedded login (29 sso apps) | code | yes (`subject.slice(0,6)`) | yes (`data-mail="kode"`) | yes | likely already recognised — to be MEASURED |
 | BID recovery code | code | yes («Din kode til at komme ind på BID igen: 482913») | yes | yes | code LAST in the subject — measure |
 | @broberg/auth magic link (autodoc, broberg-id, cardmem, happy-little-place, trail, moovyy) | link only | no («Your sign-in link») | — | yes | can never get the card |
-| Own code/login mails in xrt81, whop, cronjobs, upmetrics, cms, cardmem (source hits) | ? | ? | ? | ? | to be read per repo |
+| cardmem — Better Auth magic link via @broberg/auth (sign-in, portal + interview invites) | link only | no («Your cardmem.com sign-in link») | — | not verified | click-through landing page (F189.24); cardmem #55685 |
+| fd-sundhed A — Supabase magic link | link only | no («Dit login-link - FD Sundhed») | — | not measured | code line REMOVED 16/11 (F006.581); owner decision D-86f5ec: a code only once numbers show the link is too fragile; fd-sundhed #55682 |
+| fd-sundhed B — own mail via sendEmail/Resend (private address, /onboarding) | link only | no («Dit login-link til FD Sundhed») | — | no | fd-sundhed #55682 |
+| xrt81 — own login mail via @broberg/mail | link only | no («Dit login-link til X RT 81», editable by the club) | — | no | click page (/api/auth/magic) because Outlook Safe Links burned the link; 15 min; xrt81 #55683 (read in code) |
+| cms — team invitation | link (not a login) | no | — | no | accepting still requires BID login; cms #55684 — outside scope |
+| house-of-wellness | none | — | — | — | its team_invite template is SENT by cardmem (= cardmem row) #55686 |
+| whop, cronjobs, upmetrics, trail, moovyy, autodoc, happy-little-place, … | ? | ? | ? | ? | asleep — the question waits in their queue (#55660 ff.) |
+
+**A conflict found (26/11):** fd-sundhed holds an owner decision (D-86f5ec) that a 6-digit code is built only when the numbers show the link is too fragile — recipe item 4 («a link is never the only way in») goes against it for fd-sundhed. That is Christian's to settle; this plan does not override it.
 Repos not checked out on this machine are measured from their own sessions (F117.1).
 
 ## Stories
