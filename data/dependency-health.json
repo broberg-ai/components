@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-25T10:23:13.756Z",
+ "checked_at": "2026-11-26T10:00:08.938Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -1856,7 +1856,7 @@
    "verdict": "OK"
   },
   "@broberg/sso": {
-   "version": "0.27.1",
+   "version": "0.29.0",
    "status": "ok",
    "prod": {
     "critical": 0,
