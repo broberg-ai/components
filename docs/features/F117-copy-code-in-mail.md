@@ -26,7 +26,16 @@ The recognition is the mail clients' own and is not published as a spec. This pl
 | xrt81 — own login mail via @broberg/mail | link only | no («Dit login-link til X RT 81», editable by the club) | — | no | click page (/api/auth/magic) because Outlook Safe Links burned the link; 15 min; xrt81 #55683 (read in code) |
 | cms — team invitation | link (not a login) | no | — | no | accepting still requires BID login; cms #55684 — outside scope |
 | house-of-wellness | none | — | — | — | its team_invite template is SENT by cardmem (= cardmem row) #55686 |
-| whop, cronjobs, upmetrics, trail, moovyy, autodoc, happy-little-place, … | ? | ? | ? | ? | asleep — the question waits in their queue (#55660 ff.) |
+| BID embedded code — APP'S OWN mail shell (F084.185, appKodeMail) | code | yes | **NO — split into two spans («486»<span>«281»)** | yes | suspected to break recognition; to MEASURE first; bid #55700 |
+| BID embedded code — house shell (husetsMail) | code | yes («486281 er din kode til VN Leker») | yes (letter-spacing via CSS only) | yes | bid #55700 |
+| BID link-only mails (address verification, contact address, password reset, recovery link, passkey added, invitation) | link only | no | — | yes | not login codes; outside the core scope; bid #55700 |
+| pitch — invite.ts (access PIN to a pitch) | PIN + link | no («You've been invited to view: …») | **NO — one span per digit** | yes («Your access code: 482913») | pitch #55702 |
+| pitch — invite-batch.ts | PIN + link | no | yes (<strong>) | yes | one mail may carry several codes; pitch #55702 |
+| pitch — invite-user.ts | link only (→ BID) | no | — | — | not a code; pitch #55702 |
+| cronjobs — Auth.js Resend default | link only | no («Sign in to cronjobs.webhouse.net») | — | yes | planned removed (cronjobs F011.3, BID only, waits on the owner's yes); cronjobs #55703 |
+| upmetrics — status-page subscription confirmation | link only | no | — | no | not a login; click page + POST; upmetrics #55701 |
+| sanneandersen — own magic link + admin invite | link only | no («Log ind hos Sanne Andersen») | — | yes | read in code, not measured; sanneandersen #55843 |
+| whop, trail, moovyy, autodoc, happy-little-place, … | ? | ? | ? | ? | asleep — the question waits in their queue (#55660 ff.) |
 
 **A conflict found (26/11):** fd-sundhed holds an owner decision (D-86f5ec) that a 6-digit code is built only when the numbers show the link is too fragile — recipe item 4 («a link is never the only way in») goes against it for fd-sundhed. That is Christian's to settle; this plan does not override it.
 Repos not checked out on this machine are measured from their own sessions (F117.1).
