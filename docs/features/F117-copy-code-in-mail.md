@@ -36,7 +36,7 @@ The recognition is the mail clients' own and is not published as a spec. This pl
 | upmetrics — status-page subscription confirmation | link only | no | — | no | not a login; click page + POST; upmetrics #55701 |
 | sanneandersen — own magic link + admin invite | link only | no («Log ind hos Sanne Andersen») | — | yes | read in code, not measured; sanneandersen #55843 |
 | jam — welcome, org invitation, Jambalaya newsletter confirmation | link only (no login) | no | — | yes (newsletter) | login and codes via BID (redirect + sso.embedded); newsletter moving to Beacon (F025.8); jam #56048 |
-| **buzzalert (Buzz)** — 6-digit codes | code | ? | ? | ? | **OWNER ORDER 27/11: «Buzz sender 6 sifrede koder og bør kunne bruge din pakke eller metode til at have en Kopier kode i sin mail» — Buzz is the first ordered consumer of F117.2.** Format asked #56179 |
+| **buzzalert (Buzz)** — 6-digit login code | code (SENT BY BID) | yes («123456 er din kode til <klient>», From «<klient> <no-reply@broberg.ai>») | yes | yes | **OWNER ORDER 27/11** («Buzz sender 6 sifrede koder og bør kunne bruge din pakke eller metode til at have en Kopier kode i sin mail»). Measured by buzzalert 27/11 (#56180, IMAP in the test mailbox + code): Buzz sends NO code mail itself — the code is BID's embedded-login mail, already in the recipe's shape. Buzz's fields (desktop-login.tsx login-code/login-second-code) already have inputMode=numeric + autoComplete=one-time-code. Buzz's own mail is only the invitation (no code). → For Buzz, F117 is owned by bid; what remains is to MEASURE that Gmail shows the card on BID's mail. |
 | whop, trail, moovyy, autodoc, happy-little-place, … | ? | ? | ? | ? | asleep — the question waits in their queue (#55660 ff.) |
 
 **A conflict found (26/11):** fd-sundhed holds an owner decision (D-86f5ec) that a 6-digit code is built only when the numbers show the link is too fragile — recipe item 4 («a link is never the only way in») goes against it for fd-sundhed. That is Christian's to settle; this plan does not override it.
@@ -45,7 +45,7 @@ Repos not checked out on this machine are measured from their own sessions (F117
 ## Stories
 - **F117.1** — measure: send one test mail per recipe variant + BID's real mails to the fleet test mailbox (webhouse.developer@gmail.com, D-2d545d) and read whether Gmail and iOS Mail show the card; finish the inventory with each sender's own session.
 - **F117.2** — the shared primitive: `@broberg/mail-core` `oneTimeCodeMail({ code, product, minutes, lang, link? })` → subject, preheader, html block, text — and `@broberg/auth`'s magic-link mail gets a code alongside the link.
-- **Ordered adopters (owner's words):** Buzz (27/11). Every other switch is a possibility until Christian names it (D-5f65b6).
+- **Ordered adopters (owner's words):** Buzz (27/11) — its codes are BID's mail, so the work is BID's code mail (measure, and fix the app-shell split if it breaks recognition). Every other switch is a possibility until Christian names it (D-5f65b6).
 - **F117.3** — the playbook in Discovery («Kopiér kode i kode-mails») and the release report; each app's switch is a possibility, Christian decides (D-5f65b6). BID is asked first, since it carries the code mails of 29 apps.
 
 ## Non-goals
