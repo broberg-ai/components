@@ -58,6 +58,11 @@ export interface EmbeddedPasskeyOptions {
   signal?: AbortSignal;
   /** Accessible name of the frame. Default "Log ind med adgangsnøgle". */
   iframeTitle?: string;
+  /**
+   * F084.190 — the language of BID's frame, as a BCP-47 tag ("da", "nb", "en-GB"). BID puts it
+   * on frame_url itself and shows Danish for a "da…" tag, otherwise English. Omitted: BID's default.
+   */
+  lang?: string;
   /** For tests. */
   fetch?: typeof fetch;
   window?: Pick<Window, "addEventListener" | "removeEventListener" | "setTimeout" | "clearTimeout">;
@@ -107,6 +112,9 @@ export async function loginWithEmbeddedPasskey(
   const win = options.window ?? window;
   const doc = options.document ?? document;
   const issuerOrigin = new URL(start.issuer).origin;
+  if (options.lang !== undefined && (options.lang.length > 35 || !/^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/.test(options.lang))) {
+    throw new TypeError(`loginWithEmbeddedPasskey: lang must be a BCP-47 tag of at most 35 characters, got ${JSON.stringify(options.lang)}`);
+  }
   if (options.signal?.aborted) throw new EmbeddedPasskeyError("aborted", "aborted before start");
 
   const s = await call(f, `${issuerOrigin}/embedded/passkey/start`, {
@@ -115,6 +123,7 @@ export async function loginWithEmbeddedPasskey(
     code_challenge_method: "S256",
     nonce: start.nonce,
     redirect_uri: start.redirectUri,
+    ...(options.lang ? { lang: options.lang } : {}),
   });
   const flowId = s.flow_id;
   const frameUrl = s.frame_url;

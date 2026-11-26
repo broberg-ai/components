@@ -317,11 +317,12 @@ return c.json(browser); // { issuer, clientId, redirectUri, codeChallenge, nonce
 // browser
 import { loginWithEmbeddedPasskey, EmbeddedPasskeyError } from "@broberg/sso/embedded-passkey";
 try {
-  const { code } = await loginWithEmbeddedPasskey(await (await fetch("/auth/passkey/begin", { method: "POST" })).json(), { container });
+  const { code } = await loginWithEmbeddedPasskey(await (await fetch("/auth/passkey/begin", { method: "POST" })).json(), { container, lang: document.documentElement.lang }); // lang (BCP-47, 0.29.0): BID's frame shows Danish for "da…", otherwise English
   await fetch("/auth/passkey/complete", { method: "POST", body: JSON.stringify({ code }) });
 } catch (e) {
   if (e instanceof EmbeddedPasskeyError) show(e.reason); // not_found · cancelled · failed · refused · unavailable · timeout · aborted
 }
+// A retry (e.g. after "cancelled") is a NEW flow: call /auth/passkey/begin again. BID's flow id is single-use.
 
 // server — route 2: complete
 const opened = await openEmbeddedPasskeyFlow(getCookie(c, "pk_flow"), env.SSO_COOKIE_SECRET);

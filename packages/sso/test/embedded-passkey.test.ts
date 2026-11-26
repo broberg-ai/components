@@ -51,7 +51,7 @@ async function contractBid(o: { nonceOverride?: string; frameOrigin?: string; st
       if (o.startStatus) return err(o.startStatus, { error: "invalid_redirect_uri" });
       const id = `pk-${++n}`;
       flows.set(id, { challenge: String(body.code_challenge), nonce: String(body.nonce), redirect: String(body.redirect_uri), confirmed: false });
-      return Response.json({ flow_id: id, frame_url: `${o.frameOrigin ?? ISSUER}/embedded/passkey-frame?flow_id=${id}`, expires_in: 600 });
+      return Response.json({ flow_id: id, frame_url: `${o.frameOrigin ?? ISSUER}/embedded/passkey-frame?flow_id=${id}${body.lang ? `&lang=${encodeURIComponent(String(body.lang))}` : ""}`, expires_in: 600 });
     }
     if (url.pathname === "/embedded/passkey/complete") {
       const f = flows.get(String(body.flow_id));
@@ -104,6 +104,29 @@ async function shown(p: ReturnType<typeof page>) {
   for (let i = 0; i < 50 && p.listeners.size === 0; i++) await new Promise((r) => setTimeout(r, 0));
   return new URL(p.frames[0]!.src).searchParams.get("flow_id")!;
 }
+
+describe("components-F084.190 — the frame's language", () => {
+  test("lang goes to /embedded/passkey/start as body.lang, and the frame is BID's address untouched", async () => {
+    const bid = await contractBid(); const sso = server(bid); const p = page();
+    const { browser } = await sso.embeddedPasskey.begin();
+    const running = loginWithEmbeddedPasskey(browser, opts(p, bid, { lang: "nb" }));
+    const flowId = await shown(p);
+    expect(bid.log.find((c) => c.path === "/embedded/passkey/start")!.body.lang).toBe("nb");
+    expect(p.frames[0]!.src).toBe(`${ISSUER}/embedded/passkey-frame?flow_id=${flowId}&lang=nb`);
+    bid.confirm(flowId);
+    p.post(ISSUER, { type: "bid-embedded-passkey", flow_id: flowId, ok: true });
+    await running;
+  });
+
+  test("a tag that is not BCP-47, or longer than 35, is refused before any fetch", async () => {
+    const bid = await contractBid(); const sso = server(bid);
+    const { browser } = await sso.embeddedPasskey.begin();
+    for (const bad of ["dansk sprog", "<x>", "a".repeat(36), ""]) {
+      await expect(loginWithEmbeddedPasskey(browser, opts(page(), bid, { lang: bad }))).rejects.toThrow(TypeError);
+    }
+    expect(bid.log.find((c) => c.path === "/embedded/passkey/start")).toBeUndefined();
+  });
+});
 
 describe("components-F084.186 — embedded passkey login", () => {
   test("begin → browser (start, frame, complete) → server complete: the same LoginResult; the browser never sees the verifier", async () => {
