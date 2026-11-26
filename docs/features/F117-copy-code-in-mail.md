@@ -35,6 +35,7 @@ The recognition is the mail clients' own and is not published as a spec. This pl
 | cronjobs — Auth.js Resend default | link only | no («Sign in to cronjobs.webhouse.net») | — | yes | planned removed (cronjobs F011.3, BID only, waits on the owner's yes); cronjobs #55703 |
 | upmetrics — status-page subscription confirmation | link only | no | — | no | not a login; click page + POST; upmetrics #55701 |
 | sanneandersen — own magic link + admin invite | link only | no («Log ind hos Sanne Andersen») | — | yes | read in code, not measured; sanneandersen #55843 |
+| jam — welcome, org invitation, Jambalaya newsletter confirmation | link only (no login) | no | — | yes (newsletter) | login and codes via BID (redirect + sso.embedded); newsletter moving to Beacon (F025.8); jam #56048 |
 | whop, trail, moovyy, autodoc, happy-little-place, … | ? | ? | ? | ? | asleep — the question waits in their queue (#55660 ff.) |
 
 **A conflict found (26/11):** fd-sundhed holds an owner decision (D-86f5ec) that a 6-digit code is built only when the numbers show the link is too fragile — recipe item 4 («a link is never the only way in») goes against it for fd-sundhed. That is Christian's to settle; this plan does not override it.
