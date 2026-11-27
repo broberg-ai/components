@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-27T10:05:19.081Z",
+ "checked_at": "2026-11-27T12:16:07.151Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -1190,7 +1190,7 @@
    "verdict": "OK"
   },
   "@broberg/media-transform": {
-   "version": "0.2.0",
+   "version": "0.3.0",
    "status": "ok",
    "prod": {
     "critical": 0,
