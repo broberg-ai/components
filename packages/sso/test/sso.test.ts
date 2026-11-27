@@ -1623,7 +1623,7 @@ describe("inviteUsers + migrationStatus: the app's own key, and never a silent a
     });
   }
 
-  for (const state of ["ready", "invited", "expired", "not_invited"]) {
+  for (const state of ["ready", "invited", "expired", "created", "not_invited"]) {
     test(`migration state ${state} passes through`, async () => {
       const body = { users: [{ email: "a@b.dk", state }], counts: { [state]: 1 }, complete: state === "ready" };
       const { c, calls } = client(() => json(body));

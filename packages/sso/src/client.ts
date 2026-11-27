@@ -370,8 +370,15 @@ export interface InvitationResult {
   problem?: string;
 }
 
-export type MigrationState = "ready" | "invited" | "expired" | "not_invited";
-const MIGRATION_STATES = new Set<string>(["ready", "invited", "expired", "not_invited"]);
+/**
+ * Strongest first: ready > invited / expired > created > not_invited.
+ * `created` (BID F084.251): the app created or reported the account via
+ * /api/app/users, but no sign-in has confirmed it and the app sent no
+ * invitation — send your OWN welcome mail; it is not an invitation state.
+ * An unknown state still throws: it is never read as "ready".
+ */
+export type MigrationState = "ready" | "invited" | "expired" | "created" | "not_invited";
+const MIGRATION_STATES = new Set<string>(["ready", "invited", "expired", "created", "not_invited"]);
 export interface MigrationStatus {
   users: Array<{ email: string; state: MigrationState; expiresAt?: string }>;
   counts: Record<string, number>;

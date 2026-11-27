@@ -420,7 +420,9 @@ const results = await client.inviteUsers(process.env.BID_APP_KEY!, {
 //                   | "too_soon" | "too_many_today" | "send_failed", mailId?, problem? }]
 
 const status = await client.migrationStatus(process.env.BID_APP_KEY!, ["sanne@example.dk"]);
-// { users: [{ email, state: "ready" | "invited" | "expired" | "not_invited", expiresAt? }], counts, complete }
+// { users: [{ email, state: "ready" | "invited" | "expired" | "created" | "not_invited", expiresAt? }], counts, complete }
+// "created" (0.30.0): the app created/reported the account but no sign-in has confirmed it
+// and no invitation was sent — send your own welcome mail. complete still means all "ready".
 ```
 
 **Both throw `SsoError`** on a non-2xx (a refused key says `invalid_app_key`), a body that is not JSON, a missing array, or an outcome/state this client does not know. **Never treat an error as `"ready"`**: switching off a user's old login because BID's answer was unclear is how someone gets locked out.
