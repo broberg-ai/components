@@ -77,6 +77,32 @@ const r = await transformImage(heic, { keepMetadata: true, keepOriginal: true })
 r.metadataKept; // true → the stored JPEG carries the source's EXIF incl. GPS
 ```
 
+6. **Photoshop PSD/PSB input (0.3.0+)** — detected by its magic bytes (`8BPS`);
+   the composite (flattened) image is read with `ag-psd` (pure JS), layers and
+   thumbnail skipped, then goes through the same variants. 8- and 16-bit RGB,
+   grayscale, indexed, bitmap and CMYK. A kept original becomes PNG.
+   - **No composite → `PsdNoCompositeError`.** A PSD saved without «Maximize
+     PSD and PSB File Compatibility» carries no real flattened image; read
+     anyway it is all black. Photoshop records that (resource 1057), and we
+     throw instead of returning a black picture. Re-save with the option on.
+   - **`PsdUnsupportedError`** for 32-bit (HDR), Lab, Multichannel and other
+     modes we cannot turn into a correct image.
+   - **CMYK is approximate**: converted without the file's ICC profile — fine
+     for a preview (C0 M100 Y100 K0 → about (255, 46, 23); Photoshop shows
+     about (237, 28, 36)), not for colour-accurate output.
+   - **Memory**: the whole file is read into memory (layer pixels are not).
+   - Tested on files from ag-psd's writer and a minimal spec-built writer —
+     **not yet on a file saved by Photoshop itself.**
+
+```ts
+import { transformImage, PsdNoCompositeError } from "@broberg/media-transform";
+try {
+  const { variants } = await transformImage(psdBytes, { variants: [{ name: "preview", maxEdge: 1600 }] });
+} catch (e) {
+  if (e instanceof PsdNoCompositeError) log("re-save with Maximize Compatibility"); else throw e;
+}
+```
+
 **Memory.** HEIC decoding is the expensive part. Measured by helpdesk on 0.1.1
 under Bun: a 12 MP HEIC peaks at ~219 MB RSS, a 36 MP HEIC at ~638 MB. Size the
 machine for the largest photo you accept (helpdesk runs 1 GB).

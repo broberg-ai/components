@@ -1,7 +1,7 @@
 {
   "name": "@broberg/media-transform",
-  "version": "0.2.0",
-  "description": "The fleet's server-side image-transform primitive — one transformImage() that decodes iPhone HEIC/HEIF → JPEG, auto-orients from EXIF, strips metadata and emits responsive WebP/JPEG derivatives. The companion to @broberg/media (storage): transform returns buffers, you pipe them into media.upload(). EU-safe (local processing, no external service); Node + Bun.",
+  "version": "0.3.0",
+  "description": "The fleet's server-side image-transform primitive — one transformImage() that decodes iPhone HEIC/HEIF → JPEG and Photoshop PSD composites, auto-orients from EXIF, strips metadata and emits responsive WebP/JPEG derivatives. The companion to @broberg/media (storage): transform returns buffers, you pipe them into media.upload(). EU-safe (local processing, no external service); Node + Bun.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -26,6 +26,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "ag-psd": "34.2.3",
     "heic-convert": "^2.1.0",
     "sharp": "^0.35.5"
   },
@@ -37,6 +38,8 @@
   },
   "keywords": [
     "image",
+    "psd",
+    "photoshop",
     "heic",
     "heif",
     "webp",

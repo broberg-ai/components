@@ -1,7 +1,8 @@
 // @broberg/media-transform — the fleet's server-side image-transform primitive (F042).
-// HEIC/HEIF → JPEG decode, EXIF auto-orient + strip, responsive WebP/JPEG derivatives.
+// HEIC/HEIF → JPEG decode, PSD composite (F042.4), EXIF auto-orient + strip, responsive WebP/JPEG derivatives.
 // Companion to @broberg/media (storage): transform returns buffers, you upload() them.
 export { transformImage } from "./transform";
+export { PsdNoCompositeError, PsdUnsupportedError } from "./psd";
 export type {
   ImageInput,
   OutputFormat,

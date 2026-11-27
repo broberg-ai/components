@@ -1,6 +1,7 @@
 import sharp, { type Sharp } from "sharp";
 import convert from "heic-convert";
 import { jpegWithExif, withUprightOrientation } from "./exif";
+import { isPsd, psdComposite } from "./psd";
 import type {
   ImageInput,
   OutputFormat,
@@ -78,8 +79,16 @@ export async function transformImage(
     );
   }
 
-  const decodable = await ensureDecodable(toBuffer(input), heicToJpeg, keepMetadata);
-  const meta = await sharp(decodable).metadata();
+  const buf = toBuffer(input);
+  // PSD (F042.4): sharp cannot read it; its composite comes in as raw RGBA.
+  // No EXIF, no orientation; a kept original becomes PNG so alpha survives.
+  const psd = isPsd(buf) ? psdComposite(buf) : null;
+  const decodable = psd ? null : await ensureDecodable(buf, heicToJpeg, keepMetadata);
+  const open = () =>
+    psd
+      ? sharp(psd.data, { raw: { width: psd.width, height: psd.height, channels: 4 } })
+      : sharp(decodable!, { failOn: "none" });
+  const meta = psd ? { format: "png" as const, orientation: 1, exif: undefined } : await sharp(decodable!).metadata();
   const orientationFixed = (meta.orientation ?? 1) > 1;
 
   // One decode, cloned per output. .rotate() (no args) bakes the EXIF
@@ -87,7 +96,7 @@ export async function transformImage(
   // metadata by default, so every output is EXIF-stripped.
   // keepMetadata: .keepExif() carries the EXIF over; sharp still resets
   // Orientation to 1 after .rotate() (measured on 0.35.5, JPEG and WebP).
-  const rotated = sharp(decodable, { failOn: "none" }).rotate();
+  const rotated = open().rotate();
   const base = keepMetadata ? rotated.keepExif() : rotated;
   const metadataKept = keepMetadata && Boolean(meta.exif);
 
