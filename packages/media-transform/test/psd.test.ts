@@ -119,6 +119,15 @@ describe("transformImage — PSD (F042.4)", () => {
     await expect(transformImage(flatPsd(3, 32, [1, 0, 0]), { variants: [{ name: "p", maxEdge: 100 }] })).rejects.toBeInstanceOf(PsdUnsupportedError);
   });
 
+  it("a header claiming more pixels than sharp allows (268 MP) is refused BEFORE any decode — no multi-GB allocation", async () => {
+    const huge = flatPsd(3, 8, [255, 0, 0]);
+    huge.writeUInt32BE(30_000, 14); // height
+    huge.writeUInt32BE(30_000, 18); // width: 900 MP, ~3.6 GB as RGBA
+    const err = await transformImage(huge, { variants: [{ name: "p", maxEdge: 100 }] }).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(PsdUnsupportedError);
+    expect((err as Error).message).toContain("pixels");
+  });
+
   it("Lab colour mode → PsdUnsupportedError", async () => {
     await expect(transformImage(flatPsd(9, 8, [128, 128, 128]), { variants: [{ name: "p", maxEdge: 100 }] })).rejects.toBeInstanceOf(PsdUnsupportedError);
   });

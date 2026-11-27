@@ -90,7 +90,13 @@ r.metadataKept; // true → the stored JPEG carries the source's EXIF incl. GPS
    - **CMYK is approximate**: converted without the file's ICC profile — fine
      for a preview (C0 M100 Y100 K0 → about (255, 46, 23); Photoshop shows
      about (237, 28, 36)), not for colour-accurate output.
-   - **Memory**: the whole file is read into memory (layer pixels are not).
+   - **Memory**: the whole file is read into memory (layer pixels are not). A
+     header over 268 MP (sharp's own `limitInputPixels`) is refused with
+     `PsdUnsupportedError` before any decode (0.3.1+); the composite costs about
+     4 bytes × pixels, so check width × height yourself for a small machine.
+   - ag-psd's canvas factory is module-global: the first PSD sets a canvas-free
+     one. An app that ALSO uses ag-psd with a real canvas (layer rendering) in
+     the same process should call its own `initializeCanvas` again afterwards.
    - Tested on files from ag-psd's writer and a minimal spec-built writer —
      **not yet on a file saved by Photoshop itself.**
 

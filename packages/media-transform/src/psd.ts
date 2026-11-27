@@ -45,6 +45,14 @@ function ensureCanvasFree(): void {
   canvasFree = true;
 }
 
+/**
+ * sharp's own default ceiling (limitInputPixels, 0x3FFF²) — the same guard every
+ * other format gets. ag-psd reads before sharp sees anything and only stops at
+ * 2 GB, so without this a header claiming 30 000 × 30 000 decodes until a
+ * 512 MB machine falls over. Checked from the header, before any decode.
+ */
+export const PSD_MAX_PIXELS = 268_402_689;
+
 export interface RawRgba {
   data: Buffer;
   width: number;
@@ -53,13 +61,19 @@ export interface RawRgba {
 
 /** The composite image of a PSD as 8-bit RGBA. Throws a named error rather than return a wrong image. */
 export function psdComposite(buf: Buffer): RawRgba {
+  if (buf.length >= 22) {
+    const pixels = buf.readUInt32BE(14) * buf.readUInt32BE(18); // height × width
+    if (pixels > PSD_MAX_PIXELS) {
+      throw new PsdUnsupportedError(`PSD is ${pixels} pixels — more than the ${PSD_MAX_PIXELS} pixels sharp allows for any image`);
+    }
+  }
   ensureCanvasFree();
   let psd: ReturnType<typeof readPsd>;
   try {
     psd = readPsd(buf, { skipLayerImageData: true, skipThumbnail: true, useImageData: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (/not supported|Invalid bitDepth/i.test(msg)) throw new PsdUnsupportedError(`PSD not supported: ${msg}`);
+    if (/not supported|Invalid bitDepth|Exceeded memory limit/i.test(msg)) throw new PsdUnsupportedError(`PSD not supported: ${msg}`);
     throw e;
   }
   // Image resource 1057: Photoshop says whether the merged data is real.
