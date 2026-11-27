@@ -67,8 +67,8 @@
  },
  "@broberg/media-transform": {
   "npmUrl": "https://www.npmjs.com/package/@broberg/media-transform",
-  "version": "0.2.0",
-  "publishedAt": "2026-10-24T23:06:37.872Z",
+  "version": "0.3.0",
+  "publishedAt": "2026-11-27T12:33:09.437Z",
   "provenance": "yes"
  },
  "@broberg/cron": {
