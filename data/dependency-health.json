@@ -1,5 +1,5 @@
 {
- "checked_at": "2026-11-28T09:23:19.960Z",
+ "checked_at": "2026-11-28T19:49:55.950Z",
  "sources": {
   "osv": "ok",
   "kev": "ok"
@@ -22,9 +22,9 @@
    },
    "dev": {
     "critical": 3,
-    "high": 1,
-    "moderate": 10,
-    "low": 2
+    "high": 0,
+    "moderate": 3,
+    "low": 1
    },
    "outdated": {
     "total": 5,
@@ -59,9 +59,9 @@
    },
    "dev": {
     "critical": 2,
-    "high": 4,
-    "moderate": 10,
-    "low": 1
+    "high": 3,
+    "moderate": 4,
+    "low": 0
    },
    "outdated": {
     "total": 8,
@@ -101,7 +101,7 @@
     "low": 0
    },
    "outdated": {
-    "total": 9,
+    "total": 7,
     "shipped": 0,
     "deprecated": 0
    },
@@ -133,9 +133,9 @@
    },
    "dev": {
     "critical": 1,
-    "high": 1,
-    "moderate": 9,
-    "low": 1
+    "high": 0,
+    "moderate": 3,
+    "low": 0
    },
    "outdated": {
     "total": 4,
