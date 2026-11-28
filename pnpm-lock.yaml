@@ -132,13 +132,13 @@ importers:
     devDependencies:
       '@crxjs/vite-plugin':
         specifier: ^2.0.0-beta.33
-        version: 2.7.1(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))
+        version: 2.7.1(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))
       '@preact/preset-vite':
         specifier: ^2.10.2
-        version: 2.10.6(@babel/core@7.29.7)(preact@10.29.2)(rollup@4.68.8)(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))
+        version: 2.10.6(@babel/core@7.29.7)(preact@10.29.2)(rollup@4.68.8)(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.2.0)(yaml@2.9.0)
+        version: 7.3.8(@types/node@26.6.11)(yaml@2.9.0)
 
   packages/apikey:
     devDependencies:
@@ -156,7 +156,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/app-shell:
     dependencies:
@@ -177,8 +177,8 @@ importers:
         specifier: 0.11.0
         version: 0.11.0(hono@4.13.16)
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       hono:
         specifier: ^4
         version: 4.13.16
@@ -193,7 +193,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/auth:
     dependencies:
@@ -206,7 +206,7 @@ importers:
     devDependencies:
       '@better-auth/passkey':
         specifier: ^1.7.28
-        version: 1.7.28(@better-auth/core@1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)))(better-call@1.4.6(zod@4.6.7))(nanostores@1.5.5)
+        version: 1.7.28(@better-auth/core@1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)))(better-call@1.4.6(zod@4.6.7))(nanostores@1.5.5)
       '@simplewebauthn/server':
         specifier: ^13.3.2
         version: 13.3.2
@@ -215,7 +215,7 @@ importers:
         version: 22.19.20
       better-auth:
         specifier: ^1.7.28
-        version: 1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0))
+        version: 1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0))
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9)
@@ -236,7 +236,7 @@ importers:
         version: 0.1.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/backup:
     devDependencies:
@@ -251,7 +251,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/bodymap:
     dependencies:
@@ -269,8 +269,8 @@ importers:
         specifier: ^0.185.0
         version: 0.185.0
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^11.1.1
         version: 11.1.1
@@ -291,7 +291,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/call:
     dependencies:
@@ -313,7 +313,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.2.0)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/chat:
     devDependencies:
@@ -331,7 +331,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/cmdk:
     devDependencies:
@@ -339,8 +339,8 @@ importers:
         specifier: ^3.2.3
         version: 3.2.4(preact@10.29.2)
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^10.23.0
         version: 10.29.2
@@ -352,7 +352,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/config:
     devDependencies:
@@ -367,7 +367,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -375,8 +375,8 @@ importers:
   packages/consent-cookie:
     devDependencies:
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.5.33)(typescript@5.9.3)(yaml@2.9.0)
@@ -385,7 +385,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/cron:
     devDependencies:
@@ -403,7 +403,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/data-table:
     dependencies:
@@ -418,8 +418,8 @@ importers:
         specifier: ^3.2.3
         version: 3.2.4(preact@10.29.2)
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^10.23.0
         version: 10.29.2
@@ -431,7 +431,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/deploy-core:
     devDependencies:
@@ -446,7 +446,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/device-stats:
     devDependencies:
@@ -458,7 +458,7 @@ importers:
         version: 4.13.19
       next:
         specifier: ^16.4.5
-        version: 16.4.5(@types/node@26.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 16.4.5(@types/node@26.6.11)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.5.33)(typescript@5.9.3)(yaml@2.9.0)
@@ -467,7 +467,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/editor:
     dependencies:
@@ -506,8 +506,8 @@ importers:
         specifier: ^19.2.5
         version: 19.2.5(@types/react@19.2.17)
       happy-dom:
-        specifier: ^15.11.7
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^10.29.2
         version: 10.29.2
@@ -525,7 +525,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/event-log:
     devDependencies:
@@ -537,7 +537,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/feature-stats:
     devDependencies:
@@ -558,7 +558,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/forms-turnstile:
     devDependencies:
@@ -585,7 +585,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/gravatar:
     devDependencies:
@@ -609,7 +609,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/greppable:
     devDependencies:
@@ -624,7 +624,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.2.0)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/http:
     devDependencies:
@@ -636,7 +636,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/i18n:
     dependencies:
@@ -652,7 +652,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/legal:
     dependencies:
@@ -668,7 +668,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/livesync:
     dependencies:
@@ -696,7 +696,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/local-guard:
     devDependencies:
@@ -711,7 +711,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/logger:
     dependencies:
@@ -733,7 +733,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.2.0)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/mail:
     devDependencies:
@@ -748,7 +748,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/mail-core:
     devDependencies:
@@ -763,7 +763,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/mail-identity:
     devDependencies:
@@ -775,7 +775,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/mail-templates:
     dependencies:
@@ -797,7 +797,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.2.0)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/mcp:
     devDependencies:
@@ -824,7 +824,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -852,7 +852,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/media-transform:
     dependencies:
@@ -877,7 +877,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/mollie:
     devDependencies:
@@ -892,7 +892,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/nativepush:
     devDependencies:
@@ -907,7 +907,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/notifications:
     devDependencies:
@@ -927,8 +927,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5(@types/react@19.2.17)
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: 10.29.2
         version: 10.29.2
@@ -946,7 +946,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/notify:
     devDependencies:
@@ -958,7 +958,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/phone:
     devDependencies:
@@ -973,7 +973,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/provider-usage:
     devDependencies:
@@ -988,7 +988,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/pwa:
     devDependencies:
@@ -1008,8 +1008,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.17
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^10.23.0
         version: 10.29.2
@@ -1027,7 +1027,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/realtime:
     devDependencies:
@@ -1042,7 +1042,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.2.0)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/s3:
     dependencies:
@@ -1054,8 +1054,8 @@ importers:
         specifier: ^22.0.0
         version: 22.20.3
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^10.24.0
         version: 10.29.2
@@ -1067,7 +1067,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/seal:
     devDependencies:
@@ -1082,7 +1082,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.2.0)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/secret-scan:
     devDependencies:
@@ -1100,7 +1100,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/seti-client:
     devDependencies:
@@ -1115,7 +1115,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/seti-server:
     devDependencies:
@@ -1130,7 +1130,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/settings:
     devDependencies:
@@ -1141,8 +1141,8 @@ importers:
         specifier: ^3.2.3
         version: 3.2.4(preact@10.29.2)
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^10.23.0
         version: 10.29.2
@@ -1154,7 +1154,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/sms:
     devDependencies:
@@ -1169,7 +1169,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/soundkit:
     dependencies:
@@ -1190,8 +1190,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.17
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       preact:
         specifier: ^10.23.0
         version: 10.29.2
@@ -1209,7 +1209,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/speech-dictionary:
     devDependencies:
@@ -1224,7 +1224,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/sso:
     dependencies:
@@ -1246,7 +1246,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3
-        version: 3.2.7(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 3.2.7(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/stripe:
     devDependencies:
@@ -1264,7 +1264,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/tenant:
     devDependencies:
@@ -1282,7 +1282,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3
-        version: 3.2.7(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 3.2.7(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/theme:
     dependencies:
@@ -1319,13 +1319,13 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/ui-controls-core:
     devDependencies:
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.5.33)(typescript@5.9.3)(yaml@2.9.0)
@@ -1334,7 +1334,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/web-clipper:
     dependencies:
@@ -1353,10 +1353,10 @@ importers:
         version: link:../theme
       '@crxjs/vite-plugin':
         specifier: ^2.0.0-beta.33
-        version: 2.7.1(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))
+        version: 2.7.1(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))
       '@preact/preset-vite':
         specifier: ^2.10.2
-        version: 2.10.6(@babel/core@7.29.7)(preact@10.29.2)(rollup@4.68.8)(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))
+        version: 2.10.6(@babel/core@7.29.7)(preact@10.29.2)(rollup@4.68.8)(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))
       '@testing-library/preact':
         specifier: ^3.2.3
         version: 3.2.4(preact@10.29.2)
@@ -1367,8 +1367,8 @@ importers:
         specifier: ^5.0.6
         version: 5.0.6
       happy-dom:
-        specifier: ^15.0.0
-        version: 15.11.7
+        specifier: ^21.0.4
+        version: 21.0.4
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -1383,10 +1383,10 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^7.3.8
-        version: 7.3.8(@types/node@26.2.0)(yaml@2.9.0)
+        version: 7.3.8(@types/node@26.6.11)(yaml@2.9.0)
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/webmcp:
     devDependencies:
@@ -1398,7 +1398,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
   packages/webpush:
     dependencies:
@@ -1417,7 +1417,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+        version: 2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
 
 packages:
 
@@ -1505,8 +1505,8 @@ packages:
     peerDependencies:
       '@babel/core': ^7.0.0-0
 
-  '@babel/runtime@7.29.15':
-    resolution: {integrity: sha512-304gsbbGVmQc+cNGHzwHBlqepYdWLKj3VXCQBGt/EGcV7PUPfKI7kAUNW1FZEOCwlQiLvQjg1JEaAlRQ616h+Q==}
+  '@babel/runtime@7.29.16':
+    resolution: {integrity: sha512-LKBjGopxrQE0aFucNL69OyyyF143MOWUULEOftU3oCgyD35Sy84UUpVnt/sNvTb7ZmCyALSt7om+fojlW35zYQ==}
     engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.29.7':
@@ -3312,6 +3312,9 @@ packages:
   '@types/node@26.2.0':
     resolution: {integrity: sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg==}
 
+  '@types/node@26.6.11':
+    resolution: {integrity: sha512-uUyQ2XLEz+EXh34lmS3GhKrkqn/8FU7KUiKRpk347At2bmnMVWss45yz8b4FG/tUtmV1tV/+TVkITItPROyeeQ==}
+
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
 
@@ -3349,6 +3352,9 @@ packages:
 
   '@types/webxr@0.5.24':
     resolution: {integrity: sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg==}
+
+  '@types/whatwg-mimetype@3.0.2':
+    resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
 
   '@types/ws@8.18.2':
     resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
@@ -3609,6 +3615,10 @@ packages:
 
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
+
+  buffer-image-size@0.6.4:
+    resolution: {integrity: sha512-nEh+kZOPY1w+gcCMobZ6ETUp9WfibndnosbpwB1iJk/8Gt5ZF2bhS6+B6bPYz424KtwsR6Rflc3tCz1/ghX2dQ==}
+    engines: {node: '>=4.0'}
 
   bundle-require@5.1.0:
     resolution: {integrity: sha512-3WrrOuZiyaaZPWiEt4G3+IffISVC9HYlWueJEBWED4ZH4aIAC2PnkdnuRrR94M+w6yGWn4AglWtJtBI8YqvgoA==}
@@ -3923,6 +3933,10 @@ packages:
     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==}
     engines: {node: '>=0.12'}
 
+  entities@7.0.1:
+    resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
+    engines: {node: '>=0.12'}
+
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
     engines: {node: '>= 0.4'}
@@ -4085,9 +4099,9 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
-  happy-dom@15.11.7:
-    resolution: {integrity: sha512-KyrFvnl+J9US63TEzwoiJOQzZBJY7KgBushJA8X61DMbNsH+2ONkDuLDnCnwUiPTF42tLoEmrPyoqbenVA5zrg==}
-    engines: {node: '>=18.0.0'}
+  happy-dom@21.0.4:
+    resolution: {integrity: sha512-tFm+GaLBgo6o0awHnvHaNoraVo27qJ+2tZEtZ+cIa08hXbeitrxAJajLI05hsUy/2/YTKcUjQYzHe5mCcraLBw==}
+    engines: {node: '>=20.0.0'}
 
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
@@ -5080,6 +5094,9 @@ packages:
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
+  undici-types@8.9.0:
+    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
+
   universalify@2.0.1:
     resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
     engines: {node: '>= 10.0.0'}
@@ -5326,6 +5343,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.23.1:
+    resolution: {integrity: sha512-1rzWDSN0NOi3tpwgHsQExjWRoKUGtjCkJ2gZRaaRtzhYLboMytOI9pj9PU7yCgY37auqdd4OyLofZDbkeuZmPA==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
     engines: {node: '>=18'}
@@ -5491,7 +5520,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/runtime@7.29.15': {}
+  '@babel/runtime@7.29.16': {}
 
   '@babel/runtime@7.29.7': {}
 
@@ -5553,14 +5582,14 @@ snapshots:
       '@better-auth/core': 1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
 
-  '@better-auth/passkey@1.7.28(@better-auth/core@1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)))(better-call@1.4.6(zod@4.6.7))(nanostores@1.5.5)':
+  '@better-auth/passkey@1.7.28(@better-auth/core@1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)))(better-call@1.4.6(zod@4.6.7))(nanostores@1.5.5)':
     dependencies:
       '@better-auth/core': 1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
       '@better-fetch/fetch': 1.3.3
       '@simplewebauthn/browser': 13.3.0
       '@simplewebauthn/server': 13.3.2
-      better-auth: 1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0))
+      better-auth: 1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0))
       better-call: 1.4.6(zod@4.6.7)
       nanostores: 1.5.5
       zod: 4.6.7
@@ -5618,7 +5647,7 @@ snapshots:
 
   '@bufbuild/protobuf@1.10.1': {}
 
-  '@crxjs/vite-plugin@2.7.1(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))':
+  '@crxjs/vite-plugin@2.7.1(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))':
     dependencies:
       '@webcomponents/custom-elements': 1.6.0
       acorn-walk: 8.3.5
@@ -5634,7 +5663,7 @@ snapshots:
       rollup: 2.80.0
       rxjs: 7.5.7
       tinyglobby: 0.2.17
-      vite: 7.3.8(@types/node@26.2.0)(yaml@2.9.0)
+      vite: 7.3.8(@types/node@26.6.11)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -6079,7 +6108,7 @@ snapshots:
   '@libsql/isomorphic-ws@0.1.5':
     dependencies:
       '@types/ws': 8.18.2
-      ws: 8.21.0
+      ws: 8.23.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -6273,19 +6302,19 @@ snapshots:
       tslib: 2.8.1
       tsyringe: 4.10.0
 
-  '@preact/preset-vite@2.10.6(@babel/core@7.29.7)(preact@10.29.2)(rollup@4.68.8)(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))':
+  '@preact/preset-vite@2.10.6(@babel/core@7.29.7)(preact@10.29.2)(rollup@4.68.8)(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/plugin-transform-react-jsx': 7.29.7(@babel/core@7.29.7)
       '@babel/plugin-transform-react-jsx-development': 7.29.7(@babel/core@7.29.7)
-      '@prefresh/vite': 2.4.12(preact@10.29.2)(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))
+      '@prefresh/vite': 2.4.12(preact@10.29.2)(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))
       '@rollup/pluginutils': 5.4.0(rollup@4.68.8)
       babel-plugin-transform-hook-names: 1.0.2(@babel/core@7.29.7)
       debug: 4.4.3(supports-color@10.2.2)
       magic-string: 0.30.21
       picocolors: 1.1.1
-      vite: 7.3.8(@types/node@26.2.0)(yaml@2.9.0)
-      vite-prerender-plugin: 0.5.14(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))
+      vite: 7.3.8(@types/node@26.6.11)(yaml@2.9.0)
+      vite-prerender-plugin: 0.5.14(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))
       zimmerframe: 1.1.5
     transitivePeerDependencies:
       - preact
@@ -6309,7 +6338,7 @@ snapshots:
 
   '@prefresh/utils@1.2.1': {}
 
-  '@prefresh/vite@2.4.12(preact@10.29.2)(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0))':
+  '@prefresh/vite@2.4.12(preact@10.29.2)(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0))':
     dependencies:
       '@babel/core': 7.29.7
       '@prefresh/babel-plugin': 0.5.4(@babel/core@7.29.7)
@@ -6317,7 +6346,7 @@ snapshots:
       '@prefresh/utils': 1.2.1
       '@rollup/pluginutils': 4.2.1
       preact: 10.29.2
-      vite: 7.3.8(@types/node@26.2.0)(yaml@2.9.0)
+      vite: 7.3.8(@types/node@26.6.11)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -6642,7 +6671,7 @@ snapshots:
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.15
+      '@babel/runtime': 7.29.16
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
@@ -6907,6 +6936,11 @@ snapshots:
     dependencies:
       undici-types: 8.3.0
 
+  '@types/node@26.6.11':
+    dependencies:
+      undici-types: 8.9.0
+    optional: true
+
   '@types/qs@6.15.1': {}
 
   '@types/range-parser@1.2.7': {}
@@ -6948,6 +6982,8 @@ snapshots:
       '@types/node': 22.20.3
 
   '@types/webxr@0.5.24': {}
+
+  '@types/whatwg-mimetype@3.0.2': {}
 
   '@types/ws@8.18.2':
     dependencies:
@@ -6995,6 +7031,14 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 6.4.6(@types/node@26.2.0)(yaml@2.9.0)
+
+  '@vitest/mocker@2.1.9(vite@6.4.6(@types/node@26.6.11)(yaml@2.9.0))':
+    dependencies:
+      '@vitest/spy': 2.1.9
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 6.4.6(@types/node@26.6.11)(yaml@2.9.0)
 
   '@vitest/mocker@3.2.7(vite@6.4.6(@types/node@22.20.3)(yaml@2.9.0))':
     dependencies:
@@ -7146,7 +7190,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.39: {}
 
-  better-auth@1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)):
+  better-auth@1.7.28(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))(next@16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)):
     dependencies:
       '@better-auth/core': 1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5)
       '@better-auth/drizzle-adapter': 1.7.28(@better-auth/core@1.7.28(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.6(zod@4.6.7))(jose@6.2.18)(kysely@0.29.9)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(drizzle-orm@0.45.2(@libsql/client@0.18.0)(kysely@0.29.9)(postgres@3.4.9))
@@ -7170,7 +7214,7 @@ snapshots:
       next: 16.4.5(@types/node@22.19.20)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
-      vitest: 2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0)
+      vitest: 2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -7214,6 +7258,10 @@ snapshots:
       update-browserslist-db: 1.3.4(browserslist@4.29.3)
 
   buffer-equal-constant-time@1.0.1: {}
+
+  buffer-image-size@0.6.4:
+    dependencies:
+      '@types/node': 22.20.3
 
   bundle-require@5.1.0(esbuild@0.27.7):
     dependencies:
@@ -7431,6 +7479,8 @@ snapshots:
   entities@4.5.0: {}
 
   entities@6.0.1: {}
+
+  entities@7.0.1: {}
 
   es-define-property@1.0.1: {}
 
@@ -7695,11 +7745,18 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  happy-dom@15.11.7:
+  happy-dom@21.0.4:
     dependencies:
-      entities: 4.5.0
-      webidl-conversions: 7.0.0
+      '@types/node': 22.20.3
+      '@types/whatwg-mimetype': 3.0.2
+      '@types/ws': 8.18.2
+      buffer-image-size: 0.6.4
+      entities: 7.0.1
       whatwg-mimetype: 3.0.0
+      ws: 8.23.1
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   has-bigints@1.1.0: {}
 
@@ -8090,7 +8147,7 @@ snapshots:
       - '@types/node'
       - babel-plugin-macros
 
-  next@16.4.5(@types/node@26.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  next@16.4.5(@types/node@26.6.11)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       '@next/env': 16.4.5
       '@swc/helpers': 0.5.23
@@ -8109,7 +8166,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.4.5
       '@next/swc-win32-arm64-msvc': 16.4.5
       '@next/swc-win32-x64-msvc': 16.4.5
-      sharp: 0.35.5(@types/node@26.2.0)
+      sharp: 0.35.5(@types/node@26.6.11)
     transitivePeerDependencies:
       - '@babel/core'
       - '@types/node'
@@ -8571,7 +8628,7 @@ snapshots:
       '@img/sharp-win32-x64': 0.35.5
       '@types/node': 22.19.20
 
-  sharp@0.35.5(@types/node@26.2.0):
+  sharp@0.35.5(@types/node@26.6.11):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
@@ -8602,7 +8659,7 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.5
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
-      '@types/node': 26.2.0
+      '@types/node': 26.6.11
     optional: true
 
   shebang-command@2.0.0:
@@ -8813,6 +8870,9 @@ snapshots:
 
   undici-types@8.3.0: {}
 
+  undici-types@8.9.0:
+    optional: true
+
   universalify@2.0.1: {}
 
   unpipe@1.0.0: {}
@@ -8892,6 +8952,27 @@ snapshots:
       - tsx
       - yaml
 
+  vite-node@2.1.9(@types/node@26.6.11)(yaml@2.9.0):
+    dependencies:
+      cac: 6.7.14
+      debug: 4.4.3(supports-color@10.2.2)
+      es-module-lexer: 1.7.0
+      pathe: 1.1.2
+      vite: 6.4.6(@types/node@26.6.11)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - '@types/node'
+      - jiti
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+      - tsx
+      - yaml
+
   vite-node@3.2.4(@types/node@22.20.3)(yaml@2.9.0):
     dependencies:
       cac: 6.7.14
@@ -8913,7 +8994,7 @@ snapshots:
       - tsx
       - yaml
 
-  vite-prerender-plugin@0.5.14(vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0)):
+  vite-prerender-plugin@0.5.14(vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0)):
     dependencies:
       kolorist: 1.8.0
       magic-string: 0.30.21
@@ -8921,7 +9002,7 @@ snapshots:
       simple-code-frame: 1.3.0
       source-map: 0.7.6
       stack-trace: 1.0.0
-      vite: 7.3.8(@types/node@26.2.0)(yaml@2.9.0)
+      vite: 7.3.8(@types/node@26.6.11)(yaml@2.9.0)
 
   vite@6.4.6(@types/node@22.19.20)(yaml@2.9.0):
     dependencies:
@@ -8962,7 +9043,20 @@ snapshots:
       fsevents: 2.3.3
       yaml: 2.9.0
 
-  vite@7.3.8(@types/node@26.2.0)(yaml@2.9.0):
+  vite@6.4.6(@types/node@26.6.11)(yaml@2.9.0):
+    dependencies:
+      esbuild: 0.25.12
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
+      postcss: 8.5.33
+      rollup: 4.68.8
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 26.6.11
+      fsevents: 2.3.3
+      yaml: 2.9.0
+
+  vite@7.3.8(@types/node@26.6.11)(yaml@2.9.0):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.7)
@@ -8971,11 +9065,11 @@ snapshots:
       rollup: 4.68.8
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 26.2.0
+      '@types/node': 26.6.11
       fsevents: 2.3.3
       yaml: 2.9.0
 
-  vitest@2.1.9(@types/node@22.19.20)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0):
+  vitest@2.1.9(@types/node@22.19.20)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@6.4.6(@types/node@22.19.20)(yaml@2.9.0))
@@ -8999,7 +9093,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.19.20
-      happy-dom: 15.11.7
+      happy-dom: 21.0.4
       jsdom: 25.0.1
     transitivePeerDependencies:
       - jiti
@@ -9015,7 +9109,7 @@ snapshots:
       - tsx
       - yaml
 
-  vitest@2.1.9(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0):
+  vitest@2.1.9(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@6.4.6(@types/node@22.20.3)(yaml@2.9.0))
@@ -9039,7 +9133,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.20.3
-      happy-dom: 15.11.7
+      happy-dom: 21.0.4
       jsdom: 25.0.1
     transitivePeerDependencies:
       - jiti
@@ -9055,7 +9149,7 @@ snapshots:
       - tsx
       - yaml
 
-  vitest@2.1.9(@types/node@26.2.0)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0):
+  vitest@2.1.9(@types/node@26.2.0)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@6.4.6(@types/node@26.2.0)(yaml@2.9.0))
@@ -9079,7 +9173,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 26.2.0
-      happy-dom: 15.11.7
+      happy-dom: 21.0.4
       jsdom: 25.0.1
     transitivePeerDependencies:
       - jiti
@@ -9095,7 +9189,47 @@ snapshots:
       - tsx
       - yaml
 
-  vitest@3.2.7(@types/node@22.20.3)(happy-dom@15.11.7)(jsdom@25.0.1)(yaml@2.9.0):
+  vitest@2.1.9(@types/node@26.6.11)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0):
+    dependencies:
+      '@vitest/expect': 2.1.9
+      '@vitest/mocker': 2.1.9(vite@6.4.6(@types/node@26.6.11)(yaml@2.9.0))
+      '@vitest/pretty-format': 2.1.9
+      '@vitest/runner': 2.1.9
+      '@vitest/snapshot': 2.1.9
+      '@vitest/spy': 2.1.9
+      '@vitest/utils': 2.1.9
+      chai: 5.3.3
+      debug: 4.4.3(supports-color@10.2.2)
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      pathe: 1.1.2
+      std-env: 3.10.0
+      tinybench: 2.9.0
+      tinyexec: 0.3.2
+      tinypool: 1.1.1
+      tinyrainbow: 1.2.0
+      vite: 6.4.6(@types/node@26.6.11)(yaml@2.9.0)
+      vite-node: 2.1.9(@types/node@26.6.11)(yaml@2.9.0)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@types/node': 26.6.11
+      happy-dom: 21.0.4
+      jsdom: 25.0.1
+    transitivePeerDependencies:
+      - jiti
+      - less
+      - lightningcss
+      - msw
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+      - tsx
+      - yaml
+
+  vitest@3.2.7(@types/node@22.20.3)(happy-dom@21.0.4)(jsdom@25.0.1)(yaml@2.9.0):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.7
@@ -9122,7 +9256,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.20.3
-      happy-dom: 15.11.7
+      happy-dom: 21.0.4
       jsdom: 25.0.1
     transitivePeerDependencies:
       - jiti
@@ -9210,6 +9344,8 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.21.0: {}
+
+  ws@8.23.1: {}
 
   xml-name-validator@5.0.0: {}
 
