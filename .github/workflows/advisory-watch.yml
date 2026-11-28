@@ -9,8 +9,8 @@
 #   permissions: { contents: read, issues: write, id-token: write }
 #   jobs:
 #     watch:
-#       uses: broberg-ai/components/.github/workflows/advisory-watch.yml@advisory-watch-v1.1.0
-#       with: { engine-ref: advisory-watch-v1.1.0 }
+#       uses: broberg-ai/components/.github/workflows/advisory-watch.yml@advisory-watch-v1.2.0
+#       with: { engine-ref: advisory-watch-v1.2.0 }
 #
 # and, as its deploy gate, the same workflow with `mode: gate` from test.yml —
 # one decision for both, so they never measure differently.
@@ -21,7 +21,11 @@
 # two read GitHub's REVIEWED database only; an advisory published just on the
 # source repo is in neither (better-auth 1.7.14 ran green for 25 days with a
 # critical published hole, bid #56991). A dependency whose repo could not be
-# asked is listed as NOT checked in the log; a GitHub 403/429 is red. high/critical
+# asked is listed as NOT checked in the log; a GitHub 403/429 is red.
+# v1.2.0 (F082.12): `track-latest: "better-auth,@better-auth/passkey"` — each
+# listed package locked below the newest patch on its own minor line is red
+# («[stale:<pkg>] …»); a newer minor/major is only a log line. A listed package
+# that is not locked is red too, so a typo never reads as up to date. high/critical
 # is red unless acknowledged in the caller's .github/advisory-ack.json as
 # { "<pkg>": { "ids": ["GHSA-…"], "reason": "why it cannot reach a user" } }.
 # watch mode: one issue per hole («[id] …», BID's key) + an Upmetrics incident
@@ -36,7 +40,8 @@ on:
       label: { type: string, required: false, default: "advisory-watch" }
       label-color: { type: string, required: false, default: "B60205" }
       working-directory: { type: string, required: false, default: "." }
-      engine-ref: { type: string, required: false, default: "advisory-watch-v1.1.0", description: "Ref of broberg-ai/components the engine is read from — pin it to the same tag as uses:" }
+      track-latest: { type: string, required: false, default: "", description: "Comma-separated packages that must be on the newest patch of their minor line (F082.12)" }
+      engine-ref: { type: string, required: false, default: "advisory-watch-v1.2.0", description: "Ref of broberg-ai/components the engine is read from — pin it to the same tag as uses:" }
 
 jobs:
   advisory:
@@ -82,7 +87,8 @@ jobs:
           ACK: ${{ inputs.ack-file }}
           LABEL: ${{ inputs.label }}
           COLOR: ${{ inputs.label-color }}
+          TRACK: ${{ inputs.track-latest }}
         run: >
           node "$GITHUB_WORKSPACE/.advisory-engine/scripts/advisory/watch.mjs"
-          --mode "$MODE" --ack "$ACK" --label "$LABEL" --color "$COLOR"
+          --mode "$MODE" --ack "$ACK" --label "$LABEL" --color "$COLOR" --track-latest "$TRACK"
           --report "$RUNNER_TEMP/advisory.json"

@@ -12,7 +12,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { detectPm, parseAudit, lockedFromLockfile, decide, planAlarm, issueTitle, isTestRun, githubRepo, repoFindings, directDeps } from "./engine.mjs";
+import { detectPm, parseAudit, lockedFromLockfile, decide, planAlarm, issueTitle, isTestRun, githubRepo, repoFindings, directDeps, staleFindings } from "./engine.mjs";
 import { queryOsv, readKev, osvSeverity } from "../dependency-health.mjs";
 
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
@@ -21,6 +21,8 @@ const ackPath = arg("ack", ".github/advisory-ack.json");
 const label = arg("label", "advisory-watch");
 const color = arg("color", "B60205");
 const reportPath = arg("report", "advisory.json");
+// F082.12: load-bearing packages that must be on the newest patch of their line.
+const trackLatest = String(arg("track-latest", "") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 
 /** stdout even when the command exits non-zero — the exit code is not the signal. */
 function run(cmd, args) {
@@ -29,7 +31,7 @@ function run(cmd, args) {
 }
 
 const pm = detectPm(readdirSync("."));
-let audit = [], auditError = null, osv = [], osvError = null, repo = [], repoError = null, repoUnchecked = [], repoChecked = 0, ack = {}, kev = null;
+let audit = [], auditError = null, osv = [], osvError = null, repo = [], repoError = null, repoUnchecked = [], repoChecked = 0, latest = [], latestError = null, latestNotes = [], ack = {}, kev = null;
 
 if (!pm) auditError = "no package-lock.json, pnpm-lock.yaml or bun.lock — nothing could be checked";
 else {
@@ -42,6 +44,20 @@ else {
     if (locked.size === 0) throw new Error(`no packages read from ${lockFile}`);
     try { ({ findings: repo, unchecked: repoUnchecked, checked: repoChecked } = await repoAdvisories(locked)); }
     catch (e) { repoError = `repo advisories: ${e.message}`; }
+    if (trackLatest.length) {
+      try {
+        const versions = {};
+        for (const pkg of trackLatest) {
+          const r = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pkg)}`, { headers: { accept: "application/vnd.npm.install-v1+json" } });
+          if (r.status === 404) continue; // staleFindings reports it as «no npm versions»
+          if (!r.ok) throw new Error(`npm registry ${r.status} for ${pkg}`);
+          versions[pkg] = Object.keys((await r.json()).versions ?? {});
+        }
+        const s = staleFindings(trackLatest, locked, versions);
+        latest = s.findings; latestNotes = s.notes;
+        if (s.errors.length) latestError = s.errors.join(" · ");
+      } catch (e) { latestError = `track-latest: ${e.message}`; }
+    }
     const byDep = await queryOsv(locked);
     kev = await readKev();
     for (const [dep, vulns] of byDep) for (const v of vulns) {
@@ -55,10 +71,11 @@ if (existsSync(ackPath)) {
   catch (e) { ack = { [ackPath]: null }; console.error(`ack file is not JSON: ${e.message}`); }
 }
 
-const report = { ...decide({ auditError, audit, osvError, osv, repoError, repo, ack }), pm, mode, kev: kev ? "read" : "unread", repo_checked: repoChecked, repo_unchecked: repoUnchecked, checked_at: new Date().toISOString() };
+const report = { ...decide({ auditError, audit, osvError, osv, repoError, repo, latestError, latest, ack }), pm, mode, kev: kev ? "read" : "unread", repo_checked: repoChecked, repo_unchecked: repoUnchecked, track_latest: trackLatest, latest_notes: latestNotes, checked_at: new Date().toISOString() };
 writeFileSync(reportPath, JSON.stringify(report, null, 1));
 console.log(`\n  ${pm ?? "?"} · status ${report.status} · blocking ${report.blocking.length} · acknowledged ${report.acknowledged.length} · OSV ${osvError ? "error" : "ok"} · KEV ${report.kev} · repo advisories ${repoError ? "error" : `${repoChecked} repos`}`);
 // Never counted as checked: a dependency whose repo we could not ask (bid #56991).
+for (const note of latestNotes) console.log(`  track-latest: ${note}`);
 if (repoUnchecked.length) console.log(`  repo advisories NOT checked for ${repoUnchecked.length}: ${repoUnchecked.map((u) => `${u.dep} (${u.why})`).join(", ")}`);
 for (const e of report.errors) console.log(`::error::${e}`);
 for (const f of report.blocking) console.log(`::error::${issueTitle(f)} (${f.sources.join("+")}${f.kev ? ", CISA KEV" : ""})`);

@@ -236,6 +236,38 @@ export function repoFindings(advisories, locked, unparsed = []) {
   return out.filter((f) => { const k = `${f.pkg} ${f.id}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
+/** F082.12 — track-latest (Christian via bid #57002: BID always on the newest
+ *  patch of Better Auth, no grace period). A security fix often ships as a
+ *  patch before any advisory is visible anywhere, so for a few load-bearing
+ *  packages the rule is «the newest patch on the line you run».
+ *  @param tracked  package names the caller listed
+ *  @param locked   name@version set from the lockfile
+ *  @param versions { name: [every published version] } from npm
+ *  → findings (stale:<pkg>, blocking), notes (a newer minor/major: report only),
+ *    errors (not locked / no npm data: a typo never reads as up to date). */
+export function staleFindings(tracked, locked, versions) {
+  const findings = [], notes = [], errors = [];
+  const isStable = (v) => /^\d+\.\d+\.\d+$/.test(v);
+  const line = (v) => v.split(".").slice(0, 2).join(".");
+  for (const pkg of tracked) {
+    const mine = [...locked].filter((nv) => nv.startsWith(`${pkg}@`)).map((nv) => nv.slice(pkg.length + 1));
+    if (!mine.length) { errors.push(`track-latest: ${pkg} is not in the lockfile`); continue; }
+    const published = (versions[pkg] ?? []).filter(isStable);
+    if (!published.length) { errors.push(`track-latest: no npm versions read for ${pkg}`); continue; }
+    const newest = published.reduce((a, b) => (cmpSemver(a, b) >= 0 ? a : b));
+    for (const v of new Set(mine)) {
+      const onLine = published.filter((p) => line(p) === line(v));
+      const target = onLine.length ? onLine.reduce((a, b) => (cmpSemver(a, b) >= 0 ? a : b)) : null;
+      if (target && cmpSemver(v, target) < 0) {
+        findings.push({ pkg, id: `stale:${pkg}`, severity: "high", title: `${pkg} ${v} is behind ${target}, the newest patch on its ${line(v)} line`, url: `https://www.npmjs.com/package/${pkg}?activeTab=versions` });
+      }
+      if (cmpSemver(newest, target ?? v) > 0) notes.push(`${pkg} ${v}: a newer line exists (${newest}) — moving a minor/major is the owner's call`);
+    }
+  }
+  const seen = new Set();
+  return { findings: findings.filter((f) => (seen.has(f.title) ? false : (seen.add(f.title), true))), notes, errors };
+}
+
 /** Direct dependency names from the repo's package.json files (root + workspaces). */
 export function directDeps(pkgJsons) {
   const out = new Set();
@@ -247,11 +279,11 @@ export function directDeps(pkgJsons) {
 
 /** Audit + OSV + repository findings → the report the alarm reads.
  *  @param {{auditError?:string, audit?:any[], osvError?:string, osv?:any[], repoError?:string, repo?:any[], ack?:any}} r */
-export function decide({ auditError, audit = [], osvError, osv = [], repoError, repo = [], ack = {} }) {
+export function decide({ auditError, audit = [], osvError, osv = [], repoError, repo = [], latestError, latest = [], ack = {} }) {
   const problems = validateAck(ack);
-  const errors = [auditError, osvError, repoError, ...problems.map((p) => `ack: ${p}`)].filter(Boolean);
+  const errors = [auditError, osvError, repoError, latestError, ...problems.map((p) => `ack: ${p}`)].filter(Boolean);
   const byKey = new Map();
-  for (const [source, list] of [["audit", audit], ["osv", osv], ["repo", repo]])
+  for (const [source, list] of [["audit", audit], ["osv", osv], ["repo", repo], ["latest", latest]])
     for (const f of list) {
       const k = `${f.pkg} ${f.id}`;
       const cur = byKey.get(k);

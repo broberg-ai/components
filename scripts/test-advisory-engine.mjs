@@ -2,7 +2,7 @@
 // F082.10 — the shared advisory watch's decisions (scripts/advisory/engine.mjs).
 // Each case is one of bid's requirements (#4318) or BID's production behaviour.
 import assert from "node:assert/strict";
-import { detectPm, parseAudit, lockedFromLockfile, validateAck, decide, planAlarm, issueTitle, ERROR_ID, isTestRun, TEST_PREFIX, githubRepo, inRange, patchedOnLine, repoFindings, directDeps } from "./advisory/engine.mjs";
+import { detectPm, parseAudit, lockedFromLockfile, validateAck, decide, planAlarm, issueTitle, ERROR_ID, isTestRun, TEST_PREFIX, githubRepo, inRange, patchedOnLine, repoFindings, directDeps, staleFindings } from "./advisory/engine.mjs";
 import { readFileSync } from "node:fs";
 
 let n = 0;
@@ -227,6 +227,35 @@ t("direct dependencies from root + workspace package.json files", () => {
     { dependencies: { zod: "^4", "@w/x": "workspace:*" }, peerDependencies: { react: "19" }, optionalDependencies: { sharp: "1" } },
   ]);
   assert.deepEqual([...d].sort(), ["better-auth", "react", "sharp", "vitest", "zod"]);
+});
+
+// F082.12 — track-latest (bid #57002, Christian: BID always on the newest patch of Better Auth).
+t("track-latest: below the newest patch on its own minor line → RED stale:<pkg>; a newer minor is only a note", () => {
+  const versions = { "better-auth": ["1.6.30", "1.7.14", "1.7.15", "1.7.16", "1.7.17-beta.1", "1.8.0"] };
+  const r = staleFindings(["better-auth"], new Set(["better-auth@1.7.14"]), versions);
+  assert.deepEqual(r.findings.map((f) => [f.pkg, f.id, f.severity]), [["better-auth", "stale:better-auth", "high"]]);
+  assert.match(r.findings[0].title, /1\.7\.14 .*1\.7\.16/);
+  assert.deepEqual(r.errors, []);
+  // on the newest patch: clean — the newer minor 1.8.0 is a note, never red; the beta is never «newest»
+  const ok = staleFindings(["better-auth"], new Set(["better-auth@1.7.16"]), versions);
+  assert.deepEqual(ok.findings, []);
+  assert.match(ok.notes.join(" "), /1\.8\.0/);
+  // two locked versions: each judged on its own line
+  assert.equal(staleFindings(["better-auth"], new Set(["better-auth@1.7.16", "better-auth@1.6.29"]), versions).findings.length, 1);
+  // through decide(): red, and ackable by its id like any finding
+  const st = staleFindings(["better-auth"], new Set(["better-auth@1.7.14"]), versions).findings;
+  assert.equal(decide({ latest: st }).status, "blocking");
+  assert.deepEqual(decide({ latest: st }).blocking[0].sources, ["latest"]);
+  assert.equal(decide({ latest: st, ack: { "better-auth": { ids: ["stale:better-auth"], reason: "1.7.16 pending owner review" } } }).status, "clean");
+});
+
+t("track-latest: a listed package that is not locked, or has no npm data, is an ERROR — a typo never reads as up to date", () => {
+  const r = staleFindings(["better-auht", "better-auth"], new Set(["better-auth@1.7.16"]), { "better-auth": ["1.7.16"] });
+  assert.equal(r.errors.length, 1);
+  assert.match(r.errors[0], /better-auht/);
+  const noData = staleFindings(["better-auth"], new Set(["better-auth@1.7.16"]), {});
+  assert.match(noData.errors[0], /npm/);
+  assert.equal(decide({ latestError: r.errors.join(" · ") }).status, "error");
 });
 
 console.log(`\nadvisory engine: ${n} checks passed`);
