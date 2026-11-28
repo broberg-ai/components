@@ -1,5 +1,5 @@
 {
- "scanned_at": "2026-11-27T13:58:49.191Z",
+ "scanned_at": "2026-11-28T13:09:35.685Z",
  "repos_scanned": 90,
  "repos_failed": 0,
  "manifests_read": 370,
@@ -4893,24 +4893,24 @@
    "deps": {
     "@broberg/ai-sdk": [
      {
-      "range": "0.66.0",
+      "range": "0.78.1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json",
-      "installed": "0.66.0"
+      "installed": "0.78.1"
      },
      {
-      "range": "^0.66.0",
+      "range": "^0.78.1",
       "field": "dependencies",
       "at": "packages/cms-ai/package.json",
-      "installed": "0.66.0"
+      "installed": "0.78.1"
      }
     ],
     "@broberg/chat": [
      {
-      "range": ">=0.6.3 <1",
+      "range": ">=0.9.0 <1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json",
-      "installed": "0.6.3"
+      "installed": "0.9.0"
      }
     ],
     "@broberg/cms-chat-client": [
@@ -4939,10 +4939,10 @@
     ],
     "@broberg/deploy-core": [
      {
-      "range": "0.6.0",
+      "range": "0.11.1",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json",
-      "installed": "0.6.0"
+      "installed": "0.11.1"
      }
     ],
     "@broberg/i18n": [
@@ -4963,18 +4963,18 @@
     ],
     "@broberg/mail-core": [
      {
-      "range": "0.9.2",
+      "range": "0.10.2",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json",
-      "installed": "0.9.2"
+      "installed": "0.10.2"
      }
     ],
     "@broberg/sso": [
      {
-      "range": "0.9.0",
+      "range": "0.30.0",
       "field": "dependencies",
       "at": "packages/cms-admin/package.json",
-      "installed": "0.9.0"
+      "installed": "0.30.0"
      }
     ],
     "@broberg/ui-controls-core": [
