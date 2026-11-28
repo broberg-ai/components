@@ -94,9 +94,9 @@
   },
   "peerDependenciesComment": "better-auth is a peer so the consumer pins ONE version shared between this server wrapper and better-auth/client on the frontend. It is marked optional because ONE entry does not need it: @broberg/auth/passkey-ceremony runs the WebAuthn ceremony with no Better Auth in its import graph (measured — it loads with better-auth absent, while the core entry correctly does not). @broberg/mail is an optional peer too — only needed for magic-link, and we import its type only.",
   "devDependencies": {
-    "@better-auth/passkey": "^1.6.0",
+    "@better-auth/passkey": "^1.7.28",
     "@types/node": "^22.0.0",
-    "better-auth": "^1.7.7",
+    "better-auth": "^1.7.28",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.16",
     "tsup": "^8.3.0",
