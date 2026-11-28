@@ -92,7 +92,7 @@ async function repoAdvisories(locked) {
   const deps = [...directDeps(packageJsons())].filter((d) => [...locked].some((nv) => nv.startsWith(`${d}@`)));
   const unchecked = [], repos = new Map();
   await pool(deps, 8, async (dep) => {
-    const r = await fetch(`https://registry.npmjs.org/${dep.replace("/", "%2F")}/latest`, { headers: { accept: "application/json" } });
+    const r = await fetch(`https://registry.npmjs.org/${encodeURIComponent(dep)}/latest`, { headers: { accept: "application/json" } });
     if (r.status === 404) return void unchecked.push({ dep, why: "not on npm" });
     if (!r.ok) throw new Error(`npm registry ${r.status} for ${dep}`);
     const gh = githubRepo((await r.json()).repository);
