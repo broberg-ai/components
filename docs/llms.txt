@@ -10,7 +10,7 @@
 ## Using the inventory
 - Found it? `npm i @broberg/<name>`. Missing it? Build it, then tell `components`.
 - Enroll when you adopt: `POST https://discovery.broberg.ai/api/enroll` (trust-on-first-use key; see https://discovery.broberg.ai/api).
-- All 158 tips are inline below, in full. That part needs no second fetch.
+- All 159 tips are inline below, in full. That part needs no second fetch.
 - **Package descriptions here are ONE-LINERS** — the first sentence only. Anything learned about a package after that sentence (a caveat, a sub-path, a "this is NOT in this package") is at https://discovery.broberg.ai/llms-full.txt. Fetch it before you decide a capability is missing.
 
 ## Secrets Vault — flådens delte krypterede secret-store
@@ -130,7 +130,7 @@ Kaldet venter, til han svarer i ét lokalt vindue, og kun DU får svaret, én ga
 
 ### SDK — Fleet SDKs (sibling @broberg packages — installed here, owned + shipped in their own repos)
 - **@broberg/db-sdk** v0.2.0 — One DbClient facade over TWO transports: libSQL/Turso (default) and PostgreSQL incl. `npm i @broberg/db-sdk` · https://www.npmjs.com/package/@broberg/db-sdk · udgivet 23.09.2026 kl. 19.28 (dansk tid) · Trusted Publisher ✓
-- **@broberg/ai-sdk** v0.78.3 — The fleet LLM SDK. `npm i @broberg/ai-sdk` · https://www.npmjs.com/package/@broberg/ai-sdk · udgivet 28.11.2026 kl. 07.29 (dansk tid) · Trusted Publisher ✓
+- **@broberg/ai-sdk** v0.78.3 — The fleet LLM SDK. `npm i @broberg/ai-sdk` · https://www.npmjs.com/package/@broberg/ai-sdk · udgivet 28.11.2026 kl. 17.28 (dansk tid) · Trusted Publisher ✓
 - **@upmetrics/sdk** v0.11.2 — The fleet telemetry SDK. `npm i @upmetrics/sdk`
 - **upmetrics-swift** v0.1.0 — Native iOS/macOS error + crash reporting. `npm i upmetrics-swift`
 - **@broberg/fleet-client** v0.2.0 — The typed fleet-comms client. `npm i @broberg/fleet-client` · https://www.npmjs.com/package/@broberg/fleet-client · udgivet 24.10.2026 kl. 17.40 (dansk tid) · Trusted Publisher ✓
@@ -196,7 +196,7 @@ owner. That conversation is the whole point of this inventory.
 - **Deployment Mgmt (observe)** (L3) · ⛔ NOT BUILT YET (moved) — nothing to install, nothing to import · owner: upmetrics — ASK THEM before building a second one
   The observe half of deployment management
 
-## Tips & tricks — every tip inline (158 across 19 platforms)
+## Tips & tricks — every tip inline (159 across 19 platforms)
 
 ### Owner input — codes, passwords, logins, approvals → ARS (ars ask) (2)
 - **[tip]** npm login when `npm whoami` answers 401 (measured by components 26/10, @broberg/backup bootstrap): the password is in the vault (global secret «cbroberg (npm login)»). Log in through the registry API — PUT https://registry.npmjs.org/-/user/org.couchdb.user:cbroberg with {name,password} and header npm-otp: <code from `ars ask --kind code`> — and write the returned token to ~/.npmrc. The publish then needs a SECOND, fresh code (the first is spent on the login), so ask ARS again right before `npm publish --otp`. Alternative (auth-relay): `npm login --auth-type=web` and send the URL to the lens agent, which approves it in its npm profile; 2FA still via ARS. _(components)_
@@ -340,13 +340,14 @@ owner. That conversation is the whole point of this inventory.
 - **[test-fixture]** Generate a real HEIC test fixture locally with macOS sips: `sips -s format heic in.jpg --out out.heic` (produces HEVC HEIF). Lets you verify a HEIC decode path with hard runtime proof instead of assuming. _(components)_
 - **[memory]** In-process transform OOMs a small box (512MB) on large photos — sharp/libvips holds the decoded bitmap in RAM. For a batch/backfill, run ONE fresh process per photo (a shell loop) for memory isolation, or bump the machine RAM. A long-lived server transforming one upload at a time is usually fine. _(xrt81)_
 
-### GitHub Actions / CI-CD (6)
+### GitHub Actions / CI-CD (7)
 - **[test-gate]** Blocking test-gate: give the deploy job needs:[test], where test runs the suite (turbo → bun test). One red test → deploy blocked. Closes the hole where a regression ships past 'green-but-never-run' tests. _(buddy)_
 - **[pnpm-setup]** pnpm/action-setup@v4 fails hard ('Multiple versions of pnpm specified') if you set the version in BOTH the action (with: version:) AND package.json (packageManager: pnpm@x). Fix: drop with:version: entirely, let the action read packageManager. _(buddy)_
 - **[paths-filter]** A workflow whose paths: filter does NOT include .github/workflows/** does NOT re-trigger when you edit the workflow file itself — so a CI-fix commit 'does nothing' until the next qualifying push. Test a workflow change in isolation with gh workflow run <wf> --ref main (workflow_dispatch). _(buddy)_
 - **[deploy-verify]** Prove a deploy is really live: match the flyctl releases timestamp against the commit time (release v79 06:13 UTC, 1 min after commit 06:12 = real). A cheap truth-check against a compaction summary that claims 'shipped'. _(trail)_
 - **[probe]** Cheap post-deploy signal: an unauthenticated request returning 401 (not 404) proves the route is mounted + auth-gated without a full authed flow. 404 = not deployed yet; 000 = host not up — never raise a real incident on 000 (false alarm). _(cardmem)_
-- **[autostash-trap]** git add → rebase --autostash → commit can DROP your modifications → empty commits → CD rebuilds the OLD code. Verify against the SERVED artifact (bundle hash / content marker), not your working tree. _(cardmem)_
+- **[tip]** git add → rebase --autostash → commit can DROP your modifications → empty commits → CD rebuilds the OLD code. Verify against the SERVED artifact (bundle hash / content marker), not your working tree.
+- **[autostash-trap]** Daily vulnerability watch for any repo (F082.10/F082.11, components): ONE caller file — uses: broberg-ai/components/.github/workflows/advisory-watch.yml@advisory-watch-v1.1.0 with { engine-ref: advisory-watch-v1.1.0 } — gives npm/pnpm/bun audit + OSV.dev + (v1.1.0) each direct dependency's OWN GitHub repository advisories. The third source matters: audit and OSV read only GitHub's REVIEWED database, so better-auth 1.7.14 ran green for 25 days with a critical hole published on its repo (bid, 28/11 2026). high/critical is red unless acknowledged in .github/advisory-ack.json with a reason; mode: gate is the deploy gate, mode: watch opens/closes one issue per hole. A dependency whose repo could not be read is printed as NOT checked — never counted clean. _(cardmem)_
 
 ### Frontend (Preact / Next / PWA / web) (10)
 - **[preact-render]** Preact ≠ React: NO setState-under-render bailout. Calling setState during render to 'reset' on a prop change makes Preact PAINT the intermediate state first → a visible blink. DERIVE state from an id (openId === curId), never set it during render. _(xrt81)_

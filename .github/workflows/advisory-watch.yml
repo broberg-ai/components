@@ -9,14 +9,19 @@
 #   permissions: { contents: read, issues: write, id-token: write }
 #   jobs:
 #     watch:
-#       uses: broberg-ai/components/.github/workflows/advisory-watch.yml@advisory-watch-v1.0.0
-#       with: { engine-ref: advisory-watch-v1.0.0 }
+#       uses: broberg-ai/components/.github/workflows/advisory-watch.yml@advisory-watch-v1.1.0
+#       with: { engine-ref: advisory-watch-v1.1.0 }
 #
 # and, as its deploy gate, the same workflow with `mode: gate` from test.yml —
 # one decision for both, so they never measure differently.
 #
 # What it does: the package manager's own audit (npm / pnpm / bun, from the
-# lockfile) + OSV.dev over every locked package, CISA KEV marked. high/critical
+# lockfile) + OSV.dev over every locked package, CISA KEV marked — and (v1.1.0,
+# F082.11) each DIRECT dependency's own GitHub repository advisories. The first
+# two read GitHub's REVIEWED database only; an advisory published just on the
+# source repo is in neither (better-auth 1.7.14 ran green for 25 days with a
+# critical published hole, bid #56991). A dependency whose repo could not be
+# asked is listed as NOT checked in the log; a GitHub 403/429 is red. high/critical
 # is red unless acknowledged in the caller's .github/advisory-ack.json as
 # { "<pkg>": { "ids": ["GHSA-…"], "reason": "why it cannot reach a user" } }.
 # watch mode: one issue per hole («[id] …», BID's key) + an Upmetrics incident
@@ -31,7 +36,7 @@ on:
       label: { type: string, required: false, default: "advisory-watch" }
       label-color: { type: string, required: false, default: "B60205" }
       working-directory: { type: string, required: false, default: "." }
-      engine-ref: { type: string, required: false, default: "advisory-watch-v1.0.0", description: "Ref of broberg-ai/components the engine is read from — pin it to the same tag as uses:" }
+      engine-ref: { type: string, required: false, default: "advisory-watch-v1.1.0", description: "Ref of broberg-ai/components the engine is read from — pin it to the same tag as uses:" }
 
 jobs:
   advisory:

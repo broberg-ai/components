@@ -2,7 +2,8 @@
 // F082.10 — the shared advisory watch's decisions (scripts/advisory/engine.mjs).
 // Each case is one of bid's requirements (#4318) or BID's production behaviour.
 import assert from "node:assert/strict";
-import { detectPm, parseAudit, lockedFromLockfile, validateAck, decide, planAlarm, issueTitle, ERROR_ID, isTestRun, TEST_PREFIX } from "./advisory/engine.mjs";
+import { detectPm, parseAudit, lockedFromLockfile, validateAck, decide, planAlarm, issueTitle, ERROR_ID, isTestRun, TEST_PREFIX, githubRepo, inRange, patchedOnLine, repoFindings, directDeps } from "./advisory/engine.mjs";
+import { readFileSync } from "node:fs";
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ✓ ${name}`); };
@@ -102,6 +103,130 @@ t("a run off the default branch is a TEST — and test and real issues never tou
   assert.equal(planAlarm(decide({ audit: [ZOD] }), [test], false).open.length, 1);
   // and a pilot that is still red does not open a second TEST issue every run
   assert.equal(planAlarm(decide({ audit: [ZOD] }), [test], true).open.length, 0);
+});
+
+// F082.11 — repository advisories (bid #56991): published on the source repo,
+// not yet in GitHub's reviewed database, so audit and OSV never saw them.
+const BA = JSON.parse(readFileSync(new URL("./advisory/fixtures/better-auth-repo-advisories.json", import.meta.url), "utf8"));
+
+t("repository URL → owner/repo, GitHub only", () => {
+  assert.equal(githubRepo({ url: "git+https://github.com/better-auth/better-auth.git", directory: "packages/better-auth" }), "better-auth/better-auth");
+  assert.equal(githubRepo("github:colinhacks/zod"), "colinhacks/zod");
+  assert.equal(githubRepo("colinhacks/zod"), "colinhacks/zod");
+  assert.equal(githubRepo("git@github.com:a/b.git"), "a/b");
+  assert.equal(githubRepo("https://gitlab.com/a/b"), null);
+  assert.equal(githubRepo(undefined), null);
+});
+
+t("GitHub's version ranges on Better Auth's real advisories, prereleases included", () => {
+  assert.equal(inRange("1.7.14", "< 1.7.16"), true);
+  assert.equal(inRange("1.7.16", "< 1.7.16"), false);
+  assert.equal(inRange("1.8.0-beta.3", ">= 1.8.0-beta.0, < 1.8.0-beta.5"), true);
+  assert.equal(inRange("1.8.0-beta.5", ">= 1.8.0-beta.0, < 1.8.0-beta.5"), false);
+  assert.equal(inRange("1.8.0", ">= 1.8.0-beta.0, < 1.8.0-beta.5"), false);
+  assert.equal(inRange("1.6.20", "<= 1.6.20"), true);
+  assert.equal(inRange("0.4.8", ">= 0.4.9, < 1.7.16"), false);
+  assert.equal(inRange("1.7.0-rc.3", ">= 1.3.8-beta.3, < 1.7.0-rc.3"), false);
+  assert.equal(inRange("1.7.0-rc.2", ">= 1.3.8-beta.3, < 1.7.0-rc.3"), true);
+  assert.equal(inRange("1.0.0", "= 1.0.0"), true);
+  // some repos write the AND without a comma (measured 28/11 on a components dependency)
+  assert.equal(inRange("2.5.0", ">= 2.0.0 < 2.8.3"), true);
+  assert.equal(inRange("2.8.3", ">= 2.0.0 < 2.8.3"), false);
+  // partial versions, read like npm: the missing parts are a wildcard
+  assert.equal(inRange("19.9.9", "< 20"), true);
+  assert.equal(inRange("20.0.0", "< 20"), false);
+  assert.equal(inRange("1.2.9", "<= 1.2"), true);
+  assert.equal(inRange("1.3.0", "<= 1.2"), false);
+  assert.equal(inRange("1.2.0", ">= 1.2, < 1.4"), true);
+  assert.equal(inRange("1.2.5", "= 1.2"), true);
+  assert.equal(inRange("2.0.0", "> 1"), true);
+  assert.equal(inRange("1.9.0", "> 1"), false);
+  assert.equal(inRange("8.4.0-beta.1", "8.4.0-beta.1"), true); // a bare version = exactly it
+  assert.equal(inRange("8.4.0", "8.4.0-beta.1"), false);
+  assert.throws(() => inRange("1.0.0", "~> 1.0"), /range/);
+  // the other real forms (measured 28/11 on components' dependency repos)
+  assert.equal(inRange("15.1.0", ">15.0.4 and <15.2.0"), true);
+  assert.equal(inRange("15.2.0", ">15.0.4 and <15.2.0"), false);
+  assert.equal(inRange("1.20.0", "1 <=1.28.1 || 2 <=2.0.5 || 3 <=3.20.3"), true);
+  assert.equal(inRange("2.0.6", "1 <=1.28.1 || 2 <=2.0.5 || 3 <=3.20.3"), false);
+  assert.equal(inRange("6.1.0", "1 <=1.28.1 || 2 <=2.0.5 || 3 <=3.20.3"), false);
+  assert.equal(inRange("15.3.0", "15.0.0 - 15.4.4"), true);
+  assert.equal(inRange("15.4.5", "15.0.0 - 15.4.4"), false);
+  assert.throws(() => inRange("15.1.0", "< 14.2.31, 15.0.0 - 15.4.4"), /range/); // comma + hyphen: OR or AND? not guessed
+  assert.throws(() => inRange("16.3.1", ">= 16.0.0 < 16.3.?"), /range/);
+});
+
+t("patched_versions on the locked major clears a broken range — a fix on another major never does", () => {
+  const p = "v16.0.7, v15.5.7, v15.4.8, 15.6.0-canary.58, 16.1.0-canary.12"; // next.js GHSA-9qr9-h5gf-34mp
+  assert.equal(inRange("16.4.5", ">=14.3.0-canary.77, >=15, >=16"), true); // the range alone says vulnerable
+  assert.equal(patchedOnLine("16.4.5", p), true);   // … but 16.4.5 has the 16.x fix
+  assert.equal(patchedOnLine("16.0.5", p), false);  // below the fix
+  assert.equal(patchedOnLine("5.4.21", "8.3.7, 7.3.8, 6.4.6"), false); // vite: no 5.x fix → stays red
+  assert.equal(patchedOnLine("1.7.14", null), false);
+  // next.js GHSA-gp8f: ">=13.5.1", fixed in 13.5.7 and 14.2.10 → a later major has it
+  assert.equal(patchedOnLine("16.4.5", "13.5.7", ["14.2.10"]), true);
+  assert.equal(patchedOnLine("14.2.9", "14.2.10", ["13.5.7"]), false);
+  // better-auth GHSA-fmh4: an OLDER fix on the same major (1.6.11) does not clear 1.7.7 — the 1.7 fix is 1.7.16
+  assert.equal(patchedOnLine("1.7.7", "1.6.11, 1.7.16"), false);
+  assert.equal(patchedOnLine("1.7.20", "1.6.11, 1.7.16"), true);
+  const fmh4 = [{ ghsa_id: "GHSA-fmh4-wcc4-5jm3", severity: "high", summary: "x", vulnerabilities: [
+    { package: { ecosystem: "npm", name: "better-auth" }, vulnerable_version_range: "< 1.6.11", patched_versions: "1.6.11" },
+    { package: { ecosystem: "npm", name: "better-auth" }, vulnerable_version_range: ">= 1.6.14, < 1.7.16", patched_versions: "1.7.16" }] }];
+  assert.equal(repoFindings(fmh4, new Set(["better-auth@1.7.7"])).length, 1);
+  assert.deepEqual(repoFindings(fmh4, new Set(["better-auth@1.6.12"])), []);
+  // drizzle GHSA-gpj5: the beta line's "<= 1.0.0-beta.19" also matches 0.45.2 — the 0.45.x fix itself
+  const dz = [{ ghsa_id: "GHSA-gpj5-g38j-94v9", severity: "high", summary: "x", vulnerabilities: [
+    { package: { ecosystem: "npm", name: "drizzle-orm" }, vulnerable_version_range: "<= 0.45.1", patched_versions: "0.45.2" },
+    { package: { ecosystem: "npm", name: "drizzle-orm" }, vulnerable_version_range: "<= 1.0.0-beta.19", patched_versions: "1.0.0-beta.20" }] }];
+  assert.deepEqual(repoFindings(dz, new Set(["drizzle-orm@0.45.2"])), []);
+  assert.equal(repoFindings(dz, new Set(["drizzle-orm@0.45.1"])).length, 1);
+  assert.equal(repoFindings(dz, new Set(["drizzle-orm@1.0.0-beta.19"])).length, 1);
+  const next = [{ ghsa_id: "GHSA-9qr9-h5gf-34mp", severity: "critical", summary: "RCE", vulnerabilities: [{ package: { ecosystem: "npm", name: "next" }, vulnerable_version_range: ">=14.3.0-canary.77, >=15, >=16", patched_versions: p }] }];
+  assert.deepEqual(repoFindings(next, new Set(["next@16.4.5"])), []);
+  assert.equal(repoFindings(next, new Set(["next@16.0.5"])).length, 1);
+});
+
+t("Better Auth 1.7.14 → three findings incl. the critical one; 1.7.16 → none; @better-auth/expo matched by its own name", () => {
+  const locked = new Set(["better-auth@1.7.14", "zod@4.6.5"]);
+  const f = repoFindings(BA, locked);
+  assert.deepEqual(f.map((x) => `${x.pkg} ${x.id} ${x.severity}`).sort(), [
+    "better-auth GHSA-4wq4-2ppv-q3hg critical", "better-auth GHSA-9hm7-xhfp-cx58 medium", "better-auth GHSA-g95c-wqvr-8c3j medium"]);
+  assert.deepEqual(repoFindings(BA, new Set(["better-auth@1.7.16"])), []);
+  // the issue links the advisory where it IS published (OSV does not have it yet)
+  const withUrl = BA.map((a) => ({ ...a, html_url: `https://github.com/better-auth/better-auth/security/advisories/${a.ghsa_id}` }));
+  assert.equal(repoFindings(withUrl, locked)[0].url.startsWith("https://github.com/better-auth/better-auth/security/advisories/GHSA-"), true);
+  assert.deepEqual(repoFindings(BA, new Set(["@better-auth/expo@1.4.0-beta.6"])).map((x) => x.pkg), ["@better-auth/expo"]);
+  // an unreadable range is reported for the locked package and skipped — the rest still counts
+  const bad = [{ ...BA[0], ghsa_id: "GHSA-bad", vulnerabilities: [{ package: { ecosystem: "npm", name: "better-auth" }, vulnerable_version_range: ">= 16.0.0 < 16.3.?" }] }, ...BA];
+  const unparsed = [];
+  assert.equal(repoFindings(bad, locked, unparsed).length, 3);
+  assert.deepEqual(unparsed, [{ pkg: "better-auth", id: "GHSA-bad", range: ">= 16.0.0 < 16.3.?" }]);
+  // withdrawn and non-npm advisories are not findings
+  const w = BA.map((a) => ({ ...a, withdrawn_at: "2026-11-04T00:00:00Z" }));
+  assert.deepEqual(repoFindings(w, locked), []);
+  const pip = BA.map((a) => ({ ...a, vulnerabilities: a.vulnerabilities.map((v) => ({ ...v, package: { ...v.package, ecosystem: "pip" } })) }));
+  assert.deepEqual(repoFindings(pip, locked), []);
+});
+
+t("decide(): a repo-only critical is RED, and merges with OSV by id once GitHub reviews it", () => {
+  const repo = repoFindings(BA, new Set(["better-auth@1.7.14"]));
+  const r = decide({ repo });
+  assert.equal(r.status, "blocking");
+  assert.deepEqual(r.blocking.map((f) => [f.id, f.sources]), [["GHSA-4wq4-2ppv-q3hg", ["repo"]]]);
+  const later = decide({ repo, osv: [{ pkg: "better-auth", id: "GHSA-4wq4-2ppv-q3hg", severity: "critical", title: "x" }] });
+  assert.deepEqual(later.blocking.map((f) => [f.id, f.sources.sort()]), [["GHSA-4wq4-2ppv-q3hg", ["osv", "repo"]]]);
+  // acknowledged like any other source
+  assert.equal(decide({ repo, ack: { "better-auth": { ids: ["GHSA-4wq4-2ppv-q3hg"], reason: "expo plugin not used — no native client" } } }).status, "clean");
+  // could not look → red, closes nothing
+  assert.equal(decide({ repoError: "repo advisories: GitHub 403 (rate limit)" }).status, "error");
+});
+
+t("direct dependencies from root + workspace package.json files", () => {
+  const d = directDeps([
+    { dependencies: { "better-auth": "^1.7.14" }, devDependencies: { vitest: "2" } },
+    { dependencies: { zod: "^4", "@w/x": "workspace:*" }, peerDependencies: { react: "19" }, optionalDependencies: { sharp: "1" } },
+  ]);
+  assert.deepEqual([...d].sort(), ["better-auth", "react", "sharp", "vitest", "zod"]);
 });
 
 console.log(`\nadvisory engine: ${n} checks passed`);

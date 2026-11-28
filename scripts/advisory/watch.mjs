@@ -11,7 +11,8 @@
 // can never measure differently (bid #4318 a).
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { detectPm, parseAudit, lockedFromLockfile, decide, planAlarm, issueTitle, isTestRun } from "./engine.mjs";
+import { join } from "node:path";
+import { detectPm, parseAudit, lockedFromLockfile, decide, planAlarm, issueTitle, isTestRun, githubRepo, repoFindings, directDeps } from "./engine.mjs";
 import { queryOsv, readKev, osvSeverity } from "../dependency-health.mjs";
 
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
@@ -28,7 +29,7 @@ function run(cmd, args) {
 }
 
 const pm = detectPm(readdirSync("."));
-let audit = [], auditError = null, osv = [], osvError = null, ack = {}, kev = null;
+let audit = [], auditError = null, osv = [], osvError = null, repo = [], repoError = null, repoUnchecked = [], repoChecked = 0, ack = {}, kev = null;
 
 if (!pm) auditError = "no package-lock.json, pnpm-lock.yaml or bun.lock — nothing could be checked";
 else {
@@ -39,6 +40,8 @@ else {
     if (!existsSync(lockFile)) throw new Error(`${lockFile} not found (a binary bun.lockb cannot be read — run bun with a text lockfile)`);
     const locked = lockedFromLockfile(pm, readFileSync(lockFile, "utf8"));
     if (locked.size === 0) throw new Error(`no packages read from ${lockFile}`);
+    try { ({ findings: repo, unchecked: repoUnchecked, checked: repoChecked } = await repoAdvisories(locked)); }
+    catch (e) { repoError = `repo advisories: ${e.message}`; }
     const byDep = await queryOsv(locked);
     kev = await readKev();
     for (const [dep, vulns] of byDep) for (const v of vulns) {
@@ -52,15 +55,73 @@ if (existsSync(ackPath)) {
   catch (e) { ack = { [ackPath]: null }; console.error(`ack file is not JSON: ${e.message}`); }
 }
 
-const report = { ...decide({ auditError, audit, osvError, osv, ack }), pm, mode, kev: kev ? "read" : "unread", checked_at: new Date().toISOString() };
+const report = { ...decide({ auditError, audit, osvError, osv, repoError, repo, ack }), pm, mode, kev: kev ? "read" : "unread", repo_checked: repoChecked, repo_unchecked: repoUnchecked, checked_at: new Date().toISOString() };
 writeFileSync(reportPath, JSON.stringify(report, null, 1));
-console.log(`\n  ${pm ?? "?"} · status ${report.status} · blocking ${report.blocking.length} · acknowledged ${report.acknowledged.length} · OSV ${osvError ? "error" : "ok"} · KEV ${report.kev}`);
+console.log(`\n  ${pm ?? "?"} · status ${report.status} · blocking ${report.blocking.length} · acknowledged ${report.acknowledged.length} · OSV ${osvError ? "error" : "ok"} · KEV ${report.kev} · repo advisories ${repoError ? "error" : `${repoChecked} repos`}`);
+// Never counted as checked: a dependency whose repo we could not ask (bid #56991).
+if (repoUnchecked.length) console.log(`  repo advisories NOT checked for ${repoUnchecked.length}: ${repoUnchecked.map((u) => `${u.dep} (${u.why})`).join(", ")}`);
 for (const e of report.errors) console.log(`::error::${e}`);
 for (const f of report.blocking) console.log(`::error::${issueTitle(f)} (${f.sources.join("+")}${f.kev ? ", CISA KEV" : ""})`);
 for (const f of report.acknowledged) console.log(`  acknowledged ${f.pkg} ${f.id}: ${ack[f.pkg].reason}`);
 
 if (mode === "watch") await alarm(report);
 process.exit(report.status === "clean" ? 0 : 1);
+
+/** package.json files of the repo: the root and every workspace below it (node_modules and the engine's own checkout skipped). */
+function packageJsons(dir = ".", depth = 0, out = []) {
+  if (existsSync(join(dir, "package.json"))) {
+    try { out.push(JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))); } catch { throw new Error(`${join(dir, "package.json")} is not JSON`); }
+  }
+  if (depth >= 3) return out;
+  for (const e of readdirSync(dir, { withFileTypes: true }))
+    if (e.isDirectory() && !e.name.startsWith(".") && !["node_modules", "dist", "build"].includes(e.name)) packageJsons(join(dir, e.name), depth + 1, out);
+  return out;
+}
+
+async function pool(items, n, fn) {
+  const it = items[Symbol.iterator]();
+  await Promise.all(Array.from({ length: n }, async () => { for (let x = it.next(); !x.done; x = it.next()) await fn(x.value); }));
+}
+
+/** F082.11 — the third source. Direct deps → npm `repository` → that GitHub
+ *  repo's published security advisories. A repo we could not ask is reported as
+ *  unchecked; a rate limit or server error is an ERROR (red, closes nothing). */
+async function repoAdvisories(locked) {
+  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("no GH_TOKEN — repository advisories cannot be read");
+  const deps = [...directDeps(packageJsons())].filter((d) => [...locked].some((nv) => nv.startsWith(`${d}@`)));
+  const unchecked = [], repos = new Map();
+  await pool(deps, 8, async (dep) => {
+    const r = await fetch(`https://registry.npmjs.org/${dep.replace("/", "%2F")}/latest`, { headers: { accept: "application/json" } });
+    if (r.status === 404) return void unchecked.push({ dep, why: "not on npm" });
+    if (!r.ok) throw new Error(`npm registry ${r.status} for ${dep}`);
+    const gh = githubRepo((await r.json()).repository);
+    if (!gh) return void unchecked.push({ dep, why: "no GitHub repository" });
+    repos.set(gh, [...(repos.get(gh) ?? []), dep]);
+  });
+  const advisories = [];
+  await pool([...repos.keys()], 8, async (gh) => {
+    for (let page = 1; ; page++) {
+      const r = await fetch(`https://api.github.com/repos/${gh}/security-advisories?state=published&per_page=100&page=${page}`, {
+        headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" },
+      });
+      if (r.status === 404) { for (const dep of repos.get(gh)) unchecked.push({ dep, why: `${gh}: 404` }); return; }
+      if (r.status === 403 || r.status === 429) throw new Error(`GitHub ${r.status} on ${gh}${/rate limit/i.test(await r.text()) ? " (rate limit)" : ""}`);
+      if (!r.ok) throw new Error(`GitHub ${r.status} on ${gh}`);
+      const list = await r.json();
+      advisories.push(...list);
+      if (list.length < 100) return;
+    }
+  });
+  const unparsed = [];
+  const findings = repoFindings(advisories, locked, unparsed);
+  for (const u of unparsed) unchecked.push({ dep: u.pkg, why: `${u.id}: unreadable range «${u.range}»` });
+  const seen = new Set();
+  const uniq = unchecked.filter((u) => { const k = `${u.dep} ${u.why}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  uniq.sort((a, b) => a.dep.localeCompare(b.dep));
+  return { findings, unchecked: uniq, checked: repos.size };
+}
+
 
 async function alarm(report) {
   // The fleet shares one GitHub quota. A 403 there must turn the run red, never
@@ -81,7 +142,7 @@ async function alarm(report) {
   const key = open.length || close.length ? await upmetricsKey() : null;
   for (const f of open) {
     gh("issue", "create", "--label", label, "--title", issueTitle(f, test), "--body",
-      `Det daglige sårbarhedstjek (F082.10) fandt et ukvitteret ${f.severity}-hul.\n\n- pakke: \`${f.pkg}\`\n- hul: https://osv.dev/vulnerability/${f.id}\n- kilde: ${(f.sources ?? ["tjekket"]).join(", ")}${f.kev ? "\n- **udnyttes aktivt (CISA KEV)**" : ""}\n\nOpgradér pakken, eller kvittér i \`${ackPath}\` med begrundelse. Sagen lukkes af sig selv, når tjekket er grønt.`);
+      `Det daglige sårbarhedstjek (F082.10) fandt et ukvitteret ${f.severity}-hul.\n\n- pakke: \`${f.pkg}\`\n- hul: ${f.url ?? `https://osv.dev/vulnerability/${f.id}`}\n- kilde: ${(f.sources ?? ["tjekket"]).join(", ")}${f.kev ? "\n- **udnyttes aktivt (CISA KEV)**" : ""}\n\nOpgradér pakken, eller kvittér i \`${ackPath}\` med begrundelse. Sagen lukkes af sig selv, når tjekket er grønt.`);
     console.log(`OPENED ${f.id} · Upmetrics: ${await upmetrics(key, "/api/incidents", { kind: "dependency_vuln", fingerprint: test ? `test:${f.id}` : f.id, severity: test ? "low" : f.severity === "critical" ? "critical" : "high", title: issueTitle(f, test) })}`);
   }
   for (const s of close) {

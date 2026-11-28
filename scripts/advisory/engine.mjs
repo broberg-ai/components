@@ -12,6 +12,10 @@
 //     open issues match when it switches over.
 // Added: OSV.dev as a second source beside the package manager's own audit, and
 // npm / pnpm / bun in one engine.
+// F082.11: a third source, REPOSITORY advisories. Audit and OSV both read
+// GitHub's REVIEWED database; an advisory published only on the source repo is
+// in neither (better-auth 1.7.14 ran green for 25 days with 12 published holes,
+// one critical — bid #56991). So each direct dependency's own repo is asked too.
 
 export const BLOCKING = new Set(["high", "critical"]);
 export const ERROR_ID = "audit-error";
@@ -84,13 +88,170 @@ export function validateAck(ack) {
   return problems;
 }
 
-/** Audit + OSV findings → the report the alarm reads.
- *  @param {{auditError?:string, audit?:any[], osvError?:string, osv?:any[], ack?:any}} r */
-export function decide({ auditError, audit = [], osvError, osv = [], ack = {} }) {
+/** A package.json `repository` (string or { url }) → "owner/repo" on GitHub, else null. */
+export function githubRepo(repository) {
+  const raw = typeof repository === "string" ? repository : repository?.url;
+  if (!raw) return null;
+  const s = String(raw).trim();
+  let m = /^github:([^/\s]+)\/([^/\s#]+?)(?:\.git)?(?:#.*)?$/.exec(s) ?? /^([\w.-]+)\/([\w.-]+?)(?:\.git)?$/.exec(s);
+  if (m) return `${m[1]}/${m[2]}`;
+  m = /github\.com[/:]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[/#?].*)?$/.exec(s);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+/** SemVer precedence (2.0.0 §11): -1, 0 or 1. Build metadata is ignored. */
+function cmpSemver(a, b) {
+  const parse = (v) => {
+    const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(v.trim());
+    if (!m) throw new Error(`not a version: ${v}`);
+    return { n: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ? m[4].split(".") : [] };
+  };
+  const x = parse(a), y = parse(b);
+  for (let i = 0; i < 3; i++) if (x.n[i] !== y.n[i]) return x.n[i] < y.n[i] ? -1 : 1;
+  if (!x.pre.length || !y.pre.length) return x.pre.length === y.pre.length ? 0 : x.pre.length ? -1 : 1;
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i], q = y.pre[i];
+    if (p === undefined) return -1;
+    if (q === undefined) return 1;
+    if (p === q) continue;
+    const pn = /^\d+$/.test(p), qn = /^\d+$/.test(q);
+    if (pn && qn) return Number(p) < Number(q) ? -1 : 1;
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
+/** One comparator ("<= 1.2", ">=8.3.0", a bare "1.2.3") against a version. A
+ *  partial version is a wildcard as in npm's semver ("< 20" = below 20.0.0,
+ *  "<= 1.2" = every 1.2.x, a bare "1" = every 1.x), so a hole is never
+ *  under-matched. */
+function cmpOk(version, op, v) {
+  const m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(v);
+  if (m && m[3] === undefined) {
+    const lo = `${m[1]}.${m[2] ?? 0}.0`;
+    const hi = m[2] === undefined ? `${Number(m[1]) + 1}.0.0` : `${m[1]}.${Number(m[2]) + 1}.0`;
+    const below = (x) => cmpSemver(version, x) < 0;
+    if (op === "<") return below(lo);
+    if (op === ">=") return !below(lo);
+    if (op === "<=") return below(hi);
+    if (op === ">") return !below(hi);
+    return !below(lo) && below(hi);
+  }
+  const c = cmpSemver(version, v);
+  return { "<": c < 0, "<=": c <= 0, ">": c > 0, ">=": c >= 0, "=": c === 0 }[op];
+}
+
+/** GitHub's vulnerable_version_range — free text on repository advisories, so
+ *  read strictly. Measured 28/11 across components' 56 dependency repos:
+ *    ">= 1.8.0-beta.0, < 1.8.0-beta.5"   comma = AND (GitHub's own form)
+ *    ">= 2.0.0 < 2.8.3", ">15.0.4 and <15.2.0"   space / "and" = AND
+ *    "1 <=1.28.1 || 2 <=2.0.5"           "||" = OR
+ *    "15.0.0 - 15.4.4"                    hyphen = inclusive range
+ *    "8.4.0-beta.1"                       a bare version = exactly it
+ *  Ambiguous text — a comma next to a hyphen range ("< 14.2.31, 15.0.0 - 15.4.4"
+ *  reads as OR), "16.3.?" — throws: shown as not checked, never guessed. */
+export function inRange(version, range) {
+  const text = String(range).trim();
+  const fail = () => { throw new Error(`unsupported version range: ${range}`); };
+  const V = "v?\\d[0-9A-Za-z.+-]*";
+  return text.split("||").some((alt) => {
+    let a = alt.trim();
+    if (!a) fail();
+    const hyphen = new RegExp(`(${V})\\s+-\\s+(${V})`, "g");
+    if (hyphen.test(a) && a.includes(",")) fail();
+    a = a.replace(hyphen, ">= $1 <= $2").replace(/\band\b/g, " ");
+    const TOKEN = new RegExp(`(<=|>=|<|>|=)?\\s*(${V})`, "g");
+    const parts = [...a.matchAll(TOKEN)].map(([, op, v]) => [op ?? "=", v]);
+    if (!parts.length || a.replace(TOKEN, "").replace(/[\s,]/g, "") !== "") fail();
+    return parts.every(([op, v]) => cmpOk(version, op, v));
+  });
+}
+
+const fixes = (patched) => String(patched ?? "").split(",").map((p) => p.trim().replace(/^v/, ""))
+  .filter((p) => /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(p));
+const majorOf = (v) => Number(v.split(".")[0]);
+
+/** Does the locked version already have the fix of ONE matching entry? Judged on
+ *  that entry's own patched_versions; `others` are the same package's other
+ *  entries in the same advisory. Repository advisories often carry a sloppy
+ *  range while the patched list is right (measured 28/11, components' deps):
+ *    next.js GHSA-9qr9 ">=14.3.0-canary.77, >=15, >=16", fixed "v16.0.7, v15.5.7, …"
+ *    next.js GHSA-gp8f ">=13.5.1", fixed in 13.5.7 (other entry 14.2.10)
+ *    drizzle GHSA-gpj5 "<= 1.0.0-beta.19", fixed "1.0.0-beta.20" — also matches
+ *                      0.45.2, which the other entry names as the 0.45.x fix
+ *  Cleared when:
+ *   (a) a fix on the locked major is ≤ the locked version and NO fix on that
+ *       major is above it ("1.6.11, 1.7.16" does not clear 1.7.7 — the 1.7 fix
+ *       is 1.7.16; better-auth GHSA-fmh4);
+ *   (b) every fix is on an OLDER major (a later line inherits it);
+ *   (c) the entry's fixes are all prereleases of a NEWER major (a beta line)
+ *       and another entry already clears the locked version by (a).
+ *  vite 5.4.21 against fixes 6.4.6 / 7.3.8 stays red: 5.x has none of these. */
+function fixedBy(version, own, others = []) {
+  const pre = version.includes("-");
+  const major = majorOf(version);
+  const lineFix = (list) => {
+    const usable = list.filter((p) => pre || !p.includes("-")).filter((p) => majorOf(p) === major);
+    return usable.some((p) => cmpSemver(version, p) >= 0) && !usable.some((p) => cmpSemver(version, p) < 0);
+  };
+  const ownFixes = fixes(own);
+  if (!ownFixes.length) return false;
+  if (lineFix(ownFixes)) return true;
+  const stable = ownFixes.filter((p) => pre || !p.includes("-"));
+  if (!pre && stable.length && stable.every((p) => majorOf(p) < major)) return true;
+  if (!pre && ownFixes.every((p) => p.includes("-") && majorOf(p) > major)) return others.some((o) => lineFix(fixes(o)));
+  return false;
+}
+/** Exported for tests: the single-entry form of fixedBy. */
+export const patchedOnLine = (version, patched, others = []) => fixedBy(version, patched, others);
+
+/** Repository advisories (GitHub's REST shape) × locked name@version → findings.
+ *  A range we cannot read (a repo wrote "16.3.?", measured 28/11) is pushed to
+ *  `unparsed` for a package we lock — shown as not checked, never as clean, and
+ *  never a reason to stop reading every other repo. */
+export function repoFindings(advisories, locked, unparsed = []) {
+  const versions = new Map();
+  for (const nv of locked) {
+    const at = nv.lastIndexOf("@");
+    if (at <= 0) continue;
+    const name = nv.slice(0, at);
+    versions.set(name, [...(versions.get(name) ?? []), nv.slice(at + 1)]);
+  }
+  const out = [];
+  for (const a of advisories) {
+    if (a.withdrawn_at || (a.state && a.state !== "published")) continue;
+    for (const v of a.vulnerabilities ?? []) {
+      if (v.package?.ecosystem !== "npm" || !v.vulnerable_version_range) continue;
+      for (const ver of versions.get(v.package.name) ?? []) {
+        let hit;
+        try { const others = (a.vulnerabilities ?? []).filter((x) => x !== v && x.package?.name === v.package.name).map((x) => x.patched_versions);
+          hit = inRange(ver, v.vulnerable_version_range) && !fixedBy(ver, v.patched_versions, others); }
+        catch { unparsed.push({ pkg: v.package.name, id: a.ghsa_id, range: v.vulnerable_version_range }); continue; }
+        if (hit) out.push({ pkg: v.package.name, id: a.ghsa_id, severity: a.severity, title: a.summary ?? a.ghsa_id, ...(a.html_url ? { url: a.html_url } : {}) });
+      }
+    }
+  }
+  const seen = new Set();
+  return out.filter((f) => { const k = `${f.pkg} ${f.id}`; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/** Direct dependency names from the repo's package.json files (root + workspaces). */
+export function directDeps(pkgJsons) {
+  const out = new Set();
+  for (const p of pkgJsons)
+    for (const f of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"])
+      for (const [name, spec] of Object.entries(p?.[f] ?? {})) if (!String(spec).startsWith("workspace:")) out.add(name);
+  return out;
+}
+
+/** Audit + OSV + repository findings → the report the alarm reads.
+ *  @param {{auditError?:string, audit?:any[], osvError?:string, osv?:any[], repoError?:string, repo?:any[], ack?:any}} r */
+export function decide({ auditError, audit = [], osvError, osv = [], repoError, repo = [], ack = {} }) {
   const problems = validateAck(ack);
-  const errors = [auditError, osvError, ...problems.map((p) => `ack: ${p}`)].filter(Boolean);
+  const errors = [auditError, osvError, repoError, ...problems.map((p) => `ack: ${p}`)].filter(Boolean);
   const byKey = new Map();
-  for (const [source, list] of [["audit", audit], ["osv", osv]])
+  for (const [source, list] of [["audit", audit], ["osv", osv], ["repo", repo]])
     for (const f of list) {
       const k = `${f.pkg} ${f.id}`;
       const cur = byKey.get(k);
